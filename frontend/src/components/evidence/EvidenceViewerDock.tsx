@@ -1,3 +1,5 @@
+'use client'
+
 import { useState, type CSSProperties } from 'react'
 import { InvoiceDoc } from '../../types/invoice'
 import { DockControls } from './DockControls'

@@ -1,3 +1,5 @@
+'use client'
+
 import { Icon } from '../common/Icon'
 import { StatusBadge } from '../common/StatusBadge'
 import { useInvoices, TODAY } from '../../context/InvoiceContext'

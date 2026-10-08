@@ -1,3 +1,5 @@
+'use client'
+
 import { useState, useEffect } from 'react'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { SettingsProvider } from './context/SettingsContext'
@@ -17,26 +19,34 @@ import { SettingsPage } from './components/governance/SettingsPage'
 import { StdPage } from './components/governance/StdPage'
 import { SimPage } from './components/governance/SimPage'
 
-function PortalShell() {
+export function PortalShell({ initialPage = 'queue' }: { initialPage?: PageKey }) {
   const { currentUser } = useAuth()
   const { isEvidenceDockOpen, closeEvidenceDock } = useInvoices()
-  const [currentPage, setCurrentPage] = useState<PageKey>('queue')
+  const [currentPage, setCurrentPage] = useState<PageKey>(initialPage)
   const [isNavCollapsed, setIsNavCollapsed] = useState<boolean>(() => {
     try {
-      return window.localStorage.getItem('aiva.nav') === 'c'
+      return typeof window !== 'undefined' && window.localStorage.getItem('aiva.nav') === 'c'
     } catch {
       return false
     }
   })
 
-  // Switch default page if ADM (has scope 'none')
+  // Switch default page if ADM (has scope 'none') and no specific initialPage was given
   useEffect(() => {
-    if (currentUser.role === 'ADM') {
+    if (initialPage === 'queue' && currentUser.role === 'ADM') {
       setCurrentPage('rbac')
-    } else {
-      setCurrentPage('queue')
     }
-  }, [currentUser.id, currentUser.role])
+  }, [currentUser.id, currentUser.role, initialPage])
+
+  const handleNavigate = (page: PageKey) => {
+    setCurrentPage(page)
+    try {
+      if (typeof window !== 'undefined') {
+        const targetUrl = page === 'queue' ? '/' : `/${page}`
+        window.history.pushState(null, '', targetUrl)
+      }
+    } catch {}
+  }
 
   const toggleNav = () => {
     setIsNavCollapsed(prev => {
@@ -95,7 +105,7 @@ function PortalShell() {
       <div className="body">
         <Sidebar
           currentPage={currentPage}
-          onNavigate={page => setCurrentPage(page)}
+          onNavigate={handleNavigate}
           onToggleNav={toggleNav}
         />
         <main className="main" id="app">
@@ -108,14 +118,14 @@ function PortalShell() {
   )
 }
 
-export function App() {
+export function App({ initialPage = 'queue' }: { initialPage?: PageKey }) {
   return (
     <AuthProvider>
       <SettingsProvider>
         <ToastModalProvider>
           <InvoiceProvider>
             <SimProvider>
-              <PortalShell />
+              <PortalShell initialPage={initialPage} />
             </SimProvider>
           </InvoiceProvider>
         </ToastModalProvider>

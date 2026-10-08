@@ -1,3 +1,5 @@
+'use client'
+
 import { PERMISSION_DESCRIPTIONS, ROLES, USERS, acctsOf } from '../../mock/users'
 import { COMPANIES, ORG_NAMES } from '../../mock/companies'
 import { Permission } from '../../types/auth'

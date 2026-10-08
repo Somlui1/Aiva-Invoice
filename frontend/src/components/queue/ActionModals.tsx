@@ -1,3 +1,5 @@
+'use client'
+
 import { useState } from 'react'
 import { InvoiceDoc } from '../../types/invoice'
 import { ActionType, ACTION_CONFIG, ACTION_REASONS } from '../../mock/rules'

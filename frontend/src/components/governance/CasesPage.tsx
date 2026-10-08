@@ -1,3 +1,5 @@
+'use client'
+
 import { Fragment } from 'react'
 import { Icon } from '../common/Icon'
 import { StatusBadge } from '../common/StatusBadge'

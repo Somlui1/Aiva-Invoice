@@ -1,3 +1,5 @@
+'use client'
+
 import { Fragment } from 'react'
 import { Icon, IconName } from '../common/Icon'
 import { useAuth } from '../../context/AuthContext'

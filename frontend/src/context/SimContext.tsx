@@ -1,3 +1,5 @@
+'use client'
+
 import React, { createContext, useContext, useState, useCallback } from 'react'
 import { SimRecord, SimTraceStep } from '../types/sim'
 import { PRESETS } from '../mock/presets'

@@ -1,3 +1,5 @@
+'use client'
+
 import { Icon } from '../common/Icon'
 import { useToastModal } from '../../context/ToastModalContext'
 

@@ -1,3 +1,5 @@
+'use client'
+
 import React, { createContext, useContext, useState, useCallback } from 'react'
 import { User, Role, Permission } from '../types/auth'
 import { InvoiceDoc } from '../types/invoice'

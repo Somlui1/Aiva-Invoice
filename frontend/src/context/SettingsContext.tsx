@@ -1,3 +1,5 @@
+'use client'
+
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { PersonalPreferences, OrgSettings, SettingLogEntry } from '../types/settings'
 import { AccountMapping } from '../types/auth'

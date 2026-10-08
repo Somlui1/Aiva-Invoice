@@ -1,3 +1,5 @@
+'use client'
+
 import { Icon, IconName } from '../common/Icon'
 import { useAuth } from '../../context/AuthContext'
 import { useInvoices } from '../../context/InvoiceContext'

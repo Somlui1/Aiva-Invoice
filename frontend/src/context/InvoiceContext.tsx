@@ -1,3 +1,5 @@
+'use client'
+
 import React, { createContext, useContext, useState, useMemo, useCallback } from 'react'
 import { InvoiceDoc, InvoiceStatus } from '../types/invoice'
 import { INITIAL_DOCS } from '../mock/initialDocs'
@@ -6,6 +8,7 @@ import { useAuth } from './AuthContext'
 import { useSettings } from './SettingsContext'
 import { useToastModal } from './ToastModalContext'
 import { ROLES } from '../mock/users'
+import { revalidateInvoice, convertSystemAResultToInvoiceDoc } from '../lib/backendApi'
 
 
 export const TODAY = '2026-10-07'
@@ -63,6 +66,8 @@ interface InvoiceContextType {
   ) => { ok: boolean; msg: string }
   precheckPost: (doc: InvoiceDoc) => { ok: boolean; code?: string; why: string }
   batchPost: (docIds: string[]) => { ok: boolean; count: number; msg: string }
+  revalidateDocWithBackend: (docId: string) => Promise<{ ok: boolean; msg: string }>
+  ingestResultToQueue: (payload: any) => void
 }
 
 const InvoiceContext = createContext<InvoiceContextType | null>(null)
@@ -626,6 +631,45 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
     [can, precheckPost, currentUser.n, logAudit, toast]
   )
 
+  const ingestResultToQueue = useCallback(
+    (payload: any) => {
+      try {
+        const newDoc = convertSystemAResultToInvoiceDoc(payload)
+        setDocs(prev => [newDoc, ...prev.filter(d => d.doc !== newDoc.doc)])
+        setSelectedDocId(newDoc.doc)
+        toast(`นำเข้าเอกสาร ${newDoc.inv} จาก Engine สำเร็จ (${newDoc.status})`)
+      } catch (e: any) {
+        toast(`นำเข้าไม่สำเร็จ: ${e.message}`, true)
+      }
+    },
+    [toast]
+  )
+
+  const revalidateDocWithBackend = useCallback(
+    async (docId: string): Promise<{ ok: boolean; msg: string }> => {
+      const doc = docs.find(d => d.doc === docId)
+      if (!doc) return { ok: false, msg: 'ไม่พบเอกสาร' }
+
+      try {
+        toast('กำลังเชื่อมต่อ System A Engine ตรวจสอบใหม่...')
+        const res = await revalidateInvoice(doc.doc, doc.round || 1)
+        if (res.result) {
+          const updatedDoc = convertSystemAResultToInvoiceDoc(res.result)
+          updatedDoc.round = (doc.round || 1) + 1
+          setDocs(prev => prev.map(d => (d.doc === docId ? { ...updatedDoc, doc: d.doc } : d)))
+          toast(`System A Engine ตรวจสอบใหม่เสร็จสิ้น: ${updatedDoc.status}`)
+          return { ok: true, msg: `Engine ตรวจสอบใหม่เสร็จสิ้น: ${updatedDoc.status}` }
+        }
+        toast('ส่ง Revalidate เข้าคิว Engine แล้ว (Async)')
+        return { ok: true, msg: 'ส่ง Revalidate เข้าคิว Engine แล้ว' }
+      } catch (err: any) {
+        toast(`Revalidate ขัดข้อง: ${err.message}`, true)
+        return { ok: false, msg: err.message }
+      }
+    },
+    [docs, toast]
+  )
+
   return (
     <InvoiceContext.Provider
       value={{
@@ -663,7 +707,9 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
         pendingBind,
         executeAction,
         precheckPost,
-        batchPost
+        batchPost,
+        revalidateDocWithBackend,
+        ingestResultToQueue
       }}
     >
       {children}

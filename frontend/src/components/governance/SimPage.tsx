@@ -1,7 +1,12 @@
+'use client'
+
+import { useState } from 'react'
 import { Icon } from '../common/Icon'
 import { StatusBadge } from '../common/StatusBadge'
 import { useSim } from '../../context/SimContext'
+import { useInvoices } from '../../context/InvoiceContext'
 import { PRESETS } from '../../mock/presets'
+import { ingestValidationResult } from '../../lib/backendApi'
 
 export function SimPage() {
   const {
@@ -20,8 +25,25 @@ export function SimPage() {
   } = useSim()
 
 
+  const { ingestResultToQueue } = useInvoices()
+  const [ingesting, setIngesting] = useState(false)
+
   const handleRun = () => {
     runSimulation()
+  }
+
+  const handleIngestToBackend = async () => {
+    setIngesting(true)
+    try {
+      const obj = JSON.parse(payloadJson)
+      await ingestValidationResult(obj)
+      runSimulation()
+      ingestResultToQueue(obj)
+    } catch (err: any) {
+      alert(`API Ingest Error: ${err.message}`)
+    } finally {
+      setIngesting(false)
+    }
   }
 
   return (
@@ -42,11 +64,20 @@ export function SimPage() {
         </button>
         <button
           type="button"
-          className="btn btn-primary sm"
+          className="btn btn-sec sm"
           onClick={handleRun}
         >
           <Icon name="send" size="sm" />
-          ส่ง Payload เข้าจำลอง
+          จำลองในเครื่อง
+        </button>
+        <button
+          type="button"
+          className="btn btn-primary sm"
+          disabled={ingesting}
+          onClick={handleIngestToBackend}
+        >
+          <Icon name="check" size="sm" />
+          {ingesting ? 'กำลังส่ง API...' : 'ส่งเข้า API & Portal Queue'}
         </button>
       </div>
 

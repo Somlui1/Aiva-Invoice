@@ -1,3 +1,5 @@
+'use client'
+
 import { useState } from 'react'
 import { Icon } from '../common/Icon'
 import { QueueToolbar } from './QueueToolbar'

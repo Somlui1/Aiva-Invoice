@@ -1,3 +1,5 @@
+'use client'
+
 import { InvoiceDoc } from '../../types/invoice'
 import { VENDOR_PROFILES } from '../../mock/vendors'
 import { COMPANIES } from '../../mock/companies'

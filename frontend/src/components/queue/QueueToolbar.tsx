@@ -1,3 +1,5 @@
+'use client'
+
 import { Icon } from '../common/Icon'
 import { FilterChip } from '../common/FilterChip'
 import { useAuth } from '../../context/AuthContext'

@@ -1,3 +1,5 @@
+'use client'
+
 import { InvoiceDoc } from '../../types/invoice'
 import { StatusBadge } from '../common/StatusBadge'
 import { TODAY } from '../../context/InvoiceContext'
