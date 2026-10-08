@@ -1,0 +1,100 @@
+# Standard v6.6 Table 6 tolerances + Decision Log v1.3 §7.1 provisional thresholds
+tolerance:
+  line_math: "0.50"
+  total: "0.50"
+  vat: "1.00"
+  vat_rate: "0.07"
+  price_exact: "0.005"
+  price_pct: "0.01"
+  price_abs: "200"
+oracle:
+  row_cap: 50                        # legacy RCV-V01 / RCV-V02 / PO-LIST
+  row_caps:                          # v4: per query.  TAX-INV returns only this invoice's receipt lines, so
+    TAX-INV: 500                     # the cap is a safety net, not a business limit (ORA-02: max 12 rows)
+    TAX-INV-SUFFIX: 200
+    RCV-BY-NUM: 200
+    INV-BY-PO-VENDOR: 500
+  max_queries_per_round: 7           # TAX-INV, PO-SUPPLIER, TAX-INV/INV-BY-PO-VENDOR, SUFFIX, RCV-BY-NUM x2 (+1)
+  lookup:
+    mode: tax_invoice                # legacy_po_invoice (RCV-V01 -> PO-SUPPLIER -> RCV-V02) | tax_invoice
+    invoice_match_columns: [SHIPMENT_NUM, PACKING_SLIP, WAYBILL_AIRBILL_NUM]
+    # Variants of one invoice number, generated from config (never hardcoded in code) and then filtered
+    # by the SQL whitelist.  Table 12 #3: receipts store the number in different spellings.
+    # v4 (ORA-02): EBS stores the number as printed (IV.26/0144, 69A/18522) -> the exact spelling is
+    # always tried first; spaces are removed on both sides (IM3031 = 'IM 3031').
+    invoice_variants:
+      - {type: strip_char, char: "/"}
+      - {type: strip_char, char: "."}
+      - {type: insert_after_prefix, prefix: "SQ26", insert: "/"}
+    max_invoice_keys: 12             # all spellings of all candidates, sent in ONE TAX-INV query
+    # v4: other invoice numbers printed on the document (doc_no / invoice_ref on tax-invoice,
+    # invoice and delivery pages, and the zoomed crop read).  Oracle finding one of them is the proof.
+    invoice_candidates_from_document: true
+    invoice_candidate_page_types: [tax_invoice, tax_invoice_receipt, invoice, delivery_note]
+    invoice_candidate_labels: [doc_no, invoice_no, invoice_number, invoice_ref, tax_invoice_no]
+    reject_invoice_equal_po: true    # v4.1: an "invoice number" equal to the printed PO is a misread (DMS-77/96)
+    # v4.1: EBS keeps a book prefix the document does not print ("1819/157446" for 157446, "076/3793" for 3793).
+    # Header value ending in "/<printed number>", same supplier, AND receipt total = sub_total -> accepted.
+    invoice_suffix_match: true
+    invoice_suffix_min_digits: 4
+    use_ocr_supplier_tax_id: true    # OCR Tax ID first (checksum must pass), Oracle PO lookup as fallback
+    reject_supplier_tax_equal_customer: true   # v4: OCR supplier Tax ID == customer Tax ID is a misread
+    supplier_from_po_on_miss: true   # v4: OCR Tax ID finds nothing -> supplier = vendor of the printed PO
+                                     # (TAX-INV again, or INV-BY-PO-VENDOR when EBS has no Tax ID: DMS-111)
+    # v4: receipt number written by the receiver on the document (RECEIPT_NUM, per-ORG format, ORA-02 Q2).
+    # Used only when TAX-INV finds nothing; accepted only when supplier AND amount agree.
+    receipt_num_lookup: true
+    receipt_num_patterns:
+      - {prefix: "502", length: 11}   # Org 352 AHD tooling
+      - {prefix: "512", length: 11}   # Org 330 Leadtech
+      - {prefix: "530", length: 9}    # Org 175 AHP
+      - {prefix: "510", length: 9}    # Org 103 APD
+    receipt_num_max_candidates: 2
+    not_found_result: manual_review  # v4: tax mode, nothing found by any key -> V-04 manual_review (E05 = old)
+    po_list_fallback: false          # v4: OFF.  The receipt is found by the invoice, never guessed from PO history
+    po_list_narrowing: true          # only used when po_list_fallback is switched back on
+validation:
+  multi_po_receipts: false           # AIVA-SYSA-ORA-01 — waiting for the Standard owner's approval
+  v09_compare_matched_only: false    # AIVA-SYSA-ORA-01 — waiting for the Standard owner's approval
+  # v4 (ORA-02 Q4): milestone billing.  The invoice prints 1 SET x 42,000 while EBS received 0.7 SET x 60,000;
+  # the amounts are equal.  Not E09/E14, but not proven either -> manual_review until the Standard owner rules.
+  milestone_installment: manual_review   # off = previous behaviour (E09 + E14)
+required_fields: [invoice_num, po_number, customer_name, customer_address, customer_tax_id, sub_total, vat, grand_total]
+required_line_cells: [qty, uom, unit_price, amount]
+confidence:            # OQ-09 provisional — recalibrate from eval set
+  key:     {fields: [invoice_num, po_number, customer_tax_id], min: 0.95, require_agreement: true}
+  money:   {fields: [sub_total, vat, grand_total, qty, unit_price, amount], min: 0.90, require_agreement: true}
+  text:    {fields: [customer_name, customer_address], min: 0.80, require_agreement: false}
+  uom:     {fields: [uom], min: 0.85, require_agreement: false}
+  optional: {fields: [supplier_name, supplier_tax_id, invoice_date, release_num, description, currency, item_code], min: 0.70, require_agreement: false}
+signature:
+  min_confidence: 0.80          # 2026-10-07: 28/98 docs at 0.80 (deliverer) went to MANUAL_REVIEW at 0.85
+ai:
+  v05_name_min_confidence: 0.85
+  v05_address_ai_enabled: true
+  v07_min_confidence: 0.80     # Table 6 part 2: < 0.80 = E13
+  v08_votes: 3
+  v08_consistency_guard: true
+
+# Evidence-based acceptance (domain/evidence.py) — 2026-10-07, from the 98-document Paperless run.
+# A value that failed reader agreement / confidence is still trusted when something independent
+# confirms it.  Every switch defaults to false when absent; set false to get the previous behaviour.
+evidence:
+  collapse_repeated_copies: true      # original+copy pages read twice: k identical blocks, sum = k x sub_total
+  arithmetic: true                    # B: qty*price=amount, sum(amount)=sub_total, sub+vat=grand
+  oracle: true                        # C: invoice/PO/Tax ID found in Oracle; matched line price/qty/amount
+  uom_from_number_cells: true         # "23,100.00 /PC", "2 PCS" -> unit taken from the same cell
+  uom_inherit_from_receipt: true      # no/unknown unit on the invoice -> unit of the matched receipt line
+  derive_qty_from_amount: true        # weight-billed line: amount/unit_price == receipt qty -> qty
+  customer_identity_by_tax_id: true   # D: unconfirmed customer name/address covered by an Oracle Tax ID
+  customer_name_advisory: true        # Tax ID + address match -> name mismatch is audit data, not E07/manual
+  deliverer_from_stamp: true          # deliverer slot undecided + company stamp region on an invoice page
+  e11_waive_when_values_match: true   # 2026-10-07 v2 #1: AI picked among identical lines; all values equal -> no E11
+  invoice_num_from_document_candidate: true  # v4: receipt found by another number printed on the document ->
+                                             # that number becomes invoice_num (old value kept in V-01 data)
+  collapse_duplicate_block: true      # v4 (DMS-26): a block of rows printed twice, sub_total unreadable,
+                                      # removed only when the rest equals the receipt total exactly
+
+# 2026-10-07 v2 #1 — deterministic pairing before the AI (domain/matching.py)
+matching:
+  m1_exact_values_item_code: true     # price+qty+amount+UOM equal, unique after PO / ITEM-code tie-break -> M1

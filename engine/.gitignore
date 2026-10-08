@@ -1,0 +1,63 @@
+# ---------------------------------------------------------------------------
+# Local environment / tooling artifacts — never commit
+# ---------------------------------------------------------------------------
+.env
+.env.local
+.env.*.local
+
+# Python virtualenvs (src/test-portal/.venv alone is ~125 MB)
+.venv/
+venv/
+env/
+ENV/
+
+# Bytecode / caches
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Downloads + perception cache (PDFs, cropped page images ~400 MB)
+.cache/
+cache/
+
+# Node (if any tooling gets added here)
+node_modules/
+
+# Logs / OS junk
+*.log
+logs/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tmp
+
+# ---------------------------------------------------------------------------
+# Generated run output — reproducible with scripts/ + tools/, too big for git
+# ---------------------------------------------------------------------------
+# Batch result JSONs + summary XLSX (default --out-dir of scripts/test_paperless_invoices.py)
+results/
+
+# Scratch scripts, overlays, frame dumps, ad-hoc SQL/JSON probes
+temp/
+temp*.xlsx
+~$*.xlsx
+
+# Heavy per-document payloads inside a run (keep the small JSON/MD deliverables tracked)
+runs/**/raw/
+runs/**/pdfs/
+runs/**/perception/
+runs/**/*.log
+
+# Built HTML report: copies of the real invoices + evidence JSON (rebuild: scripts/build_report.py)
+reports/
+
+# Cached source PDFs anywhere in the tree
+*.pdf

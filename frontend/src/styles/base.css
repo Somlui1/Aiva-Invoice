@@ -1,0 +1,125 @@
+/* Reset & Typography */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  font-family: var(--font);
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--s-900);
+  background: var(--canvas);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+@media (max-height: 639px) {
+  body {
+    overflow: auto;
+  }
+}
+
+.mono, .num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+button, input, select, textarea {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px #2563EB !important;
+  border-radius: var(--r-sm);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--s-300);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--s-400);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+
+.ico {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ico.sm {
+  width: 14px;
+  height: 14px;
+}
+
+.ico.lg {
+  width: 18px;
+  height: 18px;
+}
+
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.muted {
+  color: var(--s-500);
+}
+
+.xs {
+  font-size: 11px;
+}
+
+.sm {
+  font-size: 12px;
+}
+
+.b {
+  font-weight: 600;
+}
+
+.grow {
+  flex: 1;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

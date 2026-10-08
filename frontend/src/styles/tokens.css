@@ -1,0 +1,94 @@
+/* =====================================================================
+   AIVA Portal v4.18 — Design tokens
+   Visual language: v2 (navy / slate / Inter+Sarabun)
+   ===================================================================== */
+:root {
+  /* Brand */
+  --navy-950: #071326;
+  --navy-900: #0B192C;
+  --navy-800: #0D274D;
+  --navy-700: #1E3E62;
+  --navy-600: #295F98;
+  --teal: #00B5AF;
+  --teal-d: #00857F;
+  --teal-50: #EEF8F8;
+
+  /* Neutral (slate) */
+  --s-0: #FFFFFF;
+  --s-25: #FBFCFD;
+  --s-50: #F8FAFC;
+  --s-100: #F1F5F9;
+  --s-150: #EAEFF4;
+  --s-200: #E2E8F0;
+  --s-300: #CBD5E1;
+  --s-400: #94A3B8;
+  --s-500: #64748B;
+  --s-600: #475569;
+  --s-700: #334155;
+  --s-800: #1E293B;
+  --s-900: #0F172A;
+
+  /* Semantic (fg / bg / border) */
+  --ok: #047857;
+  --ok-bg: #ECFDF5;
+  --ok-bd: #A7F3D0;
+  --warn: #B45309;
+  --warn-bg: #FFFBEB;
+  --warn-bd: #FDE68A;
+  --err: #B91C1C;
+  --err-bg: #FEF2F2;
+  --err-bd: #FECACA;
+  --info: #1D4ED8;
+  --info-bg: #EFF6FF;
+  --info-bd: #BFDBFE;
+  --vio: #6D28D9;
+  --vio-bg: #F5F3FF;
+  --vio-bd: #DDD6FE;
+  --org: #C2410C;
+  --org-bg: #FFF7ED;
+  --org-bd: #FED7AA;
+
+  /* Type */
+  --font: 'Inter', 'Sarabun', 'Leelawadee UI', 'Noto Sans Thai', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+
+  /* Spacing 4-pt grid */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+
+  /* Radius / elevation */
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --e-1: 0 1px 2px rgba(15, 23, 42, .06);
+  --e-2: 0 4px 12px rgba(15, 23, 42, .08);
+  --e-3: 0 20px 48px rgba(15, 23, 42, .22);
+
+  /* Layout */
+  --hdr-h: 50px;
+  --nav-w: 224px;
+  --nav-w-c: 60px;
+  --q-w: 360px;
+  --ctl-h: 30px;
+  --ctl-h-sm: 26px;
+  --focus: 0 0 0 2px #fff, 0 0 0 4px #2563EB;
+
+  /* Modern Structured UI (v4.11 tokens) */
+  --line: #D5DCE5;
+  --line-strong: #B8C3D1;
+  --line-soft: #E7EBF0;
+  --canvas: #EEF1F5;
+  --surface: #FFFFFF;
+  --sunken: #F6F8FA;
+  --head: #F3F5F8;
+  --hi: inset 0 1px 0 rgba(255, 255, 255, .18);
+
+  /* Animation */
+  --mo: 350ms;
+  --me: cubic-bezier(.2, 0, 0, 1);
+}
