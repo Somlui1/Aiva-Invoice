@@ -785,3 +785,31 @@ kbd {
 .reqN {
   color: var(--s-400);
 }
+
+/* ================= Spinner ================= */
+/* Shared loading indicator: the PDF toggle in the detail pane and the loading
+   mat inside the evidence dock. `currentColor` keeps it legible on a light
+   button and on the dark PDF mat alike; size comes from the font or `.lg`. */
+.spin {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  opacity: .75;
+  animation: spin .7s linear infinite;
+}
+
+.spin.lg {
+  width: 32px;
+  height: 32px;
+  border-width: 3px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

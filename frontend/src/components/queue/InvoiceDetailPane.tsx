@@ -23,6 +23,7 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
     isEvidenceDockOpen,
     openEvidenceDock,
     closeEvidenceDock,
+    isPdfLoading,
     allowedAction,
     hasHighSeverity,
     isEuPending,
@@ -145,11 +146,26 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
                   if (isEvidenceDockOpen) closeEvidenceDock()
                   else openEvidenceDock(1)
                 }}
-                disabled={!can('DMS')}
-                title={isEvidenceDockOpen ? 'ปิด PDF (P / Esc)' : 'เปิดเอกสาร PDF (P)'}
+                disabled={!can('DMS') || isPdfLoading}
+                title={
+                  isPdfLoading
+                    ? 'กำลังรับเอกสารจาก DMS…'
+                    : isEvidenceDockOpen
+                      ? 'ปิด PDF (P / Esc)'
+                      : 'เปิดเอกสาร PDF (P)'
+                }
               >
-                <Icon name={isEvidenceDockOpen ? 'x' : 'file'} size="sm" />
-                {isEvidenceDockOpen ? 'ปิด PDF' : 'เปิดเอกสาร PDF'} <kbd>P</kbd>
+                {isPdfLoading ? (
+                  <>
+                    <span className="spin" aria-hidden="true" />
+                    กำลังโหลด PDF…
+                  </>
+                ) : (
+                  <>
+                    <Icon name={isEvidenceDockOpen ? 'x' : 'file'} size="sm" />
+                    {isEvidenceDockOpen ? 'ปิด PDF' : 'เปิดเอกสาร PDF'} <kbd>P</kbd>
+                  </>
+                )}
               </button>
             </div>
           </div>
