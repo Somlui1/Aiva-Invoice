@@ -417,4 +417,11 @@ def test_po_corroboration_from_line_items():
     assert fields["po_number"].null_reason is None
 
 
+def test_priority_crop_order_allocates_budget():
+    order = vp.field_crop_priority(["customer_address", "po_number", "customer_name", "invoice_num"])
+    assert order.index("invoice_num") < order.index("customer_address")
+    assert order.index("po_number") < order.index("customer_address")
+
+
+
 

@@ -82,6 +82,22 @@ LABEL_TO_FIELD = {
 CRITICAL_FIELDS = ("invoice_num", "po_number", "customer_name", "customer_address", "customer_tax_id",
                    "sub_total", "vat", "grand_total", "supplier_tax_id", "invoice_date", "supplier_name")
 
+PRIORITY_CROP_ORDER = (
+    "invoice_num", "po_number", "supplier_tax_id", "sub_total", "grand_total", "vat",
+    "invoice_date", "customer_tax_id", "supplier_name", "customer_name", "customer_address"
+)
+
+
+def field_crop_priority(names) -> list:
+    """Sort field names so core identifiers and amounts get evaluated for crop budget first."""
+    def key(n):
+        try:
+            return PRIORITY_CROP_ORDER.index(n)
+        except ValueError:
+            return 999
+    return sorted(names, key=key)
+
+
 #: the printed shape each field must have.  A reader whose value does not have it does not vote (DMS-25: a crop of
 #: the wrong box read the postal code "13160" as the customer Tax ID and out-voted the correct VLM value).
 _SHAPES = {"customer_tax_id": re.compile(r"^\d{13}$"), "supplier_tax_id": re.compile(r"^\d{13}$"),
@@ -490,7 +506,8 @@ class VisionPipeline:
                 if name:
                     candidates[name].append((p, it))
 
-        for name, options in candidates.items():
+        for name in field_crop_priority(candidates.keys()):
+            options = candidates[name]
             page, it = pick_candidate(name, options, first_invoice)
             page_words = ctx.layers.get(page, {}).get("words", [])
             inside = words_in_box(page_words, it["bbox"])
