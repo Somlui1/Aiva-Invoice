@@ -760,3 +760,117 @@
 .evd.no-ev .hl {
   display: none;
 }
+
+/* ================= PDF.js Surface & Interactive BBox Overlay (Task 7) ================= */
+
+/* The dock body doubles as the viewer frame (`.evd`): dark mat, centred page. */
+.dock-body.evd {
+  height: auto;
+}
+
+.evd-mock {
+  display: flex;
+  justify-content: center;
+}
+
+/* Rendered PDF page: the sheet itself, sized in CSS px by the viewer hook. */
+.evd-pdf-page {
+  display: none;
+  width: auto;
+  height: auto;
+  background: #fff !important;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, .4) !important;
+}
+
+.evd-pdf-page.on {
+  display: block;
+}
+
+.evd-pdf-canvas {
+  display: block;
+}
+
+/* Loading / fallback strip above the simulated page, so a missing PDF is a
+   visible state and never an empty panel. */
+.evd-pdf-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.evd-pdf-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, .72);
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.evd-pdf-note.bad {
+  background: rgba(180, 83, 9, .85);
+}
+
+/* Overlay layer: transparent, but the boxes themselves take pointer events. */
+.evd-overlay {
+  pointer-events: none;
+  z-index: 6;
+}
+
+.evd-overlay .hl {
+  pointer-events: auto;
+  cursor: pointer;
+  transition: box-shadow .12s ease-out, background .12s ease-out;
+}
+
+.evd-overlay .hl:hover,
+.evd-overlay .hl.hover {
+  background: rgba(245, 158, 11, .22);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, .8);
+}
+
+.evd-overlay .hl.High:hover,
+.evd-overlay .hl.High.hover {
+  background: rgba(220, 38, 38, .18);
+}
+
+.evd-overlay .hl:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 1px;
+}
+
+/* Source badge + overlay toggles in the dock toolbar. */
+.dock-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--s-100);
+  color: var(--s-600);
+  white-space: nowrap;
+}
+
+.dock-source.live {
+  background: #ECFDF5;
+  color: #047857;
+}
+
+.dock-source.mock {
+  background: #FEF3C7;
+  color: #92400E;
+}
+
+.btn.on {
+  border-color: #F59E0B;
+  background: #FFFBEB;
+  color: #92400E;
+  font-weight: 700;
+}

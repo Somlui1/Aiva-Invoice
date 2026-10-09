@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { InvoiceDoc } from '../../types/invoice'
 import { VENDOR_PROFILES } from '../../mock/vendors'
 import { COMPANIES } from '../../mock/companies'
@@ -8,6 +9,13 @@ interface EvidenceCanvasProps {
   doc: InvoiceDoc
   pageNumber: number
   scale?: number
+  /**
+   * Receives the page element so the dock can measure the `data-k` / `data-line`
+   * regions into normalised bboxes (`useMeasuredRegions`).
+   */
+  onPageElement?: (el: HTMLDivElement | null) => void
+  /** Evidence boxes, positioned in this page's coordinate frame. */
+  overlay?: ReactNode
 }
 
 function seedR(s: string) {
@@ -46,7 +54,7 @@ function renderSignatureSvg(seed: string, color = '#1e3a8a') {
   )
 }
 
-export function EvidenceCanvas({ doc, pageNumber }: EvidenceCanvasProps) {
+export function EvidenceCanvas({ doc, pageNumber, onPageElement, overlay }: EvidenceCanvasProps) {
   const vendor = VENDOR_PROFILES[doc.stax] || {
     th: doc.vendor,
     ad: '—',
@@ -61,7 +69,7 @@ export function EvidenceCanvas({ doc, pageNumber }: EvidenceCanvasProps) {
   const kind = isOriginal ? 'inv' : pageNumber === 2 ? 'copy' : 'terms'
 
   return (
-    <div className="evd-page">
+    <div className="evd-page" ref={onPageElement}>
       <div className="ivp-paper">
         {/* Header */}
         <div className="iv-head">
@@ -159,7 +167,7 @@ export function EvidenceCanvas({ doc, pageNumber }: EvidenceCanvasProps) {
           </thead>
           <tbody>
             {(doc.lines || []).map((l, i) => (
-              <tr key={i}>
+              <tr key={i} data-line={l.no ?? i + 1}>
                 <td className="c">{i + 1}</td>
                 <td>{l.desc}</td>
                 <td className="n">{l.qty}</td>
@@ -197,13 +205,13 @@ export function EvidenceCanvas({ doc, pageNumber }: EvidenceCanvasProps) {
 
         {/* Signatures */}
         <div className="iv-sigs" data-k="signatures" style={{ marginTop: 16 }}>
-          <div className="iv-sig">
+          <div className="iv-sig" data-k="sig_sup">
             <div className="ln">
               {doc.sig?.[0] ? renderSignatureSvg(doc.inv + '-sup') : null}
             </div>
             <div>ผู้ส่งของ / ผู้มีอำนาจลงนาม</div>
           </div>
-          <div className="iv-sig">
+          <div className="iv-sig" data-k="sig_rcv">
             <div className="ln">
               {doc.sig?.[1] ? renderSignatureSvg(doc.inv + '-rcv') : null}
             </div>
@@ -224,6 +232,7 @@ export function EvidenceCanvas({ doc, pageNumber }: EvidenceCanvasProps) {
           </span>
         </div>
       </div>
+      {overlay}
     </div>
   )
 }

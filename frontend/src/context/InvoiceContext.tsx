@@ -1,7 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useState, useMemo, useCallback } from 'react'
-import { InvoiceDoc, InvoiceStatus } from '../types/invoice'
+import { InvoiceDoc, InvoiceStatus, EvidenceSelection } from '../types/invoice'
 import { INITIAL_DOCS } from '../mock/initialDocs'
 import { EU_CODES, ACTION_CONFIG, ActionType } from '../mock/rules'
 import { useAuth } from './AuthContext'
@@ -52,6 +52,12 @@ interface InvoiceContextType {
   openEvidenceDock: (page?: number, ruleId?: string) => void
   closeEvidenceDock: () => void
   evidenceDockFocus: { page: number; ruleId?: string } | null
+  /**
+   * Last box the analyst picked on the evidence surface — the reverse link of
+   * `evidenceDockFocus`. The detail pane highlights the matching rule/row.
+   */
+  evidenceSelection: EvidenceSelection | null
+  setEvidenceSelection: (selection: EvidenceSelection | null) => void
   allowedAction: (doc: InvoiceDoc, act: ActionType) => { ok: boolean; why?: string; perm?: string }
   hasHighSeverity: (doc: InvoiceDoc) => boolean
   isEuPending: (doc: InvoiceDoc) => boolean
@@ -129,6 +135,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
   const [activeDetailTab, setActiveDetailTab] = useState<string>('sum')
   const [isEvidenceDockOpen, setIsEvidenceDockOpen] = useState<boolean>(false)
   const [evidenceDockFocus, setEvidenceDockFocus] = useState<{ page: number; ruleId?: string } | null>(null)
+  const [evidenceSelection, setEvidenceSelection] = useState<EvidenceSelection | null>(null)
 
   const openEvidenceDock = useCallback((page = 1, ruleId?: string) => {
     setIsEvidenceDockOpen(true)
@@ -138,6 +145,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
   const closeEvidenceDock = useCallback(() => {
     setIsEvidenceDockOpen(false)
     setEvidenceDockFocus(null)
+    setEvidenceSelection(null)
   }, [])
 
   const toggleCompanyFilter = useCallback((co: string) => {
@@ -701,6 +709,8 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
         openEvidenceDock,
         closeEvidenceDock,
         evidenceDockFocus,
+        evidenceSelection,
+        setEvidenceSelection,
         allowedAction,
         hasHighSeverity,
         isEuPending,

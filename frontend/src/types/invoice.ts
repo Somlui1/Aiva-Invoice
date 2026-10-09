@@ -112,3 +112,17 @@ export interface InvoiceDoc {
   raw_payload?: Record<string, unknown>
 }
 
+
+/**
+ * One evidence box picked on the evidence surface, in either direction:
+ * detail pane → PDF (focus a rule) or PDF/mock → detail pane (focus a row).
+ */
+export interface EvidenceSelection {
+  ruleId?: string
+  /** Table row of the picked box, for line-level linking. */
+  lineNo?: number
+  /** Tag text drawn on the box, reused as the detail-pane chip. */
+  label?: string | null
+  /** Which surface produced it: `pdf` or `mock`. */
+  surface?: 'pdf' | 'mock'
+}

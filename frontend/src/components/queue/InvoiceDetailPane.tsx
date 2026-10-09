@@ -1,8 +1,9 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
 import { Icon } from '../common/Icon'
 import { StatusBadge } from '../common/StatusBadge'
-import { InvoiceDoc } from '../../types/invoice'
+import { InvoiceDoc, EvidenceSelection } from '../../types/invoice'
 import { useAuth } from '../../context/AuthContext'
 import { useInvoices, TODAY } from '../../context/InvoiceContext'
 import { useToastModal } from '../../context/ToastModalContext'
@@ -25,9 +26,26 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
     allowedAction,
     hasHighSeverity,
     isEuPending,
+    evidenceSelection,
     revalidateDocWithBackend
   } = useInvoices()
   const { toast } = useToastModal()
+
+  // A box picked on the evidence surface is mirrored here: the rule card or line
+  // row it belongs to is marked and scrolled into view (bi-directional link).
+  const detailRef = useRef<HTMLElement | null>(null)
+  const appliedRef = useRef<EvidenceSelection | null>(null)
+  useEffect(() => {
+    if (!evidenceSelection || appliedRef.current === evidenceSelection) return
+    appliedRef.current = evidenceSelection
+    if (evidenceSelection.lineNo != null && activeDetailTab !== 'lines') setActiveDetailTab('lines')
+    const frame = requestAnimationFrame(() => {
+      detailRef.current
+        ?.querySelector('[data-sel="1"]')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [evidenceSelection, activeDetailTab, setActiveDetailTab])
 
 
   const check = scopeCheck(doc)
@@ -90,7 +108,7 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
   const passRules = doc.rules.filter(r => r.status === 'PASS' || r.result === 'pass')
 
   return (
-    <section className="col detail" id="detail" aria-label="รายละเอียดเอกสาร">
+    <section className="col detail" id="detail" aria-label="รายละเอียดเอกสาร" ref={detailRef}>
       <div className="scroll" id="dbody">
         {/* Document Header */}
         <div className="dh">
@@ -303,8 +321,15 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
                   const isEuAction = cat[1] === 'eu'
                   const sev = r.severity || 'High'
 
+                  const picked = evidenceSelection?.ruleId === r.rule
+
                   return (
-                    <div key={r.id || r.rule} className={`exc ${sev}`}>
+                    <div
+                      key={r.id || r.rule}
+                      data-rule={r.rule}
+                      data-sel={picked ? '1' : undefined}
+                      className={`exc ${sev}${picked ? ' sel' : ''}`}
+                    >
                       <div className="exc-h">
                         <span className={`code ${sev}`}>{c}</span>
                         <h4>{cat[0]}</h4>
@@ -382,8 +407,14 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
                     {(doc.lines || []).map((l, i) => {
                       const nq = l.po_line == null
                       const bad = !nq && (l.po_qty !== l.qty || l.po_price !== l.price)
+                      const picked = evidenceSelection?.lineNo === i + 1
                       return (
-                        <tr key={i} className={bad ? 'row-bad' : ''}>
+                        <tr
+                          key={i}
+                          data-line={i + 1}
+                          data-sel={picked ? '1' : undefined}
+                          className={`${bad ? 'row-bad' : ''}${picked ? ' row-sel' : ''}`}
+                        >
                           <td>{i + 1}</td>
                           <td>{l.desc}</td>
                           <td className="num">{l.qty}</td>

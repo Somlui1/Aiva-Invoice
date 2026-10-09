@@ -2,6 +2,7 @@
 
 import { Icon } from '../common/Icon'
 import { useAuth } from '../../context/AuthContext'
+import type { PdfProxySource } from '../../features/pdf-viewer/types'
 
 interface DockControlsProps {
   currentPage: number
@@ -11,6 +12,23 @@ interface DockControlsProps {
   onZoomChange: (z: number) => void
   onRotate: () => void
   onClose: () => void
+  /** Which surface is showing, so the analyst knows what they are looking at. */
+  mode?: 'pdf' | 'mock'
+  /** Where the bytes came from, from `X-PDF-Source`. */
+  source?: PdfProxySource
+  showEvidence?: boolean
+  onToggleEvidence?: () => void
+  showAllFields?: boolean
+  onToggleAllFields?: () => void
+  /** Evidence boxes currently drawn on the page. */
+  boxCount?: number
+}
+
+/** Human label for the proxy source, shown next to the document title. */
+const SOURCE_LABEL: Record<PdfProxySource, string> = {
+  dms_live: 'DMS (สด)',
+  cache: 'คลังเอกสาร',
+  fallback_mock: 'เอกสารจำลอง',
 }
 
 export function DockControls({
@@ -20,7 +38,14 @@ export function DockControls({
   onPageChange,
   onZoomChange,
   onRotate,
-  onClose
+  onClose,
+  mode = 'pdf',
+  source,
+  showEvidence = true,
+  onToggleEvidence,
+  showAllFields = false,
+  onToggleAllFields,
+  boxCount = 0
 }: DockControlsProps) {
   const { currentUser } = useAuth()
 
@@ -94,6 +119,36 @@ export function DockControls({
         title="หมุนหน้าเอกสาร"
       >
         <Icon name="rotate" size="sm" />
+      </button>
+
+      <span className="vsep" />
+
+      {/* What is on screen, and where it came from */}
+      <span className={`dock-source ${mode === 'pdf' ? 'live' : 'mock'}`} title="แหล่งที่มาของเอกสารที่แสดงอยู่">
+        <Icon name={mode === 'pdf' ? 'file' : 'flask'} size="sm" />
+        {source ? SOURCE_LABEL[source] : mode === 'pdf' ? 'PDF' : 'เอกสารจำลอง'}
+      </span>
+
+      {/* Evidence overlay toggles */}
+      <button
+        type="button"
+        className={`btn btn-ghost sm ${showEvidence ? 'on' : ''}`}
+        onClick={onToggleEvidence}
+        title="แสดง/ซ่อนกรอบหลักฐาน"
+        aria-pressed={showEvidence}
+      >
+        <Icon name="target" size="sm" />
+        หลักฐาน {showEvidence ? boxCount : 0}
+      </button>
+      <button
+        type="button"
+        className={`btn btn-ghost sm ${showAllFields ? 'on' : ''}`}
+        onClick={onToggleAllFields}
+        title="แสดงทุกลิงก์ข้อมูลที่ OCR อ่านได้ (ไม่ใช่เฉพาะที่มีข้อยกเว้น)"
+        aria-pressed={showAllFields}
+      >
+        <Icon name="layers" size="sm" />
+        ทุกลิงก์ข้อมูล
       </button>
 
       <span className="grow" />
