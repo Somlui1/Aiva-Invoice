@@ -24,13 +24,37 @@ import time
 from concurrent.futures import ThreadPoolExecutor, wait
 from typing import Optional
 
-from .store import ResultStore
+from .store import SUMMARY_COUNTS, ResultStore
 from .view import build_view
 
 log = logging.getLogger("webapp.service")
 
 #: one worker is a serial run; a few dozen is already more than a local OCR + VLM pipeline can take at once
 MAX_CONCURRENCY = 32
+
+#: the verdict hierarchy: which answer needed the least human work.  Comparing two rounds means comparing these.
+VERDICT_RANKS = {"AUTO_PASS": 5, "REVIEW": 4, "MANUAL_REVIEW": 3, "HOLD": 2, "SYSTEM_ERROR": 1, "FAILED": 1}
+
+
+def verdict_rank(value) -> int:
+    """The standing of a verdict; a value the engine never produced (or no verdict at all) ranks last."""
+    return VERDICT_RANKS.get(str(value or "").strip().upper(), 0)
+
+
+def compare_verdicts(base, target) -> str:
+    """``improved`` / ``regressed`` / ``unchanged`` for one document between two rounds."""
+    a, b = verdict_rank(base), verdict_rank(target)
+    if b > a:
+        return "improved"
+    if b < a:
+        return "regressed"
+    return "unchanged"
+
+
+def _rule_changes(base: dict, target: dict) -> list:
+    """The rules that moved: ``[{"rule_id": "V-08", "base": "fail", "target": "pass"}]``, in rule order."""
+    return [{"rule_id": rid, "base": base.get(rid), "target": target.get(rid)}
+            for rid in sorted(set(base) | set(target)) if base.get(rid) != target.get(rid)]
 
 
 class Busy(RuntimeError):
@@ -415,6 +439,77 @@ class DocumentService:
             done = sum(1 for s in self._st.values() if s["state"] == "done")
             log.info("looking at round %r: %s documents, %s with a result", round_name, len(self._st), done)
             return {"active": store.active_round, "documents": len(self._st), "done": done, "created": created}
+
+    def _round_facts(self, round_name: str) -> dict:
+        """``doc_id -> what that round decided``, read from the round's own ``summary.json``.
+
+        The summary is the cheap way in: answering a comparison by reading 125 ``DMS-*_result.json`` files would
+        parse hundreds of megabytes to draw a table of verdicts.  A round that never wrote one - a round made by
+        the batch script, or by an older portal - gets it built now, which is the same fold a run does at its end.
+        """
+        store = self._rounds()
+        try:
+            summary = store.load_summary(round_name)
+        except Exception:                                              # pragma: no cover - damaged summary.json
+            log.exception("cannot read summary.json of round %r", round_name)
+            summary = None
+        if summary is None and store.has_results(round_name):
+            summary = store.build_and_save_summary(self.mode, round_name=round_name,
+                                                   titles={d.id: d.title for d in self.catalog.docs})
+        facts: dict = {}
+        for c in (summary or {}).get("cases", []):
+            doc_id = c.get("doc_id")
+            if not isinstance(doc_id, int):
+                continue
+            facts[doc_id] = {"recommendation": c.get("recommendation"), "title": c.get("title"),
+                             "max_severity": c.get("max_severity"), "invoice_num": c.get("invoice_num"),
+                             "grand_total": c.get("grand_total"), "currency": c.get("currency"),
+                             "elapsed_s": c.get("elapsed_s"),
+                             "rules": {r.get("rule_id"): r.get("result")
+                                       for r in (c.get("rule_results") or [])
+                                       if isinstance(r, dict) and r.get("rule_id")}}
+        return facts
+
+    def compare_rounds(self, base_round: str, target_round: str) -> dict:
+        """What moved between two rounds, document by document and in total.
+
+        A document only in the target is ``added`` and one only in the base is ``removed``: both are reported
+        rather than quietly dropped, because a document that vanished from a run is exactly what a tester is
+        looking for.
+        """
+        base, target = self._round_facts(base_round), self._round_facts(target_round)
+        tally = {v: {"base": 0, "target": 0} for v in SUMMARY_COUNTS}
+        deltas = {"improved": 0, "regressed": 0, "unchanged": 0, "added": 0, "removed": 0}
+        cases: list = []
+        for doc_id in sorted(set(base) | set(target)):
+            a, b = base.get(doc_id), target.get(doc_id)
+            if a is None or b is None:
+                delta = "added" if a is None else "removed"
+            else:
+                delta = compare_verdicts(a["recommendation"], b["recommendation"])
+            deltas[delta] += 1
+            for side, fact in (("base", a), ("target", b)):
+                rec = (fact or {}).get("recommendation")
+                if rec in tally:
+                    tally[rec][side] += 1
+            cases.append({"doc_id": doc_id, "delta": delta, "title": (b or a).get("title"),
+                          "base_recommendation": (a or {}).get("recommendation"),
+                          "target_recommendation": (b or {}).get("recommendation"),
+                          "base_severity": (a or {}).get("max_severity"),
+                          "target_severity": (b or {}).get("max_severity"),
+                          "invoice_num": (b or a).get("invoice_num"),
+                          "base_seconds": (a or {}).get("elapsed_s"),
+                          "target_seconds": (b or {}).get("elapsed_s"),
+                          "rule_changes": _rule_changes((a or {}).get("rules") or {},
+                                                        (b or {}).get("rules") or {})})
+        aggregate = {v: {"base": n["base"], "target": n["target"], "diff": n["target"] - n["base"]}
+                     for v, n in tally.items()}
+        aggregate.update((f"{k}_count", n) for k, n in deltas.items())
+        aggregate.update(documents=len(cases), base_round=base_round, target_round=target_round)
+        log.info("compare %r -> %r: %s improved, %s regressed, %s unchanged, %s added, %s removed",
+                 base_round, target_round, deltas["improved"], deltas["regressed"], deltas["unchanged"],
+                 deltas["added"], deltas["removed"])
+        return {"base": base_round, "target": target_round, "aggregate": aggregate, "cases": cases}
 
     def _summary_cases(self, build_if_missing: bool = False) -> dict:
         """``doc_id -> its summary case`` for the active round, or ``{}`` when it has no summary to offer."""

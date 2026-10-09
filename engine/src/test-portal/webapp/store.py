@@ -203,6 +203,11 @@ class RoundStore:
     def ids(self) -> list:
         return sorted(doc_id for doc_id, _ in self.iter_results())
 
+    def has_results(self, round_name: Optional[str] = None) -> bool:
+        """Does this round hold at least one result - answered without reading any of them."""
+        d = self.dir_of(round_name) if round_name else self.round_dir
+        return next(iter(sorted(d.glob(f"{RESULT_PREFIX}*{RESULT_SUFFIX}"))), None) is not None
+
     # ------------------------------------------------------------------ the ResultStore contract
     def save(self, doc_id: int, part: str, data) -> None:
         if part not in PARTS:
