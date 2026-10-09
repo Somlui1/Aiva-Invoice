@@ -40,87 +40,110 @@ export function Sidebar({ currentPage, onNavigate, onToggleNav }: SidebarProps) 
   const apCount = visibleDocs.filter(d => d.status === 'Confirmed').length
   const unboundCount = 0 // IT admin unbound indicator
 
+  const isAdm = currentUser.role === 'ADM'
+
   const sections: Array<{
     title: string
     isSpecial?: boolean
     items: NavItemConfig[]
-  }> = [
-    {
-      title: 'งานหลัก',
-      items: [
+  }> = isAdm
+    ? [
         {
-          key: 'queue',
-          label: currentUser.role === 'EU' ? 'งานของฉัน' : 'คิวตรวจสอบ',
-          icon: 'inbox',
-          isAllowed: currentUser.role !== 'ADM',
-          count: qn
+          title: 'การกำกับดูแล',
+          items: [
+            {
+              key: 'rbac',
+              label: 'สิทธิ์และการเชื่อมบัญชี',
+              icon: 'shield',
+              isAllowed: true
+            },
+            {
+              key: 'audit',
+              label: 'บันทึกการเข้าถึง',
+              icon: 'log',
+              isAllowed: can('AUDIT')
+            },
+            {
+              key: 'settings',
+              label: 'ตั้งค่า',
+              icon: 'sliders',
+              isAllowed: true,
+              count: unboundCount ? unboundCount : undefined
+            }
+          ]
         },
         {
-          key: 'ap',
-          label: 'ส่งเข้า AP Interface',
-          icon: 'send',
-          isAllowed: can('VIEW_AP'),
-          count: can('VIEW_AP') ? apCount : undefined
+          title: 'เครื่องมือทดสอบและพัฒนา',
+          isSpecial: true,
+          items: [
+            {
+              key: 'cases',
+              label: 'ชุดเอกสารทดสอบ',
+              icon: 'layers',
+              isAllowed: true,
+              count: docs.length
+            },
+            {
+              key: 'std',
+              label: 'มาตรฐาน Payload',
+              icon: 'code',
+              isAllowed: true,
+              tag: 'API'
+            },
+            {
+              key: 'sim',
+              label: 'Document Simulation',
+              icon: 'flask',
+              isAllowed: true,
+              tag: 'SIM'
+            }
+          ]
         }
       ]
-    },
-    {
-      title: 'การกำกับดูแล',
-      items: [
+    : [
         {
-          key: 'rbac',
-          label: 'สิทธิ์และการเชื่อมบัญชี',
-          icon: 'shield',
-          isAllowed: true
+          title: 'งานหลัก',
+          items: [
+            {
+              key: 'queue',
+              label: currentUser.role === 'EU' ? 'งานของฉัน' : 'คิวตรวจสอบ',
+              icon: 'inbox',
+              isAllowed: true,
+              count: qn
+            },
+            {
+              key: 'ap',
+              label: 'ส่งเข้า AP Interface',
+              icon: 'send',
+              isAllowed: can('VIEW_AP'),
+              count: can('VIEW_AP') ? apCount : undefined
+            }
+          ]
         },
         {
-          key: 'cases',
-          label: 'ชุดเอกสารทดสอบ',
-          icon: 'layers',
-          isAllowed: true,
-          count: docs.length
-        },
-        {
-          key: 'audit',
-          label: 'บันทึกการเข้าถึง',
-          icon: 'log',
-          isAllowed: can('AUDIT')
-        },
-        {
-          key: 'settings',
-          label: 'ตั้งค่า',
-          icon: 'sliders',
-          isAllowed: true,
-          count: currentUser.role === 'ADM' && unboundCount ? unboundCount : undefined
+          title: 'การกำกับดูแล',
+          items: [
+            {
+              key: 'rbac',
+              label: 'สิทธิ์และการเชื่อมบัญชี',
+              icon: 'shield',
+              isAllowed: true
+            },
+            {
+              key: 'audit',
+              label: 'บันทึกการเข้าถึง',
+              icon: 'log',
+              isAllowed: can('AUDIT')
+            },
+            {
+              key: 'settings',
+              label: 'ตั้งค่า',
+              icon: 'sliders',
+              isAllowed: true
+            }
+          ]
         }
       ]
-    },
-    {
-      title: 'สำหรับนักพัฒนา',
-      items: [
-        {
-          key: 'std',
-          label: 'มาตรฐาน Payload',
-          icon: 'code',
-          isAllowed: true,
-          tag: 'API'
-        }
-      ]
-    },
-    {
-      title: 'เครื่องมือพิเศษ',
-      isSpecial: true,
-      items: [
-        {
-          key: 'sim',
-          label: 'Document Simulation',
-          icon: 'flask',
-          isAllowed: true,
-          tag: 'SIM'
-        }
-      ]
-    }
-  ]
 
   const handleClick = (item: NavItemConfig) => {
     if (!item.isAllowed) {
