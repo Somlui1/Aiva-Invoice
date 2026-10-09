@@ -52,6 +52,7 @@ def split_number(raw: str) -> tuple[Decimal, Optional[str]]:
     a space or a bracket, unlike a strip-everything parser (``"1 (2PCS)"`` would become 12).
     """
     s = _CURRENCY.sub("", thai_to_arabic(str(raw))).strip()
+    s = re.sub(r"(?<=\d)\s*(?:\.-|-)(?=\s|$|/)", "", s).strip()
     m = _ACCOUNTING_NEG.match(s)
     if m:
         return -_dec(m.group(1)), None

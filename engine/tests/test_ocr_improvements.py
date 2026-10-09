@@ -451,3 +451,16 @@ def test_date_iso_supports_english_and_thai_month_names():
     assert date_iso("15 October 2026") == "2026-10-15"
     assert date_iso("1 ม.ค. 2569") == "2026-01-01"
     assert date_iso("31 ส.ค. 69") == "2026-08-31"
+
+
+def test_split_number_supports_thai_dash_currency():
+    from decimal import Decimal
+    from system_a.domain.normalize import split_number
+    num, unit = split_number("3,000.-")
+    assert num == Decimal("3000.00")
+    num2, _ = split_number("15,500-")
+    assert num2 == Decimal("15500.00")
+    num3, u3 = split_number("300.- /PCS")
+    assert num3 == Decimal("300.00")
+    assert u3 == "PCS"
+
