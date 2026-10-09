@@ -62,11 +62,53 @@ details pre{font-size:11px;margin:3px 0;max-height:280px;overflow:auto;border:1p
 #pin .ttl{font-size:12px;color:#444;border-bottom:1px solid #ddd;padding-bottom:3px;margin-bottom:4px}
 #pin .big{font-size:15px;margin:3px 0}
 .case{font-size:11px;color:#0a6}
+/* ---- รอบการทดสอบ (results/<round>/) และการรันเป็นชุด ---- */
+#round_sel{font-size:12px;max-width:190px}
+#concurrency{width:38px;font-size:12px}
+#batch_bar{display:none;background:#e8f0fe;border-bottom:1px solid #b9c7e6;padding:3px 10px;font-size:12px;position:relative}
+#batch_bar.on{display:block}
+#batch_fill{height:5px;background:#1a73e8;width:0;transition:width .35s}
+#batch_txt{display:block;margin-top:2px}
+.b{font-size:10px;padding:0 3px;border-radius:3px;margin-right:3px}
+.b.bdone{background:#e2f0e3;color:#1b5e20} .b.berr{background:#fdecea;color:#b71c1c}
+.b.bproc{background:#e8f0fe;color:#0d47a1} .b.bskip{background:#eee;color:#777}
+.ck{display:inline-block;width:10px;height:10px;border:1px solid #888;margin-right:5px;background:#fff;
+vertical-align:middle;cursor:pointer}
+.ck.on{background:#1a73e8;border-color:#1a73e8}
+/* ---- modal: summary ของรอบ และตารางเทียบสองรอบ ---- */
+.modal{display:none;position:fixed;left:0;top:0;right:0;bottom:0;z-index:60;background:#0008;align-items:flex-start;
+justify-content:center;padding:3vh 12px;overflow:auto}
+.modal.on{display:flex}
+.mbox{background:#fff;border:2px solid #333;width:100%;max-width:min(96vw,880px);max-height:94vh;display:flex;
+flex-direction:column;box-shadow:0 6px 26px #0007}
+.mbox.wide{max-width:min(98vw,1240px)}
+.mhd{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:6px 10px;background:#f2f2f2;
+border-bottom:1px solid #bbb}
+.mhd b{font-size:14px} .mbody{overflow:auto;padding:8px 10px 16px} .mx{margin-left:auto}
+.vbar{display:grid;grid-template-columns:132px 1fr 44px;gap:6px;align-items:center;margin:2px  0;font-size:12px}
+.vbar .vb{display:block;height:14px;background:#f2f2f2;border:1px solid #ddd}
+.vbar .vb-in{display:block;height:100%;min-width:2px}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;vertical-align:middle;border:1px solid #0002}
+.v-AUTO_PASS{background:#2e7d32} .v-REVIEW{background:#ef6c00} .v-MANUAL_REVIEW{background:#c62828}
+.v-HOLD{background:#6a1b9a} .v-SYSTEM_ERROR,.v-FAILED{background:#37474f} .v-NONE{background:#bbb}
+.crd{display:inline-block;border:1px solid #bbb;margin:0 6px 6px 0;padding:4px 10px;text-align:center;min-width:74px}
+.crd b{display:block;font-size:16px} .up{color:#1b5e20} .down{color:#b71c1c} .flat{color:#777}
+table.diff{table-layout:fixed} .diff td:nth-child(1){width:64px} .diff td:nth-child(2),.diff td:nth-child(3){width:26%}
+td.d-up{background:#e7f6e7} td.d-down{background:#fdecea} td.d-added{background:#eef3fb} td.d-removed{background:#f6f1ea}
+td.d-flat{color:#777} tr[data-open]{cursor:pointer} tr[data-open]:hover td{background:#fff8d5}
 </style>
 <div id=top>
  <b>AIVA System A</b>
+ <label>รอบ <select id=round_sel title="ผลของแต่ละรอบอยู่คนละโฟลเดอร์ใน engine/results — เลือกเพื่ออ่าน/เขียนรอบนั้น"></select>
+ <button id=btn_new_round title="สร้างโฟลเดอร์รอบใหม่ แล้วเปิดรอบนั้นทันที">+ รอบใหม่</button></label>
  <span id=stat></span>
  <button id=run class=run>Process</button>
+ <input id=concurrency type=number min=1 max=64 value=10 title="จำนวนเอกสารที่รันพร้อมกันในชุดนี้" size=3>
+ <label title="ข้ามเอกสารที่รอบนี้มีผลอยู่แล้ว ไม่ได้ลบของเดิม"><input type=checkbox id=skip_existing checked> ข้ามที่มีผลแล้ว</label>
+ <button id=btn_batch class=run title="ประมวลเอกสารที่ติ๊กไว้ (ไม่ติ๊ก = ทั้งหมดที่เห็นในรายการ)">Run Batch</button>
+ <button id=btn_stop title="หยุดรับงานที่ยังไม่เริ่ม — งานที่กำลังรันอยู่ปล่อยให้เสร็จ">หยุด</button>
+ <button id=btn_summary title="summary.json ของรอบนี้">Summary</button>
+ <button id=btn_compare title="เทียบผลสองรอบว่าอะไรดีขึ้น/แย่ลง">Compare</button>
  <input id=q placeholder="ค้น id / ชื่อ / ข้อความในผล" size=18>
  <label>ชนิดกรอบ <select id=ft><option value="">ทั้งหมด</option></select></label>
  <label><input type=checkbox id=ov checked> <b>แสดง bbox</b></label>
@@ -76,6 +118,20 @@ details pre{font-size:11px;margin:3px 0;max-height:280px;overflow:auto;border:1p
  <span id=strip></span>
  <span id=src></span>
 </div>
+<div id=batch_bar><div id=batch_fill></div><span id=batch_txt></span></div>
 <div id=wrap><div id=side></div><div id=main></div><div id=panel></div></div>
 <div id=tip></div><div id=pin></div>
+<div id=modal_summary class=modal><div class=mbox>
+ <div class=mhd><b id=sm_title>Summary ของรอบ</b><span id=sm_note class=st></span>
+  <button id=sm_rebuild title="รวม summary.json จากไฟล์ผลใหม่ ทั้งรอบ">รวมใหม่</button>
+  <button id=sm_dl title="เปิดไฟล์ summary.json ที่รอบนี้เก็บไว้">ไฟล์</button>
+  <button class=mx>ปิด</button></div>
+ <div class=mbody id=sm_body></div>
+</div></div>
+<div id=modal_compare class=modal><div class="mbox wide">
+ <div class=mhd><b>เทียบสองรอบ</b>
+  <label>Base <select id=cmp_base></select></label> <label>Target <select id=cmp_target></select></label>
+  <button id=cmp_run>เทียบ</button> <span id=cmp_note class=st></span> <button class=mx>ปิด</button></div>
+ <div class=mbody id=cmp_body></div>
+</div></div>
 <script src="/static/app.js"></script>

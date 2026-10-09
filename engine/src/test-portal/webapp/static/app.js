@@ -17,6 +17,11 @@ const POLL = {};                // id -> timer ที่กำลังรอผ
 const RC = { pass: 'ok', fail: 'error', manual_review: 'partial', not_evaluated: 'idle' };
 const num = x => x == null ? '' : String(x);
 let SHOW = new Set();           // ชนิดกรอบที่เปิดแสดงอยู่ (จำไว้ใน browser)
+let ROUNDS = { rounds: [], active: '', err: '' };   // รอบใน engine/results - server เป็นคนบอกเสมอ
+let SEL = new Set();            // doc id ที่ติ๊กไว้กับมือ (ว่าง = รันทุกฉบับที่เห็นในรายการ)
+let BT = null, BTIMER = null;   // สถานะ batch ล่าสุดที่ server ตอบ / timer ที่ถามความคืบหน้า
+let SUMM = null, SUMV = '';     // summary ที่เปิดดูอยู่ / ชื่อรอบตอนที่อ่านมัน
+let CMPD = null, CMPF = 'changed';   // ผลเทียบสองรอบล่าสุด / ชิ้นกรองที่เลือกอยู่
 
 // --------------------------------------------------------------------------- ชนิดกรอบที่เปิดแสดง
 function initTypes() {
@@ -49,7 +54,7 @@ function saveCase(id, view) {
     const old = keys.map(k => ({ k, t: (CASES[k] || {}).saved_at || 0 })).sort((a, b) => a.t - b.t)[0];
     if (!old) break; delete CASES[old.k]; keys.splice(keys.indexOf(old.k), 1);
   }
-  CASES[id] = { view: view, saved_at: Date.now() };
+  CASES[id] = { view: view, saved_at: Date.now(), round: ROUNDS.active };
   writeCases();
 }
 function dropCase(id) { delete CASES[id]; writeCases() }
@@ -69,6 +74,18 @@ const api = {
   result: id => api.j('/api/documents/' + id + '/result'),
   forget: id => api.j('/api/documents/' + id + '/result', { method: 'DELETE' }),
   search: q => api.j('/api/search?q=' + encodeURIComponent(q)),
+  post: (url, body) => api.j(url, { method: 'POST', headers: { 'content-type': 'application/json' },
+                                    body: JSON.stringify(body || {}) }),
+  rounds: () => api.j('/api/rounds'),
+  roundCreate: name => api.post('/api/rounds/create', { name: name }),
+  roundSelect: name => api.post('/api/rounds/select', { name: name }),
+  summary: () => api.j('/api/rounds/summary'),
+  summaryRebuild: () => api.post('/api/rounds/summary/rebuild'),
+  compare: (b, t) => api.j('/api/rounds/compare?base=' + encodeURIComponent(b) + '&target=' + encodeURIComponent(t)),
+  batchStart: (ids, skip, conc) => api.post('/api/batch/start',
+    { doc_ids: ids, skip_existing: skip, concurrency: conc }),
+  batchStop: () => api.post('/api/batch/stop'),
+  batchStatus: () => api.j('/api/batch/status'),
   img: (id, p) => '/api/documents/' + id + '/pages/' + p + '/image',
   pdf: id => '/api/documents/' + id + '/pdf'
 };
@@ -96,9 +113,14 @@ function applyServer(m) {                        // 1 แถวของ /api/do
 }
 function useCase(id, c) {                        // case ที่ browser เก็บไว้ (server restart แล้ว)
   const r = stOf(id);
-  if (!c || !c.view) return;
+  if (!c || !c.view || c.round !== ROUNDS.active) return;   // case ของรอบอื่น ห้ามเอามาแสดงในรอบนี้
   r.view = c.view; r.from = 'browser'; r.types = c.view.types || [];
   r.cls = c.view.cls; r.rec = c.view.rec; r.boxes = (c.view.counts || {}).boxes || 0;
+}
+function adoptDocs(rows) {                       // รายการจาก server = สถานะจริงของเอกสารแต่ละฉบับในรอบนี้
+  DOCS = rows;
+  for (const m of DOCS) applyServer(m);
+  hydrate();
 }
 function hydrate() {
   for (const m of DOCS) {
@@ -120,22 +142,25 @@ const refFirst = (v, refs) => (refs || []).find(r => elOf(v, r)) || null;
 
 // --------------------------------------------------------------------------- แถบสถานะ
 function updStat() {
-  let done = 0, run = 0, box = 0, cached = 0; const c = {};
+  let done = 0, srv = 0, run = 0, box = 0, cached = 0; const c = {};
   for (const m of DOCS) {
     const r = stOf(m.id);
     if (isBusy(r)) run++;
     if (hasView(r)) { done++; c[r.cls] = (c[r.cls] || 0) + 1; box += r.boxes || 0; if (r.from === 'browser') cached++ }
+    else if (r.state === 'done') { srv++; c[r.cls] = (c[r.cls] || 0) + 1 }   // ผลอยู่ในรอบนี้ server อ่านแล้ว
   }
   $('stat').innerHTML = `${DOCS.length} ฉบับ · ${DOCS.reduce((a, d) => a + (d.pages_total || 0), 0)} หน้า`
-    + ` · ประมวลแล้ว ${done}${cached ? ` <span class=case>(ใน browser ${cached})</span>` : ''}`
+    + ` · ประมวลแล้ว ${done + srv}${cached ? ` <span class=case>(ใน browser ${cached})</span>` : ''}`
     + `${run ? ` · <span class=partial>กำลังประมวล ${run}</span>` : ''} · ${box} กรอบจาก payload`
     + ` · <span class=ok>ok ${c.ok || 0}</span> <span class=partial>partial ${c.partial || 0}</span>`
     + ` <span class=error>error ${c.error || 0}</span>`;
   const S = META.source || {};
-  $('src').innerHTML = `Paperless <b>${esc(String(S.base_url || '').replace(/^https?:\/\//, ''))}</b>`
+  $('src').innerHTML = `รอบ <b>${esc(ROUNDS.active || '-')}</b>`
+    + ` · Paperless <b>${esc(String(S.base_url || '').replace(/^https?:\/\//, ''))}</b>`
     + ` · tag <b>${esc(S.tag || '')}</b> · DMS มี ${S.dms_total ?? '?'} ฉบับ · แสดง ${S.documents} ฉบับ`
     + ` · engine <b>${esc(META.engine)}</b>/${esc(META.mode)}`
     + ` · <b>${META.persist ? 'ผลเก็บที่ server' : 'ผลเก็บใน browser เท่านั้น'}</b>`
+    + `${ROUNDS.err ? ` · <span class=error>ไม่มีรอบให้เลือก: ${esc(ROUNDS.err)}</span>` : ''}`
     + `${S.error ? ` · <span class=error>${esc(S.error)}</span>` : ''}`;
 }
 
@@ -375,8 +400,10 @@ function paintPanel(m) {
 }
 const rowHtml = (m, i) => {
   const r = stOf(m.id), cls = rcls(r), step = isBusy(r) && r.step ? `<span class=step>${esc(r.step)}</span>` : '';
-  return `<div class="row${i === cur ? ' cur' : ''}" data-id="${m.id}" data-cur="${i}"><span class="${cls}">[${esc(r.rec || cls)}]</span> #${m.id}`
-    + ` <span class=d>${esc(m.title || '')}</span> <span class=idle>${m.pages_total || "?"}n</span>${step}</div>`;
+  const ck = `<span class="ck${SEL.has(m.id) ? ' on' : ''}" data-ck="${m.id}" title="ติ๊กเพื่อเลือกฉบับนี้ในชุดถัดไป"></span>`;
+  const bm = r.b ? `<span class="b ${r.b}">${r.b === 'bproc' ? 'รันอยู่' : r.b === 'berr' ? 'error' : 'เสร็จ'}</span>` : '';
+  return `<div class="row${i === cur ? ' cur' : ''}" data-id="${m.id}" data-cur="${i}">${ck}<span class="${cls}">[${esc(r.rec || cls)}]</span> #${m.id}`
+    + ` <span class=d>${esc(m.title || '')}</span> <span class=idle>${m.pages_total || "?"}n</span>${bm}${step}</div>`;
 };
 
 // --------------------------------------------------------------------------- วาดรายการ + เอกสารที่เปิดอยู่
@@ -552,6 +579,14 @@ document.addEventListener('mousemove', e => { const a = anchor(e.target); if (a 
 document.addEventListener('mouseout', e => { if (anchor(e.target)) hideTip() });
 document.addEventListener('click', e => {
   const t = e.target, cf = t.closest && t.closest('[data-cmp]');
+  const mx = t.closest && t.closest('.mx'), back = t.classList && t.classList.contains('modal');
+  if (mx || back) { closeModalAll(); return }                                  // ปิด modal ที่เปิดอยู่
+  const cf2 = t.closest && t.closest('[data-cmpf]');
+  if (cf2) { CMPF = cf2.dataset.cmpf; cmpPaint(); return }                     // ชิ้นกรองของตารางเทียบ
+  const open = t.closest && t.closest('[data-open]');
+  if (open) { closeModalAll(); openDoc(+open.dataset.open); return }           // แถวของ modal -> เปิดเอกสารนั้น
+  const ck = t.closest && t.closest('[data-ck]');
+  if (ck) { const cid = +ck.dataset.ck; if (SEL.has(cid)) SEL.delete(cid); else SEL.add(cid); apply(); return }
   if (cf) { CMP = cf.dataset.cmp === 'need' ? 'need' : 'all'; writeCmp(); apply(); return }   //มุมมองของตารางเทียบ
   const chip = t.closest && t.closest('label.tg');
   if (chip) {
@@ -622,7 +657,8 @@ document.addEventListener('keydown', e => {
   } else if (e.key === 'PageDown' || e.key === 'PageUp') {
     e.preventDefault(); $('main').scrollBy({ top: (e.key === 'PageDown' ? 1 : -1) * $('main').clientHeight * 0.82 });
   } else if (e.key === 'f') { $('ov').checked = !$('ov').checked; apply() }
-  else if (e.key === 'Escape') { if (pinned) setMark(pinned.id, pinned.page, false); pinned = null; hideTip(); renderPin() }
+  else if (e.key === 'Escape') { if (document.querySelector('.modal.on')) { closeModalAll(); return }
+    if (pinned) setMark(pinned.id, pinned.page, false); pinned = null; hideTip(); renderPin() }
 });
 
 // --------------------------------------------------------------------------- คำค้น: คำนี้อยู่ในกรอบ/บรรทัดไหน
@@ -645,7 +681,7 @@ $('q').addEventListener('input', () => {
 });
 $('rf').onclick = async () => {
   $('rf').disabled = true; $('rf').textContent = 'กำลังโหลด…';
-  try { DOCS = await api.documents(); hydrate(); cur = 0; qIds = null; $('q').value = ''; apply(); }
+  try { adoptDocs(await api.documents()); cur = 0; qIds = null; $('q').value = ''; apply(); }
   catch (e) { $('main').innerHTML = `<div class=err>โหลดรายการจาก Paperless ไม่ได้: ${esc(e.message)}</div>` }
   finally { $('rf').disabled = false; $('rf').textContent = 'รีเฟรชรายการ' }
 };
@@ -657,16 +693,234 @@ $('clr').onclick = () => {                      // case ที่เก็บใ
 };
 addEventListener('resize', () => { if (pinned) renderPin() });
 
+// --------------------------------------------------------------------------- รอบ (engine/results/<round>/)
+function roundOpts(names) {
+  return (names || []).map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+}
+function fillRounds() {
+  const names = ROUNDS.rounds || [], a = ROUNDS.active || '';
+  const keepB = $('cmp_base').value, keepT = $('cmp_target').value;   // อย่าเลือกแทนสิ่งที่ผู้ทดสอบเลือกไว้
+  $('round_sel').innerHTML = (names.includes(a) ? '' : `<option value="${esc(a)}">${esc(a)} (ยังไม่มีไฟล์)</option>`)
+    + roundOpts(names);
+  $('round_sel').value = a;
+  const o = roundOpts(names) || '<option value="">(ยังไม่มีรอบใน results)</option>';
+  $('cmp_base').innerHTML = o; $('cmp_target').innerHTML = o;
+  $('cmp_base').value = names.includes(keepB) ? keepB : (names[0] || '');
+  $('cmp_target').value = names.includes(keepT) ? keepT
+    : (names.includes(a) ? a : (names[names.length - 1] || ''));
+  const off = !!ROUNDS.err;                       // WEBAPP_PERSIST=0: ไม่มีโฟลเดอร์รอบให้เลือก
+  $('round_sel').disabled = $('btn_new_round').disabled = $('btn_summary').disabled = $('btn_compare').disabled = off;
+}
+async function loadRounds() {
+  try { ROUNDS = await api.rounds(); ROUNDS.err = ''; } catch (e) { ROUNDS = { rounds: [], active: '', err: e.message } }
+  fillRounds();
+}
+function resetForRound() {          // ผลที่จำไว้ทั้งหมดเป็นของคนละรอบ - ของรอบใหม่ต้องอ่านจาก server ใหม่
+  for (const k of Object.keys(RES)) {
+    Object.assign(stOf(+k), { state: 'idle', run: 0, step: null, cls: null, rec: null, error: null, tb: null,
+      seconds: null, boxes: 0, view: null, from: null, probed: false, b: '' });
+  }
+  SUMM = null; CMPD = null; SEL.clear(); cur = 0;
+  last = `เปิดรอบ ${ROUNDS.active}`; note = '';
+}
+async function switchRound(name) {
+  if (BT && BT.running) return alert('batch กำลังรันอยู่ — กดหยุดก่อนสลับรอบ');
+  try { if (name && name !== ROUNDS.active) await api.roundSelect(name); }
+  catch (e) { alert(`เปิดรอบ ${name} ไม่ได้: ${e.message}`); return loadRounds() }
+  ROUNDS.active = name;
+  resetForRound();
+  await loadRounds();
+  try { adoptDocs(await api.documents()); } catch (e) { note = 'อ่านรายการไม่ได้อย่างที่ควร'; }
+  apply(); syncRun();
+}
+$('round_sel').onchange = () => switchRound($('round_sel').value);
+$('btn_new_round').onclick = async () => {
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  const guess = 'run_' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '_'
+    + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
+  const name = prompt(`ตั้งชื่อรอบใหม่ (ตัวอักษร/ตัวเลข/_/- เท่านั้น — ว่างคือ ${guess})`, guess);
+  if (name === null) return;
+  try { const r = await api.roundCreate((name || '').trim() || guess); await switchRound(r.round); }
+  catch (e) { alert('สร้างรอบใหม่ไม่ได้: ' + e.message); loadRounds() }
+};
+
+// --------------------------------------------------------------------------- รันเป็นชุด (batch)
+function batchIds() {
+  const picked = list.filter(m => SEL.has(m.id)).map(m => m.id);
+  return picked.length ? picked : list.map(m => m.id);
+}
+async function startBatch() {
+  const ids = batchIds();
+  if (!ids.length) return alert('ไม่มีเอกสารจะรัน — ล้างคำค้นหรือเลือกเอกสารก่อน');
+  $('btn_batch').disabled = true;
+  try {
+    const r = await api.batchStart(ids, $('skip_existing').checked, +$('concurrency').value || 0);
+    last = r.status === 'nothing-to-run' ? 'รอบนี้มีผลครบแล้ว ไม่มีอะไรต้องรัน'
+      : `เริ่ม ${r.total} ฉบับ · ข้าม ${r.skipped || 0}` + (r.unknown ? ` · ไม่รู้จัก ${r.unknown}` : '');
+    await batchPoll();
+  } catch (e) { $('btn_batch').disabled = false; alert('รันชุดนี้ไม่ได้: ' + e.message) }
+}
+async function batchPoll() {
+  clearTimeout(BTIMER);
+  try {
+    const st = await api.batchStatus();
+    applyBatch(st);
+    if (st.running) { BTIMER = setTimeout(batchPoll, 1200); return }        // จบแล้วค่อยอ่านรายการรอบนี้อีกครั้ง
+    $('btn_batch').disabled = false;
+    try { adoptDocs(await api.documents()); } catch (e) { }
+    apply();
+  } catch (e) { $('btn_batch').disabled = false; applyBatch(); note = `ถามสถานะ batch ไม่ได้: ${e.message}` }
+}
+function applyBatch(st) {
+  if (st) BT = st;
+  const b = BT || {}, on = !!b.running;
+  $('batch_bar').classList[on ? 'add' : 'remove']('on');
+  $('batch_fill').style.width = (b.percent || 0) + '%';
+  $('batch_txt').innerHTML = on ? `รอบ <b>${esc(b.round || '')}</b> · ${b.processed}/${b.total} (${b.percent}%)`
+    + ` · เสร็จ <span class=ok>${b.completed}</span> · <span class=error>error ${b.errors}</span>`
+    + ` · ยกเลิก ${b.cancelled} · ข้าม ${b.skipped} · พร้อมกัน ${b.concurrency} ฉบับ`
+    + `${b.current ? ` · กำลังรัน #${b.current}` : ''}${b.stopped ? ' · <b>หยุดตามคำขอ</b>' : ''}` : '';
+  for (const m of DOCS) { const r = stOf(m.id); r.b = on && +b.current === +m.id ? 'bproc' : ''; }
+  $('btn_stop').disabled = !on;
+}
+$('btn_batch').onclick = startBatch;
+$('btn_stop').onclick = () => api.batchStop().then(applyBatch).catch(e => alert('หยุดไม่ได้: ' + e.message));
+async function resumeBatch() {      // เปิด browser ใหม่ระหว่างที่ batch ยังรันอยู่ - server ยังรู้เสมอว่ารันอยู่
+  try { const st = await api.batchStatus(); applyBatch(st);
+    if (st.running) { $('btn_batch').disabled = true; batchPoll() } } catch (e) { }
+}
+
+// --------------------------------------------------------------------------- modal
+function openModal(id) { closeModalAll(); $(id).classList.add('on') }
+function closeModalAll() { $('modal_summary').classList.remove('on'); $('modal_compare').classList.remove('on') }
+function openDoc(id) {                                  // แถวใน modal → ไปดูเอกสารนั้นใน portal
+  let i = list.findIndex(x => +x.id === +id);
+  if (i < 0 && DOCS.some(x => +x.id === +id)) { $('q').value = ''; qIds = null; apply();
+    i = list.findIndex(x => +x.id === +id) }
+  if (i < 0) return alert(`ไม่พบเอกสาร #${id} ในรายการของ DMS ตอนนี้`);
+  cur = i; pinned = null; apply(); $('main').scrollTo(0, 0);
+}
+const pctOf = (n, total) => total ? (n / total * 100) : 0;
+const vbar = (name, n, total) => `<div class=vbar><span>${esc(name)}</span>`
+  + `<span class=vb><span class="vb-in v-${esc(name)}" style="width:${pctOf(n, total)}%"></span></span><b>${n || 0}</b></div>`;
+const dot = v => `<span class="dot v-${esc(v || 'NONE')}"></span>`;
+
+// --------------------------------------------------------------------------- summary ของรอบที่เปิดอยู่
+function summaryHtml(s) {
+  const md = s.metadata || {}, st = s.statistics || {}, c = st.counts || {}, rules = st.rules || {}, cs = s.cases || [];
+  const total = +md.total_documents || cs.length || 0;
+  const bars = Object.keys(c).map(k => vbar(k, c[k], total)).join('') || '<div class=ph>รอบนี้ยังไม่มีตัวเลข</div>';
+  const rl = Object.keys(rules).map(k => {
+    const r = rules[k] || {};
+    return `<tr><td>${esc(k)}</td><td class=ok>${r.pass || 0}</td><td class=error>${r.fail || 0}</td>`
+      + `<td class=partial>${r.manual_review || 0}</td><td class=idle>${r.not_evaluated || 0}</td></tr>`;
+  }).join('');
+  const rows = cs.map(x => `<tr data-open="${x.doc_id}"><td>${x.doc_id}</td>`
+    + `<td>${dot(x.recommendation)} ${esc(x.recommendation || '—')}</td>`
+    + `<td>${esc(x.invoice_num || '')}</td><td>${esc(x.po_number || '')}</td><td>${esc(x.max_severity || '')}</td>`
+    + `<td>${esc(x.grand_total || '')} ${esc(x.currency || '')}</td>`
+    + `<td>${x.elapsed_s == null ? '' : x.elapsed_s + 's'}</td>`
+    + `<td>${(x.rule_results || []).filter(z => z.result !== 'pass')
+      .map(z => `${esc(z.rule_id)}:${esc(z.result)}`).join(' ') || '—'}</td>`
+    + `<td>${esc(x.error || '')}</td></tr>`).join('');
+  return `<div class=st>รอบ <b>${esc(SUMV)}</b> · ${esc(md.title || '')} · ${esc(md.mode || '')}`
+    + ` · ${esc(md.executed_at || '')} · ${total} ฉบับ · ${md.total_elapsed_s || 0}s · ${esc(md.output_directory || '')}</div>`
+    + `<h4 class=sec>Recommendation ทั้งรอบ</h4>${bars}`
+    + `<h4 class=sec>กฎแต่ละข้อ (rule_id · นับจากเอกสารทั้งรอบ)</h4><table><tr><th>rule_id</th><th>pass</th>`
+    + `<th>fail</th><th>manual_review</th><th>not_evaluated</th></tr>${rl || '<tr><td colspan=5>ไม่มี</td></tr>'}</table>`
+    + `<h4 class=sec>เอกสาร ${cs.length} ฉบับ — คลิกแถวเพื่อดูใน portal</h4><table><tr><th>doc_id</th><th>recommendation</th>`
+    + `<th>invoice</th><th>PO</th><th>severity</th><th>ยอดรวม</th><th>เวลา</th><th>กฎที่ไม่ pass</th><th>error</th></tr>`
+    + `${rows || '<tr><td colspan=9>ยังไม่มี</td></tr>'}</table>`;
+}
+async function showSummary(rebuild) {
+  openModal('modal_summary');
+  $('sm_body').innerHTML = '<div class=ph>กำลังอ่าน summary.json ของรอบนี้…</div>';
+  $('sm_note').textContent = '';
+  try {
+    SUMM = rebuild ? await api.summaryRebuild() : await api.summary();
+    SUMV = ROUNDS.active;
+    $('sm_title').textContent = 'Summary ของรอบ ' + SUMV;
+    $('sm_body').innerHTML = summaryHtml(SUMM);
+  } catch (e) {
+    SUMM = null;
+    $('sm_body').innerHTML = `<div class=err>${esc(e.message)}</div>`
+      + `<div class=ph>รอบที่ยังไม่ได้รันอะไรเลยย่อมไม่มี summary — กด “รวมใหม่” หลังรันเสร็จได้เสมอ</div>`;
+  }
+}
+$('btn_summary').onclick = () => showSummary(false);
+$('sm_rebuild').onclick = () => showSummary(true);
+$('sm_dl').onclick = () => {                                 // ไฟล์เดียวกับที่ server เขียน ให้เก็บได้
+  if (!SUMM) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(SUMM, null, 2)], { type: 'application/json' }));
+  a.download = (SUMV || 'round') + '_summary.json'; a.click();
+};
+
+// --------------------------------------------------------------------------- เทียบสองรอบ
+const D_LAB = { improved: ['d-up', 'ดีขึ้น'], regressed: ['d-down', 'แย่ลง'], unchanged: ['d-flat', 'เท่าเดิม'],
+  added: ['d-added', 'เพิ่มมา'], removed: ['d-removed', 'หายไป'] };
+function cmpShown(cs) {
+  return cs.filter(x => CMPF === 'all' ? true : CMPF === 'changed' ? x.delta !== 'unchanged'
+    : CMPF === 'up' ? x.delta === 'improved' || x.delta === 'added'
+    : x.delta === 'regressed' || x.delta === 'removed');
+}
+function compareHtml(d) {
+  const a = d.aggregate || {}, cs = d.cases || [];
+  const chips = [['changed', 'เฉพาะที่เปลี่ยน'], ['all', 'ทั้งหมด'], ['up', '🟢 ดีขึ้น'], ['down', '🔴 แย่ลง']];
+  const card = (lab, n, cls) => `<div class="crd ${cls || ''}"><b>${n || 0}</b>${lab}</div>`;
+  const vs = Object.keys(a).filter(k => a[k] && typeof a[k] === 'object').map(k => {
+    const n = a[k];
+    return `<tr><td>${dot(k)} ${esc(k)}</td><td>${n.base}</td><td>${n.target}</td>`
+      + `<td class="${n.diff > 0 ? 'up' : n.diff < 0 ? 'down' : 'flat'}">${n.diff > 0 ? '+' + n.diff : n.diff}</td></tr>`;
+  }).join('');
+  const rows = cmpShown(cs).map(x => {
+    const L = D_LAB[x.delta] || ['', esc(x.delta || '')];
+    const rc = (x.rule_changes || []).map(z => `${esc(z.rule_id)}:${esc(z.base || '—')}→${esc(z.target || '—')}`).join(' ');
+    return `<tr data-open="${x.doc_id}"><td>${x.doc_id}</td>`
+      + `<td>${dot(x.base_recommendation)} ${esc(x.base_recommendation || '—')}`
+      + ` <span class=idle>${esc(x.base_severity || '')}</span></td>`
+      + `<td class="${L[0]}">${dot(x.target_recommendation)} ${esc(x.target_recommendation || '—')}`
+      + ` <span class=idle>${esc(x.target_severity || '')}</span></td>`
+      + `<td>${esc(x.invoice_num || '')}</td><td>${esc(x.title || '')}</td>`
+      + `<td class="${L[0]}">${L[1]}</td><td>${rc || '—'}</td></tr>`;
+  }).join('');
+  return `<div class=st>Base <b>${esc(d.base)}</b> → Target <b>${esc(d.target)}</b>`
+    + ` · เอกสารที่เทียบได้ ${a.documents || 0} ฉบับ</div>`
+    + `<div style="margin:6px 0">${card('ดีขึ้น', a.improved_count, 'up')}${card('แย่ลง', a.regressed_count, 'down')}`
+    + ` ${card('เท่าเดิม', a.unchanged_count, 'flat')}${card('เพิ่มมา', a.added_count)}${card('หายไป', a.removed_count)}</div>`
+    + `<div style="margin:6px 0">${chips.map(x => `<span class="chip${CMPF === x[0] ? ' on' : ''}" data-cmpf="${x[0]}">${x[1]}</span>`).join(' ')}</div>`
+    + `<h4 class=sec>จำนวนแต่ละ recommendation เทียบกัน</h4><table><tr><th>recommendation</th><th>base</th>`
+    + `<th>target</th><th>ผลต่าง</th></tr>${vs || '<tr><td colspan=4>ไม่มี</td></tr>'}</table>`
+    + `<h4 class=sec>ทีละเอกสาร — คลิกแถวเพื่อดูใน portal</h4><table class=diff><tr><th>doc</th><th>base</th><th>target</th>`
+    + `<th>invoice</th><th>ชื่อไฟล์</th><th>เปลี่ยนเป็น</th><th>กฎที่ขยับ</th></tr>`
+    + `${rows || '<tr><td colspan=7>ไม่มีแถวที่ตรงกับชิ้นกรองนี้</td></tr>'}</table>`;
+}
+function cmpPaint() { $('cmp_body').innerHTML = compareHtml(CMPD || { aggregate: {}, cases: [] }) }
+async function runCompare() {
+  const b = $('cmp_base').value, t = $('cmp_target').value;
+  CMPD = null;
+  if (!b || !t) { $('cmp_body').innerHTML = '<div class=err>เลือกทั้งสองรอบก่อน (ใน results ยังไม่มีรอบไหนมีผล?)</div>'; return }
+  $('cmp_note').textContent = 'กำลังเทียบ…';
+  try { CMPD = await api.compare(b, t); $('cmp_note').textContent = ''; cmpPaint() }
+  catch (e) { $('cmp_note').textContent = ''; $('cmp_body').innerHTML = `<div class=err>เทียบไม่ได้: ${esc(e.message)}</div>` }
+}
+$('btn_compare').onclick = () => { openModal('modal_compare'); if (!CMPD) runCompare() };
+$('cmp_run').onclick = runCompare;
+$('cmp_base').onchange = runCompare;
+$('cmp_target').onchange = runCompare;
+
+
 // --------------------------------------------------------------------------- เริ่มงาน
 (async function boot() {
   try {
     META = await api.meta();
     COLORS = META.colors || {};
     initTypes(); initCmp(); loadCases();
-    updStat(); syncRun();
-    DOCS = await api.documents();
-    hydrate();
+    await loadRounds();                      // ต้องรู้ก่อนว่าเปิดรอบอยู่ เพราะ case ที่จำไว้ผูกกับรอบ
+    updStat(); syncRun(); applyBatch();
+    adoptDocs(await api.documents());
     apply();
+    resumeBatch();
   } catch (e) {
     $('main').innerHTML = `<div class=err>โหลดรายการจาก Paperless ไม่ได้: ${esc(e.message)}<br>`
       + `<span class=idle>ตรวจ PAPERLESS_BASE_URL / PAPERLESS_API_TOKEN / PAPERLESS_TAG ใน .env</span></div>`;
