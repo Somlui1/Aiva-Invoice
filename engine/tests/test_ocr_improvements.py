@@ -444,7 +444,10 @@ def test_ghost_rows_auto_fold_into_preceding_description():
     assert "EXTRA SPECIFICATION CONTINUED" in folded[0]["cells"]["description"]["text"]
 
 
-
-
-
-
+def test_date_iso_supports_english_and_thai_month_names():
+    from system_a.domain.normalize import date_iso
+    assert date_iso("4 Sep 2026") == "2026-09-04"
+    assert date_iso("07-SEP-2026") == "2026-09-07"
+    assert date_iso("15 October 2026") == "2026-10-15"
+    assert date_iso("1 ม.ค. 2569") == "2026-01-01"
+    assert date_iso("31 ส.ค. 69") == "2026-08-31"
