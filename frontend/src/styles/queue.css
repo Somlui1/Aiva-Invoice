@@ -1423,6 +1423,9 @@ table.t .num {
     box-shadow: none !important;
     z-index: auto !important;
   }
+  .work.pdf-open .q47 {
+    display: none;
+  }
 }
 
 @keyframes peekIn {
