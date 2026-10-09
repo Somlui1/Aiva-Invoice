@@ -26,10 +26,17 @@ export function QueuePage() {
     setSearchQuery,
     staleDocs,
     setPeriodFilter,
-    isEvidenceDockOpen
+    isEvidenceDockOpen,
+    dockSplitRatio
   } = useInvoices()
 
   const [modalAction, setModalAction] = useState<ActionType | null>(null)
+
+  // The dock column is the grid's fourth track, and `queue.css` sizes it from
+  // `--dc` (default `0fr`, i.e. zero width). Until the same condition that mounts
+  // `<EvidenceViewerDock/>` also opens that track, the dock renders into a
+  // 0-pixel column: the button flips to "ปิด PDF" and nothing appears.
+  const dockVisible = isEvidenceDockOpen && !!selectedDoc
 
   return (
     <div className="pg" data-pg="queue">
@@ -63,7 +70,16 @@ export function QueuePage() {
       {viewMode === 'table' ? (
         <QueueTableView />
       ) : (
-        <div className="work" id="work">
+        <div
+          className={`work${dockVisible ? ' pdf-open' : ''}`}
+          id="work"
+          style={
+            {
+              '--mc': dockVisible ? `${((1 - dockSplitRatio) * 100).toFixed(1)}fr` : '100fr',
+              '--dc': dockVisible ? `${(dockSplitRatio * 100).toFixed(1)}fr` : '0fr',
+            } as React.CSSProperties
+          }
+        >
           {/* Left Column: Queue List */}
           <aside className="col q47" aria-label="คิวเอกสาร">
             <div className="ph">
@@ -129,7 +145,7 @@ export function QueuePage() {
           )}
 
           {/* Right Column: PDF Dock */}
-          {isEvidenceDockOpen && selectedDoc && (
+          {dockVisible && selectedDoc && (
             <EvidenceViewerDock doc={selectedDoc} />
           )}
         </div>
