@@ -1,14 +1,13 @@
 | id | task | status | notes |
 | --- | --- | --- | --- |
-| brainstorm-completed | Complete brainstorming & requirements exploration | completed | Design approved & written to docs/plans/2026-10-08-aiva-react-conversion-design.md |
-| plan-created | Generate implementation plan | completed | Written to docs/plans/2026-10-08-aiva-react-conversion.md |
-| task-1 | Project Scaffolding & Configuration | completed | Vite 6 + React 19 + TS scaffold built successfully |
-| task-2 | Design Tokens & CSS Architecture | completed | Modular CSS tokens, layout, queue, evidence, components & Icon.tsx |
-| task-3 | Domain Types & Mock Datasets | completed | Strict TS types & master data extracted; tests passing |
-| task-4 | State Management & Core Business Logic | completed | React Contexts (Auth, Settings, Invoice, Sim, ToastModal) & unit tests passing |
-| task-5 | App Shell Layout & Navigation | completed | Topbar, Sidebar, Modal, Toast, App.tsx |
-| task-6 | Queue & Review Views (Table & Split Modes) | completed | QueueToolbar, KpiCards, QueueTableView, SplitView, DetailPane, ActionModals |
-| task-7 | Evidence & Document Viewer Dock | completed | EvidenceCanvas, EvidenceHighlight, DockControls, EvidenceViewerDock |
-| task-8 | Governance, Admin & Simulation Pages | completed | ApPage, SettingsPage, RbacPage, AuditPage, CasesPage, StdPage, SimPage |
-| task-9 | Verification, Smoke Testing & Final Polishing | completed | 17/17 tests passing, tsc -b && vite build 0 errors, full UI smoke tested |
-
+| brainstorm-completed | Complete brainstorming & requirements exploration | completed | Design approved & written to docs/plans/2026-10-09-enterprise-portal-engine-integration-design.md |
+| plan-created | Generate implementation plan | completed | Written to docs/plans/2026-10-09-enterprise-portal-engine-integration.md |
+| task-1 | Setup Dependencies & Database Foundation (Prisma ORM) | pending | Install Prisma, Zod, define schema, configure DB client & connection test |
+| task-2 | Engine Schema Validator & Portal Domain Contracts | pending | Define Engine Result 3.0 Zod schema and Portal Domain Model contracts |
+| task-3 | Transformation Layer (EngineToPortalAdapter) | pending | Implement adapter mapping Engine 3.0 to Portal Domain & 4-step progress |
+| task-4 | Webhook Ingestion API (/api/engine/ingest) | pending | Implement Next.js POST endpoint with idempotency check |
+| task-5 | 126 Sample Files Ingestion Harness | pending | Create simulation script to ingest and verify 126 sample JSON files |
+| task-6 | DMS PDF Streaming Proxy API with Fallback | pending | Implement /api/documents/:id/pdf proxy with mock fallback |
+| task-7 | PDF.js Canvas Viewer with Interactive BBox Overlay | pending | Implement Canvas PDF rendering and interactive BBox highlight overlay |
+| task-8 | UI Integration & Live Database Connection | pending | Connect Queue Page & Invoice Detail Pane to live database (100% Mockup Parity) |
+| task-9 | Final End-to-End Verification & Verification Suite | pending | Run full suite: Vitest, build check, and e2e validation |
