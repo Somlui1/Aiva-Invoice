@@ -4,7 +4,7 @@
 | Streamline Task 2: V-05 Address AI Uncertainty Demotion to Medium E07 | Done | Demote low-confidence address to E07 Medium when Tax ID and Name match Aapico; 3/3 tests pass |
 | Streamline Task 3: V-07 & V-08 Milestone Installment Exact-Amount Matching | Done | Pass milestone installment lines when exact amount diff == 0.00; 4/4 tests pass; 62/62 scenarios pass |
 | Streamline Task 4: V-08 UOM Mismatch Delegation to V-07 E10 | Done | Delegate non-comparable UOM to V-07 E10 Medium without manual review override; 5/5 tests pass; 62/62 scenarios pass |
-| Streamline Task 5: Full Regression & Target DMS Verification | In Progress | Verify pytest, 62 sandbox scenarios, and target documents DMS-20, 72, 120 |
+| Streamline Task 5: Full Regression & Target DMS Verification | Done | 53/53 engine tests pass; 153/153 portal tests pass; 62/62 scenarios pass; DMS-20 & DMS-72 -> AUTO_PASS; DMS-120 -> MANUAL_REVIEW |
 
 ## Plan: Perception Robustness (`2026-10-09-perception-robustness-implementation.md`)
 

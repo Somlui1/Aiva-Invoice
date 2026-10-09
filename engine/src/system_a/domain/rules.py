@@ -148,7 +148,7 @@ def v06_signatures(c: Ctx) -> RuleOutcome:
     if out:
         return _fail("V-06", out, unsure_slots=unsure)
     if unsure:
-        has_receipt = bool(getattr(c.snapshot, "found", False) and getattr(c.snapshot, "active", []))
+        has_receipt = bool(getattr(c.snapshot, "active", None) or getattr(c.snapshot, "found", False))
         if has_receipt and unsure == ["deliverer"]:
             return _ok("V-06", detail="ยืนยันการรับของจากใบรับสินค้าใน Oracle EBS (waive deliverer)", data={"waived_slots": ["deliverer"]})
         return RuleOutcome("V-06", "manual_review", detail=f"ความมั่นใจต่ำ: {unsure}", data={"unsure_slots": unsure})
