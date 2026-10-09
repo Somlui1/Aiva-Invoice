@@ -835,6 +835,11 @@
   border-left-color: #059669;
 }
 
+.exc.sel {
+  border-color: #F59E0B;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, .35), var(--e-1);
+}
+
 .exc-h {
   display: flex;
   align-items: center;
@@ -1011,6 +1016,13 @@ table.t tr.sel td:first-child {
 
 table.t tr.row-bad td {
   background: #FFF6F4;
+}
+
+/* Mirror of a box picked on the evidence surface (Task 7): same amber language
+   as the overlay, so the two panes read as one selection. */
+table.t tr.row-sel td {
+  background: #FFFBEB;
+  box-shadow: inset 0 0 0 1px #F59E0B;
 }
 
 table.t tr.click {
