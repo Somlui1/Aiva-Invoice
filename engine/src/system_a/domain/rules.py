@@ -315,17 +315,29 @@ def v05_customer(c: Ctx) -> RuleOutcome:
             r = c.entity_ai.parse_address(d.v("customer_address"))
             c.ai_trace.setdefault("v05", []).append({"task": "address", **r})
             if float(r.get("confidence", 0)) < th:
-                data.update(address_match=None)
-                return RuleOutcome("V-05", "manual_review", tuple(findings), "AI ไม่มั่นใจเรื่องที่อยู่", data=data)
-            ai_key = (thai_to_arabic(str(r.get("house_no") or "")) or None,
-                      thai_to_arabic(str(r.get("postal_code") or "")) or None)
-            hit = next((k for k, v in keys.items() if None not in ai_key and v == ai_key), None)
-            how = "ai_normalized"
-        data.update(address_match=bool(hit), address_matched=hit, address_method=how if hit else None)
-        if not hit:
+                data.update(address_match=None, address_method="ai_unconfident")
+                if data.get("tax_id_match") is True:
+                    findings.append(_f(c, "E07", "V-05", "AI ไม่มั่นใจเรื่องที่อยู่ลูกค้า", "Medium",
+                                       actual=d.v("customer_address"), element_ids=fid("customer_address")))
+                else:
+                    return RuleOutcome("V-05", "manual_review", tuple(findings), "AI ไม่มั่นใจเรื่องที่อยู่", data=data)
+            else:
+                ai_key = (thai_to_arabic(str(r.get("house_no") or "")) or None,
+                          thai_to_arabic(str(r.get("postal_code") or "")) or None)
+                hit = next((k for k, v in keys.items() if None not in ai_key and v == ai_key), None)
+                how = "ai_normalized"
+                data.update(address_match=bool(hit), address_matched=hit, address_method=how if hit else None)
+                if not hit:
+                    findings.append(_f(c, "E07", "V-05", f"ที่อยู่ลูกค้า (เลขที่ {inv_key[0]}, รหัสไปรษณีย์ {inv_key[1]}) "
+                                                         f"ไม่ตรงกับที่อยู่ของ ORG_ID {org}", "Medium",
+                                       actual=d.v("customer_address"), element_ids=fid("customer_address")))
+        elif not hit:
+            data.update(address_match=False, address_matched=None, address_method=None)
             findings.append(_f(c, "E07", "V-05", f"ที่อยู่ลูกค้า (เลขที่ {inv_key[0]}, รหัสไปรษณีย์ {inv_key[1]}) "
                                                  f"ไม่ตรงกับที่อยู่ของ ORG_ID {org}", "Medium",
                                actual=d.v("customer_address"), element_ids=fid("customer_address")))
+        else:
+            data.update(address_match=True, address_matched=hit, address_method="logic")
     if name_issue is not None:
         address_ok = data.get("address_match") is True or data.get("address_check") == "covered_by_customer_tax_id"
         if address_ok:

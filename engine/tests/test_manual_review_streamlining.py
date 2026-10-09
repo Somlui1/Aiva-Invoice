@@ -46,3 +46,58 @@ def test_v06_still_flags_receiver_when_receiver_unsure():
     
     res = v06_signatures(c)
     assert res.result == "manual_review"
+
+
+def test_v05_demotes_address_uncertainty_to_medium_e07_when_tax_id_matches():
+    from system_a.domain.contracts import NField
+    from system_a.domain.rules import v05_customer
+    
+    doc = InvoiceDoc(
+        document_id="D1",
+        fields={
+            "customer_tax_id": NField(name="customer_tax_id", element_id="F1", raw="0107539000052", value="0107539000052", confidence=0.99, ok=True),
+            "customer_name": NField(name="customer_name", element_id="F2", raw="บริษัท อาปิโก ไฮเทค จำกัด (มหาชน)", value="บริษัท อาปิโก ไฮเทค จำกัด (มหาชน)", confidence=0.99, ok=True),
+            "customer_address": NField(name="customer_address", element_id="F3", raw="99 หมู่ 1 ไม่ทราบตำบล", value="99 หมู่ 1 ไม่ทราบตำบล", confidence=0.99, ok=True),
+            "supplier_tax_id": NField(name="supplier_tax_id", element_id="F4", raw="0123456789012", value="0123456789012", confidence=0.99, ok=True),
+        },
+        lines=(),
+        signatures={},
+        pages_complete=True,
+    )
+    snapshot = type("Snapshot", (), {
+        "found": True,
+        "active": [ReceiptRow(org_id=101, receipt_num="R1", receiver="WH", line=1, item="A", qty=Decimal(1), uom="PCS", unit_price=Decimal(10), line_amount=Decimal(10))],
+        "org_id": 101,
+        "receipt_nums": ["R1"],
+    })()
+    entities = {
+        101: {
+            "status": "active",
+            "tax_id": "0107539000052",
+            "name_th": "บริษัท อาปิโก ไฮเทค จำกัด (มหาชน)",
+            "name_en": "AAPICO Hitech PLC",
+            "addr_th": "99 หมู่ 1 นิคมอุตสาหกรรมไฮเทค ต.บ้านหว้า อ.บางปะอิน จ.พระนครศรีอยุธยา 13160",
+            "short": "AH",
+        }
+    }
+    ai_mock = type("AIMock", (), {
+        "parse_address": lambda self, addr: {"confidence": 0.65, "house_no": "99", "postal_code": None}
+    })()
+    std = type("Std", (), {
+        "entities": entities,
+        "policy": {
+            "ai": {
+                "v05_address_ai_enabled": True,
+                "v05_name_min_confidence": 0.85,
+            },
+            "evidence": {},
+        }
+    })()
+    c = Ctx(doc=doc, snapshot=snapshot, std=std, entity_ai=ai_mock, ai_trace={})
+    res = v05_customer(c)
+    assert res.result == "fail"  # NOT manual_review!
+    assert len(res.findings) == 1
+    assert res.findings[0].code == "E07"
+    assert res.findings[0].severity == "Medium"
+    assert "AI ไม่มั่นใจเรื่องที่อยู่ลูกค้า" in res.findings[0].message_th
+
