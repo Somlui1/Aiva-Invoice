@@ -69,6 +69,27 @@ export type PortalPageType = (typeof PORTAL_PAGE_TYPES)[number]
 
 export type PortalStepStatus = 'ok' | 'warn' | 'fail'
 
+/**
+ * Overlay element kinds. Declared as a const so the union is assertable.
+ * Extended (same approved principle as PORTAL_PAGE_TYPES) to cover all 9
+ * `ocr.elements[].element_type` values found in the corpus — the original 6
+ * covered only 52.1% of real elements, and dropping `section` (41.8% of all
+ * elements), `page` and `stamp` would gut the PDF overlay feature.
+ */
+export const PORTAL_BBOX_ELEMENT_TYPES = [
+  'field',
+  'table',
+  'row',
+  'cell',
+  'word',
+  'signature',
+  'page',
+  'section',
+  'stamp',
+] as const
+
+export type PortalBBoxElementType = (typeof PORTAL_BBOX_ELEMENT_TYPES)[number]
+
 export type PortalStepKey = 'step1' | 'step2' | 'step3' | 'step4'
 
 export interface PortalStepIndicator {
@@ -162,7 +183,7 @@ export interface PortalBoundingBox {
   pageNo: number
   /** `[x, y, w, h]` normalized 0..1 (top-left origin). */
   bbox: [number, number, number, number]
-  elementType: 'field' | 'table' | 'row' | 'cell' | 'word' | 'signature'
+  elementType: PortalBBoxElementType
   fieldName?: string
   rawValue?: string
   confidence: number

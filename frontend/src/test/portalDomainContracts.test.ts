@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { PORTAL_PAGE_TYPES, type PortalPageType } from '../features/engine/types/portalDomain'
+import {
+  PORTAL_PAGE_TYPES,
+  PORTAL_BBOX_ELEMENT_TYPES,
+  type PortalPageType,
+} from '../features/engine/types/portalDomain'
 import { companyOfOrg, companyOfTax, COMPANIES } from '../mock/companies'
 
 /**
@@ -20,6 +24,25 @@ describe('Portal Contract Amendment — Page Types & Company Master', () => {
     expect(covered).toContain('RECEIPT')
     expect(covered).toContain('UNKNOWN')
     expect(new Set(PORTAL_PAGE_TYPES).size).toBe(PORTAL_PAGE_TYPES.length)
+  })
+
+  it('bbox element type union covers every ocr element_type in the corpus', () => {
+    // Values observed across all 125 sample payloads (ocr.elements[].element_type).
+    const engineEmitted: string[] = [
+      'page',
+      'section',
+      'field',
+      'table',
+      'row',
+      'cell',
+      'word',
+      'signature',
+      'stamp',
+    ]
+    const covered = PORTAL_BBOX_ELEMENT_TYPES as readonly string[]
+    const missing = engineEmitted.filter(v => !covered.includes(v))
+    expect(missing).toEqual([])
+    expect(new Set(PORTAL_BBOX_ELEMENT_TYPES).size).toBe(PORTAL_BBOX_ELEMENT_TYPES.length)
   })
 
   it('page type union is assignable to PortalPageType at compile time', () => {
