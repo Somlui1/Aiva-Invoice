@@ -393,3 +393,28 @@ def test_v08_n_to_1_group_passes_when_sum_matches():
     assert expected[1][0] == "pass"
     assert expected[2][0] == "pass"
 
+
+def test_po_prefix_normalization_and_consensus():
+    v1, _, _ = vp.extract_value("po_number", "PO42052739")
+    v2, _, _ = vp.extract_value("po_number", "42052739")
+    assert v1 == "42052739"
+    assert v2 == "42052739"
+    winner, conf, agree, source, null_r = vp.consensus("PO42052739", None, "42052739", 0.95)
+    assert agree is True
+    assert winner == "42052739"
+    assert null_r is None
+
+
+def test_po_corroboration_from_line_items():
+    fields = {"po_number": vp.RawField(raw="42052739", confidence=0.7, agreement=False, region=None, source="vlm", null_reason=None)}
+    reads = {1: vp.PageRead(page_no=1, items=[
+        {"label": "line_1", "text": "ITEM A PO42052739 1 PCS 100.00 100.00", "bbox": (0.1, 0.2, 0.8, 0.05)}
+    ])}
+    log = []
+    vp.po_from_lines(fields, reads, [1], log)
+    assert fields["po_number"].agreement is True
+    assert fields["po_number"].confidence >= 0.96
+    assert fields["po_number"].null_reason is None
+
+
+

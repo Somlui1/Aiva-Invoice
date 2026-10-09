@@ -153,8 +153,20 @@ def _num(s):
     return "".join(parts)
 
 
+PO_PREFIX = re.compile(r"^(?:PO|P\.O\.|P/O|PO#|เลขที่สั่งซื้อ|PO\s*:?)\s*(\d{6,10}(?:-\d+)?)$", re.I)
+
+
+def normalize_po(s: Optional[str]) -> Optional[str]:
+    if not s:
+        return s
+    t = str(s).strip()
+    m = PO_PREFIX.match(t)
+    return m.group(1) if m else t
+
+
 def _key(s) -> str:
-    return _num(s) or _cmp(s)
+    s_norm = normalize_po(s)
+    return _num(s_norm) or _cmp(s_norm)
 
 
 #: The VLM reads a printed *block* ("รวมมูลค่าสินค้า / SUB TOTAL 25,432.00"), the PDF text layer reads the
@@ -726,7 +738,7 @@ def consensus(vlm_text, layer_text, crop_text, vlm_conf: float, fuzzy: bool = Fa
     winner = next(v for v in votes if _key(v) == top)
     if count >= 2:
         conf = 0.98 if count >= 3 else 0.96
-        return winner, conf, True, "consensus", None
+        return normalize_po(winner), conf, True, "consensus", None
     if fuzzy and len(votes) >= 2:
         ratio, a, b = closest_pair(votes)
         if ratio >= TEXT_AGREEMENT_SIMILARITY:
@@ -734,9 +746,9 @@ def consensus(vlm_text, layer_text, crop_text, vlm_conf: float, fuzzy: bool = Fa
             chosen = a if _key(a) == page_read else (b if _key(b) == page_read else a)
             return chosen, TEXT_AGREEMENT_CONFIDENCE, True, "consensus", None
     if len(votes) == 1:
-        return winner, round(min(float(vlm_conf or 0.6), 0.70), 2), False, \
+        return normalize_po(winner), round(min(float(vlm_conf or 0.6), 0.70), 2), False, \
             ("vlm" if _key(winner) == _key(vlm_text or "") else "ocr"), None
-    return (vlm_text or winner), round(min(float(vlm_conf or 0.5), 0.55), 2), False, "vlm", \
+    return (normalize_po(vlm_text) or normalize_po(winner)), round(min(float(vlm_conf or 0.5), 0.55), 2), False, "vlm", \
         "CONFLICT_BETWEEN_SOURCES"
 
 
@@ -1204,6 +1216,17 @@ def po_from_lines(fields: dict, reads: dict, invoice_pages: list, log: list, lay
     item rows (``40117545-975`` = PO 40117545 release 975) when exactly one such PO appears there."""
     cur = fields.get("po_number")
     if cur is not None and cur.raw and shape_ok("po_number", cur.raw):
+        if not cur.agreement:
+            cur_digits = re.sub(r"\D", "", str(cur.raw))[:8]
+            for p in invoice_pages:
+                for it in (reads[p].items if p in reads else []):
+                    label = str(it.get("label") or "").lower()
+                    if not (label.startswith("line_") or label in ("po_number", "invoice_ref", "item_table", "remark")):
+                        continue
+                    if cur_digits and cur_digits in re.sub(r"\D", "", str(it.get("text") or "")):
+                        fields["po_number"] = cur.model_copy(update={"agreement": True, "confidence": max(cur.confidence or 0, 0.96), "null_reason": None})
+                        log.append({"field": "po_number", "corroborated": cur.raw, "rule": "PO number corroborated by item rows"})
+                        return
         return
     found: dict = {}
     for p in invoice_pages:
