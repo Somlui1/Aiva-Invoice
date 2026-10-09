@@ -196,8 +196,7 @@ export function scaleToFitWidth(
  * Canvas backing-store size for a CSS surface. Past the browser's per-edge
  * limit the long edge is capped and the aspect ratio kept, so the page renders
  * slightly softer instead of blank.
- */
-export function devicePixelSize(css: SizeBox, dpr = 1, maxEdge = MAX_CANVAS_EDGE): SizeBox {
+ */export function devicePixelSize(css: SizeBox, dpr = 1, maxEdge = MAX_CANVAS_EDGE): SizeBox {
   const ratio = finite(dpr) && dpr > 0 ? dpr : 1
   let width = Math.round((css.width || 0) * ratio)
   let height = Math.round((css.height || 0) * ratio)
@@ -208,4 +207,77 @@ export function devicePixelSize(css: SizeBox, dpr = 1, maxEdge = MAX_CANVAS_EDGE
     height = Math.round(height * shrink)
   }
   return { width: Math.max(1, width), height: Math.max(1, height) }
+}
+
+// ---------------------------------------------------------------------------
+// The evidence dock's own zoom model (mockup `fitPages` / `pdfZoom`)
+// ---------------------------------------------------------------------------
+
+/**
+ * Padding the dock's scrolling body keeps around the page, in CSS px: 16px of
+ * mat on each side plus a hair for the scrollbar gutter. The mockup uses 32
+ * (`fitPages`), and "พอดีหน้า" is defined against that number — if the React dock
+ * measures a different inset, its pages land slightly narrower or wider than the
+ * mockup the analysts approved.
+ */
+export const DOCK_BODY_INSET = 32
+
+/** The simulated invoice page is laid out at A4 CSS px and scaled from there. */
+export const MOCK_PAGE_CSS_SIZE: Readonly<SizeBox> = A4_CSS_SIZE
+
+/** The page width the fit formula divides by — the mockup's `PAGE_W`. */
+export const MOCK_PAGE_WIDTH_CSS = MOCK_PAGE_CSS_SIZE.width
+
+/** Smallest page scale worth rendering; below it the sheet is unreadable mush. */
+export const MIN_PAGE_FIT = 0.2
+
+/** Zoom the ± buttons walk between, matching the mockup's clamp. */
+export const MIN_ZOOM = 0.5
+export const MAX_ZOOM = 2.5
+
+/**
+ * Scale that makes the simulated page fill the dock body: the mockup's
+ * `fitPages()`, `(bodyClientWidth - 32) / 794`.
+ *
+ * `bodyWidth` is the body's **raw `clientWidth`** (borders and scrollbar
+ * included, padding not subtracted) — subtracting the inset happens here, once.
+ */
+export function mockPageFitScale(bodyWidth: number, pageWidth = MOCK_PAGE_CSS_SIZE.width): number {
+  if (!finite(bodyWidth) || bodyWidth <= 0 || !finite(pageWidth) || pageWidth <= 0) return 1
+  return Math.max(MIN_PAGE_FIT, (bodyWidth - DOCK_BODY_INSET) / pageWidth)
+}
+
+/**
+ * The style the mock surface carries while it sits in the dock.
+ *
+ * `--s` is the *only* scale in the system: `.evd-page` sizes its box by it and
+ * `.ivp` transforms its 794×1123 content by it, so one number moves the sheet
+ * and every highlight with it. A second `scale()` on a wrapper — which an
+ * earlier revision of this dock had — multiplies the page by zoom twice and
+ * makes 150% render at 225%.
+ *
+ * Rotation is carried as `--rot` and applied by `.ivp-in` around the page's own
+ * centre, again exactly like the mockup, so it stays independent of zoom.
+ */
+export function mockSurfaceStyle(input: { fit: number; zoom: number; rotation: number }): Record<string, string> {
+  const fit = finite(input.fit) && input.fit > 0 ? input.fit : 1
+  const zoom = finite(input.zoom) ? input.zoom : 1
+  return {
+    // Four decimals is what the mockup writes; more would only add sub-pixel
+    // jitter, and CSS custom properties must be strings to inherit.
+    '--s': (fit * zoom).toFixed(4),
+    '--rot': `${input.rotation}deg`,
+  }
+}
+
+/**
+ * The ± buttons: `pdfZoom(delta)` in the mockup. `round(… * 10) / 10` keeps the
+ * steps on clean tenths, so 1 → 1.1 → 1.2 instead of floating-point drift.
+ * `'fit'` is the reset button and means "show the whole page width".
+ */
+export function zoomForStep(zoom: number, delta: number | 'fit'): number {
+  if (delta === 'fit') return 1
+  if (!finite(zoom)) return 1
+  const next = Math.round((zoom + delta) * 10) / 10
+  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, next))
 }

@@ -34,10 +34,12 @@ import {
   viewerBoxesFromInvoiceDoc,
   type OverlayBox,
 } from '../../features/pdf-viewer/lib/overlayModel'
-import type { SizeBox } from '../../features/pdf-viewer/lib/coordinateTransform'
-
-/** Keep the page inside the dock body: 16 px padding on each side + a margin. */
-const BODY_INSET = 44
+import {
+  DOCK_BODY_INSET,
+  mockPageFitScale,
+  mockSurfaceStyle,
+  type SizeBox,
+} from '../../features/pdf-viewer/lib/coordinateTransform'
 
 const EMPTY_SIZE: SizeBox = { width: 0, height: 0 }
 
@@ -66,16 +68,19 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
   useEffect(() => {
     const el = bodyRef.current
     if (!el) return
-    const read = () => setBodyWidth(Math.max(0, el.clientWidth - BODY_INSET))
+    const read = () => setBodyWidth(el.clientWidth)
     read()
     const observer = new ResizeObserver(read)
     observer.observe(el)
     return () => observer.disconnect()
   }, [])
 
+  const fit = mockPageFitScale(bodyWidth)
+  const surfaceStyle = mockSurfaceStyle({ fit, zoom, rotation })
+
   const { status, canvasRef, pageSize, reload } = usePdfViewer({
     documentId: doc.doc,
-    containerWidth: bodyWidth,
+    containerWidth: Math.max(0, bodyWidth - DOCK_BODY_INSET),
     page: currentPage,
     rotation,
     zoom,
@@ -165,14 +170,7 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
   const mockSurface = (
     <div
       className="evd-mock"
-      style={
-        {
-          '--s': zoom,
-          transform: `scale(${zoom}) rotate(${rotation}deg)`,
-          transformOrigin: 'top center',
-          transition: 'transform 0.15s ease-out',
-        } as CSSProperties
-      }
+      style={surfaceStyle as CSSProperties}
     >
       <EvidenceCanvas
         doc={doc}

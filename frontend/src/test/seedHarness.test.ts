@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeAll } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 import { runIngestSimulation } from '../../scripts/simulate-engine-push'
@@ -32,6 +32,12 @@ const expectedStatusCounts = () => {
 }
 
 describe('simulate-engine-push harness', () => {
+  beforeAll(async () => {
+    const { prisma } = await import('@/lib/prisma')
+    await prisma.validationRun.deleteMany()
+    await prisma.document.deleteMany()
+  })
+
   it('scans only DMS-*_result.json and reports summary statistics', async () => {
     const stats = await runIngestSimulation()
 
