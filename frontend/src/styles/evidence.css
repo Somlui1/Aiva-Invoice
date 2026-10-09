@@ -816,6 +816,20 @@
   background: rgba(180, 83, 9, .85);
 }
 
+/* Loading card on the dark mat, while the proxy streams and PDF.js rasterises.
+   White-washed so `currentColor` in `.spin` reads on the mat, and tall enough to
+   sit in the middle of the page area rather than as a strip at its top. */
+.evd-loading-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 180px;
+  padding: 48px 16px;
+  color: #fff;
+}
+
 /* Overlay layer: transparent, but the boxes themselves take pointer events. */
 .evd-overlay {
   pointer-events: none;
