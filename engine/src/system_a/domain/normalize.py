@@ -229,7 +229,28 @@ def normalize(ext: ExtractionResult, std: Standard) -> tuple[InvoiceDoc, dict]:
     if stamp is not None:
         sigs["deliverer"] = stamp
         meta["deliverer_from_stamp"] = True
+    rcv_stamp = _receiver_from_stamp(ext, std, sigs)
+    if rcv_stamp is not None:
+        sigs["receiver"] = rcv_stamp
+        meta["receiver_from_stamp"] = True
     return InvoiceDoc(did, fields, tuple(lines), sigs, ext.pages_complete), meta
+
+
+def _receiver_from_stamp(ext: ExtractionResult, std: Standard, sigs: dict):
+    """Receiver slot undecided, but a warehouse receiving stamp was seen on a document page."""
+    cur = sigs.get("receiver")
+    th = float(std.policy.get("signature", {}).get("min_confidence", 0.5))
+    if cur is not None and cur.present is not None and (cur.confidence is None or cur.confidence >= th):
+        return None
+    for rg in getattr(ext, "regions", ()) or ():
+        label = str(rg.label or "").lower()
+        if (rg.kind == "stamp" or "stamp" in label) and any(w in label for w in ("received", "receiving", "receiver")):
+            if (rg.confidence or 0) >= th:
+                from .contracts import Region, SignatureObs
+                return SignatureObs(present=True, confidence=rg.confidence, kind=rg.label or "received_stamp",
+                                    region=Region(page=rg.page, bbox=rg.bbox))
+    return None
+
 
 
 def _deliverer_from_stamp(ext: ExtractionResult, std: Standard, sigs: dict):

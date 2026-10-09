@@ -131,8 +131,13 @@ DOC_TYPE_TO_PAGE = {
     "unknown": "UNKNOWN",
 }
 PAGE_TYPES = set(DOC_TYPE_TO_PAGE.values()) - {"UNKNOWN"} | {"UNKNOWN"}
-SIGNATURE_LABELS = {"receiver_signature": "receiver", "deliverer_signature": "deliverer",
-                    "authorized_signature": "receiver", "approver_signature": "receiver"}
+SIGNATURE_LABELS = {
+    "receiver_signature": "receiver", "deliverer_signature": "deliverer",
+    "authorized_signature": "receiver", "approver_signature": "receiver",
+    "received_stamp": "receiver", "receiving_stamp": "receiver",
+    "receiver_stamp": "receiver", "warehouse_stamp": "receiver",
+    "company_stamp": "deliverer",
+}
 REQUIRED_FIELD_NAMES = ("invoice_num", "po_number", "customer_name", "customer_address", "customer_tax_id",
                         "sub_total", "vat", "grand_total", "supplier_name", "supplier_tax_id", "invoice_date")
 _CURRENCY = re.compile(r"(THB|฿|บาท|BAHT)", re.I)

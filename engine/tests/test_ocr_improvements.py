@@ -464,3 +464,21 @@ def test_split_number_supports_thai_dash_currency():
     assert num3 == Decimal("300.00")
     assert u3 == "PCS"
 
+
+def test_receiving_stamp_maps_to_receiver_signature():
+    assert "received_stamp" in vp.SIGNATURE_LABELS
+    assert vp.SIGNATURE_LABELS["received_stamp"] == "receiver"
+    read_p2 = vp.PageRead(page_no=2, items=[
+        {"type": "stamp", "label": "received_stamp", "text": "stamped", "bbox": [0.268, 0.528, 0.204, 0.072], "confidence": 0.9}
+    ])
+    pipe = vp.VisionPipeline(FakeVlm(), "fake", do_crops=False)
+    ctx = vp._Ctx(pdf=b"", infos={1: None, 2: None}, pngs={}, layers={})
+    fields, sigs, regions, _ = pipe._fields(ctx, {2: read_p2}, [1])
+    assert "receiver" in sigs
+    assert sigs["receiver"].present is True
+    assert sigs["receiver"].confidence == 0.9
+    assert sigs["receiver"].region.page == 2
+    assert tuple(sigs["receiver"].region.bbox) == (0.268, 0.528, 0.204, 0.072)
+
+
+
