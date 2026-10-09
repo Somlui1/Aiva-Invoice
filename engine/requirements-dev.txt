@@ -1,0 +1,11 @@
+# Dev / test extras for everything under src/  (python -m pip install -r requirements-dev.txt)
+-r requirements.txt
+
+pytest>=8.0                   # src/test-portal/tests/*, tests/
+jsonschema>=4.0               # system_a.cli scenarios --schema, portal payload schema checks
+
+# Optional, only for the Oracle DB backend:
+# oracledb>=2.0
+
+# Not pip packages, but needed for the full test suite:
+#   node  — src/test-portal/tests/test_render_node.py runs tests/probe_render.js (skipped when absent)
