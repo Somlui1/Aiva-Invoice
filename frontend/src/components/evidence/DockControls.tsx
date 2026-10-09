@@ -3,6 +3,11 @@
 import { Icon } from '../common/Icon'
 import { useAuth } from '../../context/AuthContext'
 import type { PdfProxySource } from '../../features/pdf-viewer/types'
+import {
+  MIN_ZOOM,
+  MAX_ZOOM,
+  zoomForStep,
+} from '../../features/pdf-viewer/lib/coordinateTransform'
 
 interface DockControlsProps {
   currentPage: number
@@ -87,8 +92,8 @@ export function DockControls({
       <button
         type="button"
         className="btn btn-ghost sm"
-        disabled={zoom <= 0.6}
-        onClick={() => onZoomChange(Math.max(0.6, zoom - 0.2))}
+        disabled={zoom <= MIN_ZOOM}
+        onClick={() => onZoomChange(zoomForStep(zoom, -0.1))}
         title="ย่อขนาด"
       >
         <Icon name="minus" size="sm" />
@@ -96,7 +101,7 @@ export function DockControls({
       <button
         type="button"
         className="btn btn-ghost sm mono"
-        onClick={() => onZoomChange(1)}
+        onClick={() => onZoomChange(zoomForStep(zoom, 'fit'))}
         title="ขนาดเดิม 100%"
       >
         {Math.round(zoom * 100)}%
@@ -104,8 +109,8 @@ export function DockControls({
       <button
         type="button"
         className="btn btn-ghost sm"
-        disabled={zoom >= 2}
-        onClick={() => onZoomChange(Math.min(2, zoom + 0.2))}
+        disabled={zoom >= MAX_ZOOM}
+        onClick={() => onZoomChange(zoomForStep(zoom, 0.1))}
         title="ขยายขนาด"
       >
         <Icon name="plus" size="sm" />

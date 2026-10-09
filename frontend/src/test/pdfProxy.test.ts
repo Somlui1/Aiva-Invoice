@@ -19,7 +19,15 @@ const get = (id: string) =>
   })
 
 let prisma: any
+let originalBaseUrl: string | undefined
+let originalToken: string | undefined
+
 beforeAll(async () => {
+  originalBaseUrl = process.env.PAPERLESS_BASE_URL
+  originalToken = process.env.PAPERLESS_API_TOKEN
+  delete process.env.PAPERLESS_BASE_URL
+  delete process.env.PAPERLESS_API_TOKEN
+
   prisma = (await import('../lib/prisma')).prisma
   // Own rows, created explicitly: this file must not depend on another test
   // file having seeded the database first.
@@ -35,6 +43,11 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
+  if (originalBaseUrl !== undefined) process.env.PAPERLESS_BASE_URL = originalBaseUrl
+  else delete process.env.PAPERLESS_BASE_URL
+  if (originalToken !== undefined) process.env.PAPERLESS_API_TOKEN = originalToken
+  else delete process.env.PAPERLESS_API_TOKEN
+
   await prisma.validationRun.deleteMany({ where: { documentId: { in: [DOC_ID, 'DMS-900'] } } })
   await prisma.document.deleteMany({ where: { id: { in: [DOC_ID, 'DMS-900'] } } })
 })

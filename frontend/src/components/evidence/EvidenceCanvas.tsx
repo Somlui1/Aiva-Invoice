@@ -69,8 +69,10 @@ export function EvidenceCanvas({ doc, pageNumber, onPageElement, overlay }: Evid
   const kind = isOriginal ? 'inv' : pageNumber === 2 ? 'copy' : 'terms'
 
   return (
-    <div className="evd-page" ref={onPageElement}>
-      <div className="ivp-paper">
+    <div className="evd-page">
+      <div className={`ivp ${vendor.st === 'scan' ? 'scan' : 'digital'}`} style={{ '--acc': vendor.acc } as React.CSSProperties}>
+        <div className="ivp-in" ref={onPageElement}>
+          <div className="ivp-paper">
         {/* Header */}
         <div className="iv-head">
           <div className="iv-sup" data-k="supplier">
@@ -231,10 +233,12 @@ export function EvidenceCanvas({ doc, pageNumber, onPageElement, overlay }: Evid
             หน้า {pageNumber}/{doc.pages}
           </span>
         </div>
+        {overlay}
       </div>
-      {overlay}
     </div>
-  )
+  </div>
+</div>
+)
 }
 
 export default EvidenceCanvas
