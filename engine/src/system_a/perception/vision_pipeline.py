@@ -508,7 +508,9 @@ class VisionPipeline:
 
         for name in field_crop_priority(candidates.keys()):
             options = candidates[name]
-            page, it = pick_candidate(name, options, first_invoice)
+            page, it = pick_candidate(name, options, first_invoice, invoice_pages=invoice_pages)
+            if it is None:
+                continue
             page_words = ctx.layers.get(page, {}).get("words", [])
             inside = words_in_box(page_words, it["bbox"])
             layer_text = " ".join(w["text"] for w in inside) or None
@@ -1208,13 +1210,24 @@ def _money(v):
         return None
 
 
-def pick_candidate(name: str, options: list, first_invoice):
+INVOICE_HEADER_FIELDS = {"invoice_num", "invoice_date", "sub_total", "vat", "grand_total"}
+
+
+def pick_candidate(name: str, options: list, first_invoice, invoice_pages: Optional[list] = None):
     """Which of several regions labelled ``name`` is the field.
 
     Order: on the first invoice page, has the field's printed shape, highest stated confidence, earliest page.
     ``grand_total`` additionally prefers the largest well-shaped amount on that page: DMS-20 labels both
     "TOTAL / BAHT 49,215.00" and "GRAND TOTAL 52,660.05" grand_total and the first one failed V-03.
+    For invoice header fields, options outside invoice_pages are excluded when invoice_pages is known.
     """
+    if not options:
+        return None, None
+    if invoice_pages and name in INVOICE_HEADER_FIELDS:
+        filtered = [c for c in options if c[0] in invoice_pages]
+        if not filtered:
+            return None, None
+        options = filtered
     def key(c):
         page, it = c
         value = extract_value(name, it.get("text"))[0]

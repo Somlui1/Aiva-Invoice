@@ -423,5 +423,15 @@ def test_priority_crop_order_allocates_budget():
     assert order.index("po_number") < order.index("customer_address")
 
 
+def test_header_scoping_ignores_attachment_doc_no():
+    options = [
+        (2, {"label": "doc_no", "text": "42052739", "confidence": 0.95, "bbox": (0.1, 0.1, 0.2, 0.05)})
+    ]
+    page, it = vp.pick_candidate("invoice_num", options, first_invoice=1, invoice_pages=[1])
+    assert page is None
+    assert it is None
+
+
+
 
 
