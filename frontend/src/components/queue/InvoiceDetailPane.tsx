@@ -27,8 +27,7 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
     allowedAction,
     hasHighSeverity,
     isEuPending,
-    evidenceSelection,
-    revalidateDocWithBackend
+    evidenceSelection
   } = useInvoices()
   const { toast } = useToastModal()
 
@@ -615,15 +614,6 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
                 onClick={() => onOpenActionModal('confirm')}
               >
                 <Icon name="check" size="sm" /> Confirm
-              </button>
-              <button
-                type="button"
-                className="btn btn-sec"
-                style={{ marginLeft: 'auto' }}
-                title="สั่ง System A Engine ตรวจประเมินกฎ V-01..V-09 และเชื่อม Oracle ซ้ำ (Revalidate)"
-                onClick={() => revalidateDocWithBackend(doc.doc)}
-              >
-                <Icon name="refresh" size="sm" /> Revalidate Engine
               </button>
             </>
           )}
