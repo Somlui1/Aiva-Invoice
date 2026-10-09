@@ -1,5 +1,14 @@
 | Task | Status | Description |
 |---|---|---|
+| OCR Task 1: Date Normalization with English & Thai Month Names | Done | Support textual English and Thai months in `date_iso()`; eliminates E01 on DMS-27 & DMS-32; 49/49 tests pass |
+| OCR Task 2: Thai Currency Zero-Satang Notation (`.-`) in `split_number()` | Done | Strip trailing `.-` and `-` in `split_number()`; prevents NOT_A_NUMBER on DMS-52; 50/50 tests pass |
+| OCR Task 3: Receiving Stamp Detection on Delivery Notes (`V-06`) | Done | Map warehouse receiving stamps on delivery notes to receiver signature; fixes DMS-53..56; 51/51 tests pass |
+| OCR Task 4: Grand Total Arithmetic Disambiguation | Done | Reconcile grand_total when mistakenly duplicated from subtotal; fixes DMS-46 & DMS-56; 52/52 tests pass |
+| OCR Task 5: Middle-Block Table Duplication Folding | Done | Fold duplicate table rows occurring in middle of multi-page invoices; fixes DMS-26; 53/53 tests pass |
+| OCR Task 6: Full Regression Verification & Replay Evaluation | Done | 58/58 engine tests pass; 153/153 portal tests pass; 62/62 scenarios pass; DMS-26, 27, 32, 46, 52, 53, 54, 55, 56 verified |
+
+| Task | Status | Description |
+|---|---|---|
 | Streamline Task 1: V-06 Deliverer Signature Waiver on Confirmed Receipt | Done | Waive faint deliverer signature when Oracle receipt exists; 2 new tests pass |
 | Streamline Task 2: V-05 Address AI Uncertainty Demotion to Medium E07 | Done | Demote low-confidence address to E07 Medium when Tax ID and Name match Aapico; 3/3 tests pass |
 | Streamline Task 3: V-07 & V-08 Milestone Installment Exact-Amount Matching | Done | Pass milestone installment lines when exact amount diff == 0.00; 4/4 tests pass; 62/62 scenarios pass |
