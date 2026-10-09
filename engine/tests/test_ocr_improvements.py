@@ -481,4 +481,12 @@ def test_receiving_stamp_maps_to_receiver_signature():
     assert tuple(sigs["receiver"].region.bbox) == (0.268, 0.528, 0.204, 0.072)
 
 
-
+def test_reconcile_grand_total_when_duplicated_subtotal():
+    # Case DMS-46: sub_total = 6400.00, vat = 448.00, grand_total read as 6400.00
+    fields = {"sub_total": _rf("6,400.00"), "vat": _rf("448.00"), "grand_total": _rf("6,400.00")}
+    cands = {"grand_total": []}
+    log = []
+    vp.reconcile_grand_total(fields, cands, log)
+    assert fields["grand_total"].raw == "6,848.00"
+    assert fields["grand_total"].agreement is True
+    assert log

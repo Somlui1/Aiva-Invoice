@@ -1406,16 +1406,27 @@ def reconcile_grand_total(fields: dict, candidates: dict, log: list) -> None:
     if s is None or v is None or (g is not None and abs(s + v - g) <= Decimal("0.01")):
         return
     target = s + v
-    for page, it in sorted(candidates.get("grand_total", []), key=lambda c: c[0]):
-        arabic = thai_to_arabic(str(it.get("text") or ""))
-        for m in MONEY_RE.finditer(arabic):
-            val = str(it.get("text"))[m.start():m.end()]
-            if shape_ok("grand_total", val) and _money(val) is not None and abs(_money(val) - target) <= Decimal("0.01"):
-                fields["grand_total"] = RawField(raw=val, confidence=0.95, agreement=True,
-                                                 region=Region(page=page, bbox=it["bbox"]), source="consensus")
-                log.append({"field": "grand_total", "replaced": grand.raw if grand else None, "derived": val, "page": page,
-                            "rule": "the printed amount that equals sub_total + vat"})
-                return
+    for label in ("grand_total", "total", "sub_total"):
+        for page, it in sorted(candidates.get(label, []), key=lambda c: c[0]):
+            arabic = thai_to_arabic(str(it.get("text") or ""))
+            for m in MONEY_RE.finditer(arabic):
+                val = str(it.get("text"))[m.start():m.end()]
+                if shape_ok("grand_total", val) and _money(val) is not None and abs(_money(val) - target) <= Decimal("0.01"):
+                    fields["grand_total"] = RawField(raw=val, confidence=0.95, agreement=True,
+                                                     region=Region(page=page, bbox=it["bbox"]), source="consensus")
+                    log.append({"field": "grand_total", "replaced": grand.raw if grand else None, "derived": val, "page": page,
+                                "rule": "the printed amount that equals sub_total + vat"})
+                    return
+    if g is not None and abs(g - s) <= Decimal("0.01"):
+        vat_expected = (s * Decimal("0.07")).quantize(Decimal("0.01"))
+        if abs(v - vat_expected) <= Decimal("0.05"):
+            target_str = f"{target:,.2f}"
+            region = grand.region if grand else None
+            fields["grand_total"] = RawField(raw=target_str, confidence=0.95, agreement=True,
+                                             region=region, source="derived")
+            log.append({"field": "grand_total", "replaced": grand.raw if grand else None, "derived": target_str,
+                        "rule": "derived as sub_total + vat (7% sound) when model duplicated subtotal"})
+
 
 
 def row_box_from_page(read, table_row_box):
