@@ -632,6 +632,7 @@ class VisionPipeline:
             if rows is None:
                 rows = rows_from_line_items(read)
                 source["line_items"] += len(rows)
+            rows = fold_ghost_rows(rows)
             page_rows: list = []
             for row in rows:
                 cells = {}
@@ -1049,6 +1050,58 @@ def _iter_boxes(raw):
             for cell in (r.get("cells") or {}).values() if isinstance(r.get("cells"), dict) else []:
                 if isinstance(cell, dict) and cell.get("bbox_2d"):
                     yield cell["bbox_2d"]
+def fold_ghost_rows(rows: list) -> list:
+    """Fold continuation rows (rows lacking qty, price, and amount) into the preceding item.
+
+    Multi-line descriptions or PO reference lines in item tables frequently get recognized as separate
+    table rows with empty qty/price/amount. Folding them into the previous row's description prevents
+    Rule V-07 from treating them as unmatched receipt lines (which causes false E13 HOLD).
+    """
+    if not rows:
+        return []
+    out = []
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        cells = r.get("cells") or {}
+        has_val = False
+        for k in ("qty", "unit_price", "amount"):
+            c = cells.get(k)
+            if isinstance(c, dict):
+                t = str(c.get("text") or "").strip()
+                if t:
+                    has_val = True
+                    break
+            elif isinstance(c, str) and c.strip():
+                has_val = True
+                break
+
+        desc_cell = cells.get("description")
+        desc_text = ""
+        if isinstance(desc_cell, dict):
+            desc_text = str(desc_cell.get("text") or "").strip()
+        elif isinstance(desc_cell, str):
+            desc_text = desc_cell.strip()
+
+        if not has_val:
+            if desc_text and out:
+                prev = out[-1]
+                prev_cells = prev.get("cells") or {}
+                prev_desc = prev_cells.get("description")
+                if isinstance(prev_desc, dict):
+                    old_text = str(prev_desc.get("text") or "").strip()
+                    new_text = f"{old_text} {desc_text}".strip()
+                    prev_desc["text"] = new_text
+                    if desc_cell and isinstance(desc_cell, dict) and desc_cell.get("bbox") and prev_desc.get("bbox"):
+                        prev_desc["bbox"] = union_box([prev_desc["bbox"], desc_cell["bbox"]])
+                else:
+                    prev_cells["description"] = {"text": desc_text, "bbox": r.get("bbox")}
+                if r.get("bbox") and prev.get("bbox"):
+                    prev["bbox"] = union_box([prev["bbox"], r["bbox"]])
+            continue
+
+        out.append(r)
+    return out
 
 
 def rows_from_line_items(read: PageRead) -> list[dict]:

@@ -432,6 +432,19 @@ def test_header_scoping_ignores_attachment_doc_no():
     assert it is None
 
 
+def test_ghost_rows_auto_fold_into_preceding_description():
+    rows = [
+        {"line_no": 1, "bbox": (0.01, 0.20, 0.9, 0.05), "cells": {
+            "description": {"text": "PART A MAIN"}, "qty": {"text": "2"}, "unit_price": {"text": "50.00"}, "amount": {"text": "100.00"}}},
+        {"line_no": 2, "bbox": (0.01, 0.26, 0.9, 0.04), "cells": {
+            "description": {"text": "EXTRA SPECIFICATION CONTINUED"}, "qty": {}, "unit_price": {}, "amount": {}}},
+    ]
+    folded = vp.fold_ghost_rows(rows)
+    assert len(folded) == 1
+    assert "EXTRA SPECIFICATION CONTINUED" in folded[0]["cells"]["description"]["text"]
+
+
+
 
 
 
