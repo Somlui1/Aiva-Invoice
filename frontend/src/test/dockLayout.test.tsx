@@ -19,6 +19,7 @@ import { SettingsProvider } from '../context/SettingsContext'
 import { ToastModalProvider } from '../context/ToastModalContext'
 import { SimProvider } from '../context/SimContext'
 import { QueuePage } from '../components/queue/QueuePage'
+import { InvoiceDetailPane } from '../components/queue/InvoiceDetailPane'
 import { INITIAL_DOCS } from '../mock/initialDocs'
 
 /**
@@ -177,5 +178,35 @@ describe('QueuePage Grid Layout Binding', () => {
     expect(work.classList.contains('pdf-open')).toBe(false)
     expect(work.style.getPropertyValue('--mc')).toBe('100fr')
     expect(work.style.getPropertyValue('--dc')).toBe('0fr')
+  })
+})
+
+describe('InvoiceDetailPane PDF Button Loading State', () => {
+  it('renders spinner and disables button when isPdfLoading is true', async () => {
+    function DetailHarness() {
+      const { setIsPdfLoading } = useInvoices()
+      return (
+        <div>
+          <button onClick={() => setIsPdfLoading(true)}>TriggerLoading</button>
+          <InvoiceDetailPane doc={INITIAL_DOCS[0]} onOpenActionModal={() => {}} />
+        </div>
+      )
+    }
+
+    await mount(<DetailHarness />)
+
+    const btnBefore = screen.getByRole<HTMLButtonElement>('button', { name: /เปิดเอกสาร PDF/i })
+    expect(btnBefore.disabled).toBe(false)
+    expect(btnBefore.querySelector('.spin')).toBeNull()
+
+    act(() => {
+      screen.getByText('TriggerLoading').click()
+    })
+
+    const btnLoading = screen.getByRole<HTMLButtonElement>('button', { name: /กำลังโหลด PDF/i })
+    expect(btnLoading.disabled).toBe(true)
+    expect(btnLoading.querySelector('.spin')).not.toBeNull()
+    // The spinner state replaces the toggle, so the idle label must be gone.
+    expect(screen.queryByRole('button', { name: /เปิดเอกสาร PDF/i })).toBeNull()
   })
 })
