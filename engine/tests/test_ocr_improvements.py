@@ -330,3 +330,45 @@ def test_cells_from_row_text_dual_quantities():
     assert c2["uom"] == "KG"
     assert c2["unit_price"] == "49.940"
     assert c2["amount"] == "145,125.64"
+
+
+def test_rows_from_line_items_does_not_merge_rows_with_money():
+    read = vp.PageRead(page_no=1, items=[
+        {"label": "line_1", "text": "PART A 1 PCS 100.00 100.00", "bbox": (0.01, 0.25, 0.9, 0.05)},
+        {"label": "line_2", "text": "PART B 1 PCS 100.00 100.00", "bbox": (0.01, 0.35, 0.9, 0.05)},
+    ])
+    rows = vp.rows_from_line_items(read)
+    assert len(rows) == 2
+
+
+def test_rows_from_line_items_preserves_unparsed_row_with_money():
+    # line_2 has money 200.00 but unusual format that doesn't parse into tail cells
+    read = vp.PageRead(page_no=1, items=[
+        {"label": "line_1", "text": "PART A 1 PCS 100.00 100.00", "bbox": (0.01, 0.25, 0.9, 0.05)},
+        {"label": "line_2", "text": "PART B SPECIAL 200.00 EXTRA", "bbox": (0.01, 0.35, 0.9, 0.05)},
+    ])
+    rows = vp.rows_from_line_items(read)
+    assert len(rows) == 2
+    assert "PART B" in rows[1]["cells"]["description"]["text"]
+
+
+def test_merge_duplicate_rows_preserves_distinct_items_with_same_price():
+    rows = [
+        {"line_no": 1, "bbox": (0.01, 0.25, 0.9, 0.04), "cells": {
+            "description": {"text": "PART 001"}, "qty": {"text": "1"}, "unit_price": {"text": "100.00"}, "amount": {"text": "100.00"}}},
+        {"line_no": 2, "bbox": (0.01, 0.35, 0.9, 0.04), "cells": {
+            "description": {"text": "PART 002"}, "qty": {"text": "1"}, "unit_price": {"text": "100.00"}, "amount": {"text": "100.00"}}},
+    ]
+    kept, notes = vp.merge_duplicate_rows(rows, page=1)
+    assert len(kept) == 2
+
+
+def test_merge_duplicate_rows_preserves_distinct_items_even_if_bboxes_overlap():
+    rows = [
+        {"line_no": 1, "bbox": (0.01, 0.25, 0.9, 0.08), "cells": {
+            "description": {"text": "ITEM 1 BHA62147 F002"}, "qty": {"text": "1"}, "unit_price": {"text": "100.00"}, "amount": {"text": "100.00"}}},
+        {"line_no": 2, "bbox": (0.01, 0.28, 0.9, 0.08), "cells": {
+            "description": {"text": "ITEM 2 BHA62147 F003"}, "qty": {"text": "1"}, "unit_price": {"text": "100.00"}, "amount": {"text": "100.00"}}},
+    ]
+    kept, notes = vp.merge_duplicate_rows(rows, page=1)
+    assert len(kept) == 2

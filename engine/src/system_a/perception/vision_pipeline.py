@@ -905,6 +905,13 @@ def _box_overlap(a, b) -> float:
     return inter / smaller if smaller > 0 else 0.0
 
 
+def _same_or_wrapped_desc(desc_a: Optional[str], desc_b: Optional[str]) -> bool:
+    if not desc_a or not desc_b:
+        return True
+    a, b = desc_a.strip().lower(), desc_b.strip().lower()
+    return a == b or a in b or b in a
+
+
 def merge_duplicate_rows(rows: list, page: int, tolerance: float = 0.5) -> tuple[list, list]:
     """One printed row must not become two rows.
 
@@ -916,7 +923,10 @@ def merge_duplicate_rows(rows: list, page: int, tolerance: float = 0.5) -> tuple
     keep: list[dict] = []
     notes: list[dict] = []
     for row in rows:
-        target = next((p for p in keep if _same_printed_numbers(p, row) and _box_overlap(p["bbox"], row["bbox"]) >= tolerance),
+        target = next((p for p in keep if _same_printed_numbers(p, row)
+                       and _same_or_wrapped_desc((p["cells"].get("description") or {}).get("text"),
+                                                (row["cells"].get("description") or {}).get("text"))
+                       and _box_overlap(p["bbox"], row["bbox"]) >= tolerance),
                       None)
         if target is None:
             keep.append(row)
@@ -1024,7 +1034,8 @@ def rows_from_line_items(read: PageRead) -> list[dict]:
             continue
         conf = float(it.get("confidence") or 0)
         parsed = cells_from_row_text(text)
-        if not parsed and out and any(k != "description" for k in out[-1]["cells"]):
+        has_money = bool(re.search(r"\b\d[\d,]*\.\d{2}\b", text))
+        if not parsed and not has_money and out and any(k != "description" for k in out[-1]["cells"]):
             # a printed row without qty/price/amount right under an item row is that item's wrapped description
             # ("( Project:AHD_AS ..., Task:07.2 - DFG0011022A )"), not an item of its own
             prev = out[-1]["cells"].get("description") or {"text": "", "bbox": it["bbox"], "confidence": conf}
