@@ -373,6 +373,7 @@ export function transformValidatedEngineResult(engine: EngineResultV3): PortalIn
 
     // 3. Oracle receipt & matching
     receiptFound: receiptNums.length > 0,
+    receiptNums,
     lookupPath: str(os.lookup_path),
     orgId,
     ouName: str(os.ou_name),

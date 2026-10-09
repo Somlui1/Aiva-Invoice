@@ -224,6 +224,8 @@ export interface PortalInvoiceDocument {
 
   // 3. Oracle Receipt & Matching
   receiptFound: boolean
+  /** Oracle receipt numbers the invoice was looked up against. */
+  receiptNums: string[]
   lookupPath?: string
   orgId?: number
   ouName?: string
