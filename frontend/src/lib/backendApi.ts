@@ -68,15 +68,6 @@ export async function getValidationResult(id: string): Promise<any> {
   return await res.json()
 }
 
-export async function revalidateInvoice(id: string, round = 2): Promise<ValidationSubmitResponse> {
-  const res = await fetch(`/api/validations/${id}/revalidate`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ document_revision: 1, validation_round: round })
-  })
-  if (!res.ok) throw new Error(`Revalidation failed: ${res.status}`)
-  return await res.json()
-}
 
 export async function ingestValidationResult(payload: Record<string, unknown>): Promise<any> {
   const res = await fetch('/api/ingest/validation-results', {
