@@ -1039,11 +1039,15 @@ def rows_from_line_items(read: PageRead) -> list[dict]:
     return out
 
 
-_NUM2 = r"\d[\d,]*\.\d{2}"
+_NUM2 = r"\d[\d,]*(?:\.\d{1,4})?"
 _ROW_TAIL = re.compile(rf"(?P<qty>\d[\d,]*(?:\.\d+)?)\s+(?P<uom>[A-Za-z\u0E01-\u0E4E][A-Za-z0-9\u0E01-\u0E4E./-]{{0,11}})\s+"
                        rf"(?P<money>{_NUM2}(?:\s+{_NUM2}){{1,2}})\s*$")
 _ROW_TAIL_UOM_FIRST = re.compile(rf"(?P<uom>[A-Za-z\u0E01-\u0E4E][A-Za-z0-9\u0E01-\u0E4E./-]{{0,11}})\s+(?P<qty>\d+(?:\.\d+)?)\s+"
                                  rf"(?P<money>{_NUM2}(?:\s+{_NUM2}){{1,2}})\s*$")
+_ROW_PRICE_UOM_AMOUNT = re.compile(
+    rf"(?:(?P<qty1>\d[\d,]*(?:\.\d+)?)\s+)?(?P<qty2>\d[\d,]*(?:\.\d+)?)\s+(?P<price>{_NUM2})\s+"
+    rf"(?P<uom>[A-Za-z\u0E01-\u0E4E][A-Za-z0-9\u0E01-\u0E4E./-]{{0,11}})\s+(?P<amount>{_NUM2})\s*$"
+)
 
 
 def cells_from_row_text(text: str) -> Optional[dict]:
@@ -1051,11 +1055,38 @@ def cells_from_row_text(text: str) -> Optional[dict]:
 
     Used when the table pass did not run for a page (DMS-22 pages 5+: every row came back description-only and
     produced 11 x 4 NOT_PRESENT cells).  Three trailing amounts (weight/price/amount or price/discount/amount) are
-    resolved by the row's own arithmetic; nothing is guessed when the row does not parse.
+    resolved by the row's own arithmetic; dual quantity lines (Sheet + KG) pick the arithmetic match.
+    Nothing is guessed when the row does not parse.
     """
     from decimal import Decimal, InvalidOperation
     t = re.sub(r"\b(THB|BAHT)\b|฿|บาท", " ", str(text or ""), flags=re.I)
     t = re.sub(r"\s+", " ", thai_to_arabic(t)).strip()
+
+    # 1. Dual-quantity / unit-after-price pattern (e.g. "... 1 3,006 49.940 KG 150,119.64")
+    m_pu = _ROW_PRICE_UOM_AMOUNT.search(t)
+    if m_pu:
+        try:
+            p_val = Decimal(m_pu.group("price").replace(",", ""))
+            a_val = Decimal(m_pu.group("amount").replace(",", ""))
+            q2_val = Decimal(m_pu.group("qty2").replace(",", ""))
+            q1_str = m_pu.group("qty1")
+            q1_val = Decimal(q1_str.replace(",", "")) if q1_str else None
+            chosen_qty = m_pu.group("qty2")
+            if q1_val is not None and abs(q1_val * p_val - a_val) <= Decimal("0.01"):
+                chosen_qty = q1_str
+            elif abs(q2_val * p_val - a_val) <= Decimal("0.01"):
+                chosen_qty = m_pu.group("qty2")
+            return {
+                "description": t[:m_pu.start()].strip() or None,
+                "qty": chosen_qty,
+                "uom": m_pu.group("uom"),
+                "unit_price": m_pu.group("price"),
+                "amount": m_pu.group("amount"),
+            }
+        except InvalidOperation:
+            pass
+
+    # 2. Standard tail patterns
     m = _ROW_TAIL.search(t) or _ROW_TAIL_UOM_FIRST.search(t)
     if not m:
         return None

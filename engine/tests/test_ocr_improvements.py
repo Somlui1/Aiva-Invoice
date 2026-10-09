@@ -312,3 +312,21 @@ def test_standard_uom_groups_include_trip_and_book():
     assert std.uom_group("TP") == "TRIP"
     assert std.uom_group("BOOK") == "BOOK"
     assert std.uom_group("เล่ม") == "BOOK"
+
+
+def test_cells_from_row_text_dual_quantities():
+    t1 = "MB3B-41111K34/35-A WSS-M1A367-A45 FILL FLR TNL REINF RH/LH 2.00x940.00xC 667877 1 3,006 49.940 KG 150,119.64"
+    c1 = vp.cells_from_row_text(t1)
+    assert c1 is not None
+    assert c1["qty"].replace(",", "") == "3006"
+    assert c1["uom"] == "KG"
+    assert c1["unit_price"] == "49.940"
+    assert c1["amount"] == "150,119.64"
+
+    t2 = "MB3B-41111K34/35-A WSS-M1A367-A45 FILL FLR TNL REINF RH/LH 2.00x940.00xC 667877 1 2,906 49.940 KG 145,125.64"
+    c2 = vp.cells_from_row_text(t2)
+    assert c2 is not None
+    assert c2["qty"].replace(",", "") == "2906"
+    assert c2["uom"] == "KG"
+    assert c2["unit_price"] == "49.940"
+    assert c2["amount"] == "145,125.64"
