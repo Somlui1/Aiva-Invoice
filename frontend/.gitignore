@@ -7,3 +7,10 @@ dist-ssr
 *.xlsx
 
 temp/
+/src/generated/prisma
+
+# Prisma / local database
+.env
+prisma/*.db
+prisma/*.db-journal
+*.tsbuildinfo
