@@ -490,3 +490,33 @@ def test_reconcile_grand_total_when_duplicated_subtotal():
     assert fields["grand_total"].raw == "6,848.00"
     assert fields["grand_total"].agreement is True
     assert log
+
+
+def test_collapse_duplicate_block_middle_block():
+    from system_a.domain.contracts import InvoiceDoc, NField, NLine
+    from system_a.domain.evidence import collapse_duplicate_block
+    from system_a.domain.standard import load_standard
+
+    def make_line(n, desc, amt):
+        return NLine(n, f"L{n}", {
+            "description": NField("description", f"L{n}-d", desc, desc, 1.0, True, None),
+            "qty": NField("qty", f"L{n}-q", "1", Decimal("1"), 1.0, True, None),
+            "unit_price": NField("unit_price", f"L{n}-p", str(amt), Decimal(str(amt)), 1.0, True, None),
+            "amount": NField("amount", f"L{n}-a", str(amt), Decimal(str(amt)), 1.0, True, None),
+        }, "PCS", ())
+
+    # Middle block duplicated: L1, L2, then duplicated L3(same as L1), L4(same as L2), then L5
+    # Subtotal is 100 + 200 + 300 = 600
+    l1 = make_line(1, "ITEM_A", 100)
+    l2 = make_line(2, "ITEM_B", 200)
+    l3 = make_line(3, "ITEM_A", 100) # dup of L1
+    l4 = make_line(4, "ITEM_B", 200) # dup of L2
+    l5 = make_line(5, "ITEM_C", 300)
+
+    doc = InvoiceDoc("D1", {"sub_total": NField("sub_total", "f-sub", "600.00", Decimal("600.00"), 1.0, True, None)},
+                     (l1, l2, l3, l4, l5), {}, True)
+    std = load_standard()
+    collapsed, note = collapse_duplicate_block(doc, None, std)
+    assert note is not None
+    assert [l.line_no for l in collapsed.lines] == [1, 2, 5]
+
