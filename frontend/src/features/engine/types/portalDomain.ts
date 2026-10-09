@@ -19,7 +19,14 @@ export type PortalDocumentStatus =
   | 'Rejected'
   | 'Duplicate'
 
-export type CompanyCode = 'AH' | 'AHT' | 'AHP' | 'AM'
+/**
+ * Company codes owned by the Portal. Extended (approved 2026-10-09) with AHA
+ * (org 413) and '?' as the explicit fallback when a document's company cannot be
+ * resolved from oracle org_id / customer_tax_id.
+ */
+export const PORTAL_COMPANY_CODES = ['AH', 'AHT', 'AHP', 'AM', 'AHA', '?'] as const
+
+export type CompanyCode = (typeof PORTAL_COMPANY_CODES)[number]
 
 export type EngineRecommendationValue =
   | 'AUTO_PASS'
@@ -38,6 +45,27 @@ export type PortalApStatus = 'unconfirmed' | 'confirmed' | 'sent' | 'posted' | '
 export type PortalDuplicateStatus = 'none' | 'potential_duplicate' | 'overridden'
 
 export type PortalContentKind = 'pdf' | 'image'
+
+/**
+ * Portal-owned page classification. Declared as a runtime-readable const so the
+ * union is assertable, not just typed. Extended (approved 2026-10-09) to cover
+ * what the Engine really emits across the 125-doc corpus — TAX_INVOICE, INVOICE,
+ * DELIVERY_NOTE, PO, OSP, SUPPORTING — while keeping the original design-doc
+ * members (DELIVERY_ORDER, RECEIPT, UNKNOWN).
+ */
+export const PORTAL_PAGE_TYPES = [
+  'TAX_INVOICE',
+  'INVOICE',
+  'DELIVERY_NOTE',
+  'DELIVERY_ORDER',
+  'PO',
+  'RECEIPT',
+  'OSP',
+  'SUPPORTING',
+  'UNKNOWN',
+] as const
+
+export type PortalPageType = (typeof PORTAL_PAGE_TYPES)[number]
 
 export type PortalStepStatus = 'ok' | 'warn' | 'fail'
 
@@ -126,7 +154,7 @@ export interface PortalPageMeta {
   widthPt: number
   heightPt: number
   rotation: number
-  pageType: 'TAX_INVOICE' | 'DELIVERY_ORDER' | 'PO' | 'RECEIPT' | 'UNKNOWN'
+  pageType: PortalPageType
 }
 
 export interface PortalBoundingBox {

@@ -8,7 +8,8 @@ describe('Domain Models & Master Data Integrity', () => {
   it('contains expected AAPICO companies with tax IDs and ORG_IDs', () => {
     expect(COMPANIES.AH.name).toContain('อาปิโก ไฮเทค (มหาชน)')
     expect(COMPANIES.AH.tax).toBe('0107545000179')
-    expect(COMPANIES.AH.orgs).toEqual([103, 222])
+    // AH master data extended (approved 2026-10-09) with real engine org 101.
+    expect(COMPANIES.AH.orgs).toEqual([101, 103, 222])
 
     expect(companyOfOrg(103)).toBe('AH')
     expect(companyOfOrg(352)).toBe('AHT')
