@@ -19,7 +19,7 @@ const num = x => x == null ? '' : String(x);
 let SHOW = new Set();           // ชนิดกรอบที่เปิดแสดงอยู่ (จำไว้ใน browser)
 let ROUNDS = { rounds: [], active: '', err: '' };   // รอบใน engine/results - server เป็นคนบอกเสมอ
 let SEL = new Set();            // doc id ที่ติ๊กไว้กับมือ (ว่าง = รันทุกฉบับที่เห็นในรายการ)
-let BT = null, BTIMER = null;   // สถานะ batch ล่าสุดที่ server ตอบ / timer ที่ถามความคืบหน้า
+let BT = null, BTIMER = null, BATCH_IDS = [];   // สถานะ batch ล่าสุด / timer / id ที่ชุดนี้รัน
 let SUMM = null, SUMV = '';     // summary ที่เปิดดูอยู่ / ชื่อรอบตอนที่อ่านมัน
 let CMPD = null, CMPF = 'changed';   // ผลเทียบสองรอบล่าสุด / ชิ้นกรองที่เลือกอยู่
 
@@ -755,6 +755,7 @@ async function startBatch() {
   $('btn_batch').disabled = true;
   try {
     const r = await api.batchStart(ids, $('skip_existing').checked, +$('concurrency').value || 0);
+    BATCH_IDS = ids;
     last = r.status === 'nothing-to-run' ? 'รอบนี้มีผลครบแล้ว ไม่มีอะไรต้องรัน'
       : `เริ่ม ${r.total} ฉบับ · ข้าม ${r.skipped || 0}` + (r.unknown ? ` · ไม่รู้จัก ${r.unknown}` : '');
     await batchPoll();
@@ -767,6 +768,12 @@ async function batchPoll() {
     applyBatch(st);
     if (st.running) { BTIMER = setTimeout(batchPoll, 1200); return }        // จบแล้วค่อยอ่านรายการรอบนี้อีกครั้ง
     $('btn_batch').disabled = false;
+    for (const id of BATCH_IDS) {                 // ผลของฉบับที่รันใหม่ต้องอ่านจากไฟล์ใหม่ ไม่ใช่ภาพที่จำไว้
+      const r = stOf(id);
+      if (r.view && r.from === 'server') { r.view = null; r.probed = false }
+      if (CASES[id]) dropCase(id);                // case เก่าใน browser ก็ของคนละรอบกับที่เพิ่งรัน
+    }
+    BATCH_IDS = [];
     try { adoptDocs(await api.documents()); } catch (e) { }
     apply();
   } catch (e) { $('btn_batch').disabled = false; applyBatch(); note = `ถามสถานะ batch ไม่ได้: ${e.message}` }

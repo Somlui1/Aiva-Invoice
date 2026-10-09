@@ -196,6 +196,13 @@ def test_the_batch_progress_and_the_row_marks_are_the_servers_counts():
     assert "data-ck" in CODE and "SEL" in CODE                          # the tester picks which documents to run
 
 
+def test_a_finished_batch_forgets_the_views_it_just_made_stale():
+    """After a re-run, opening a document must show the new result - not the view kept from the old one."""
+    seg = CODE.split("async function batchPoll")[1].split("\n}")[0]
+    assert "BATCH_IDS" in seg and "r.view = null" in seg and "r.probed = false" in seg
+    assert "dropCase(id)" in seg                                       # and the browser's own copy goes too
+
+
 def test_the_summary_modal_shows_the_servers_summary_and_nothing_else():
     seg = CODE.split("function summaryHtml")[1].split("async function showSummary")[0]
     for k in ("metadata", "statistics", "counts", "rules", "cases", "rule_id", "rule_results",
