@@ -28,6 +28,7 @@ def build_payload(doc: InvoiceDoc, groups, rows: dict[str, ReceiptRow], std: Sta
             for n in g.invoice_line_nos:
                 expected[n] = ("not_evaluated", None)
             continue
+        uom_mode = str((std.policy.get("validation") or {}).get("v08_uom_mismatch") or "delegate")
         ug = {std.uom_group(r.uom) for r in rcv} | {lines[n].uom_group for n in g.invoice_line_nos}
         comparable = len(ug) == 1 and None not in ug
         rsum = sum((r.qty for r in rcv), Decimal(0))
@@ -40,7 +41,9 @@ def build_payload(doc: InvoiceDoc, groups, rows: dict[str, ReceiptRow], std: Sta
             for n in g.invoice_line_nos:
                 per.append({"invoice_line_no": n, "qty_rcv_compared": str(rsum),
                             "qty_diff": None if diff is None else str(diff)})
-                if not comparable or diff is None:
+                if not comparable:
+                    expected[n] = ("not_evaluated", None) if uom_mode == "delegate" else ("manual_review", None)
+                elif diff is None:
                     expected[n] = ("manual_review", None)
                 elif diff == 0:
                     expected[n] = ("pass", None)
@@ -53,7 +56,9 @@ def build_payload(doc: InvoiceDoc, groups, rows: dict[str, ReceiptRow], std: Sta
                 diff = None if q is None else q - cmp_
                 per.append({"invoice_line_no": n, "qty_rcv_compared": str(cmp_),
                             "qty_diff": None if diff is None else str(diff)})
-                if not comparable or diff is None:
+                if not comparable:
+                    expected[n] = ("not_evaluated", None) if uom_mode == "delegate" else ("manual_review", None)
+                elif diff is None:
                     expected[n] = ("manual_review", None)
                 elif diff == 0:
                     expected[n] = ("pass", None)
@@ -88,6 +93,10 @@ def guard(ai: dict, expected: dict, enabled: bool = True) -> tuple[list[dict], l
     seen = {lr["invoice_line_no"]: lr for lr in ai.get("line_results", []) if isinstance(lr, dict)}
     out, dis = [], []
     for n, (exp_res, exp_code) in sorted(expected.items()):
+        if exp_res == "not_evaluated":
+            out.append({"invoice_line_no": n, "result": "not_evaluated", "code": None, "severity": None,
+                        "message": None, "reason": "DELEGATED_TO_V07_E10"})
+            continue
         lr = seen.get(n)
         if lr is None:
             out.append({"invoice_line_no": n, "result": "manual_review", "code": None, "severity": None,

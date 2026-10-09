@@ -167,3 +167,73 @@ def test_v07_v08_milestone_installment_exact_amount_matches():
     assert res_v08.result == "pass"
 
 
+def test_v08_uom_mismatch_delegates_to_v07_e10_without_manual_review():
+    import copy
+    from system_a.domain.standard import load_standard
+    from system_a.domain.contracts import NLine, NField
+    from system_a.domain.matching import MatchGroup
+    from system_a.domain.rules import v07_line_match, v08_quantity
+    from system_a.domain.recommendation import recommend
+
+    std = copy.deepcopy(load_standard())
+    std.policy.setdefault("validation", {})["v08_uom_mismatch"] = "delegate"
+    
+    # Line 1: UOM is KG vs receipt EA
+    line1 = NLine(
+        line_no=1,
+        element_id="L1",
+        cells={
+            "qty": NField(name="qty", element_id="L1-q", raw="10", value=Decimal("10"), confidence=0.99, ok=True),
+            "unit_price": NField(name="unit_price", element_id="L1-p", raw="10", value=Decimal("10"), confidence=0.99, ok=True),
+            "amount": NField(name="amount", element_id="L1-a", raw="100", value=Decimal("100"), confidence=0.99, ok=True),
+            "uom": NField(name="uom", element_id="L1-u", raw="KG", value="KG", confidence=0.99, ok=True),
+            "description": NField(name="description", element_id="L1-d", raw="Part B", value="Part B", confidence=0.99, ok=True),
+        },
+        uom_group="KG",
+    )
+    doc = InvoiceDoc(
+        document_id="D1",
+        fields={},
+        lines=(line1,),
+        signatures={},
+        pages_complete=True,
+    )
+    rcv_row = ReceiptRow(
+        org_id=101, receipt_num="R1", receiver="WH", line=1, item="Part B",
+        qty=Decimal("10"), uom="EA", unit_price=Decimal("10"), line_amount=Decimal("100")
+    )
+    snapshot = type("Snapshot", (), {
+        "found": True,
+        "active": [rcv_row],
+        "rows": [rcv_row],
+        "org_id": 101,
+        "receipt_nums": ["R1"],
+    })()
+    group = MatchGroup(
+        group_id="G1",
+        relation="1:1",
+        level="M1",
+        invoice_line_nos=(1,),
+        rcv_line_ids=("R1-1",),
+        confidence=1.0,
+        source="logic",
+    )
+    ai_mock = type("QtyAIMock", (), {
+        "judge": lambda self, payload: {
+            "rule_id": "V-08",
+            "line_results": [{"invoice_line_no": 1, "result": "manual_review", "code": None, "severity": None, "message": None}]
+        }
+    })()
+    c = Ctx(doc=doc, snapshot=snapshot, std=std, groups=[group], match_trace={}, qty_ai=ai_mock, ai_trace={})
+    res_v07 = v07_line_match(c)
+    assert res_v07.result == "fail"
+    assert any(f.code == "E10" and f.severity == "Medium" for f in res_v07.findings)
+
+    res_v08 = v08_quantity(c)
+    assert res_v08.result != "manual_review"
+
+    rec = recommend([res_v07, res_v08], [])
+    assert rec["value"] == "REVIEW"
+
+
+
