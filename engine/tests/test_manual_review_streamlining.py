@@ -101,3 +101,69 @@ def test_v05_demotes_address_uncertainty_to_medium_e07_when_tax_id_matches():
     assert res.findings[0].severity == "Medium"
     assert "AI ไม่มั่นใจเรื่องที่อยู่ลูกค้า" in res.findings[0].message_th
 
+
+def test_v07_v08_milestone_installment_exact_amount_matches():
+    import copy
+    from system_a.domain.standard import load_standard
+    from system_a.domain.contracts import NLine, NField
+    from system_a.domain.matching import MatchGroup
+    from system_a.domain.rules import v07_line_match, v08_quantity
+
+    std = copy.deepcopy(load_standard())
+    std.policy.setdefault("validation", {})["milestone_installment"] = "exact_amount_pass"
+    
+    # 1 SET x 42,000 = 42,000
+    line1 = NLine(
+        line_no=1,
+        element_id="L1",
+        cells={
+            "qty": NField(name="qty", element_id="L1-q", raw="1", value=Decimal("1"), confidence=0.99, ok=True),
+            "unit_price": NField(name="unit_price", element_id="L1-p", raw="42000", value=Decimal("42000"), confidence=0.99, ok=True),
+            "amount": NField(name="amount", element_id="L1-a", raw="42000", value=Decimal("42000"), confidence=0.99, ok=True),
+            "uom": NField(name="uom", element_id="L1-u", raw="SET", value="SET", confidence=0.99, ok=True),
+            "description": NField(name="description", element_id="L1-d", raw="Part A 70%", value="Part A 70%", confidence=0.99, ok=True),
+        },
+        uom_group="SET",
+    )
+    doc = InvoiceDoc(
+        document_id="D1",
+        fields={},
+        lines=(line1,),
+        signatures={},
+        pages_complete=True,
+    )
+    # Receipt: 0.7 SET x 60,000 = 42,000
+    rcv_row = ReceiptRow(
+        org_id=101, receipt_num="R1", receiver="WH", line=1, item="Part A",
+        qty=Decimal("0.7"), uom="SET", unit_price=Decimal("60000"), line_amount=Decimal("42000")
+    )
+    snapshot = type("Snapshot", (), {
+        "found": True,
+        "active": [rcv_row],
+        "rows": [rcv_row],
+        "org_id": 101,
+        "receipt_nums": ["R1"],
+    })()
+    group = MatchGroup(
+        group_id="G1",
+        relation="1:1",
+        level="M1",
+        invoice_line_nos=(1,),
+        rcv_line_ids=("R1-1",),
+        confidence=1.0,
+        source="logic",
+    )
+    ai_mock = type("QtyAIMock", (), {
+        "judge": lambda self, payload: {
+            "rule_id": "V-08",
+            "line_results": [{"invoice_line_no": 1, "result": "pass", "code": None, "severity": None, "message": None}]
+        }
+    })()
+    c = Ctx(doc=doc, snapshot=snapshot, std=std, groups=[group], match_trace={}, qty_ai=ai_mock, ai_trace={})
+    res_v07 = v07_line_match(c)
+    assert res_v07.result == "pass"
+
+    res_v08 = v08_quantity(c)
+    assert res_v08.result == "pass"
+
+
