@@ -164,8 +164,9 @@ def elements(payload) -> dict:
 @pytest.fixture
 def settings(harness, tmp_path):
     from webapp.config import Settings
-    return Settings(system_a_home=harness, data_dir=tmp_path / "data", workers=2, render_dpi=96,
-                    paperless_tag="invoice", paperless_limit=50, mode="sandbox", persist_results=True)
+    return Settings(system_a_home=harness, data_dir=tmp_path / "data", results_dir=tmp_path / "results",
+                    workers=2, render_dpi=96, paperless_tag="invoice", paperless_limit=50, mode="sandbox",
+                    persist_results=True)
 
 
 @pytest.fixture
@@ -185,14 +186,16 @@ def catalog(sa, settings):
 
 @pytest.fixture
 def parts(settings, sa, catalog):
-    """``(app, service, catalog)`` with the real service + store and a runner that returns the real payload."""
+    """``(app, service, catalog)`` with the real service, a results directory of its own, and a runner that
+    returns the real payload.  The store is a :class:`RoundStore`: the tests exercise the same round folders
+    (``<results>/<round>/DMS-<id>_result.json``) the portal reads and writes in production."""
     from doubles import FakeRunner
     from webapp.app import create_app
     from webapp.service import DocumentService
-    from webapp.store import ResultStore
+    from webapp.store import RoundStore
 
-    service = DocumentService(catalog, FakeRunner(payload=sa.payload), ResultStore(settings.data_dir),
-                              workers=2, mode="sandbox")
+    service = DocumentService(catalog, FakeRunner(payload=sa.payload),
+                              RoundStore(settings.results_dir, settings.default_round), workers=2, mode="sandbox")
     yield create_app(settings, service, catalog), service, catalog
     service.shutdown()
 

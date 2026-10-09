@@ -423,6 +423,18 @@ class DocumentService:
             return {"active": store.active_round, "rounds": store.list_rounds(),
                     "batch_running": self._batch["running"]}
 
+    def create_round(self, round_name: str) -> dict:
+        """Open a round folder and report it.  Opening one does not look at it - that is ``switch_round``."""
+        store = self._rounds()
+        with self._lock:
+            if self._batch["running"]:
+                raise Busy("a batch is running - stop it before opening a new round")
+            existed = store.has_round(round_name)
+            d = store.create_round(round_name)
+            log.info("round %r opened inside %s", d.name, getattr(store, "results_root", ""))
+            return {"round": d.name, "active": store.active_round, "created": not existed,
+                    "rounds": store.list_rounds()}
+
     def switch_round(self, round_name: str) -> dict:
         """Look at another round.  Nothing is deleted: the other round's files simply become the ones we read."""
         store = self._rounds()
@@ -538,6 +550,11 @@ class DocumentService:
         except Exception:                                              # pragma: no cover - damaged results folder
             log.exception("cannot rewrite summary.json of round %r", self._round_name())
             return None
+
+    def rebuild_summary(self) -> Optional[dict]:
+        """Fold ``summary.json`` of the active round again, now - whatever the browser last saw."""
+        self._rounds()
+        return self._refresh_summary()
 
     def summary(self) -> dict:
         """The round's summary, regenerated when the round has results and no summary file yet."""

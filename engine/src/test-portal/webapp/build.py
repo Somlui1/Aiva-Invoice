@@ -1,14 +1,15 @@
-"""Wiring: ``Settings`` -> System A + document list + runner + store -> :class:`DocumentService` -> FastAPI.
+"""Wiring: ``Settings`` -> System A + document list + runner + round store -> :class:`DocumentService` -> FastAPI.
 
-There is one path only: the documents are the real ones in Paperless, and a document is processed by System A's
-own code (:mod:`webapp.sysa`).  The portal contributes a list, a queue and a screen - nothing else.
+There is one path only: the documents are the real ones in Paperless, a document is processed by System A's own
+code (:mod:`webapp.sysa`), and what it produces is written into ``engine/results/<round>/`` in the same shape the
+batch script writes.  The portal contributes a list, a queue and a screen - nothing else.
 """
 from __future__ import annotations
 
 import logging
 
 from .config import Settings
-from .store import MemoryStore, ResultStore
+from .store import MemoryStore, RoundStore
 
 log = logging.getLogger("webapp")
 
@@ -40,12 +41,13 @@ def build_all(settings: Settings, *, sa=None, catalog=None, runner=None):
     sa = sa if sa is not None else sysa.init(settings)
     catalog = catalog if catalog is not None else build_catalog(settings, sa)
     run = runner if runner is not None else build_runner(settings, sa)
-    store = ResultStore(settings.data_dir) if settings.persist_results else MemoryStore()
-    service = DocumentService(catalog, run, store, workers=settings.workers, mode=settings.mode)
+    store = RoundStore(settings.results_dir, settings.default_round) if settings.persist_results else MemoryStore()
+    service = DocumentService(catalog, run, store, workers=settings.workers, mode=settings.mode,
+                              concurrency=settings.batch_concurrency)
     info = catalog.stats()
-    log.info("%s | documents=%s | engine=%s mode=%s | results %s", sa.health().get("home"), info.get("documents"),
-             run.name, settings.mode, "on disk in " + str(store.root) if settings.persist_results
-             else "in memory (the browser holds the cases)")
+    log.info("%s | documents=%s | engine=%s mode=%s | round %r in %s", sa.health().get("home"), info.get("documents"),
+             run.name, settings.mode, getattr(store, "active_round", "-"),
+             settings.results_dir if settings.persist_results else "in memory (the browser holds the cases)")
     for t in info.get("unmatched_tags") or []:
         log.warning("no tag named %r in the DMS: the list is unfiltered", t)
     return create_app(settings, service, catalog), service, catalog
