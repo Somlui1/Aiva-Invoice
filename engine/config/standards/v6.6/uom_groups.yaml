@@ -32,3 +32,7 @@ FRAME: [FRAME, FRAMES, เฟรม]
 CAN:   [CAN, CANS, กระป๋อง]
 # DRUM: ถัง (2 บรรทัดพิมพ์ DRUMS)
 DRUM:  [DRUM, DRUMS, ถัง]
+# TRIP: เที่ยว / trip
+TRIP:  [TRIP, TP, เที่ยว]
+# BOOK: เล่ม / book
+BOOK:  [BOOK, เล่ม]

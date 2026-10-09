@@ -302,3 +302,13 @@ def test_result_has_the_normalised_item_list(ext):
     summ = res["normalized_fields"]["items_summary"]
     assert summ["line_count"] == 1 and summ["sum_amount"] == "1000.00" and summ["sum_vs_sub_total_diff"] == "0.00"
     json.dumps(res)                                                     # serialisable
+
+
+def test_standard_uom_groups_include_trip_and_book():
+    from system_a.domain.standard import load_standard
+    std = load_standard()
+    assert std.uom_group("TRIP") == "TRIP"
+    assert std.uom_group("เที่ยว") == "TRIP"
+    assert std.uom_group("TP") == "TRIP"
+    assert std.uom_group("BOOK") == "BOOK"
+    assert std.uom_group("เล่ม") == "BOOK"
