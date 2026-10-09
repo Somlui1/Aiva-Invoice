@@ -1,0 +1,96 @@
+/**
+ * Sidebar Role-Based Menu Isolation Tests.
+ * Design: docs/plans/2026-10-09-pdf-dock-focus-sidebar-cleanup-design.md
+ * Plan:   docs/plans/2026-10-09-pdf-dock-focus-sidebar-cleanup.md
+ *
+ * @vitest-environment jsdom
+ */
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen } from '@testing-library/react'
+
+import { AuthProvider, useAuth } from '../context/AuthContext'
+import { SettingsProvider } from '../context/SettingsContext'
+import { ToastModalProvider } from '../context/ToastModalContext'
+import { InvoiceProvider } from '../context/InvoiceContext'
+import { useEffect } from 'react'
+import { Sidebar } from '../components/layout/Sidebar'
+
+function SidebarHarness({ targetUserId }: { targetUserId: string }) {
+  const { currentUser, switchUser } = useAuth()
+  useEffect(() => {
+    if (currentUser.id !== targetUserId) {
+      switchUser(targetUserId)
+    }
+  }, [currentUser.id, targetUserId, switchUser])
+
+  if (currentUser.id !== targetUserId) {
+    return <div>loading...</div>
+  }
+
+  return <Sidebar currentPage="queue" onNavigate={() => {}} onToggleNav={() => {}} />
+}
+
+async function renderSidebarFor(userId: string) {
+  render(
+    <AuthProvider>
+      <SettingsProvider>
+        <ToastModalProvider>
+          <InvoiceProvider>
+            <SidebarHarness targetUserId={userId} />
+          </InvoiceProvider>
+        </ToastModalProvider>
+      </SettingsProvider>
+    </AuthProvider>,
+  )
+  if (userId === 'u7') {
+    await screen.findByText('เครื่องมือทดสอบและพัฒนา')
+  } else if (userId === 'u6') {
+    await screen.findByText('คิวตรวจสอบ')
+  } else {
+    await screen.findByText('งานของฉัน')
+  }
+}
+
+describe('Sidebar Role-Based Menu Visibility', () => {
+  it('hides test tools and developer items for regular End User (EU)', async () => {
+    // u1 = สมศักดิ์ ใจดี (EU)
+    await renderSidebarFor('u1')
+
+    // Regular work items should exist
+    expect(screen.getByText('งานของฉัน')).not.toBeNull()
+    expect(screen.getByText('สิทธิ์และการเชื่อมบัญชี')).not.toBeNull()
+
+    // Test & dev tools must NOT be rendered
+    expect(screen.queryByText('ชุดเอกสารทดสอบ')).toBeNull()
+    expect(screen.queryByText('มาตรฐาน Payload')).toBeNull()
+    expect(screen.queryByText('Document Simulation')).toBeNull()
+    expect(screen.queryByText('สำหรับนักพัฒนา')).toBeNull()
+    expect(screen.queryByText('เครื่องมือพิเศษ')).toBeNull()
+  })
+
+  it('hides test tools and developer items for Accounting Lead (APR)', async () => {
+    // u6 = สมชาย วงศ์ทอง (APR)
+    await renderSidebarFor('u6')
+
+    // Real production items should exist
+    expect(screen.getByText('คิวตรวจสอบ')).not.toBeNull()
+    expect(screen.getByText('ส่งเข้า AP Interface')).not.toBeNull()
+    expect(screen.getByText('บันทึกการเข้าถึง')).not.toBeNull()
+
+    // Test & dev tools must NOT be rendered
+    expect(screen.queryByText('ชุดเอกสารทดสอบ')).toBeNull()
+    expect(screen.queryByText('มาตรฐาน Payload')).toBeNull()
+    expect(screen.queryByText('Document Simulation')).toBeNull()
+  })
+
+  it('shows test tools and dev items under IT section for Admin (ADM)', async () => {
+    // u7 = อนุชา ไอที (ADM)
+    await renderSidebarFor('u7')
+
+    // IT testing & dev tools should exist
+    expect(screen.getByText('ชุดเอกสารทดสอบ')).not.toBeNull()
+    expect(screen.getByText('มาตรฐาน Payload')).not.toBeNull()
+    expect(screen.getByText('Document Simulation')).not.toBeNull()
+    expect(screen.getByText('เครื่องมือทดสอบและพัฒนา')).not.toBeNull()
+  })
+})
