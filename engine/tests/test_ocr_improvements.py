@@ -372,3 +372,24 @@ def test_merge_duplicate_rows_preserves_distinct_items_even_if_bboxes_overlap():
     ]
     kept, notes = vp.merge_duplicate_rows(rows, page=1)
     assert len(kept) == 2
+
+
+def test_v08_n_to_1_group_passes_when_sum_matches():
+    from decimal import Decimal
+    from system_a.domain.contracts import InvoiceDoc, NField, NLine, ReceiptRow
+    from system_a.domain.matching import MatchGroup
+    from system_a.domain.standard import load_standard
+    from system_a.domain.v08 import build_payload
+
+    l1 = NLine(1, "D1-L1", {"description": NField("description", "d1", "A", "A", 1.0, True, None),
+                           "qty": NField("qty", "q1", "3006", Decimal("3006"), 1.0, True, None)}, "KG", ())
+    l2 = NLine(2, "D1-L2", {"description": NField("description", "d2", "B", "B", 1.0, True, None),
+                           "qty": NField("qty", "q2", "2906", Decimal("2906"), 1.0, True, None)}, "KG", ())
+    doc = InvoiceDoc("D1", {}, (l1, l2), {}, True)
+    r1 = ReceiptRow(176, "RCV1", "Rec", 1, "Item", Decimal("5912"), "Kilogram", Decimal("49.94"), Decimal("295245.28"), {})
+    group = MatchGroup(group_id="G1", relation="N:1", level="M3", invoice_line_nos=(1, 2), rcv_line_ids=("RCV1-1",), confidence=0.9, source="ai", rationale="Matched")
+
+    payload, expected = build_payload(doc, [group], {"RCV1-1": r1}, load_standard())
+    assert expected[1][0] == "pass"
+    assert expected[2][0] == "pass"
+

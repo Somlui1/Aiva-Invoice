@@ -32,18 +32,33 @@ def build_payload(doc: InvoiceDoc, groups, rows: dict[str, ReceiptRow], std: Sta
         comparable = len(ug) == 1 and None not in ug
         rsum = sum((r.qty for r in rcv), Decimal(0))
         per = []
-        for n in g.invoice_line_nos:
-            q = lines[n].v("qty")
-            cmp_ = rsum if g.relation == "1:N" else rcv[0].qty     # B2 sum lots · B1/B3 per line
-            diff = None if q is None else q - cmp_
-            per.append({"invoice_line_no": n, "qty_rcv_compared": str(cmp_),
-                        "qty_diff": None if diff is None else str(diff)})
-            if not comparable or diff is None:
-                expected[n] = ("manual_review", None)
-            elif diff == 0:
-                expected[n] = ("pass", None)
-            else:
-                expected[n] = ("fail", "E14" if diff > 0 else "E15")
+        if g.relation == "N:1":
+            all_qty = [lines[n].v("qty") for n in g.invoice_line_nos]
+            has_none = any(q is None for q in all_qty)
+            inv_sum = None if has_none else sum(all_qty, Decimal(0))
+            diff = None if inv_sum is None else inv_sum - rsum
+            for n in g.invoice_line_nos:
+                per.append({"invoice_line_no": n, "qty_rcv_compared": str(rsum),
+                            "qty_diff": None if diff is None else str(diff)})
+                if not comparable or diff is None:
+                    expected[n] = ("manual_review", None)
+                elif diff == 0:
+                    expected[n] = ("pass", None)
+                else:
+                    expected[n] = ("fail", "E14" if diff > 0 else "E15")
+        else:
+            for n in g.invoice_line_nos:
+                q = lines[n].v("qty")
+                cmp_ = rsum if g.relation == "1:N" else rcv[0].qty     # B2 sum lots · B1 per line
+                diff = None if q is None else q - cmp_
+                per.append({"invoice_line_no": n, "qty_rcv_compared": str(cmp_),
+                            "qty_diff": None if diff is None else str(diff)})
+                if not comparable or diff is None:
+                    expected[n] = ("manual_review", None)
+                elif diff == 0:
+                    expected[n] = ("pass", None)
+                else:
+                    expected[n] = ("fail", "E14" if diff > 0 else "E15")
         facts[g.group_id] = {"uom_comparable": comparable, "rcv_qty_sum": str(rsum), "per_line": per}
     return {"INVOICE_LINES": inv_lines, "MATCH_GROUPS": mg, "COMPUTED_FACTS": facts}, expected
 
