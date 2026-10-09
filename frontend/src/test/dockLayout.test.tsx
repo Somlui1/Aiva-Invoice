@@ -18,6 +18,22 @@ import { AuthProvider } from '../context/AuthContext'
 import { SettingsProvider } from '../context/SettingsContext'
 import { ToastModalProvider } from '../context/ToastModalContext'
 import { SimProvider } from '../context/SimContext'
+import { QueuePage } from '../components/queue/QueuePage'
+import { INITIAL_DOCS } from '../mock/initialDocs'
+
+/**
+ * PDF.js is browser-only: it touches `DOMMatrix` while its module is evaluated and
+ * answers "Please use the `legacy` build in Node.js environments" under jsdom. The
+ * rasteriser is not what these layout tests exercise, and the real proxy/render
+ * path has its own coverage (`pdfProxy.test.ts`, `coordinateTransform.test.ts`),
+ * so the module is replaced by a stub that can never paint a page.
+ */
+vi.mock('pdfjs-dist', () => ({
+  GlobalWorkerOptions: { workerSrc: '' },
+  getDocument: () => {
+    throw new Error('PDF.js is not available in jsdom unit tests')
+  },
+}))
 
 /** Same provider stack the live shell mounts (`src/test/app-smoke.test.tsx`). */
 function Providers({ children }: { children: React.ReactNode }) {
@@ -55,6 +71,16 @@ beforeEach(() => {
     'fetch',
     vi.fn(async () => new Response('{"ok":false,"error":"offline test"}', { status: 500 })),
   )
+  // jsdom implements no ResizeObserver; the dock only needs the observe/disconnect
+  // contract, and its fit-to-width maths is covered in coordinateTransform.test.ts.
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  )
 })
 
 afterEach(() => {
@@ -89,5 +115,67 @@ describe('InvoiceContext Dock & Loading Extensions', () => {
       screen.getByText('SetLoading').click()
     })
     expect(screen.getByTestId('loading').textContent).toBe('true')
+  })
+})
+
+describe('QueuePage Grid Layout Binding', () => {
+  it('applies pdf-open and calculated --mc and --dc CSS variables when dock is open', async () => {
+    function PageHarness() {
+      const { selectDoc, openEvidenceDock, setViewMode } = useInvoices()
+      return (
+        <div>
+          <button
+            onClick={() => {
+              // `.work` is the split view; the table view has no dock column at all.
+              setViewMode('split')
+              selectDoc(INITIAL_DOCS[0].doc)
+              openEvidenceDock(1)
+            }}
+          >
+            OpenDock
+          </button>
+          <QueuePage />
+        </div>
+      )
+    }
+
+    const { container } = await mount(<PageHarness />)
+
+    const workBefore = container.querySelector('#work')
+    expect(workBefore).toBeNull() // default is table view
+
+    act(() => {
+      screen.getByText('OpenDock').click()
+    })
+
+    const workAfter = container.querySelector('#work') as HTMLElement
+    expect(workAfter).not.toBeNull()
+    expect(workAfter.classList.contains('pdf-open')).toBe(true)
+    expect(workAfter.style.getPropertyValue('--mc')).toBe('60.0fr')
+    expect(workAfter.style.getPropertyValue('--dc')).toBe('40.0fr')
+  })
+
+  it('keeps the full-width grid (no pdf-open, --mc 100fr, --dc 0fr) while the dock is closed', async () => {
+    function SplitHarness() {
+      const { setViewMode, selectDoc } = useInvoices()
+      return (
+        <div>
+          <button onClick={() => { setViewMode('split'); selectDoc(INITIAL_DOCS[0].doc) }}>OpenSplit</button>
+          <QueuePage />
+        </div>
+      )
+    }
+
+    const { container } = await mount(<SplitHarness />)
+
+    act(() => {
+      screen.getByText('OpenSplit').click()
+    })
+
+    const work = container.querySelector('#work') as HTMLElement
+    expect(work).not.toBeNull()
+    expect(work.classList.contains('pdf-open')).toBe(false)
+    expect(work.style.getPropertyValue('--mc')).toBe('100fr')
+    expect(work.style.getPropertyValue('--dc')).toBe('0fr')
   })
 })
