@@ -53,7 +53,12 @@ export function PdfCanvasViewer({
       {ready ? null : (
         <div className="evd-pdf-fallback" role="status">
           {status.state === 'loading' ? (
-            <span className="evd-pdf-note">กำลังโหลดเอกสาร PDF…</span>
+            <div className="evd-loading-center">
+              <span className="spin lg" aria-hidden="true" />
+              <span className="evd-pdf-note">
+                กำลังดาวน์โหลดและเรนเดอร์เอกสาร PDF จาก DMS…
+              </span>
+            </div>
           ) : (
             <span className="evd-pdf-note bad">
               แสดงเอกสารจำลอง — {status.reason || 'เปิดไฟล์ PDF ไม่ได้'}

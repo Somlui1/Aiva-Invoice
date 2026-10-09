@@ -43,12 +43,20 @@ import {
 
 const EMPTY_SIZE: SizeBox = { width: 0, height: 0 }
 
+/** The dock's share of `.work`: the mockup's 60:40, and how far it may be dragged. */
+const DOCK_RATIO_DEFAULT = 0.4
+const DOCK_RATIO_MIN = 0.3
+const DOCK_RATIO_MAX = 0.5
+
 export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
   const {
     closeEvidenceDock,
     evidenceDockFocus,
     evidenceSelection,
     setEvidenceSelection,
+    dockSplitRatio,
+    setDockSplitRatio,
+    setIsPdfLoading,
   } = useInvoices()
 
   const [currentPage, setCurrentPage] = useState<number>(evidenceDockFocus?.page || 1)
@@ -167,6 +175,52 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
 
   const handleRotate = () => setRotation(prev => (prev + 90) % 360)
 
+  // The toolbar's PDF toggle reports the same flight this dock is waiting on, so
+  // the two loading indicators can never disagree. Unmounting (dock closed
+  // mid-flight) must not leave the button spinning.
+  useEffect(() => {
+    setIsPdfLoading(status.state === 'loading')
+    return () => setIsPdfLoading(false)
+  }, [status.state, setIsPdfLoading])
+
+  /**
+   * Drag the dock edge. The width that matters is `.work`'s, because `--mc`/`--dc`
+   * are fractions of that grid — measuring the dock itself would feed the ratio
+   * back into itself. Pointer listeners live on the window so the pointer may
+   * leave the 8px handle mid-drag.
+   */
+  const handleResizeStart = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return
+    const workEl = document.getElementById('work')
+    const workWidth = workEl?.clientWidth ?? 0
+    if (!workEl || !workWidth) return
+    e.preventDefault()
+
+    const startX = e.clientX
+    const initialRatio = dockSplitRatio
+    workEl.classList.add('dragging')
+
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      // Pulling the handle left widens the dock, so the delta is inverted.
+      const next = initialRatio + (startX - moveEvent.clientX) / workWidth
+      const clamped = Math.min(DOCK_RATIO_MAX, Math.max(DOCK_RATIO_MIN, next))
+      setDockSplitRatio(Number(clamped.toFixed(3)))
+    }
+
+    const onDragEnd = () => {
+      window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', onDragEnd)
+      window.removeEventListener('pointercancel', onDragEnd)
+      workEl.classList.remove('dragging')
+    }
+
+    window.addEventListener('pointermove', onPointerMove)
+    window.addEventListener('pointerup', onDragEnd)
+    window.addEventListener('pointercancel', onDragEnd)
+  }
+
+  const handleResizeReset = () => setDockSplitRatio(DOCK_RATIO_DEFAULT)
+
   const mockSurface = (
     <div
       className="evd-mock"
@@ -193,6 +247,14 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
 
   return (
     <section className="col dock" id="dock" aria-label="เอกสาร PDF">
+      <div
+        className="dock-rz"
+        role="separator"
+        aria-orientation="vertical"
+        title="ลากเพื่อปรับความกว้าง (รายละเอียด 50–70%) · ดับเบิลคลิกเพื่อกลับเป็น 60:40"
+        onPointerDown={handleResizeStart}
+        onDoubleClick={handleResizeReset}
+      />
       <DockControls
         currentPage={currentPage}
         totalPages={totalPages}
