@@ -75,6 +75,8 @@ export function QueuePage() {
           id="work"
           style={
             {
+              '--rc': '0px',
+              '--qc': dockVisible ? '0px' : 'var(--q-w)',
               '--mc': dockVisible ? `${((1 - dockSplitRatio) * 100).toFixed(1)}fr` : '100fr',
               '--dc': dockVisible ? `${(dockSplitRatio * 100).toFixed(1)}fr` : '0fr',
             } as React.CSSProperties
