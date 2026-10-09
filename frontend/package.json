@@ -11,9 +11,12 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@prisma/client": "^6.19.3",
     "next": "^15.5.27",
+    "prisma": "^6.19.3",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/node": "^22.13.1",

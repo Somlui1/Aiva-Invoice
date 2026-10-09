@@ -1,0 +1,56 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Document {
+  id              String   @id // e.g. "DMS-100"
+  dmsDocId        String   @unique
+  packageId       String
+  fileSha256      String
+  pageCount       Int
+  invoiceNum      String
+  invoiceDate     String
+  companyCode     String
+  supplierTaxId   String
+  supplierName    String
+  grandTotal      Float
+  currency        String   @default("THB")
+  status          String   // Auto-pass, Review, Hold, Manual Review, Confirmed, Posted
+  recommendation  String
+  maxSeverity     String
+  receiverName    String?
+  receiptNum      String?
+  linesMatched    String?
+  assignedRole    String   @default("EU")
+  apStatus        String   @default("unconfirmed")
+  payloadJson     String   // Full Portal Document JSON (Structured)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  runs            ValidationRun[]
+}
+
+model ValidationRun {
+  id              String   @id @default(cuid())
+  documentId      String
+  validationId    String   @unique
+  correlationId   String?
+  validationRound Int      @default(1)
+  rawEngineResult String   // Raw JSON from engine
+  completedAt     DateTime @default(now())
+  document        Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  docId     String
+  who       String
+  role      String
+  act       String
+  detail    String
+  createdAt DateTime @default(now())
+}
