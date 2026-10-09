@@ -1,5 +1,15 @@
 | Task | Status | Description |
 |---|---|---|
+| Streamline Task 1: V-06 Deliverer Signature Waiver on Confirmed Receipt | Not Started | Waive faint deliverer signature when Oracle receipt exists; resolves 17 false manual reviews |
+| Streamline Task 2: V-05 Address AI Uncertainty Demotion to Medium E07 | Not Started | Demote low-confidence address to E07 Medium when Tax ID and Name match Aapico; resolves 4 docs |
+| Streamline Task 3: V-07 & V-08 Milestone Installment Exact-Amount Matching | Not Started | Pass milestone installment lines when exact amount diff == 0.00; resolves 7 docs |
+| Streamline Task 4: V-08 UOM Mismatch Delegation to V-07 E10 | Not Started | Delegate non-comparable UOM to V-07 E10 Medium without manual review override; resolves 8 docs |
+| Streamline Task 5: Full Regression & Target DMS Verification | Not Started | Verify pytest, 62 sandbox scenarios, and target documents DMS-20, 72, 120 |
+
+## Plan: Perception Robustness (`2026-10-09-perception-robustness-implementation.md`)
+
+| Task | Status | Description |
+|---|---|---|
 | Task 1: PO Number Normalization & Consensus | Done | Strip PO prefixes in extract_value and corroborate PO agreement in `vision_pipeline.py`; 45/45 tests pass |
 | Task 2: Crop Budget Prioritization for Core Lookup Keys | Done | Prioritize critical identifiers in candidate crop allocation before free text; 46/46 tests pass |
 | Task 3: Header Candidate Scoping to Invoice Pages | Done | Restrict invoice headers to `invoice_pages` to avoid PO attachment leakage; 47/47 tests pass |
