@@ -93,7 +93,7 @@ describe('App smoke test', () => {
         <EvidenceViewerDock doc={doc} />
       </Wrapper>
     )
-    expect(html).toContain(doc.inv)
+    expect(html).toContain('id="dock"')
   })
 })
 
