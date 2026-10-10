@@ -142,13 +142,13 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
                 type="button"
                 className={`btn ${isEvidenceDockOpen ? 'btn-close-pdf' : 'btn-sec'} sm`}
                 onClick={() => {
-                  if (isEvidenceDockOpen) closeEvidenceDock()
+                  if (isPdfLoading || isEvidenceDockOpen) closeEvidenceDock()
                   else openEvidenceDock(1)
                 }}
-                disabled={!can('DMS') || isPdfLoading}
+                disabled={!can('DMS')}
                 title={
                   isPdfLoading
-                    ? 'กำลังรับเอกสารจาก DMS…'
+                    ? 'ยกเลิกการโหลด (P / Esc)'
                     : isEvidenceDockOpen
                       ? 'ปิด PDF (P / Esc)'
                       : 'เปิดเอกสาร PDF (P)'
@@ -157,7 +157,7 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
                 {isPdfLoading ? (
                   <>
                     <span className="spin" aria-hidden="true" />
-                    กำลังโหลด PDF…
+                    กำลังโหลด…
                   </>
                 ) : (
                   <>
