@@ -21,3 +21,7 @@
 | focus-task-2 | Production Sidebar & IT-Only Test Tools | completed | In Sidebar.tsx: isolate cases, std, and sim to ADM role only; show only real production menus for EU/ACC/APR; RED->GREEN proven (3/3 tests pass in sidebarRole.test.tsx, tsc clean) |
 | focus-task-3 | Complete Purge of Revalidate Menu & Code | completed | Revalidate button removed from InvoiceDetailPane, revalidateDocWithBackend removed from InvoiceContext, revalidateInvoice removed from backendApi, and route /api/validations/[id]/revalidate deleted; RED->GREEN proven (3/3 tests pass in revalidatePurge.test.tsx, tsc clean) |
 | focus-task-4 | Full Verification & E2E Validation Pass | completed | npm test 17/17 test files (175/175 tests pass exit 0); npx tsc --noEmit (0 errors exit 0); npm run build (17/17 pages generated clean exit 0, /api/validations/[id]/revalidate purged) |
+| dock-ui-task-1 | Top Progress Bar & Cancelable PDF Button | in_progress | Create PdfTopProgressBar, make PDF button cancelable on click in InvoiceDetailPane, style teal bar in components.css |
+| dock-ui-task-2 | Clean Centered Loading State in PdfCanvasViewer | pending | Pure centered spin lg, zero cards, zero text, zero mock canvas backdrop during loading |
+| dock-ui-task-3 | Minimal Error View & Error Classification | pending | PdfErrorView (red !, title, 1-line reason, code, retry/close buttons) with 404 non-retryable handling |
+| dock-ui-task-4 | Full Verification & E2E Validation Pass | pending | Run npm test (100% pass), npx tsc --noEmit (0 errors), npm run build (100% pass) |
