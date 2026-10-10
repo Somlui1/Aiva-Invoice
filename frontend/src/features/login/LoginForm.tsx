@@ -1,0 +1,179 @@
+"use client";
+
+import { useState, type FormEvent, type KeyboardEvent } from "react";
+import { LoginAlert } from "./LoginAlert";
+import { LOGIN_CONFIG } from "./config";
+import { Icon } from "./ui/Icon";
+import { MicrosoftLogo } from "./ui/MicrosoftLogo";
+import type { LoginController } from "./useLogin";
+
+interface Props {
+  c: LoginController;
+  mock: boolean;
+  onSupport: () => void;
+}
+
+/** ฝั่งซ้ายของหน้า Login: เลือกวิธี (Microsoft 365 / LDAP) + ฟอร์ม + กล่องแจ้งผล */
+export function LoginForm({ c, mock, onSupport }: Props) {
+  const [showPw, setShowPw] = useState(false);
+  const [caps, setCaps] = useState(false);
+
+  const disabled = c.busy || c.locked || c.exiting;
+  const busyMs = c.busy && c.busyMethod === "m365";
+  const busyLdap = c.busy && c.busyMethod === "ldap";
+
+  const onCaps = (e: KeyboardEvent<HTMLInputElement>) => setCaps(e.getModifierState?.("CapsLock") ?? false);
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    void c.go("ldap");
+  };
+
+  return (
+    <section className="d3-l" id="lp">
+      <div className="lg-brand">
+        <span className="brand-mark">AI</span>
+        <div>
+          <b>{LOGIN_CONFIG.appName}</b>
+          <span className="s">{LOGIN_CONFIG.orgName}</span>
+        </div>
+      </div>
+
+      <div className="mid">
+        <div>
+          <h1 className="lg-h1">เข้าสู่ระบบ</h1>
+          <p className="lg-sub">เลือกวิธีที่องค์กรกำหนดให้คุณ</p>
+        </div>
+
+        <div className="seg lg-seg" role="tablist" aria-label="วิธีเข้าสู่ระบบ">
+          <button type="button" role="tab" aria-selected={c.method === "m365"} className={c.method === "m365" ? "on" : ""} onClick={() => c.switchMethod("m365")}>
+            <MicrosoftLogo />
+            Microsoft 365 <kbd>Alt+1</kbd>
+          </button>
+          <button type="button" role="tab" aria-selected={c.method === "ldap"} className={c.method === "ldap" ? "on" : ""} onClick={() => c.switchMethod("ldap")}>
+            <Icon name="server" size="sm" />
+            LDAP ภายใน <kbd>Alt+2</kbd>
+          </button>
+        </div>
+
+        <div id="mp">
+          {c.method === "m365" ? (
+            <div>
+              <button
+                type="button"
+                className={`lg-msbtn go ${busyMs ? "is-busy" : ""}`}
+                data-m="m365"
+                disabled={disabled}
+                onClick={() => void c.go("m365")}
+              >
+                <MicrosoftLogo />
+                <span className="t">{busyMs ? "กำลังเปลี่ยนเส้นทางไปที่ Microsoft…" : "ลงชื่อเข้าใช้ด้วย Microsoft"}</span>
+                <span className="spn" aria-hidden="true" />
+              </button>
+              <div className="lg-msnote">
+                <Icon name="shield" size="sm" />
+                บัญชีที่ทำงานหรือโรงเรียน · Single Sign-On · รองรับ MFA
+              </div>
+            </div>
+          ) : (
+            <form className="lg-form" onSubmit={submit} noValidate>
+              <div className="lg-f">
+                <label htmlFor="lgU">
+                  ชื่อผู้ใช้ <span className="hint">LDAP · เช่น somsak.j</span>
+                </label>
+                <div className={`lg-in ${c.fieldErr.U ? "bad" : ""}`} id="wU">
+                  <Icon name="user" />
+                  <input
+                    id="lgU"
+                    ref={c.userRef}
+                    value={c.username}
+                    onChange={(e) => c.setUsername(e.target.value)}
+                    readOnly={c.busy}
+                    autoComplete="username"
+                    autoCapitalize="off"
+                    spellCheck={false}
+                    placeholder="ชื่อผู้ใช้ภายในบริษัท"
+                    aria-invalid={!!c.fieldErr.U}
+                    aria-describedby="eU"
+                  />
+                </div>
+                <div className="lg-err" id="eU" role="alert">
+                  {c.fieldErr.U && (
+                    <>
+                      <Icon name="alert" size="sm" />
+                      {c.fieldErr.U}
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="lg-f">
+                <label htmlFor="lgP">รหัสผ่าน</label>
+                <div className={`lg-in ${c.fieldErr.P ? "bad" : ""}`} id="wP">
+                  <Icon name="lock" />
+                  <input
+                    id="lgP"
+                    ref={c.passRef}
+                    type={showPw ? "text" : "password"}
+                    value={c.password}
+                    onChange={(e) => c.setPassword(e.target.value)}
+                    onKeyDown={onCaps}
+                    onKeyUp={onCaps}
+                    readOnly={c.busy}
+                    autoComplete="current-password"
+                    placeholder="รหัสผ่าน"
+                    aria-invalid={!!c.fieldErr.P}
+                    aria-describedby="eP"
+                  />
+                  <button type="button" className="lg-eye" aria-label={showPw ? "ซ่อนรหัสผ่าน" : "แสดงรหัสผ่าน"} onClick={() => setShowPw((v) => !v)}>
+                    <Icon name={showPw ? "eyeoff" : "eye"} />
+                  </button>
+                </div>
+                {caps && (
+                  <div className="lg-caps">
+                    <Icon name="caps" size="sm" />
+                    Caps Lock เปิดอยู่
+                  </div>
+                )}
+                <div className="lg-err" id="eP" role="alert">
+                  {c.fieldErr.P && (
+                    <>
+                      <Icon name="alert" size="sm" />
+                      {c.fieldErr.P}
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="lg-row">
+                <label className="lg-chk">
+                  <input type="checkbox" checked={c.keep} onChange={(e) => c.setKeep(e.target.checked)} />
+                  จำชื่อผู้ใช้ในเครื่องนี้
+                </label>
+                <button type="button" className="lg-link" onClick={c.forgot}>
+                  ลืมรหัสผ่าน?
+                </button>
+              </div>
+
+              <button type="submit" className={`lg-btn primary block go ${busyLdap ? "is-busy" : ""}`} data-m="ldap" disabled={disabled}>
+                <span className="t">{busyLdap ? "กำลังตรวจสอบ…" : "เข้าสู่ระบบ"}</span>
+                <Icon name="arrowr" />
+                <span className="spn" aria-hidden="true" />
+              </button>
+            </form>
+          )}
+        </div>
+
+        <LoginAlert alert={c.alert} />
+      </div>
+
+      <div className="lg-foot">
+        <span>© 2026 AAPICO</span>
+        <span>{LOGIN_CONFIG.versionLabel}</span>
+        {mock && <span>Mock Prototype · ข้อมูลทั้งหมดเป็นค่าสมมติ</span>}
+        <button type="button" className="lg-link" onClick={onSupport}>
+          ติดต่อ IT Support
+        </button>
+      </div>
+    </section>
+  );
+}

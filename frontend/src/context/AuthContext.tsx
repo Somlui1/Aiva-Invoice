@@ -13,6 +13,7 @@ interface AuthContextType {
   can: (permission: Permission) => boolean
   scopeCheck: (doc: InvoiceDoc) => { ok: boolean; why?: string }
   switchUser: (userId: string) => void
+  logout: () => void
   auditLogs: AuditEntry[]
   logAudit: (act: string, doc: string, detail: string) => void
 }
@@ -24,7 +25,18 @@ const INITIAL_AUDIT: AuditEntry[] = [
 ]
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [currentUser, setCurrentUser] = useState<User>(USERS[0])
+  const [currentUser, setCurrentUser] = useState<User>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = window.localStorage.getItem('aiva.auth.user')
+        if (saved) {
+          const found = USERS.find(u => u.id === saved || u.email === saved)
+          if (found) return found
+        }
+      } catch {}
+    }
+    return USERS[0]
+  })
   const [auditLogs, setAuditLogs] = useState<AuditEntry[]>(INITIAL_AUDIT)
 
   const currentRole = ROLES[currentUser.role]
@@ -71,6 +83,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const user = USERS.find(u => u.id === userId)
     if (!user) return
     setCurrentUser(user)
+    try {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('aiva.auth.user', user.id)
+      }
+    } catch {}
     const now = new Date().toTimeString().slice(0, 8)
     const accounts = acctsOf(user).join(', ') || '—'
     setAuditLogs(prev => [
@@ -87,6 +104,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     ])
   }, [])
 
+  const logout = useCallback(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem('aiva.auth.user')
+        window.location.href = '/login'
+      }
+    } catch {}
+  }, [])
+
   return (
     <AuthContext.Provider
       value={{
@@ -96,6 +122,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         can,
         scopeCheck,
         switchUser,
+        logout,
         auditLogs,
         logAudit
       }}
