@@ -11,7 +11,7 @@ interface TopbarProps {
 }
 
 export function Topbar({ onToggleNav }: TopbarProps) {
-  const { currentUser, currentRole, users, switchUser } = useAuth()
+  const { currentUser, currentRole, users, switchUser, logout } = useAuth()
   const [backendStatus, setBackendStatus] = useState<BackendHealth | null>(null)
   const [checking, setChecking] = useState<boolean>(false)
 
@@ -102,6 +102,16 @@ export function Topbar({ onToggleNav }: TopbarProps) {
             </option>
           ))}
         </select>
+        <button
+          type="button"
+          className="ibtn"
+          onClick={logout}
+          title="ออกจากระบบ (ไปหน้าเข้าสู่ระบบ)"
+          aria-label="ออกจากระบบ"
+          style={{ marginLeft: 6 }}
+        >
+          <Icon name="logout" size="md" />
+        </button>
       </div>
     </header>
   )
