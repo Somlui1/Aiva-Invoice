@@ -274,8 +274,9 @@ describe('InvoiceDetailPane PDF Button Loading State', () => {
       screen.getByText('TriggerLoading').click()
     })
 
-    const btnLoading = screen.getByRole<HTMLButtonElement>('button', { name: /กำลังโหลด PDF/i })
-    expect(btnLoading.disabled).toBe(true)
+    const btnLoading = screen.getByRole<HTMLButtonElement>('button', { name: /กำลังโหลด/i })
+    expect(btnLoading.disabled).toBe(false)
+    expect(btnLoading.title).toContain('ยกเลิก')
     expect(btnLoading.querySelector('.spin')).not.toBeNull()
     // The spinner state replaces the toggle, so the idle label must be gone.
     expect(screen.queryByRole('button', { name: /เปิดเอกสาร PDF/i })).toBeNull()
@@ -349,15 +350,15 @@ describe('EvidenceViewerDock Splitter and Loading State', () => {
   it('shows a loading mat in the dock and a spinner on the toolbar button while the PDF is in flight', async () => {
     const { container } = await mountDock()
 
-    // Dock body: centred spinner + the Thai explanation (design §2.3).
-    const mat = container.querySelector('.evd-loading-center')
+    // Dock body: centred spinner only (minimal clean state).
+    const mat = container.querySelector('.evd-loading-minimal')
     expect(mat).not.toBeNull()
-    expect(mat!.querySelector('.spin')).not.toBeNull()
-    expect(mat!.textContent).toContain('กำลังดาวน์โหลดและเรนเดอร์เอกสาร PDF จาก DMS…')
+    expect(mat!.querySelector('.spin.lg')).not.toBeNull()
+    expect(container.querySelector('.pdf-top-progress')).not.toBeNull()
 
     // Same flight, reported on the toolbar button too — the dual indicator.
-    const btn = screen.getByRole<HTMLButtonElement>('button', { name: /กำลังโหลด PDF/i })
-    expect(btn.disabled).toBe(true)
+    const btn = screen.getByRole<HTMLButtonElement>('button', { name: /กำลังโหลด/i })
+    expect(btn.disabled).toBe(false)
     expect(btn.querySelector('.spin')).not.toBeNull()
   })
 
