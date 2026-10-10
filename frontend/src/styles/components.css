@@ -835,3 +835,15 @@ kbd {
 .pdf-top-progress.fade {
   opacity: 0;
 }
+
+/* ================= Minimal PDF Loading ================= */
+.evd-loading-minimal {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  z-index: 20;
+  pointer-events: none;
+}

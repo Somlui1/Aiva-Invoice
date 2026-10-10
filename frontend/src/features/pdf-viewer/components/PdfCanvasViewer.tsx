@@ -15,6 +15,7 @@ import type { SizeBox } from '../lib/coordinateTransform'
 import type { OverlayBox } from '../lib/overlayModel'
 import type { PdfViewerStatus } from '../types'
 import { BoundingBoxOverlay } from './BoundingBoxOverlay'
+import { PdfTopProgressBar } from './PdfTopProgressBar'
 
 export interface PdfCanvasViewerProps {
   /** Canvas owned by `usePdfViewer`; the viewer only sizes and shows it. */
@@ -22,7 +23,6 @@ export interface PdfCanvasViewerProps {
   status: PdfViewerStatus
   /** CSS px size of the rendered page, from the same hook. */
   pageSize: SizeBox
-  /** Boxes already projected onto `pageSize`. */
   boxes: OverlayBox[]
   onSelect?: (box: OverlayBox) => void
   onHover?: (box: OverlayBox | null) => void
@@ -47,28 +47,32 @@ export function PdfCanvasViewer({
   onRetry,
 }: PdfCanvasViewerProps) {
   const ready = status.state === 'ready' && pageSize.width > 0 && pageSize.height > 0
+  const progressState: 'idle' | 'loading' | 'ready' | 'error' =
+    status.state === 'loading'
+      ? 'loading'
+      : ready
+        ? 'ready'
+        : (status.state as any) === 'error'
+          ? 'error'
+          : 'idle'
 
   return (
     <div className="evd-pdf" data-pdf-source={status.source ?? 'none'} data-pdf-state={status.state}>
-      {ready ? null : (
+      <PdfTopProgressBar state={progressState} />
+      {ready ? null : status.state === 'loading' ? (
+        <div className="evd-loading-minimal" role="status">
+          <span className="spin lg" aria-label="กำลังโหลดเอกสาร" />
+        </div>
+      ) : (
         <div className="evd-pdf-fallback" role="status">
-          {status.state === 'loading' ? (
-            <div className="evd-loading-center">
-              <span className="spin lg" aria-hidden="true" />
-              <span className="evd-pdf-note">
-                กำลังดาวน์โหลดและเรนเดอร์เอกสาร PDF จาก DMS…
-              </span>
-            </div>
-          ) : (
-            <span className="evd-pdf-note bad">
-              แสดงเอกสารจำลอง — {status.reason || 'เปิดไฟล์ PDF ไม่ได้'}
-              {onRetry ? (
-                <button type="button" className="btn btn-ghost xs" onClick={onRetry}>
-                  ลองใหม่
-                </button>
-              ) : null}
-            </span>
-          )}
+          <span className="evd-pdf-note bad">
+            แสดงเอกสารจำลอง — {status.reason || 'เปิดไฟล์ PDF ไม่ได้'}
+            {onRetry ? (
+              <button type="button" className="btn btn-ghost xs" onClick={onRetry}>
+                ลองใหม่
+              </button>
+            ) : null}
+          </span>
           {placeholder}
         </div>
       )}
