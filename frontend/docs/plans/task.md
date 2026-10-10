@@ -23,5 +23,5 @@
 | focus-task-4 | Full Verification & E2E Validation Pass | completed | npm test 17/17 test files (175/175 tests pass exit 0); npx tsc --noEmit (0 errors exit 0); npm run build (17/17 pages generated clean exit 0, /api/validations/[id]/revalidate purged) |
 | dock-ui-task-1 | Top Progress Bar & Cancelable PDF Button | completed | Created PdfTopProgressBar with smooth trickle & fade, un-disabled PDF button in InvoiceDetailPane to allow cancellation, added .pdf-top-progress CSS; RED->GREEN proven (3/3 tests pass, tsc clean) |
 | dock-ui-task-2 | Clean Centered Loading State in PdfCanvasViewer | completed | Mounted PdfTopProgressBar, replaced loading card/text with pure centered spin lg on clean surface, updated dockLayout tests; RED->GREEN proven (4/4 tests pass, tsc clean) |
-| dock-ui-task-3 | Minimal Error View & Error Classification | in_progress | PdfErrorView (red !, title, 1-line reason, code, retry/close buttons) with 404 non-retryable handling |
-| dock-ui-task-4 | Full Verification & E2E Validation Pass | pending | Run npm test (100% pass), npx tsc --noEmit (0 errors), npm run build (100% pass) |
+| dock-ui-task-3 | Minimal Error View & Error Classification | completed | Created PdfErrorView (red ! circle, title, cause, code, dynamic buttons), integrated error classification in usePdfViewer and onClose handling; RED->GREEN proven (6/6 tests pass, tsc clean) |
+| dock-ui-task-4 | Full Verification & E2E Validation Pass | in_progress | Run full test suite, verify TypeScript 0 errors, and run production build |

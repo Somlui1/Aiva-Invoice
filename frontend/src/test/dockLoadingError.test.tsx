@@ -136,3 +136,96 @@ describe('dock-ui-task-2: Clean Centered Loading State in PdfCanvasViewer', () =
     expect(container.querySelector('.evd-mock')).toBeNull()
   })
 })
+
+describe('dock-ui-task-3: Minimal Error View & Error Classification', () => {
+  it('renders retryable error state with both retry and close buttons', () => {
+    const onRetry = vi.fn()
+    const onClose = vi.fn()
+    const canvasRef = { current: null }
+    const status = {
+      state: 'error' as const,
+      mode: 'mock' as const,
+      pageCount: 1,
+      error: {
+        code: 'DMS-500',
+        ref: 'REF-B1FQC0',
+        message: 'การเชื่อมต่อเซิร์ฟเวอร์ DMS ขัดข้อง หรือหมดเวลาการเชื่อมต่อ',
+        retryable: true,
+      },
+    }
+
+    const { container } = render(
+      <PdfCanvasViewer
+        canvasRef={canvasRef}
+        status={status}
+        pageSize={{ width: 0, height: 0 }}
+        boxes={[]}
+        onRetry={onRetry}
+        onClose={onClose}
+      />
+    )
+
+    // Progress bar must be mounted with error state (red)
+    const progressBar = screen.getByRole('progressbar')
+    expect(progressBar).toBeDefined()
+    expect(progressBar.getAttribute('data-state')).toBe('error')
+
+    // Error icon, title, description, code
+    expect(container.querySelector('.evd-error-icon')).not.toBeNull()
+    expect(screen.getByText('โหลดเอกสารไม่สำเร็จ')).toBeDefined()
+    expect(screen.getByText('การเชื่อมต่อเซิร์ฟเวอร์ DMS ขัดข้อง หรือหมดเวลาการเชื่อมต่อ')).toBeDefined()
+    expect(screen.getByText(/DMS-500\s*·\s*REF-B1FQC0/)).toBeDefined()
+
+    // Both Retry and Close buttons must be present
+    const retryBtn = screen.getByRole('button', { name: /ลองอีกครั้ง/i })
+    const closeBtn = screen.getByRole('button', { name: /ปิด/i })
+    expect(retryBtn).toBeDefined()
+    expect(closeBtn).toBeDefined()
+
+    fireEvent.click(retryBtn)
+    expect(onRetry).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(closeBtn)
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders non-retryable 404 error with only close button and no retry button', () => {
+    const onRetry = vi.fn()
+    const onClose = vi.fn()
+    const canvasRef = { current: null }
+    const status = {
+      state: 'error' as const,
+      mode: 'mock' as const,
+      pageCount: 1,
+      error: {
+        code: 'DMS-404',
+        ref: 'REF-B1FQC0',
+        message: 'ไม่พบไฟล์เอกสารในระบบจัดเก็บเอกสาร (DMS)',
+        retryable: false,
+      },
+    }
+
+    render(
+      <PdfCanvasViewer
+        canvasRef={canvasRef}
+        status={status}
+        pageSize={{ width: 0, height: 0 }}
+        boxes={[]}
+        onRetry={onRetry}
+        onClose={onClose}
+      />
+    )
+
+    expect(screen.getByText('โหลดเอกสารไม่สำเร็จ')).toBeDefined()
+    expect(screen.getByText('ไม่พบไฟล์เอกสารในระบบจัดเก็บเอกสาร (DMS)')).toBeDefined()
+    expect(screen.getByText(/DMS-404\s*·\s*REF-B1FQC0/)).toBeDefined()
+
+    // Non-retryable: ONLY close button, NO retry button
+    const closeBtn = screen.getByRole('button', { name: /ปิด/i })
+    expect(closeBtn).toBeDefined()
+    expect(screen.queryByRole('button', { name: /ลองอีกครั้ง/i })).toBeNull()
+
+    fireEvent.click(closeBtn)
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+})

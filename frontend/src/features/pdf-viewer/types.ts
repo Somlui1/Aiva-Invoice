@@ -7,10 +7,17 @@
  */
 export type PdfViewMode = 'pdf' | 'mock'
 
-export type PdfViewerState = 'loading' | 'ready' | 'fallback'
+export type PdfViewerState = 'loading' | 'ready' | 'fallback' | 'error'
 
 /** `X-PDF-Source` values emitted by `src/app/api/documents/[id]/pdf/route.ts`. */
 export type PdfProxySource = 'dms_live' | 'cache' | 'fallback_mock'
+
+export interface PdfViewerError {
+  code: string
+  ref: string
+  message: string
+  retryable: boolean
+}
 
 export interface PdfViewerStatus {
   state: PdfViewerState
@@ -22,4 +29,7 @@ export interface PdfViewerStatus {
   reason?: string
   /** Pages of the document being shown. */
   pageCount: number
+  /** Minimal error details when state is 'error'. */
+  error?: PdfViewerError
 }
+

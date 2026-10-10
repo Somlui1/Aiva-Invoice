@@ -283,6 +283,7 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
           onSelect={box => selectBox(box, 'pdf')}
           onHover={box => setHoveredId(box?.id ?? null)}
           onRetry={reload}
+          onClose={closeEvidenceDock}
           placeholder={mockSurface}
         />
       </div>
