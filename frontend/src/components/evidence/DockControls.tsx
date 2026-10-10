@@ -1,7 +1,11 @@
 'use client'
 
+import { useMemo } from 'react'
 import { Icon } from '../common/Icon'
 import { useAuth } from '../../context/AuthContext'
+import type { InvoiceDoc } from '../../types/invoice'
+import { VENDOR_PROFILES } from '../../mock/vendors'
+import { EXCEPTION_RULES } from '../../mock/rules'
 import type { PdfProxySource } from '../../features/pdf-viewer/types'
 import {
   MIN_ZOOM,
@@ -9,27 +13,30 @@ import {
   zoomForStep,
 } from '../../features/pdf-viewer/lib/coordinateTransform'
 
-interface DockControlsProps {
+export interface DockControlsProps {
+  doc?: InvoiceDoc
   currentPage: number
   totalPages: number
   zoom: number
   onPageChange: (p: number) => void
   onZoomChange: (z: number) => void
-  onRotate: () => void
+  onRotate?: () => void
   onClose: () => void
-  /** Which surface is showing, so the analyst knows what they are looking at. */
   mode?: 'pdf' | 'mock'
-  /** Where the bytes came from, from `X-PDF-Source`. */
   source?: PdfProxySource
   showEvidence?: boolean
-  onToggleEvidence?: () => void
+  onToggleEvidence?: (show?: boolean) => void
   showAllFields?: boolean
   onToggleAllFields?: () => void
-  /** Evidence boxes currently drawn on the page. */
   boxCount?: number
+  activeRuleId?: string | null
+  onSelectRule?: (ruleId: string, page?: number) => void
+  onRunTests?: () => void
+  onOpenNewTab?: () => void
+  onPrint?: () => void
 }
 
-/** Human label for the proxy source, shown next to the document title. */
+/** Human label for proxy source fallback display */
 const SOURCE_LABEL: Record<PdfProxySource, string> = {
   dms_live: 'DMS (สด)',
   cache: 'คลังเอกสาร',
@@ -37,143 +44,244 @@ const SOURCE_LABEL: Record<PdfProxySource, string> = {
 }
 
 export function DockControls({
+  doc,
   currentPage,
   totalPages,
   zoom,
   onPageChange,
   onZoomChange,
-  onRotate,
   onClose,
-  mode = 'pdf',
   source,
   showEvidence = true,
   onToggleEvidence,
-  showAllFields = false,
-  onToggleAllFields,
-  boxCount = 0
+  activeRuleId,
+  onSelectRule,
+  onRunTests,
+  onOpenNewTab,
+  onPrint,
 }: DockControlsProps) {
   const { currentUser } = useAuth()
 
+  const docId = doc?.doc || 'DMS-2026-000131'
+  const invNumber = doc?.inv || 'A631577'
+  const vendorName = doc?.vendor || 'Thai Steel Service Co., Ltd.'
+  const stax = doc?.stax || ''
+
+  const vendorProfile = VENDOR_PROFILES[stax]
+  const sourceTypeLabel =
+    vendorProfile?.st === 'scan'
+      ? 'ไฟล์สแกน'
+      : source === 'fallback_mock'
+        ? SOURCE_LABEL.fallback_mock
+        : 'PDF จากระบบผู้ขาย'
+
+  // Exceptions / evidence chips per mockup
+  const evidenceList = useMemo(() => {
+    if (!doc?.rules) return []
+    return doc.rules
+      .filter(r => r.result === 'fail' || r.status === 'FAIL' || r.result === 'manual_review')
+      .map(r => {
+        const ruleId = r.rule || r.id
+        const code = r.exception_code || 'MR'
+        const label =
+          r.name ||
+          (r.exception_code ? EXCEPTION_RULES[r.exception_code]?.name : undefined) ||
+          ruleId
+        return {
+          ruleId,
+          code,
+          severity: r.severity || 'Medium',
+          label,
+          page: r.page || 1,
+        }
+      })
+  }, [doc?.rules])
+
+  const handleOpenNewTab = () => {
+    if (onOpenNewTab) {
+      onOpenNewTab()
+    } else if (doc?.doc) {
+      window.open(`/api/documents/${doc.doc}/pdf`, '_blank')
+    }
+  }
+
+  const handlePrint = () => {
+    if (onPrint) {
+      onPrint()
+    } else if (doc?.doc) {
+      const printWin = window.open(`/api/documents/${doc.doc}/pdf`, '_blank')
+      if (printWin) {
+        printWin.addEventListener('load', () => {
+          try {
+            printWin.print()
+          } catch {
+            // Ignore print dialog errors
+          }
+        })
+      }
+    }
+  }
+
+  const handleRunTests = () => {
+    if (onRunTests) {
+      onRunTests()
+    }
+  }
+
   return (
-    <div className="dock-ctl">
-      <span className="dock-title">
-        <Icon name="file" size="sm" />
-        เอกสาร PDF
-      </span>
+    <div className="dock-chrome" id="dockChrome">
+      {/* Tier 1: Document Header (.dock-h) */}
+      <div className="dock-h">
+        <Icon name="file" size="lg" />
+        <div className="ttl">
+          <b>
+            {invNumber} · {docId}
+          </b>
+          <span>
+            {vendorName} · {totalPages} หน้า · {sourceTypeLabel}
+          </span>
+        </div>
 
-      <span className="vsep" />
+        <button
+          type="button"
+          className="ibtn"
+          title="ทดสอบการแสดงผล"
+          aria-label="ทดสอบการแสดงผล"
+          onClick={handleRunTests}
+        >
+          <Icon name="checkc" size="sm" />
+        </button>
 
-      {/* Pagination */}
-      <button
-        type="button"
-        className="btn btn-ghost sm"
-        disabled={currentPage <= 1}
-        onClick={() => onPageChange(currentPage - 1)}
-        title="หน้าก่อนหน้า"
-      >
-        <Icon name="chevL" size="sm" />
-      </button>
-      <span className="mono sm">
-        หน้า {currentPage} / {totalPages}
-      </span>
-      <button
-        type="button"
-        className="btn btn-ghost sm"
-        disabled={currentPage >= totalPages}
-        onClick={() => onPageChange(currentPage + 1)}
-        title="หน้าถัดไป"
-      >
-        <Icon name="chevR" size="sm" />
-      </button>
+        <button
+          type="button"
+          className="ibtn"
+          title="เปิดในแท็บใหม่"
+          aria-label="เปิดในแท็บใหม่"
+          onClick={handleOpenNewTab}
+        >
+          <Icon name="ext" size="sm" />
+        </button>
 
-      <span className="vsep" />
+        <button
+          type="button"
+          className="ibtn"
+          title="พิมพ์ หรือบันทึกเป็น PDF"
+          aria-label="พิมพ์ หรือบันทึกเป็น PDF"
+          onClick={handlePrint}
+        >
+          <Icon name="dl" size="sm" />
+        </button>
 
-      {/* Zoom controls */}
-      <button
-        type="button"
-        className="btn btn-ghost sm"
-        disabled={zoom <= MIN_ZOOM}
-        onClick={() => onZoomChange(zoomForStep(zoom, -0.1))}
-        title="ย่อขนาด"
-      >
-        <Icon name="minus" size="sm" />
-      </button>
-      <button
-        type="button"
-        className="btn btn-ghost sm mono"
-        onClick={() => onZoomChange(zoomForStep(zoom, 'fit'))}
-        title="ขนาดเดิม 100%"
-      >
-        {Math.round(zoom * 100)}%
-      </button>
-      <button
-        type="button"
-        className="btn btn-ghost sm"
-        disabled={zoom >= MAX_ZOOM}
-        onClick={() => onZoomChange(zoomForStep(zoom, 0.1))}
-        title="ขยายขนาด"
-      >
-        <Icon name="plus" size="sm" />
-      </button>
+        <span className="sep" aria-hidden="true" />
 
-      {/* Rotate */}
-      <button
-        type="button"
-        className="btn btn-ghost sm"
-        onClick={onRotate}
-        title="หมุนหน้าเอกสาร"
-      >
-        <Icon name="rotate" size="sm" />
-      </button>
+        <button
+          type="button"
+          className="btn-close-pdf"
+          id="pdfClose"
+          onClick={onClose}
+          title="ปิด PDF และแสดงคิวเอกสาร (Esc)"
+          aria-label="ปิด PDF"
+        >
+          <Icon name="x" size="sm" />
+          ปิด PDF <kbd>Esc</kbd>
+        </button>
+      </div>
 
-      <span className="vsep" />
+      {/* Tier 2: Toolbar (.dock-tb) */}
+      <div className="dock-tb">
+        <div className="seg" role="group" aria-label="โหมดแสดงผล">
+          <button
+            type="button"
+            className={!showEvidence ? 'on' : ''}
+            onClick={() => onToggleEvidence?.(false)}
+          >
+            <Icon name="file" size="sm" />
+            เอกสาร
+          </button>
+          <button
+            type="button"
+            className={showEvidence ? 'on' : ''}
+            onClick={() => onToggleEvidence?.(true)}
+          >
+            <Icon name="target" size="sm" />
+            หลักฐาน
+          </button>
+        </div>
 
-      {/* What is on screen, and where it came from */}
-      <span className={`dock-source ${mode === 'pdf' ? 'live' : 'mock'}`} title="แหล่งที่มาของเอกสารที่แสดงอยู่">
-        <Icon name={mode === 'pdf' ? 'file' : 'flask'} size="sm" />
-        {source ? SOURCE_LABEL[source] : mode === 'pdf' ? 'PDF' : 'เอกสารจำลอง'}
-      </span>
+        <span className="grow" />
 
-      {/* Evidence overlay toggles */}
-      <button
-        type="button"
-        className={`btn btn-ghost sm ${showEvidence ? 'on' : ''}`}
-        onClick={onToggleEvidence}
-        title="แสดง/ซ่อนกรอบหลักฐาน"
-        aria-pressed={showEvidence}
-      >
-        <Icon name="target" size="sm" />
-        หลักฐาน {showEvidence ? boxCount : 0}
-      </button>
-      <button
-        type="button"
-        className={`btn btn-ghost sm ${showAllFields ? 'on' : ''}`}
-        onClick={onToggleAllFields}
-        title="แสดงทุกลิงก์ข้อมูลที่ OCR อ่านได้ (ไม่ใช่เฉพาะที่มีข้อยกเว้น)"
-        aria-pressed={showAllFields}
-      >
-        <Icon name="layers" size="sm" />
-        ทุกลิงก์ข้อมูล
-      </button>
+        {/* Zoom controls */}
+        <div className="pager">
+          <button
+            type="button"
+            disabled={zoom <= MIN_ZOOM}
+            onClick={() => onZoomChange(zoomForStep(zoom, -0.1))}
+            title="ย่อ"
+          >
+            <Icon name="zout" size="sm" />
+          </button>
+          <span>{Math.round(zoom * 100)}%</span>
+          <button
+            type="button"
+            disabled={zoom >= MAX_ZOOM}
+            onClick={() => onZoomChange(zoomForStep(zoom, 0.1))}
+            title="ขยาย"
+          >
+            <Icon name="zin" size="sm" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onZoomChange(zoomForStep(zoom, 'fit'))}
+            title="พอดีความกว้าง"
+          >
+            <Icon name="fitw" size="sm" />
+          </button>
+        </div>
 
-      <span className="grow" />
+        {/* Pagination */}
+        <div className="pager">
+          <button
+            type="button"
+            disabled={currentPage <= 1}
+            onClick={() => onPageChange(currentPage - 1)}
+            title="หน้าก่อน"
+          >
+            <Icon name="chevL" size="sm" />
+          </button>
+          <span>
+            หน้า {currentPage} / {totalPages}
+          </span>
+          <button
+            type="button"
+            disabled={currentPage >= totalPages}
+            onClick={() => onPageChange(currentPage + 1)}
+            title="หน้าถัดไป"
+          >
+            <Icon name="chevR" size="sm" />
+          </button>
+        </div>
+      </div>
 
-      {/* Watermark notice */}
-      <span className="muted xs" style={{ marginRight: 8 }}>
-        ดูผ่าน AIVA Portal · {currentUser.email}
-      </span>
-
-      {/* Close dock */}
-      <button
-        type="button"
-        id="pdfClose"
-        className="btn btn-danger sm"
-        onClick={onClose}
-        title="ปิด PDF (P / Esc)"
-      >
-        <Icon name="x" size="sm" />
-        ปิด PDF
-      </button>
+      {/* Tier 3: Evidence bar (.evbar) */}
+      {showEvidence && evidenceList.length > 0 && (
+        <div className="evbar" aria-label="หลักฐาน">
+          {evidenceList.map(e => (
+            <button
+              key={e.ruleId}
+              type="button"
+              className={`evchip ${activeRuleId === e.ruleId ? 'on' : ''}`}
+              onClick={() => {
+                onToggleEvidence?.(true)
+                onSelectRule?.(e.ruleId, e.page)
+              }}
+            >
+              <span className={`code ${e.severity}`}>{e.code}</span>
+              {e.label}
+              <span className="muted xs">· หน้า {e.page}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

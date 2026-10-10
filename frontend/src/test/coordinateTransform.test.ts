@@ -242,13 +242,13 @@ describe('page geometry helpers', () => {
   })
 
   it('solves the PDF.js scale that fits a page to a target width', () => {
-    // A4 portrait fitted to the mockup's 794 px page width ≈ scale 1.
-    expect(scaleToFitWidth(595, 842, { cssWidth: 794 })).toBeCloseTo(794 / (595 * PT_TO_CSS_PX), 8)
-    expect(scaleToFitWidth(595, 842, { cssWidth: 794 })).toBeCloseTo(1.0008, 3)
-    // Turned portrait becomes landscape: same width, so a smaller scale.
+    // A4 portrait fitted to the mockup's 794 px page width: scale = 794 / 595.
+    expect(scaleToFitWidth(595, 842, { cssWidth: 794 })).toBeCloseTo(794 / 595, 8)
+    expect(scaleToFitWidth(595, 842, { cssWidth: 794 })).toBeCloseTo(1.3345, 3)
+    // Turned portrait becomes landscape: same width, so base width is 842 pt.
     const turned = scaleToFitWidth(595, 842, { cssWidth: 794, rotation: 90 })
-    expect(turned).toBeCloseTo(794 / (842 * PT_TO_CSS_PX), 8)
-    expect(turned).toBeLessThan(1)
+    expect(turned).toBeCloseTo(794 / 842, 8)
+    expect(turned).toBeCloseTo(0.943, 3)
   })
 
   it('sizes the canvas backing store and refuses absurd surfaces', () => {

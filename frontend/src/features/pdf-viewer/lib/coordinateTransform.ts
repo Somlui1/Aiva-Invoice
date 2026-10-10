@@ -179,17 +179,24 @@ export function cssPageGeometry(
 }
 
 /**
- * The PDF.js `scale` that renders a page `cssWidth` wide — the fit-to-dock
- * rule that keeps every page of a document the same width on screen.
+ * The PDF.js `scale` that renders a page `cssWidth` wide in CSS pixels — the
+ * fit-to-dock rule that keeps every page of a document the same width on screen.
+ *
+ * In PDF.js, `pdfPage.getViewport({ scale, rotation })` computes:
+ *   viewport.width = basePtWidth * scale
+ * Therefore, to achieve `viewport.width === cssWidth`, the scale passed to
+ * PDF.js must be `cssWidth / basePtWidth`.
  */
 export function scaleToFitWidth(
   widthPt: number,
   heightPt: number,
   opts: { cssWidth: number; rotation?: number } = { cssWidth: A4_CSS_SIZE.width },
 ): number {
-  const unit = cssPageGeometry(widthPt, heightPt, { scale: 1, rotation: opts.rotation ?? 0 })
-  if (unit.width <= 0) return 1
-  return opts.cssWidth / unit.width
+  const swapped = turn(opts.rotation ?? 0) % 180 === 90
+  const ptWidth = swapped ? heightPt : widthPt
+  if (!finite(ptWidth) || ptWidth <= 0) return 1
+  const targetWidth = finite(opts.cssWidth) && opts.cssWidth > 0 ? opts.cssWidth : A4_CSS_SIZE.width
+  return targetWidth / ptWidth
 }
 
 /**
