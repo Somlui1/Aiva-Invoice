@@ -813,3 +813,25 @@ kbd {
     transform: rotate(360deg);
   }
 }
+
+/* ================= PDF Top Progress Bar ================= */
+.pdf-top-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 2.5px;
+  z-index: 50;
+  pointer-events: none;
+  background: var(--teal, #0d9488);
+  box-shadow: 0 0 8px rgba(13, 148, 136, 0.6);
+  transition: width 0.25s ease-out, opacity 0.35s ease;
+}
+
+.pdf-top-progress.error {
+  background: var(--danger, #ef4444);
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+}
+
+.pdf-top-progress.fade {
+  opacity: 0;
+}
