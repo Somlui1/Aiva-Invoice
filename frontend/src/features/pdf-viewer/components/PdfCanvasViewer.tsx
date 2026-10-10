@@ -16,6 +16,7 @@ import type { OverlayBox } from '../lib/overlayModel'
 import type { PdfViewerStatus } from '../types'
 import { BoundingBoxOverlay } from './BoundingBoxOverlay'
 import { PdfTopProgressBar } from './PdfTopProgressBar'
+import { PdfErrorView } from './PdfErrorView'
 
 export interface PdfCanvasViewerProps {
   /** Canvas owned by `usePdfViewer`; the viewer only sizes and shows it. */
@@ -32,6 +33,7 @@ export interface PdfCanvasViewerProps {
   /** Simulated invoice page shown until a real page can be painted. */
   placeholder?: ReactNode
   onRetry?: () => void
+  onClose?: () => void
 }
 
 export function PdfCanvasViewer({
@@ -45,6 +47,7 @@ export function PdfCanvasViewer({
   visible = true,
   placeholder,
   onRetry,
+  onClose,
 }: PdfCanvasViewerProps) {
   const ready = status.state === 'ready' && pageSize.width > 0 && pageSize.height > 0
   const progressState: 'idle' | 'loading' | 'ready' | 'error' =
@@ -52,7 +55,7 @@ export function PdfCanvasViewer({
       ? 'loading'
       : ready
         ? 'ready'
-        : (status.state as any) === 'error'
+        : status.state === 'error'
           ? 'error'
           : 'idle'
 
@@ -63,6 +66,12 @@ export function PdfCanvasViewer({
         <div className="evd-loading-minimal" role="status">
           <span className="spin lg" aria-label="กำลังโหลดเอกสาร" />
         </div>
+      ) : status.state === 'error' && status.error ? (
+        <PdfErrorView
+          error={status.error}
+          onRetry={onRetry}
+          onClose={onClose || (() => {})}
+        />
       ) : (
         <div className="evd-pdf-fallback" role="status">
           <span className="evd-pdf-note bad">

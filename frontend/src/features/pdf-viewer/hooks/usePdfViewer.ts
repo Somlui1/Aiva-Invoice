@@ -98,6 +98,16 @@ export interface UsePdfViewerResult {
   reload: () => void
 }
 
+export function generateRefCode(id: string | null): string {
+  if (!id) return 'REF-GEN001'
+  let h = 0
+  for (let i = 0; i < id.length; i++) {
+    h = (Math.imul(31, h) + id.charCodeAt(i)) | 0
+  }
+  const hex = Math.abs(h).toString(16).toUpperCase().padStart(6, '0').slice(-6)
+  return `REF-${hex}`
+}
+
 export function usePdfViewer({
   documentId,
   containerWidth,
@@ -117,8 +127,33 @@ export function usePdfViewer({
 
   const reload = useCallback(() => setAttempt(n => n + 1), [])
 
-  const fallBack = useCallback((reason: string, source?: PdfProxySource) => {
-    setStatus({ state: 'fallback', mode: 'mock', reason, source, pageCount: 1 })
+  const fallBack = useCallback((reason: string, source?: PdfProxySource, docId?: string | null) => {
+    const statusMatch = reason.match(/\b(400|401|403|404|500|502|503|504)\b/)
+    const httpCode = statusMatch ? `DMS-${statusMatch[1]}` : 'DMS-500'
+    const isNotFound = httpCode === 'DMS-404' || reason.toLowerCase().includes('not found')
+    const isAuth = httpCode === 'DMS-401' || httpCode === 'DMS-403'
+    const code = isNotFound ? 'DMS-404' : httpCode
+    const retryable = !isNotFound && !isAuth
+    const message = isNotFound
+      ? 'ไม่พบไฟล์เอกสารในระบบจัดเก็บเอกสาร (DMS)'
+      : isAuth
+        ? 'ไม่มีสิทธิ์เข้าถึงเอกสารนี้ในระบบ DMS'
+        : 'การเชื่อมต่อเซิร์ฟเวอร์ DMS ขัดข้อง หรือหมดเวลาการเชื่อมต่อ'
+    const ref = generateRefCode(docId ?? null)
+
+    setStatus({
+      state: 'error',
+      mode: 'mock',
+      reason,
+      source,
+      pageCount: 1,
+      error: {
+        code,
+        ref,
+        message,
+        retryable,
+      },
+    })
     setPageSize(EMPTY_PAGE)
   }, [])
 
@@ -170,7 +205,7 @@ export function usePdfViewer({
         })
       } catch (err) {
         if (disposed) return
-        fallBack(err instanceof Error ? err.message : String(err))
+        fallBack(err instanceof Error ? err.message : String(err), undefined, documentId)
       }
     })()
 
@@ -247,7 +282,7 @@ export function usePdfViewer({
         renderRef.current = null
         // A page that cannot be painted is worse than no PDF at all: the mock
         // page keeps the analyst working, and the badge says why.
-        fallBack(err instanceof Error ? err.message : String(err), status.source)
+        fallBack(err instanceof Error ? err.message : String(err), status.source, documentId)
       }
     })()
 

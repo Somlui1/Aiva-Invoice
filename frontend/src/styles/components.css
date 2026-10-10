@@ -847,3 +847,66 @@ kbd {
   z-index: 20;
   pointer-events: none;
 }
+
+/* ================= Minimal PDF Error View ================= */
+.evd-error-mat {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+  text-align: center;
+  background: var(--surface, #ffffff);
+  z-index: 30;
+}
+
+.evd-error-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.evd-error-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.evd-error-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text, #0f172a);
+  margin-bottom: 6px;
+}
+
+.evd-error-desc {
+  font-size: 13.5px;
+  color: var(--s-600, #475569);
+  max-width: 320px;
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+
+.evd-error-code {
+  font-size: 12px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  color: var(--s-400, #94a3b8);
+  margin-bottom: 20px;
+  letter-spacing: 0.02em;
+}
+
+.evd-error-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
