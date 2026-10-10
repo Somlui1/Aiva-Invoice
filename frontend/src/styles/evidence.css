@@ -768,6 +768,14 @@
   height: auto;
 }
 
+.evd-pdf {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
 .evd-mock {
   display: flex;
   justify-content: center;

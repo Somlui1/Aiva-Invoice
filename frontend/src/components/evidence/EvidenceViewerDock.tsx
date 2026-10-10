@@ -20,9 +20,11 @@
  */
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { InvoiceDoc } from '../../types/invoice'
+import { Icon } from '../common/Icon'
 import { DockControls } from './DockControls'
 import { EvidenceCanvas } from './EvidenceCanvas'
 import { useInvoices } from '../../context/InvoiceContext'
+import { useAuth } from '../../context/AuthContext'
 import { EXCEPTION_RULES } from '../../mock/rules'
 import { PdfCanvasViewer } from '../../features/pdf-viewer/components/PdfCanvasViewer'
 import { BoundingBoxOverlay } from '../../features/pdf-viewer/components/BoundingBoxOverlay'
@@ -49,6 +51,7 @@ const DOCK_RATIO_MIN = 0.3
 const DOCK_RATIO_MAX = 0.5
 
 export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
+  const { currentUser } = useAuth()
   const {
     closeEvidenceDock,
     evidenceDockFocus,
@@ -73,14 +76,38 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
 
   // The page has to be measured, not guessed: fit-to-width is what keeps a
   // five-page document readable without a horizontal scrollbar.
+  // We measure immediately, observe with ResizeObserver, and re-read as the
+  // 350ms CSS grid transition (.work.pdf-open) settles.
   useEffect(() => {
     const el = bodyRef.current
     if (!el) return
-    const read = () => setBodyWidth(el.clientWidth)
+    const read = () => {
+      if (el.clientWidth > 0) {
+        setBodyWidth(el.clientWidth)
+      }
+    }
     read()
-    const observer = new ResizeObserver(read)
-    observer.observe(el)
-    return () => observer.disconnect()
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(read) : null
+    observer?.observe(el)
+
+    const t1 = setTimeout(read, 50)
+    const t2 = setTimeout(read, 150)
+    const t3 = setTimeout(read, 360)
+    const t4 = setTimeout(read, 500)
+
+    const workEl = document.getElementById('work')
+    workEl?.addEventListener('transitionend', read)
+    window.addEventListener('resize', read)
+
+    return () => {
+      observer?.disconnect()
+      clearTimeout(t1)
+      clearTimeout(t2)
+      clearTimeout(t3)
+      clearTimeout(t4)
+      workEl?.removeEventListener('transitionend', read)
+      window.removeEventListener('resize', read)
+    }
   }, [])
 
   const fit = mockPageFitScale(bodyWidth)
@@ -173,6 +200,22 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
     })
   }
 
+  const handleSelectRule = (ruleId: string, page?: number) => {
+    if (page) setCurrentPage(page)
+    setShowEvidence(true)
+    const matchingBox = (mockMode ? mockOverlayBoxes : pdfOverlayBoxes).find(b => b.ruleId === ruleId)
+    if (matchingBox) {
+      selectBox(matchingBox, mockMode ? 'mock' : 'pdf')
+    } else {
+      setSelectedId(null)
+      setEvidenceSelection({
+        ruleId,
+        label: labelOf(ruleId) ?? ruleId,
+        surface: mockMode ? 'mock' : 'pdf',
+      })
+    }
+  }
+
   const handleRotate = () => setRotation(prev => (prev + 90) % 360)
 
   // The toolbar's PDF toggle reports the same flight this dock is waiting on, so
@@ -256,6 +299,7 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
         onDoubleClick={handleResizeReset}
       />
       <DockControls
+        doc={doc}
         currentPage={currentPage}
         totalPages={totalPages}
         zoom={zoom}
@@ -266,10 +310,12 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
         mode={mockMode ? 'mock' : 'pdf'}
         source={status.source}
         showEvidence={showEvidence}
-        onToggleEvidence={() => setShowEvidence(v => !v)}
+        onToggleEvidence={v => setShowEvidence(prev => (typeof v === 'boolean' ? v : !prev))}
         showAllFields={showAllFields}
         onToggleAllFields={() => setShowAllFields(v => !v)}
         boxCount={mockMode ? mockOverlayBoxes.length : pdfOverlayBoxes.length}
+        activeRuleId={focusRuleId}
+        onSelectRule={handleSelectRule}
       />
 
       <div className="dock-body evd" ref={bodyRef}>
@@ -286,6 +332,14 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
           onClose={closeEvidenceDock}
           placeholder={mockSurface}
         />
+      </div>
+
+      <div className="dock-f" id="dockFoot">
+        <Icon name="lock" size="sm" />
+        <span>ลิงก์ชั่วคราว 10 นาที ออกโดย Portal หลังตรวจสิทธิ์ · ลายน้ำ</span>
+        <span className="mono grow">
+          {currentUser.email} · token {doc.doc}
+        </span>
       </div>
     </section>
   )
