@@ -29,7 +29,7 @@
 | pdf-mockup-dock-1 | Mockup 3-Tier Dock Header & Fit-to-Width Auto-Scale | completed | Restructured DockControls to match mockup 4.18 (.dock-h, .dock-tb, .evbar, .dock-f); fixed scaleToFitWidth to solve exact PDF.js scale without points/pixels double factor; added grid transition settling timer for reliable initial clientWidth; 20/20 test files (189/189 tests) pass, tsc clean, next build clean |
 | validation-evidence-brainstorm | Brainstorm & Design for Validation Evidence PDF Linking & Summary Cards | completed | Design approved & saved to docs/plans/2026-10-11-validation-evidence-pdf-linking-design.md |
 | validation-evidence-plan | Implementation Plan for Validation Evidence PDF Linking & Layout | completed | Implementation plan saved to docs/plans/2026-10-11-validation-evidence-pdf-linking.md |
-| val-task-1 | CSS Isolation Fix & Summary Card Layout Auto-Expand | pending | Decouple .sel in components.css, use .is-active for cards, word-break & flex layout |
+| val-task-1 | CSS Isolation Fix & Summary Card Layout Auto-Expand | completed | Scoped select.sel in components.css; added .is-active, auto height, .ev-text word-wrap & .ev-btn in queue.css & InvoiceDetailPane; RED->GREEN (3/3 tests pass, tsc clean) |
 | val-task-2 | Validation Category Theme Definitions & Color Palette | pending | Define 4 category themes (Missing, Mismatch, Calculation, Duplicate) and CSS classes |
 | val-task-3 | Single-Active BBox Filtering & Cell Specificity in Projector | pending | Filter to active validation BBox only, attach category class, prioritize cell BBoxes |
 | val-task-4 | Interactive Validation Card Click & Bi-directional Auto-Scroll Integration | pending | Make whole card clickable, open dock, set single-active selection, smooth scroll centering |

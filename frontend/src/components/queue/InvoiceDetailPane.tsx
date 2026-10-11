@@ -343,7 +343,7 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
                       key={r.id || r.rule}
                       data-rule={r.rule}
                       data-sel={picked ? '1' : undefined}
-                      className={`exc ${sev}${picked ? ' sel' : ''}`}
+                      className={`exc ${sev}${picked ? ' is-active sel' : ''}`}
                     >
                       <div className="exc-h">
                         <span className={`code ${sev}`}>{c}</span>
@@ -357,16 +357,18 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
                       </div>
                       <div className="rl">{RULES.find((x: string) => x.startsWith(r.rule)) || r.name}</div>
                       <div className="ev">
-                        <span>{r.detail || r.evidence || ''}</span>
+                        <div className="ev-text">{r.detail || r.evidence || ''}</div>
                         {can('DMS') && (
-                          <button
-                            type="button"
-                            className="link"
-                            onClick={() => openEvidenceDock(r.page || 1, r.rule)}
-                          >
-                            <Icon name="target" size="sm" />
-                            ดูหลักฐานหน้า {r.page || 1}
-                          </button>
+                          <div className="ev-btn">
+                            <button
+                              type="button"
+                              className="link"
+                              onClick={() => openEvidenceDock(r.page || 1, r.rule || r.id)}
+                            >
+                              <Icon name="target" size="sm" />
+                              ดูหลักฐานหน้า {r.page || 1}
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -486,7 +488,7 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
                           <button
                             type="button"
                             className="link"
-                            onClick={() => openEvidenceDock(r.page || 1, r.rule)}
+                            onClick={() => openEvidenceDock(r.page || 1, r.rule || r.id)}
                           >
                             <Icon name="target" size="sm" /> ดู
                           </button>

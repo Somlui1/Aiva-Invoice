@@ -821,6 +821,14 @@
   padding: 9px 12px;
   margin-bottom: 8px;
   box-shadow: var(--e-1);
+  cursor: pointer;
+  height: auto;
+  min-height: auto;
+  transition: border-color .15s ease, box-shadow .15s ease, transform .1s ease;
+}
+
+.exc:hover {
+  border-color: var(--line-strong);
 }
 
 .exc.High {
@@ -835,9 +843,11 @@
   border-left-color: #059669;
 }
 
+.exc.is-active,
 .exc.sel {
   border-color: #F59E0B;
   box-shadow: 0 0 0 2px rgba(245, 158, 11, .35), var(--e-1);
+  transform: translateY(-1px);
 }
 
 .exc-h {
@@ -902,7 +912,7 @@
 .ev {
   margin-top: 8px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   padding: 8px 10px;
@@ -910,6 +920,23 @@
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   font-size: 12.5px;
+  height: auto;
+  min-height: auto;
+}
+
+.ev-text {
+  flex: 1;
+  min-width: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
+  color: var(--s-800);
+}
+
+.ev-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
 }
 
 .note {
@@ -1411,7 +1438,7 @@ table.t .num {
   .work .dock {
     display: flex;
   }
-  .work .dock > * {
+  .work .dock > *:not(.dock-rz) {
     width: 100%;
   }
   .work:not(.pdf-open) .dock {
