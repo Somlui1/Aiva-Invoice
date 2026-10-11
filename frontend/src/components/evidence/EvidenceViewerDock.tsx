@@ -130,9 +130,11 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
     setCurrentPage(prev => (prev > totalPages ? 1 : prev))
   }, [totalPages, doc.doc])
 
-  // Detail pane → PDF: jumping to a rule also turns to its page.
+  // Detail pane → PDF: jumping to a rule also turns to its page and enables evidence boxes.
   useEffect(() => {
-    if (evidenceDockFocus?.page) setCurrentPage(evidenceDockFocus.page)
+    if (!evidenceDockFocus) return
+    if (evidenceDockFocus.page) setCurrentPage(evidenceDockFocus.page)
+    setShowEvidence(true)
   }, [evidenceDockFocus])
 
   useEffect(() => {
@@ -168,9 +170,11 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
         padding: 2,
         focusRuleId,
         focusId: selectedId,
+        activeRuleId: focusRuleId,
+        activeExceptionCode: evidenceSelection?.exceptionCode,
         onlyEvidence: !showAllFields,
       }),
-    [pdfBoxes, currentPage, pageSize, rotation, focusRuleId, selectedId, showAllFields],
+    [pdfBoxes, currentPage, pageSize, rotation, focusRuleId, selectedId, showAllFields, evidenceSelection?.exceptionCode],
   )
 
   const mockPageSize = mockMode && measured.pageSize.width > 0 ? measured.pageSize : EMPTY_SIZE
@@ -185,9 +189,11 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
         padding: 2,
         focusRuleId,
         focusId: selectedId,
+        activeRuleId: focusRuleId,
+        activeExceptionCode: evidenceSelection?.exceptionCode,
         onlyEvidence: !showAllFields,
       }),
-    [mockBoxes, mockPageSize, focusRuleId, selectedId, showAllFields],
+    [mockBoxes, mockPageSize, focusRuleId, selectedId, showAllFields, evidenceSelection?.exceptionCode],
   )
 
   const selectBox = (box: OverlayBox, surface: 'pdf' | 'mock') => {
@@ -215,6 +221,59 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
       })
     }
   }
+
+  // When an evidence focus request comes in from the detail pane, match and select the bbox
+  useEffect(() => {
+    const targetRule = evidenceDockFocus?.ruleId
+    if (!targetRule) return
+
+    const boxes = mockMode ? mockOverlayBoxes : pdfOverlayBoxes
+    const found = boxes.find(
+      b =>
+        b.ruleId === targetRule ||
+        b.id === targetRule ||
+        (b.ruleId && targetRule.startsWith(b.ruleId)) ||
+        (b.ruleId && b.ruleId.startsWith(targetRule)),
+    )
+    if (found) {
+      if (found.id !== selectedId) {
+        setSelectedId(found.id)
+      }
+      setEvidenceSelection({
+        ruleId: found.ruleId,
+        lineNo: found.lineNo,
+        label: found.tag ?? found.ruleId ?? null,
+        surface: mockMode ? 'mock' : 'pdf',
+      })
+    } else {
+      setEvidenceSelection({
+        ruleId: targetRule,
+        label: labelOf(targetRule) ?? targetRule,
+        surface: mockMode ? 'mock' : 'pdf',
+      })
+    }
+  }, [evidenceDockFocus, mockMode, mockOverlayBoxes, pdfOverlayBoxes, selectedId, setEvidenceSelection])
+
+  // Auto-scroll to the focused bbox element
+  useEffect(() => {
+    const targetRule = evidenceDockFocus?.ruleId ?? evidenceSelection?.ruleId
+    if (!targetRule && !selectedId) return
+
+    const timer = setTimeout(() => {
+      const container = bodyRef.current
+      if (!container) return
+      const targetEl =
+        (container.querySelector('.hl.focus') as HTMLElement | null) ||
+        (selectedId ? (container.querySelector(`[data-id="${selectedId}"]`) as HTMLElement | null) : null) ||
+        (targetRule ? (container.querySelector(`.hl[data-rule="${targetRule}"]`) as HTMLElement | null) : null)
+
+      if (targetEl) {
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })
+      }
+    }, 150)
+
+    return () => clearTimeout(timer)
+  }, [evidenceDockFocus?.nonce, evidenceDockFocus?.ruleId, selectedId, evidenceSelection?.ruleId, currentPage, mockMode, status.state])
 
   const handleRotate = () => setRotation(prev => (prev + 90) % 360)
 
