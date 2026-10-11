@@ -4,22 +4,35 @@
   "version": "4.18.0",
   "type": "module",
   "scripts": {
+    "postinstall": "node scripts/copy-pdfjs-worker.mjs",
+    "predev": "node scripts/copy-pdfjs-worker.mjs",
+    "prebuild": "node scripts/copy-pdfjs-worker.mjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "seed:engine": "tsx scripts/simulate-engine-push.ts"
   },
   "dependencies": {
+    "@prisma/client": "^6.19.3",
     "next": "^15.5.27",
+    "pdfjs-dist": "^5.7.284",
+    "prisma": "^6.19.3",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
     "@types/node": "^22.13.1",
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
     "@vitejs/plugin-react": "^4.3.4",
+    "jsdom": "^29.1.1",
+    "tsx": "^4.23.15",
     "typescript": "~5.7.2",
     "vite": "^6.1.0",
     "vitest": "^3.0.5"

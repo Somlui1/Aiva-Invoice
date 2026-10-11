@@ -10,6 +10,10 @@ export default defineConfig({
     }
   },
   test: {
-    globals: true
+    globals: true,
+    globalSetup: ['./vitest.global-setup.ts'],
+    setupFiles: ['./vitest.setup.ts'],
+    // Ingestion tests share one SQLite file; serializing files avoids lock races.
+    fileParallelism: false,
   }
 })

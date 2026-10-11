@@ -12,9 +12,15 @@
   left: -4px;
   top: 0;
   bottom: 0;
-  width: 8px;
+  width: 8px !important;
   cursor: col-resize;
-  z-index: 8;
+  z-index: 15;
+}
+
+.dock-chrome {
+  position: relative;
+  z-index: 10;
+  flex: none;
 }
 
 .dock-rz::after {
@@ -741,7 +747,77 @@
 }
 
 .evd .hl.focus {
-  box-shadow: 0 0 0 3px rgba(245, 158, 11, .55);
+  box-shadow: 0 0 0 3px #F59E0B, 0 0 16px rgba(245, 158, 11, .6);
+  z-index: 10 !important;
+}
+
+/* Category-based theme highlights */
+.hl.cat-missing,
+.evd .hl.cat-missing {
+  border-color: #D97706;
+  background: rgba(217, 119, 6, .15);
+}
+.hl.cat-missing .tag,
+.evd .hl.cat-missing .tag {
+  background: #D97706;
+  color: #fff;
+}
+.hl.cat-missing.focus,
+.evd .hl.cat-missing.focus {
+  border-color: #D97706;
+  box-shadow: 0 0 0 3px #D97706, 0 0 16px rgba(217, 119, 6, .55);
+  z-index: 10 !important;
+}
+
+.hl.cat-mismatch,
+.evd .hl.cat-mismatch {
+  border-color: #DC2626;
+  background: rgba(220, 38, 38, .15);
+}
+.hl.cat-mismatch .tag,
+.evd .hl.cat-mismatch .tag {
+  background: #DC2626;
+  color: #fff;
+}
+.hl.cat-mismatch.focus,
+.evd .hl.cat-mismatch.focus {
+  border-color: #DC2626;
+  box-shadow: 0 0 0 3px #DC2626, 0 0 16px rgba(220, 38, 38, .55);
+  z-index: 10 !important;
+}
+
+.hl.cat-calculation,
+.evd .hl.cat-calculation {
+  border-color: #0284C7;
+  background: rgba(2, 132, 199, .15);
+}
+.hl.cat-calculation .tag,
+.evd .hl.cat-calculation .tag {
+  background: #0284C7;
+  color: #fff;
+}
+.hl.cat-calculation.focus,
+.evd .hl.cat-calculation.focus {
+  border-color: #0284C7;
+  box-shadow: 0 0 0 3px #0284C7, 0 0 16px rgba(2, 132, 199, .55);
+  z-index: 10 !important;
+}
+
+.hl.cat-duplicate,
+.evd .hl.cat-duplicate {
+  border-color: #7C3AED;
+  background: rgba(124, 58, 237, .15);
+}
+.hl.cat-duplicate .tag,
+.evd .hl.cat-duplicate .tag {
+  background: #7C3AED;
+  color: #fff;
+}
+.hl.cat-duplicate.focus,
+.evd .hl.cat-duplicate.focus {
+  border-color: #7C3AED;
+  box-shadow: 0 0 0 3px #7C3AED, 0 0 16px rgba(124, 58, 237, .55);
+  z-index: 10 !important;
 }
 
 .evd-pn {
@@ -759,4 +835,142 @@
 
 .evd.no-ev .hl {
   display: none;
+}
+
+/* ================= PDF.js Surface & Interactive BBox Overlay (Task 7) ================= */
+
+/* The dock body doubles as the viewer frame (`.evd`): dark mat, centred page. */
+.dock-body.evd {
+  height: auto;
+}
+
+.evd-pdf {
+  width: 100%;
+  min-height: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+.evd-mock {
+  display: flex;
+  justify-content: center;
+}
+
+/* Rendered PDF page: the sheet itself, sized in CSS px by the viewer hook. */
+.evd-pdf-page {
+  display: none;
+  width: auto;
+  height: auto;
+  background: #fff !important;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, .4) !important;
+}
+
+.evd-pdf-page.on {
+  display: block;
+}
+
+.evd-pdf-canvas {
+  display: block;
+}
+
+/* Loading / fallback strip above the simulated page, so a missing PDF is a
+   visible state and never an empty panel. */
+.evd-pdf-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.evd-pdf-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, .72);
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.evd-pdf-note.bad {
+  background: rgba(180, 83, 9, .85);
+}
+
+/* Loading card on the dark mat, while the proxy streams and PDF.js rasterises.
+   White-washed so `currentColor` in `.spin` reads on the mat, and tall enough to
+   sit in the middle of the page area rather than as a strip at its top. */
+.evd-loading-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 180px;
+  padding: 48px 16px;
+  color: #fff;
+}
+
+/* Overlay layer: transparent, but the boxes themselves take pointer events. */
+.evd-overlay {
+  pointer-events: none;
+  z-index: 6;
+}
+
+.evd-overlay .hl {
+  pointer-events: auto;
+  cursor: pointer;
+  transition: box-shadow .12s ease-out, background .12s ease-out;
+}
+
+.evd-overlay .hl:hover,
+.evd-overlay .hl.hover {
+  background: rgba(245, 158, 11, .22);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, .8);
+}
+
+.evd-overlay .hl.High:hover,
+.evd-overlay .hl.High.hover {
+  background: rgba(220, 38, 38, .18);
+}
+
+.evd-overlay .hl:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 1px;
+}
+
+/* Source badge + overlay toggles in the dock toolbar. */
+.dock-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--s-100);
+  color: var(--s-600);
+  white-space: nowrap;
+}
+
+.dock-source.live {
+  background: #ECFDF5;
+  color: #047857;
+}
+
+.dock-source.mock {
+  background: #FEF3C7;
+  color: #92400E;
+}
+
+.btn.on {
+  border-color: #F59E0B;
+  background: #FFFBEB;
+  color: #92400E;
+  font-weight: 700;
 }

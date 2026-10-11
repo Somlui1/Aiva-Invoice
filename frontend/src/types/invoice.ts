@@ -11,6 +11,9 @@ export type InvoiceStatus =
   | 'Duplicate'
   | 'Import Failed'
 
+import type { PortalOracleReceiptLine, PortalBoundingBox } from '../features/engine/types/portalDomain'
+export type { PortalOracleReceiptLine, PortalBoundingBox }
+
 export type ExceptionSeverity = 'High' | 'Medium' | 'Low'
 
 export interface RuleCheck {
@@ -86,6 +89,7 @@ export interface InvoiceDoc {
   codes: string[]
   rules: RuleCheck[]
   lines?: InvoiceLineItem[]
+  oracleReceiptLines?: PortalOracleReceiptLine[]
   pages: number
   history: DocumentHistoryEntry[]
   unres?: boolean
@@ -109,6 +113,22 @@ export interface InvoiceDoc {
   ownerSrc?: string
   ent?: Record<string, unknown>
   badAddr?: string
+  bboxes?: PortalBoundingBox[]
   raw_payload?: Record<string, unknown>
 }
 
+
+/**
+ * One evidence box picked on the evidence surface, in either direction:
+ * detail pane → PDF (focus a rule) or PDF/mock → detail pane (focus a row).
+ */
+export interface EvidenceSelection {
+  ruleId?: string
+  exceptionCode?: string
+  /** Table row of the picked box, for line-level linking. */
+  lineNo?: number
+  /** Tag text drawn on the box, reused as the detail-pane chip. */
+  label?: string | null
+  /** Which surface produced it: `pdf` or `mock`. */
+  surface?: 'pdf' | 'mock'
+}

@@ -49,6 +49,9 @@ export function PortalShell({ initialPage = 'queue' }: { initialPage?: PageKey }
   }
 
   const toggleNav = () => {
+    if (isEvidenceDockOpen) {
+      closeEvidenceDock()
+    }
     setIsNavCollapsed(prev => {
       const next = !prev
       try {
@@ -100,7 +103,10 @@ export function PortalShell({ initialPage = 'queue' }: { initialPage?: PageKey }
   }
 
   return (
-    <div className={`shell ${isNavCollapsed ? 'nav-c' : ''}`} id="shell">
+    <div
+      className={`shell ${isNavCollapsed ? 'nav-c' : ''} ${isEvidenceDockOpen ? 'nav-auto' : ''}`}
+      id="shell"
+    >
       <Topbar isNavCollapsed={isNavCollapsed} onToggleNav={toggleNav} />
       <div className="body">
         <Sidebar

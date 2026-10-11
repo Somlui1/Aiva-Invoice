@@ -1,61 +1,404 @@
 'use client'
 
-import { useState, type CSSProperties } from 'react'
+/**
+ * Evidence dock (design §4.2).
+ *
+ * The dock shows one document on one of two surfaces:
+ *
+ *   • **PDF** — PDF.js paints the file served by `api/documents/[id]/pdf`.
+ *   • **mock** — the simulated invoice from `EvidenceCanvas`.
+ *
+ * Which one is authoritative is decided by the Task 6 proxy, which reports its
+ * source in `X-PDF-Source`; the hook turns that into `status.mode`. The switch is
+ * never a blank panel: the mock page stays on screen while the PDF loads and
+ * returns whenever the proxy could not produce a real file.
+ *
+ * Both surfaces share one overlay pipeline — `projectOverlayBoxes()` maps the
+ * Engine's normalised boxes onto the surface's CSS pixels, so the highlight
+ * look, the exception tag and the click-through to the detail pane are identical
+ * whichever surface produced them.
+ */
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { InvoiceDoc } from '../../types/invoice'
+import { Icon } from '../common/Icon'
 import { DockControls } from './DockControls'
 import { EvidenceCanvas } from './EvidenceCanvas'
 import { useInvoices } from '../../context/InvoiceContext'
+import { useAuth } from '../../context/AuthContext'
+import { EXCEPTION_RULES } from '../../mock/rules'
+import { PdfCanvasViewer } from '../../features/pdf-viewer/components/PdfCanvasViewer'
+import { BoundingBoxOverlay } from '../../features/pdf-viewer/components/BoundingBoxOverlay'
+import { usePdfViewer } from '../../features/pdf-viewer/hooks/usePdfViewer'
+import { useMeasuredRegions } from '../../features/pdf-viewer/hooks/useMeasuredRegions'
+import {
+  mockEvidenceViewerBBoxes,
+  projectOverlayBoxes,
+  viewerBoxesFromInvoiceDoc,
+  type OverlayBox,
+} from '../../features/pdf-viewer/lib/overlayModel'
+import {
+  DOCK_BODY_INSET,
+  mockPageFitScale,
+  mockSurfaceStyle,
+  type SizeBox,
+} from '../../features/pdf-viewer/lib/coordinateTransform'
 
-interface EvidenceViewerDockProps {
-  doc: InvoiceDoc
-}
+const EMPTY_SIZE: SizeBox = { width: 0, height: 0 }
 
-export function EvidenceViewerDock({ doc }: EvidenceViewerDockProps) {
-  const { closeEvidenceDock, evidenceDockFocus } = useInvoices()
+/** The dock's share of `.work`: the mockup's 60:40, and how far it may be dragged. */
+const DOCK_RATIO_DEFAULT = 0.4
+const DOCK_RATIO_MIN = 0.3
+const DOCK_RATIO_MAX = 0.5
+
+export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
+  const { currentUser } = useAuth()
+  const {
+    closeEvidenceDock,
+    evidenceDockFocus,
+    evidenceSelection,
+    setEvidenceSelection,
+    dockSplitRatio,
+    setDockSplitRatio,
+    setIsPdfLoading,
+  } = useInvoices()
+
   const [currentPage, setCurrentPage] = useState<number>(evidenceDockFocus?.page || 1)
   const [zoom, setZoom] = useState<number>(1)
   const [rotation, setRotation] = useState<number>(0)
+  const [showEvidence, setShowEvidence] = useState<boolean>(true)
+  const [showAllFields, setShowAllFields] = useState<boolean>(false)
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
 
-  const handleRotate = () => {
-    setRotation(prev => (prev + 90) % 360)
+  const bodyRef = useRef<HTMLDivElement | null>(null)
+  const [bodyWidth, setBodyWidth] = useState<number>(0)
+  const [mockPageEl, setMockPageEl] = useState<HTMLDivElement | null>(null)
+
+  // The page has to be measured, not guessed: fit-to-width is what keeps a
+  // five-page document readable without a horizontal scrollbar.
+  // We measure immediately, observe with ResizeObserver, and re-read as the
+  // 350ms CSS grid transition (.work.pdf-open) settles.
+  useEffect(() => {
+    const el = bodyRef.current
+    if (!el) return
+    const read = () => {
+      if (el.clientWidth > 0) {
+        setBodyWidth(el.clientWidth)
+      }
+    }
+    read()
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(read) : null
+    observer?.observe(el)
+
+    const t1 = setTimeout(read, 50)
+    const t2 = setTimeout(read, 150)
+    const t3 = setTimeout(read, 360)
+    const t4 = setTimeout(read, 500)
+
+    const workEl = document.getElementById('work')
+    workEl?.addEventListener('transitionend', read)
+    window.addEventListener('resize', read)
+
+    return () => {
+      observer?.disconnect()
+      clearTimeout(t1)
+      clearTimeout(t2)
+      clearTimeout(t3)
+      clearTimeout(t4)
+      workEl?.removeEventListener('transitionend', read)
+      window.removeEventListener('resize', read)
+    }
+  }, [])
+
+  const fit = mockPageFitScale(bodyWidth)
+  const surfaceStyle = mockSurfaceStyle({ fit, zoom, rotation })
+
+  const { status, canvasRef, pageSize, reload } = usePdfViewer({
+    documentId: doc.doc,
+    containerWidth: Math.max(0, bodyWidth - DOCK_BODY_INSET),
+    page: currentPage,
+    rotation,
+    zoom,
+  })
+
+  const mockMode = status.mode === 'mock'
+  const totalPages = mockMode ? doc.pages || 1 : Math.max(1, status.pageCount)
+
+  // A document switch or a shorter page list must not leave the pager on a page
+  // that no longer exists.
+  useEffect(() => {
+    setCurrentPage(prev => (prev > totalPages ? 1 : prev))
+  }, [totalPages, doc.doc])
+
+  // Detail pane → PDF: jumping to a rule also turns to its page and enables evidence boxes.
+  useEffect(() => {
+    if (!evidenceDockFocus) return
+    if (evidenceDockFocus.page) setCurrentPage(evidenceDockFocus.page)
+    setShowEvidence(true)
+  }, [evidenceDockFocus])
+
+  useEffect(() => {
+    setSelectedId(null)
+    setHoveredId(null)
+  }, [doc.doc])
+
+  const labelOf = (code?: string) => (code ? EXCEPTION_RULES[code]?.name : undefined)
+
+  const pdfBoxes = useMemo(
+    () => (status.state === 'ready' ? viewerBoxesFromInvoiceDoc(doc, { labelOf }) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [doc, status.state],
+  )
+
+  // Mock mode has no OCR layer, so its regions are measured off the rendered
+  // page and put through the same projector.
+  const measured = useMeasuredRegions(mockPageEl, mockMode && rotation === 0)
+  const mockBoxes = useMemo(
+    () => (mockMode ? mockEvidenceViewerBBoxes({ doc, regions: measured.regions, labelOf }) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [doc, mockMode, measured.regions],
+  )
+
+  const focusRuleId = evidenceDockFocus?.ruleId ?? evidenceSelection?.ruleId ?? null
+
+  const pdfOverlayBoxes = useMemo(
+    () =>
+      projectOverlayBoxes(pdfBoxes, {
+        page: currentPage,
+        pageSize,
+        rotation,
+        padding: 2,
+        focusRuleId,
+        focusId: selectedId,
+        activeRuleId: focusRuleId,
+        activeExceptionCode: evidenceSelection?.exceptionCode,
+        onlyEvidence: !showAllFields,
+      }),
+    [pdfBoxes, currentPage, pageSize, rotation, focusRuleId, selectedId, showAllFields, evidenceSelection?.exceptionCode],
+  )
+
+  const mockPageSize = mockMode && measured.pageSize.width > 0 ? measured.pageSize : EMPTY_SIZE
+  const mockOverlayBoxes = useMemo(
+    () =>
+      projectOverlayBoxes(mockBoxes, {
+        page: 1,
+        pageSize: mockPageSize,
+        // The mock page is turned by a CSS transform, which already carries the
+        // boxes with it, so the projector must not rotate them a second time.
+        rotation: 0,
+        padding: 2,
+        focusRuleId,
+        focusId: selectedId,
+        activeRuleId: focusRuleId,
+        activeExceptionCode: evidenceSelection?.exceptionCode,
+        onlyEvidence: !showAllFields,
+      }),
+    [mockBoxes, mockPageSize, focusRuleId, selectedId, showAllFields, evidenceSelection?.exceptionCode],
+  )
+
+  const selectBox = (box: OverlayBox, surface: 'pdf' | 'mock') => {
+    setSelectedId(box.id)
+    setEvidenceSelection({
+      ruleId: box.ruleId,
+      lineNo: box.lineNo,
+      label: box.tag ?? box.ruleId ?? null,
+      surface,
+    })
   }
+
+  const handleSelectRule = (ruleId: string, page?: number) => {
+    if (page) setCurrentPage(page)
+    setShowEvidence(true)
+    const matchingBox = (mockMode ? mockOverlayBoxes : pdfOverlayBoxes).find(b => b.ruleId === ruleId)
+    if (matchingBox) {
+      selectBox(matchingBox, mockMode ? 'mock' : 'pdf')
+    } else {
+      setSelectedId(null)
+      setEvidenceSelection({
+        ruleId,
+        label: labelOf(ruleId) ?? ruleId,
+        surface: mockMode ? 'mock' : 'pdf',
+      })
+    }
+  }
+
+  // When an evidence focus request comes in from the detail pane, match and select the bbox
+  useEffect(() => {
+    const targetRule = evidenceDockFocus?.ruleId
+    if (!targetRule) return
+
+    const boxes = mockMode ? mockOverlayBoxes : pdfOverlayBoxes
+    const found = boxes.find(
+      b =>
+        b.ruleId === targetRule ||
+        b.id === targetRule ||
+        (b.ruleId && targetRule.startsWith(b.ruleId)) ||
+        (b.ruleId && b.ruleId.startsWith(targetRule)),
+    )
+    if (found) {
+      if (found.id !== selectedId) {
+        setSelectedId(found.id)
+      }
+      setEvidenceSelection({
+        ruleId: found.ruleId,
+        lineNo: found.lineNo,
+        label: found.tag ?? found.ruleId ?? null,
+        surface: mockMode ? 'mock' : 'pdf',
+      })
+    } else {
+      setEvidenceSelection({
+        ruleId: targetRule,
+        label: labelOf(targetRule) ?? targetRule,
+        surface: mockMode ? 'mock' : 'pdf',
+      })
+    }
+  }, [evidenceDockFocus, mockMode, mockOverlayBoxes, pdfOverlayBoxes, selectedId, setEvidenceSelection])
+
+  // Auto-scroll to the focused bbox element
+  useEffect(() => {
+    const targetRule = evidenceDockFocus?.ruleId ?? evidenceSelection?.ruleId
+    if (!targetRule && !selectedId) return
+
+    const timer = setTimeout(() => {
+      const container = bodyRef.current
+      if (!container) return
+      const targetEl =
+        (container.querySelector('.hl.focus') as HTMLElement | null) ||
+        (selectedId ? (container.querySelector(`[data-id="${selectedId}"]`) as HTMLElement | null) : null) ||
+        (targetRule ? (container.querySelector(`.hl[data-rule="${targetRule}"]`) as HTMLElement | null) : null)
+
+      if (targetEl) {
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })
+      }
+    }, 150)
+
+    return () => clearTimeout(timer)
+  }, [evidenceDockFocus?.nonce, evidenceDockFocus?.ruleId, selectedId, evidenceSelection?.ruleId, currentPage, mockMode, status.state])
+
+  const handleRotate = () => setRotation(prev => (prev + 90) % 360)
+
+  // The toolbar's PDF toggle reports the same flight this dock is waiting on, so
+  // the two loading indicators can never disagree. Unmounting (dock closed
+  // mid-flight) must not leave the button spinning.
+  useEffect(() => {
+    setIsPdfLoading(status.state === 'loading')
+    return () => setIsPdfLoading(false)
+  }, [status.state, setIsPdfLoading])
+
+  /**
+   * Drag the dock edge. The width that matters is `.work`'s, because `--mc`/`--dc`
+   * are fractions of that grid — measuring the dock itself would feed the ratio
+   * back into itself. Pointer listeners live on the window so the pointer may
+   * leave the 8px handle mid-drag.
+   */
+  const handleResizeStart = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return
+    const workEl = document.getElementById('work')
+    const workWidth = workEl?.clientWidth ?? 0
+    if (!workEl || !workWidth) return
+    e.preventDefault()
+
+    const startX = e.clientX
+    const initialRatio = dockSplitRatio
+    workEl.classList.add('dragging')
+
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      // Pulling the handle left widens the dock, so the delta is inverted.
+      const next = initialRatio + (startX - moveEvent.clientX) / workWidth
+      const clamped = Math.min(DOCK_RATIO_MAX, Math.max(DOCK_RATIO_MIN, next))
+      setDockSplitRatio(Number(clamped.toFixed(3)))
+    }
+
+    const onDragEnd = () => {
+      window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', onDragEnd)
+      window.removeEventListener('pointercancel', onDragEnd)
+      workEl.classList.remove('dragging')
+    }
+
+    window.addEventListener('pointermove', onPointerMove)
+    window.addEventListener('pointerup', onDragEnd)
+    window.addEventListener('pointercancel', onDragEnd)
+  }
+
+  const handleResizeReset = () => setDockSplitRatio(DOCK_RATIO_DEFAULT)
+
+  const mockSurface = (
+    <div
+      className="evd-mock"
+      style={surfaceStyle as CSSProperties}
+    >
+      <EvidenceCanvas
+        doc={doc}
+        pageNumber={currentPage}
+        scale={zoom}
+        onPageElement={setMockPageEl}
+        overlay={
+          <BoundingBoxOverlay
+            boxes={mockOverlayBoxes}
+            pageSize={mockPageSize}
+            visible={showEvidence}
+            hoveredId={hoveredId}
+            onSelect={box => selectBox(box, 'mock')}
+            onHover={box => setHoveredId(box?.id ?? null)}
+          />
+        }
+      />
+    </div>
+  )
 
   return (
     <section className="col dock" id="dock" aria-label="เอกสาร PDF">
+      <div
+        className="dock-rz"
+        role="separator"
+        aria-orientation="vertical"
+        title="ลากเพื่อปรับความกว้าง (รายละเอียด 50–70%) · ดับเบิลคลิกเพื่อกลับเป็น 60:40"
+        onPointerDown={handleResizeStart}
+        onDoubleClick={handleResizeReset}
+      />
       <DockControls
+        doc={doc}
         currentPage={currentPage}
-        totalPages={doc.pages || 1}
+        totalPages={totalPages}
         zoom={zoom}
         onPageChange={p => setCurrentPage(p)}
-        onZoomChange={z => setZoom(z)}
+        onZoomChange={setZoom}
         onRotate={handleRotate}
         onClose={closeEvidenceDock}
+        mode={mockMode ? 'mock' : 'pdf'}
+        source={status.source}
+        showEvidence={showEvidence}
+        onToggleEvidence={v => setShowEvidence(prev => (typeof v === 'boolean' ? v : !prev))}
+        showAllFields={showAllFields}
+        onToggleAllFields={() => setShowAllFields(v => !v)}
+        boxCount={mockMode ? mockOverlayBoxes.length : pdfOverlayBoxes.length}
+        activeRuleId={focusRuleId}
+        onSelectRule={handleSelectRule}
       />
 
-      <div
-        className="dock-body"
-        id="dockBody"
-        style={{
-          overflow: 'auto',
-          padding: 16,
-          display: 'flex',
-          justifyContent: 'center'
-        }}
-      >
-        <div
-          className="evd"
-          id="evd"
-          style={
-            {
-              '--s': zoom,
-              transform: `scale(${zoom}) rotate(${rotation}deg)`,
-              transformOrigin: 'top center',
-              transition: 'transform 0.15s ease-out'
-            } as CSSProperties
-          }
-        >
-          <EvidenceCanvas doc={doc} pageNumber={currentPage} scale={zoom} />
-        </div>
+      <div className="dock-body evd" ref={bodyRef}>
+        <PdfCanvasViewer
+          canvasRef={canvasRef}
+          status={status}
+          pageSize={pageSize}
+          boxes={pdfOverlayBoxes}
+          visible={showEvidence}
+          hoveredId={hoveredId}
+          onSelect={box => selectBox(box, 'pdf')}
+          onHover={box => setHoveredId(box?.id ?? null)}
+          onRetry={reload}
+          onClose={closeEvidenceDock}
+          placeholder={mockSurface}
+        />
+      </div>
+
+      <div className="dock-f" id="dockFoot">
+        <Icon name="lock" size="sm" />
+        <span>ลิงก์ชั่วคราว 10 นาที ออกโดย Portal หลังตรวจสิทธิ์ · ลายน้ำ</span>
+        <span className="mono grow">
+          {currentUser.email} · token {doc.doc}
+        </span>
       </div>
     </section>
   )

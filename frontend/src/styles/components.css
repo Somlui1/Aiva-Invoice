@@ -12,6 +12,7 @@
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
+  text-decoration: none;
   box-shadow: var(--e-1);
   transition: background-color .08s, border-color .08s, color .08s !important;
 }
@@ -191,7 +192,7 @@ kbd {
   border-bottom: 1px solid var(--s-200);
 }
 
-.inp, .sel {
+.inp, select.sel {
   height: var(--ctl-h-sm);
   border: 1px solid var(--line-strong);
   border-radius: 6px;
@@ -200,7 +201,7 @@ kbd {
   font-size: 12.5px;
 }
 
-.inp:focus, .sel:focus {
+.inp:focus, select.sel:focus {
   outline: none;
   border-color: var(--teal-d);
   box-shadow: 0 0 0 3px rgba(0, 181, 175, .18);
@@ -387,7 +388,7 @@ kbd {
   resize: vertical;
 }
 
-.set-ta:disabled, .inp:disabled, .sel:disabled {
+.set-ta:disabled, .inp:disabled, select.sel:disabled {
   background: var(--sunken);
   color: var(--s-500);
   cursor: not-allowed;
@@ -506,7 +507,7 @@ kbd {
   margin-bottom: 2px;
 }
 
-.fgrid .inp, .fgrid .sel {
+.fgrid .inp, .fgrid select.sel {
   width: 100%;
 }
 
@@ -785,3 +786,136 @@ kbd {
 .reqN {
   color: var(--s-400);
 }
+
+/* ================= Spinner ================= */
+/* Shared loading indicator: the PDF toggle in the detail pane and the loading
+   mat inside the evidence dock. `currentColor` keeps it legible on a light
+   button and on the dark PDF mat alike; size comes from the font or `.lg`. */
+.spin {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  opacity: .75;
+  animation: spin .7s linear infinite;
+}
+
+.spin.lg {
+  width: 32px;
+  height: 32px;
+  border-width: 3px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ================= PDF Top Progress Bar ================= */
+.pdf-top-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 2.5px;
+  z-index: 50;
+  pointer-events: none;
+  background: var(--teal, #0d9488);
+  box-shadow: 0 0 8px rgba(13, 148, 136, 0.6);
+  transition: width 0.25s ease-out, opacity 0.35s ease;
+}
+
+.pdf-top-progress.error {
+  background: var(--danger, #ef4444);
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+}
+
+.pdf-top-progress.fade {
+  opacity: 0;
+}
+
+/* ================= Minimal PDF Loading ================= */
+.evd-loading-minimal {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: transparent;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.evd-loading-minimal .spin {
+  border-color: rgba(255, 255, 255, 0.9);
+  border-top-color: transparent;
+}
+
+/* ================= Minimal PDF Error View ================= */
+.evd-error-mat {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+  text-align: center;
+  background: var(--surface, #ffffff);
+  z-index: 30;
+}
+
+.evd-error-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.evd-error-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.evd-error-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text, #0f172a);
+  margin-bottom: 6px;
+}
+
+.evd-error-desc {
+  font-size: 13.5px;
+  color: var(--s-600, #475569);
+  max-width: 320px;
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+
+.evd-error-code {
+  font-size: 12px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  color: var(--s-400, #94a3b8);
+  margin-bottom: 20px;
+  letter-spacing: 0.02em;
+}
+
+.evd-error-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
