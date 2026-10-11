@@ -12,9 +12,15 @@
   left: -4px;
   top: 0;
   bottom: 0;
-  width: 8px;
+  width: 8px !important;
   cursor: col-resize;
-  z-index: 8;
+  z-index: 15;
+}
+
+.dock-chrome {
+  position: relative;
+  z-index: 10;
+  flex: none;
 }
 
 .dock-rz::after {
@@ -741,7 +747,77 @@
 }
 
 .evd .hl.focus {
-  box-shadow: 0 0 0 3px rgba(245, 158, 11, .55);
+  box-shadow: 0 0 0 3px #F59E0B, 0 0 16px rgba(245, 158, 11, .6);
+  z-index: 10 !important;
+}
+
+/* Category-based theme highlights */
+.hl.cat-missing,
+.evd .hl.cat-missing {
+  border-color: #D97706;
+  background: rgba(217, 119, 6, .15);
+}
+.hl.cat-missing .tag,
+.evd .hl.cat-missing .tag {
+  background: #D97706;
+  color: #fff;
+}
+.hl.cat-missing.focus,
+.evd .hl.cat-missing.focus {
+  border-color: #D97706;
+  box-shadow: 0 0 0 3px #D97706, 0 0 16px rgba(217, 119, 6, .55);
+  z-index: 10 !important;
+}
+
+.hl.cat-mismatch,
+.evd .hl.cat-mismatch {
+  border-color: #DC2626;
+  background: rgba(220, 38, 38, .15);
+}
+.hl.cat-mismatch .tag,
+.evd .hl.cat-mismatch .tag {
+  background: #DC2626;
+  color: #fff;
+}
+.hl.cat-mismatch.focus,
+.evd .hl.cat-mismatch.focus {
+  border-color: #DC2626;
+  box-shadow: 0 0 0 3px #DC2626, 0 0 16px rgba(220, 38, 38, .55);
+  z-index: 10 !important;
+}
+
+.hl.cat-calculation,
+.evd .hl.cat-calculation {
+  border-color: #0284C7;
+  background: rgba(2, 132, 199, .15);
+}
+.hl.cat-calculation .tag,
+.evd .hl.cat-calculation .tag {
+  background: #0284C7;
+  color: #fff;
+}
+.hl.cat-calculation.focus,
+.evd .hl.cat-calculation.focus {
+  border-color: #0284C7;
+  box-shadow: 0 0 0 3px #0284C7, 0 0 16px rgba(2, 132, 199, .55);
+  z-index: 10 !important;
+}
+
+.hl.cat-duplicate,
+.evd .hl.cat-duplicate {
+  border-color: #7C3AED;
+  background: rgba(124, 58, 237, .15);
+}
+.hl.cat-duplicate .tag,
+.evd .hl.cat-duplicate .tag {
+  background: #7C3AED;
+  color: #fff;
+}
+.hl.cat-duplicate.focus,
+.evd .hl.cat-duplicate.focus {
+  border-color: #7C3AED;
+  box-shadow: 0 0 0 3px #7C3AED, 0 0 16px rgba(124, 58, 237, .55);
+  z-index: 10 !important;
 }
 
 .evd-pn {
@@ -770,6 +846,8 @@
 
 .evd-pdf {
   width: 100%;
+  min-height: 100%;
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
