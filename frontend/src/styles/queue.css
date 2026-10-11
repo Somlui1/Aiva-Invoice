@@ -1529,3 +1529,27 @@ table.t .num {
     display: inline-flex !important;
   }
 }
+
+/* Oracle Receipts Multi-PO Chips and Badge */
+.po-chips {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.po-chips button.active {
+  background: var(--teal, #008f8a) !important;
+  color: #fff !important;
+  border-color: var(--teal-d, #00706c) !important;
+}
+
+.po-pill {
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(0, 143, 138, 0.08);
+  color: var(--teal-d, #00706c);
+  border: 1px solid rgba(0, 143, 138, 0.25);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
