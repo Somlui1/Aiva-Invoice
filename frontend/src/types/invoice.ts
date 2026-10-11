@@ -11,8 +11,8 @@ export type InvoiceStatus =
   | 'Duplicate'
   | 'Import Failed'
 
-import type { PortalOracleReceiptLine } from '../features/engine/types/portalDomain'
-export type { PortalOracleReceiptLine }
+import type { PortalOracleReceiptLine, PortalBoundingBox } from '../features/engine/types/portalDomain'
+export type { PortalOracleReceiptLine, PortalBoundingBox }
 
 export type ExceptionSeverity = 'High' | 'Medium' | 'Low'
 
@@ -113,6 +113,7 @@ export interface InvoiceDoc {
   ownerSrc?: string
   ent?: Record<string, unknown>
   badAddr?: string
+  bboxes?: PortalBoundingBox[]
   raw_payload?: Record<string, unknown>
 }
 
