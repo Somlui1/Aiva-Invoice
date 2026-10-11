@@ -379,6 +379,7 @@ export function portalDocToInvoiceDoc(
     codes: codesOf(doc),
     rules: doc.rules.map(r => toRuleCheck(r, boxForRule(r.ruleId, doc.bboxes))),
     lines: linesOf(doc),
+    oracleReceiptLines: doc.oracleReceiptLines,
     pages: doc.pageCount,
     history: historyOf(doc),
     unres: !doc.receiverName,
