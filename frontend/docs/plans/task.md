@@ -30,7 +30,7 @@
 | validation-evidence-brainstorm | Brainstorm & Design for Validation Evidence PDF Linking & Summary Cards | completed | Design approved & saved to docs/plans/2026-10-11-validation-evidence-pdf-linking-design.md |
 | validation-evidence-plan | Implementation Plan for Validation Evidence PDF Linking & Layout | completed | Implementation plan saved to docs/plans/2026-10-11-validation-evidence-pdf-linking.md |
 | val-task-1 | CSS Isolation Fix & Summary Card Layout Auto-Expand | completed | Scoped select.sel in components.css; added .is-active, auto height, .ev-text word-wrap & .ev-btn in queue.css & InvoiceDetailPane; RED->GREEN (3/3 tests pass, tsc clean) |
-| val-task-2 | Validation Category Theme Definitions & Color Palette | pending | Define 4 category themes (Missing, Mismatch, Calculation, Duplicate) and CSS classes |
+| val-task-2 | Validation Category Theme Definitions & Color Palette | completed | Created validationCategories.ts with 4 categories & theme tokens; added .hl.cat-* rules in evidence.css; RED->GREEN (4/4 tests pass, tsc clean) |
 | val-task-3 | Single-Active BBox Filtering & Cell Specificity in Projector | pending | Filter to active validation BBox only, attach category class, prioritize cell BBoxes |
 | val-task-4 | Interactive Validation Card Click & Bi-directional Auto-Scroll Integration | pending | Make whole card clickable, open dock, set single-active selection, smooth scroll centering |
 | val-task-5 | End-to-End Verification & Full Regression Pass | pending | Run npm test, npx tsc, npm run build to verify zero regressions |
