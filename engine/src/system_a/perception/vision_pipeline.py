@@ -615,19 +615,40 @@ class VisionPipeline:
             img_h = max(1, round(info.height_pt * self.dpi / 72))
             page_words = ctx.layers.get(page, {}).get("words", [])
             rows = None
+            page_lines = [it for it in read.items
+                          if str(it.get("label") or "").strip().lower().startswith("line_") and it.get("bbox")]
+            page_lines.sort(key=lambda it: (round(it["bbox"][1], 3), it["bbox"][0]))
+            table_headers = [it for it in read.items
+                             if (str(it.get("label") or "").strip().lower() in ("table_header", "item_table") or
+                                 str(it.get("type") or "").strip().lower() == "table") and it.get("bbox")]
+            th_y = min((it["bbox"][1] for it in table_headers), default=None)
+            th_box = next((it["bbox"] for it in table_headers if str(it.get("label") or "").lower() == "table_header"),
+                          (table_headers[0]["bbox"] if table_headers else None))
+
+            table_bbox_to_add = None
+            table_mislocated = False
             if self.do_table and order < self.table_pages:
                 try:
                     raw = self._ask("table_rows", "vision_table_rows", ctx.pngs[page],
                                     "Digitise the item table of this page.", page)
                     parsed = parse_table_rows(raw, img_w, img_h, page, words=page_words)
                     rows, rows_notes = parsed["rows"], parsed.get("notes") or []
-                    if raw.get("table_bbox"):
-                        regions.append(RegionNode(region_id=f"T{page}-001", page=page, kind="table",
-                                                  label="item_table", bbox=parsed["table_bbox"],
-                                                  confidence=0.9))
+
+                    t_bbox = parsed.get("table_bbox")
+                    if t_bbox and th_y is not None and (t_bbox[1] + t_bbox[3] <= th_y + 0.01 or t_bbox[1] < th_y - 0.02):
+                        table_mislocated = True
+
+                    if raw.get("table_bbox") and t_bbox:
+                        table_bbox_to_add = t_bbox
+
                     for i, col in enumerate(parsed["columns"], start=1):
+                        cb = col.get("bbox")
+                        if not cb or cb[2] <= 0 or cb[3] <= 0:
+                            continue
+                        if table_mislocated or (th_y is not None and cb[1] + cb[3] <= th_y + 0.01):
+                            continue
                         regions.append(RegionNode(region_id=f"T{page}-C{i:02d}", page=page, kind="section",
-                                                  label=f"column:{col['label']}", bbox=col["bbox"]))
+                                                  label=f"column:{col['label']}", bbox=cb))
                     notes.extend(rows_notes)
                     source["table_rows"] += len(rows)
                 except Exception as e:
@@ -639,35 +660,62 @@ class VisionPipeline:
                 source["line_items"] += len(rows)
             rows = fold_ghost_rows(rows)
             page_rows: list = []
-            for row in rows:
+            for r_idx, row in enumerate(rows):
                 cells = {}
-                if self.cell_box == "row":
-                    # bbox_testv3 highlights FULL ROWS from the page read.  Cell boxes of the second (table) call
-                    # measured off-target more often (22 % vs 14 %), so a cell is shown on the page-read row that
-                    # holds it; the table call still supplies the cell TEXT.
-                    rb = row_box_from_page(read, row.get("bbox"))
-                    if rb is not None:
-                        row["bbox"] = rb
-                        for cell in row["cells"].values():
+                rb = row_box_from_page(read, row.get("bbox"))
+                if rb is not None and th_y is not None and rb[1] < th_y - 0.01:
+                    rb = None
+                row_above_header = th_y is not None and row.get("bbox") and row["bbox"][1] < th_y - 0.01
+                if rb is None or row_above_header:
+                    fb = fallback_row_box(read, row, r_idx, page_lines)
+                    if fb is not None:
+                        rb = fb
+
+                if rb is not None:
+                    row["bbox"] = rb
+                    for cell in row["cells"].values():
+                        if self.cell_box == "row" or not cell.get("bbox") or cell["bbox"][2] <= 0 or cell["bbox"][3] <= 0:
                             if cell.get("bbox") or cell.get("text"):
                                 cell["bbox"] = rb
+                elif self.cell_box == "row":
+                    for cell in row["cells"].values():
+                        if row.get("bbox") and (cell.get("bbox") or cell.get("text")):
+                            cell["bbox"] = row["bbox"]
+
                 for col, cell in row["cells"].items():
                     if col not in CELL_LABELS:
                         continue
                     name = CELL_LABELS[col]
-                    inside = words_in_box(page_words, cell["bbox"]) if cell.get("bbox") else []
+                    cb = cell.get("bbox")
+                    if cb and (cb[2] <= 0 or cb[3] <= 0):
+                        cb = row.get("bbox") if (row.get("bbox") and row["bbox"][2] > 0 and row["bbox"][3] > 0) else None
+                    inside = words_in_box(page_words, cb) if cb else []
                     layer_text = " ".join(w["text"] for w in inside) or None
-                    agree = same_text(cell.get("text"), layer_text) or same_text(
-                        re.sub(r"[^0-9A-Za-z.,]", "", str(cell.get("text") or "")),
+                    c_text = cell.get("text")
+                    agree = same_text(c_text, layer_text) or same_text(
+                        re.sub(r"[^0-9A-Za-z.,]", "", str(c_text or "")),
                         re.sub(r"[^0-9A-Za-z.,]", "", str(layer_text or "")))
+                    if not agree and layer_text and c_text:
+                        if _cmp(c_text) and _cmp(c_text) in _cmp(layer_text):
+                            agree = True
                     conf = 0.96 if agree else round(min(float(cell.get("confidence") or 0.6), 0.7), 2)
                     cells[name] = RawField(raw=cell.get("text"), confidence=conf, agreement=agree,
-                                           region=Region(page=page, bbox=cell["bbox"]) if cell.get("bbox") else None,
+                                           region=Region(page=page, bbox=cb) if cb else None,
                                            word_ids=tuple(w["word_id"] for w in inside)[:20],
                                            source="consensus" if agree else "vlm",
                                            null_reason=None if cell.get("text") else "NOT_PRESENT")
                 page_rows.append((cells, Region(page=page, bbox=row["bbox"]) if row.get("bbox") else None))
             per_page[page] = page_rows
+
+            if table_bbox_to_add:
+                final_t_bbox = table_bbox_to_add
+                if table_mislocated or (th_y is not None and final_t_bbox[1] < th_y - 0.01):
+                    all_boxes = [b for b in [th_box] + [r[1].bbox for r in page_rows if r[1] and r[1].bbox] if b]
+                    final_t_bbox = union_box(all_boxes) or final_t_bbox
+                regions.append(RegionNode(region_id=f"T{page}-001", page=page, kind="table",
+                                          label="item_table", bbox=final_t_bbox,
+                                          confidence=0.9))
+
         kept, copy_notes = drop_duplicate_copies(
             per_page,
             {p: (reads[p].page_type if p in reads else "UNKNOWN") for p in per_page},
@@ -1446,3 +1494,49 @@ def row_box_from_page(read, table_row_box):
         if r > score:
             best, score = tuple(b), r
     return best if score >= 0.5 else None
+
+
+def fallback_row_box(read, row: dict, order: int, page_lines: list = None) -> Optional[tuple]:
+    """Fallback row box from page read when geometric overlap with vision_table_rows fails.
+
+    Handles multi-grid invoices (e.g., DMS-102) where table_rows digitized the upper customer/PO grid
+    instead of the actual goods table. Matches by text similarity first, falling back to line order.
+    """
+    if not read or not getattr(read, "items", None):
+        return None
+    if page_lines is None:
+        page_lines = [it for it in read.items
+                      if str(it.get("label") or "").strip().lower().startswith("line_") and it.get("bbox")]
+        page_lines.sort(key=lambda it: (round(it["bbox"][1], 3), it["bbox"][0]))
+    if not page_lines:
+        return None
+
+    # 1. Match by text content (description / amount / tokens)
+    cells = row.get("cells") or {}
+    desc = str((cells.get("description") or {}).get("text") or "").strip().lower()
+    amt = str((cells.get("amount") or {}).get("text") or "").strip()
+    qty = str((cells.get("qty") or {}).get("text") or "").strip()
+    words = [w for w in re.findall(r"[a-zA-Z0-9\u0E00-\u0E7F]+", desc) if len(w) > 2]
+
+    best_pl, best_score = None, 0
+    for pl in page_lines:
+        pl_text = str(pl.get("text") or "").lower()
+        if not pl_text:
+            continue
+        score = 0
+        if desc and len(desc) >= 5 and desc in pl_text:
+            score += 100
+        else:
+            score += sum(2 for w in words if w in pl_text)
+        if amt and len(amt) >= 2 and amt in pl_text:
+            score += 50
+        if qty and qty in pl_text.split():
+            score += 10
+        if score > best_score:
+            best_score, best_pl = score, pl
+
+    if best_pl and best_score >= 4:
+        return tuple(best_pl["bbox"])
+    if order < len(page_lines):
+        return tuple(page_lines[order]["bbox"])
+    return tuple(page_lines[-1]["bbox"])

@@ -30,7 +30,7 @@ from typing import Any, Dict, List, Optional
 
 # Ensure stdout uses UTF-8 on Windows
 try:
-    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stdout.reconfigure(encoding="utf-8", line_buffering=True)
 except Exception:
     pass
 
@@ -72,16 +72,23 @@ def run_batch(
     quick: bool = False,
     specific_doc_id: Optional[int] = None,
     concurrency: int = 5,
+    model_vision: Optional[str] = None,
 ) -> int:
     t_start = time.time()
     out_dir.mkdir(parents=True, exist_ok=True)
     load_env()
     settings = Settings()
+    if model_vision:
+        import os
+        from dataclasses import replace
+        os.environ["MODEL_VISION"] = model_vision
+        settings = replace(settings, model_vision=model_vision)
 
     print_banner(f"AIVA System A — Batch Invoice Verification against Paperless-ngx")
     print(f"Time:        {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"Paperless:   {settings.paperless_url or 'N/A'}")
     print(f"Mode:        {mode}")
+    print(f"Vision Model: {settings.model_vision}")
     print(f"Tag filter:  '{tag_name}'")
     print(f"Output dir:  {out_dir.resolve()}")
     print(f"Concurrency: {concurrency} worker(s)")
@@ -181,6 +188,7 @@ def run_batch(
                 quick=quick,
                 json_only=False,
                 quiet=True,
+                model_vision=model_vision,
             )
             elapsed = time.time() - t_doc_start
             rec = (result.get("recommendation") or {}).get("value", "UNKNOWN")
@@ -348,6 +356,13 @@ def main() -> int:
         default=5,
         help="Number of concurrent worker threads (default: 5)",
     )
+    parser.add_argument(
+        "--model-vision",
+        "--model",
+        dest="model_vision",
+        default=None,
+        help="VLM vision model name (e.g. Qwen/Qwen3-VL-8B-Instruct)",
+    )
 
     args = parser.parse_args()
 
@@ -360,6 +375,7 @@ def main() -> int:
         quick=args.quick,
         specific_doc_id=args.doc_id,
         concurrency=args.concurrency,
+        model_vision=args.model_vision,
     )
 
 

@@ -23,6 +23,10 @@ def _s(v):
     return str(v) if isinstance(v, Decimal) else v
 
 
+def _is_valid_bbox(b) -> bool:
+    return bool(b and len(b) == 4 and all(v is not None for v in b) and float(b[2]) > 0 and float(b[3]) > 0)
+
+
 def build_elements(ext: ExtractionResult, doc: InvoiceDoc) -> dict[str, dict]:
     did, dtype = ext.invoice_document_id, next(
         (d.document_type for d in ext.documents if d.document_id == ext.invoice_document_id), "INVOICE")
@@ -31,9 +35,10 @@ def build_elements(ext: ExtractionResult, doc: InvoiceDoc) -> dict[str, dict]:
            "extractors": ext.extractor}
 
     def add(eid, etype, page, bbox, field_name=None, raw=None, norm=None, conf=None, parent=None, extra=None):
+        valid_b = list(bbox) if _is_valid_bbox(bbox) else None
         els[eid] = {"element_id": eid, "document_id": did, "document_type": dtype, "page_no": page,
                     "element_type": etype, "parent_id": parent, "field_name": field_name, "raw_value": raw,
-                    "normalized_value": _s(norm), "confidence": conf, "bbox": list(bbox) if bbox else None,
+                    "normalized_value": _s(norm), "confidence": conf, "bbox": valid_b,
                     "source_reference": {**src, **(extra or {})}}
 
     for p in ext.pages:
@@ -66,15 +71,17 @@ def build_elements(ext: ExtractionResult, doc: InvoiceDoc) -> dict[str, dict]:
     _kind_map = {"section": "section", "table": "table", "stamp": "stamp"}
     for rg in getattr(ext, "regions", ()) or ():
         owner = next((d for d in ext.documents if rg.page in d.pages), None)
+        valid_b = list(rg.bbox) if _is_valid_bbox(rg.bbox) else None
         els[rg.region_id] = {"element_id": rg.region_id,
                              "document_id": owner.document_id if owner else did,
                              "document_type": owner.document_type if owner else dtype,
                              "page_no": rg.page, "element_type": _kind_map.get(rg.kind, "section"),
                              "parent_id": rg.parent_id or f"P{rg.page}", "field_name": rg.label,
                              "raw_value": rg.text, "normalized_value": None, "confidence": rg.confidence,
-                             "bbox": list(rg.bbox) if rg.bbox else None,
+                             "bbox": valid_b,
                              "source_reference": {**src, "region_kind": rg.kind}}
     return els
+
 
 
 def _multi_po_keys(snap) -> dict:

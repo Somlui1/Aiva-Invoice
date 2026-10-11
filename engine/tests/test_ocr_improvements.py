@@ -520,3 +520,83 @@ def test_collapse_duplicate_block_middle_block():
     assert note is not None
     assert [l.line_no for l in collapsed.lines] == [1, 2, 5]
 
+
+def test_multi_grid_table_rows_fallback_to_page_items():
+    """DMS-102: Multi-grid invoice where table_rows digitized the upper customer/PO grid (Y=0.20)
+    instead of the actual goods table (Y=0.33). Rows must fallback to page-read items and not float above header.
+    """
+    # Page read has table_header at Y=0.295, and two lines at Y=0.335 and Y=0.385
+    read = vp.PageRead(page_no=1, items=[
+        {"type": "table", "label": "table_header", "bbox": (0.075, 0.295, 0.83, 0.025), "text": "PRODUCT CODE QUANTITY DESCRIPTION AMOUNT"},
+        {"type": "line", "label": "line_1", "bbox": (0.135, 0.335, 0.805, 0.045), "text": "L3590 1 38.00 LOWER DIE FC 300 47.00/KG 1,786.00"},
+        {"type": "line", "label": "line_2", "bbox": (0.135, 0.385, 0.805, 0.025), "text": "L3591 1 136.00 UPPER DIE FC 300 47.00/KG 6,392.00"},
+    ])
+
+    # Mock VLM that returns table_rows in upper grid (Y=0.20, above header)
+    class FakeMultiGridVlm:
+        def chat_json(self, model, system, user, *, images=None, **kw):
+            return {
+                "table_bbox": [8, 165, 992, 245],
+                "columns": [{"label": "description", "bbox_2d": [532, 167, 814, 185]},
+                            {"label": "amount", "bbox_2d": [1000, 167, 1000, 185]}],  # zero width column
+                "rows": [
+                    {"line_no": 1, "bbox_2d": [8, 202, 992, 216], "cells": {
+                        "description": {"text": "LOWER DIE FC 300", "bbox_2d": [532, 204, 992, 215]},
+                        "qty": {"text": "38.00", "bbox_2d": [411, 204, 492, 215]},
+                        "amount": {"text": "1,786.00", "bbox_2d": [1000, 204, 1000, 215]}  # zero width cell
+                    }},
+                    {"line_no": 2, "bbox_2d": [8, 220, 992, 234], "cells": {
+                        "description": {"text": "UPPER DIE FC 300", "bbox_2d": [532, 221, 992, 232]},
+                        "qty": {"text": "136.00", "bbox_2d": [411, 221, 492, 232]},
+                        "amount": {"text": "6,392.00", "bbox_2d": [1000, 221, 1000, 232]}
+                    }}
+                ]
+            }
+
+    pipe = vp.VisionPipeline(FakeMultiGridVlm(), "fake", do_crops=False)
+    from system_a.domain.contracts import PageInfo
+    ctx = vp._Ctx(
+        pdf=b"",
+        pngs={1: b"fake"},
+        infos={1: PageInfo(page_no=1, width_pt=595, height_pt=842)},
+        layers={1: {"text": "", "words": []}}
+    )
+
+    lines, regions, errors, source, notes = pipe._lines(ctx, {1: read}, [1])
+
+    # Rows MUST NOT be above table header (Y >= 0.295)
+    assert lines[0].region.bbox[1] >= 0.295
+    assert lines[1].region.bbox[1] >= 0.295
+    # Row boxes must match page lines
+    assert lines[0].region.bbox == (0.135, 0.335, 0.805, 0.045)
+    assert lines[1].region.bbox == (0.135, 0.385, 0.805, 0.025)
+    # Cell boxes must carry row box and not be zero width
+    assert lines[0].cells["amount"].region.bbox[2] > 0
+    assert lines[0].cells["amount"].region.bbox == lines[0].region.bbox
+
+    # Table region T1-001 must not be floating above header
+    t_reg = next((r for r in regions if r.region_id == "T1-001"), None)
+    if t_reg:
+        assert t_reg.bbox[1] >= 0.295 or abs(t_reg.bbox[1] - 0.295) < 0.01
+
+
+def test_degenerate_bbox_sanitized_in_assembler():
+    """BBoxes with zero width or zero height must be sanitized to None in ocr.elements."""
+    from system_a.application.assembler import build_elements
+    from system_a.domain.contracts import ExtractionResult, InvoiceDoc, NField, NLine, PageInfo, RawField, RawLine, Region
+
+    rf_zero = RawField(raw="100.00", confidence=0.9, agreement=True, region=Region(page=1, bbox=(1.0, 0.20, 0.0, 0.01)))
+    rl = RawLine(line_no=1, region=Region(page=1, bbox=(0.1, 0.3, 0.8, 0.05)), cells={"amount": rf_zero})
+    nl = NLine(1, "D1-L1", {"amount": NField("amount", "D1-L1-amount", "100.00", Decimal("100.00"), 0.9, True, None)}, "PCS", ())
+
+    ext = ExtractionResult(
+        package_id="P1", dms_doc_id="DMS-102", file_sha256="abc",
+        pages=[PageInfo(page_no=1, width_pt=595, height_pt=842)], documents=[], invoice_document_id="D1",
+        pages_complete=True, fields={}, lines=[rl], signatures={}, words=[], regions=()
+    )
+    doc = InvoiceDoc("D1", {}, (nl,), {}, True)
+    els = build_elements(ext, doc)
+
+    # D1-L1-amount had zero width (0.0) -> its bbox in elements MUST be None!
+    assert els["D1-L1-amount"]["bbox"] is None
+
