@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Icon } from '../common/Icon'
 import { StatusBadge } from '../common/StatusBadge'
 import { InvoiceDoc, EvidenceSelection } from '../../types/invoice'
@@ -32,6 +32,11 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
     setEvidenceSelection,
   } = useInvoices()
   const { toast } = useToastModal()
+
+  const [selectedPoFilter, setSelectedPoFilter] = useState<string | null>(null)
+  useEffect(() => {
+    setSelectedPoFilter(null)
+  }, [doc.doc])
 
   // A box picked on the evidence surface is mirrored here: the rule card or line
   // row it belongs to is marked and scrolled into view (bi-directional link).
@@ -272,6 +277,7 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
           {[
             { k: 'sum', label: 'สรุปผล', count: failRules.length, cc: failRules.length ? 'r' : '' },
             { k: 'lines', label: 'รายบรรทัด', count: doc.lines?.length || 0 },
+            { k: 'receipts', label: 'ใบรับ Oracle', count: doc.oracleReceiptLines?.length || 0 },
             { k: 'rules', label: 'กฎ 9 ข้อ', count: `${passRules.length}/9` },
             { k: 'own', label: 'ผู้รับผิดชอบและสิทธิ์' },
             { k: 'json', label: 'JSON' },
@@ -474,6 +480,151 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
                   </tbody>
                 </table>
               </div>
+            </div>
+          )}
+
+          {activeDetailTab === 'receipts' && (
+            <div data-testid="oracle-receipts-pane">
+              {(!doc.oracleReceiptLines || doc.oracleReceiptLines.length === 0) ? (
+                <div className="note i">
+                  <Icon name="info" />
+                  <div>
+                    <b>ไม่พบรายการรับใน Oracle</b>
+                    <br />
+                    เอกสารฉบับนี้ยังไม่มีข้อมูลรายการรับในระบบ Oracle Snapshot
+                  </div>
+                </div>
+              ) : (
+                (() => {
+                  const rcvLines = doc.oracleReceiptLines
+                  const uniquePos = Array.from(new Set(rcvLines.map(l => l.poNumber).filter(Boolean)))
+                  const totalReceiptAmount = rcvLines.reduce((s, l) => s + (l.lineAmount || 0), 0)
+                  const subtotal = doc.sub || 0
+                  const diff = Math.round((subtotal - totalReceiptAmount) * 100) / 100
+                  const displayedLines = selectedPoFilter
+                    ? rcvLines.filter(l => l.poNumber === selectedPoFilter)
+                    : rcvLines
+
+                  return (
+                    <div>
+                      <div className="note i" style={{ marginBottom: 12 }}>
+                        <Icon name="info" />
+                        <div>
+                          <div>
+                            พบรายการรับ <b>{rcvLines.length}</b> รายการ · อ้างอิง{' '}
+                            <b>{uniquePos.length}</b> PO:{' '}
+                            {uniquePos.map(po => (
+                              <span key={po} className="pill mono po-pill" style={{ marginLeft: 4 }}>
+                                PO {po}
+                              </span>
+                            ))}
+                          </div>
+                          <div style={{ marginTop: 4, fontSize: 12, color: 'var(--c-muted, #666)' }}>
+                            ยอดรวมใบรับ:{' '}
+                            <b>
+                              {totalReceiptAmount.toLocaleString(undefined, {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                            </b>{' '}
+                            บาท (ยอด Invoice ก่อนภาษี:{' '}
+                            {subtotal.toLocaleString(undefined, {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}{' '}
+                            บาท
+                            {diff !== 0
+                              ? ` · ผลต่าง: ${diff.toLocaleString(undefined, {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })} บาท`
+                              : ' · ยอดตรงกัน'}
+                            {doc.receiver ? ` · ผู้รับ: ${doc.receiver}` : ''})
+                          </div>
+                        </div>
+                      </div>
+
+                      {uniquePos.length > 0 && (
+                        <div className="po-chips" style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            className={`btn btn-sec sm ${!selectedPoFilter ? 'active' : ''}`}
+                            onClick={() => setSelectedPoFilter(null)}
+                          >
+                            ทั้งหมด ({rcvLines.length})
+                          </button>
+                          {uniquePos.map(po => {
+                            const count = rcvLines.filter(l => l.poNumber === po).length
+                            return (
+                              <button
+                                key={po}
+                                type="button"
+                                className={`btn btn-sec sm ${selectedPoFilter === po ? 'active' : ''}`}
+                                onClick={() => setSelectedPoFilter(selectedPoFilter === po ? null : po)}
+                              >
+                                PO {po} ({count})
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
+
+                      <div className="tbl-wrap">
+                        <table className="t">
+                          <thead>
+                            <tr>
+                              <th>#</th>
+                              <th>PO #</th>
+                              <th>เลขที่ใบรับ</th>
+                              <th>รหัสสินค้า</th>
+                              <th>รายการ</th>
+                              <th className="num">จำนวนรับ</th>
+                              <th className="num">ราคา/หน่วย</th>
+                              <th className="num">ราคารวม</th>
+                              <th className="num">วางบิลแล้ว</th>
+                              <th>สถานะ</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {displayedLines.map((l, idx) => (
+                              <tr key={l.rcvLineId || idx} data-rcv-line={l.lineNo || idx + 1}>
+                                <td>{l.lineNo || idx + 1}</td>
+                                <td>
+                                  <span className="pill mono po-pill">{l.poNumber || '—'}</span>
+                                </td>
+                                <td className="mono">{l.rcvLineId || `${l.receiptNum}-${l.lineNo}`}</td>
+                                <td className="mono">{l.itemCode || '—'}</td>
+                                <td>{l.itemDesc}</td>
+                                <td className="num">
+                                  {l.qty.toLocaleString()} {l.uom}
+                                </td>
+                                <td className="num">
+                                  {l.unitPrice.toLocaleString(undefined, {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                  })}
+                                </td>
+                                <td className="num">
+                                  {l.lineAmount.toLocaleString(undefined, {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                  })}
+                                </td>
+                                <td className="num">{l.qtyBilled != null ? l.qtyBilled.toLocaleString() : '—'}</td>
+                                <td>
+                                  <span className={`pill ${l.lineStatus === 'FULLY RECEIVED' ? 'ok' : 'info'}`}>
+                                    {l.lineStatus || l.poLineStatus || 'RECEIVED'}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )
+                })()
+              )}
             </div>
           )}
 
