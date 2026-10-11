@@ -145,6 +145,18 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
                 คัดลอก
               </button>
 
+              <a
+                href={`/viewer/${doc.doc}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-sec sm"
+                title="เปิดตัวตรวจ BBox เต็มหน้าจอในแท็บใหม่"
+                data-testid="open-standalone-viewer"
+              >
+                <Icon name="ext" size="sm" />
+                ตรวจ BBox (แท็บใหม่)
+              </a>
+
               <button
                 type="button"
                 className={`btn ${isEvidenceDockOpen ? 'btn-close-pdf' : 'btn-sec'} sm`}
