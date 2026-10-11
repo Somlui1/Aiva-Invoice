@@ -202,7 +202,11 @@ class McpSqlClient:
                     raise OracleTechnicalError(f"MCP_AUTH: HTTP {r.status_code}")
                 r.raise_for_status()
                 return parse_mcp_payload(r.text)
-            except OracleTechnicalError:
+            except OracleTechnicalError as e:
+                if "Failed to execute sql_run" in str(e) and attempt < self.retries:
+                    last = str(e)
+                    time.sleep(min(8, 2 ** attempt))
+                    continue
                 raise                                   # protocol/auth/SQL error: retrying cannot help
             except Exception as e:                      # transport only
                 last = f"{type(e).__name__}: {str(e) or 'no detail'}"

@@ -1,9 +1,21 @@
 """The HTTP surface.  Everything the browser may ask for, and what it gets when System A has (not) produced it."""
+import json
 import time
 
 import pytest
 
 from webapp.view import DEFAULT_TYPES, ELEMENT_TYPES
+
+
+def wait_for_batch(client, timeout=20):
+    """Poll the batch until it is finished, then hand back its last status."""
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        st = client.get("/api/batch/status").json()
+        if not st["running"]:
+            return st
+        time.sleep(0.05)
+    raise AssertionError("the batch never finished")
 
 
 def process_and_wait(client, doc_id=101, timeout=20):
@@ -260,9 +272,145 @@ def test_search_returns_ids_of_processed_documents_only(client):
 
 def test_the_api_exposes_only_the_paths_of_this_portal(client):
     paths = {r.path for r in client.app.routes if r.path.startswith("/api")}
-    assert paths == {"/api/meta", "/api/health", "/api/documents", "/api/documents/refresh", "/api/documents/{doc_id}",
+    assert paths == {"/api/meta", "/api/health", "/api/documents", "/api/documents/refresh",
+                     "/api/documents/{doc_id}",
                      "/api/documents/{doc_id}/process", "/api/documents/{doc_id}/result",
                      "/api/documents/{doc_id}/payload", "/api/documents/{doc_id}/extraction",
-                     "/api/documents/{doc_id}/pdf", "/api/documents/{doc_id}/pages/{page}/image", "/api/search"}
-    for gone in ("/api/batch", "/api/replay", "/api/placeholder", "/api/extraction-file", "/api/demo"):
+                     "/api/documents/{doc_id}/pdf", "/api/documents/{doc_id}/pages/{page}/image", "/api/search",
+                     "/api/rounds", "/api/rounds/create", "/api/rounds/select", "/api/rounds/summary",
+                     "/api/rounds/summary/rebuild", "/api/rounds/compare",
+                     "/api/batch/start", "/api/batch/stop", "/api/batch/status"}
+    for gone in ("/api/batch", "/api/replay", "/api/placeholder", "/api/extraction-file", "/api/demo",
+                 "/api/rounds/delete"):
         assert client.get(gone).status_code == 404
+
+
+# ------------------------------------------------------------------ rounds and batches
+def test_rounds_api_endpoints(client):
+    # GET /api/rounds
+    r = client.get("/api/rounds")
+    assert r.status_code == 200
+    data = r.json()
+    assert "rounds" in data
+    assert "active" in data
+
+    # POST /api/rounds/create
+    r = client.post("/api/rounds/create", json={"name": "test_api_round"})
+    assert r.status_code == 200
+    assert r.json()["round"] == "test_api_round"
+
+    # POST /api/rounds/select
+    r = client.post("/api/rounds/select", json={"name": "test_api_round"})
+    assert r.status_code == 200
+    assert r.json()["active"] == "test_api_round"
+
+    # the round the tester picked is the round the rest of the portal reads and writes
+    assert client.get("/api/rounds").json()["active"] == "test_api_round"
+    assert "test_api_round" in client.get("/api/rounds").json()["rounds"]
+
+
+def test_a_round_name_that_could_escape_the_results_folder_is_refused(client, settings):
+    for bad in ("", "..", "a/b", "a\\b", "D:", "  "):
+        assert client.post("/api/rounds/create", json={"name": bad}).status_code == 400, bad
+        assert client.post("/api/rounds/select", json={"name": bad}).status_code == 400, bad
+    assert client.get("/api/rounds").json()["rounds"] == []
+
+
+def test_summary_of_the_active_round(client, settings):
+    process_and_wait(client, 101)
+    s = client.get("/api/rounds/summary")
+    assert s.status_code == 200, s.text
+    body = s.json()
+    assert body["metadata"]["total_documents"] == 1
+    assert body["statistics"]["counts"]["AUTO_PASS"] == 1
+    assert body["cases"][0]["doc_id"] == 101
+
+    # the file itself is on disk in the round, in the shape the batch script writes
+    on_disk = json.loads((settings.results_dir / "portal" / "summary.json").read_text(encoding="utf-8"))
+    assert on_disk["statistics"]["rules"]["V-01"]["pass"] >= 1
+
+    # a round with nothing in it says so: zero documents, not a summary borrowed from the round before
+    client.post("/api/rounds/create", json={"name": "empty_round"})
+    client.post("/api/rounds/select", json={"name": "empty_round"})
+    assert client.get("/api/rounds/summary").json()["metadata"]["total_documents"] == 0
+    assert client.post("/api/rounds/summary/rebuild").json()["metadata"]["total_documents"] == 0
+    assert client.get("/api/documents").json()[0]["state"] == "idle"     # the old round's results are out of sight
+
+
+def test_compare_over_the_api(client):
+    process_and_wait(client, 101)
+    client.post("/api/rounds/create", json={"name": "cmp_a"})
+    client.post("/api/rounds/select", json={"name": "cmp_a"})
+    process_and_wait(client, 101)                                    # the same document, the same answer
+    client.post("/api/rounds/create", json={"name": "cmp_b"})
+    client.post("/api/rounds/select", json={"name": "cmp_b"})
+    process_and_wait(client, 102)
+
+    r = client.get("/api/rounds/compare", params={"base": "portal", "target": "cmp_b"})
+    assert r.status_code == 200, r.text
+    diff = r.json()
+    assert diff["base"] == "portal" and diff["target"] == "cmp_b"
+    assert diff["aggregate"]["AUTO_PASS"]["base"] == 1 and diff["aggregate"]["AUTO_PASS"]["target"] == 1
+    assert diff["aggregate"]["removed_count"] == 1 and diff["aggregate"]["added_count"] == 1
+    assert {c["doc_id"]: c["delta"] for c in diff["cases"]} == {101: "removed", 102: "added"}
+
+    assert client.get("/api/rounds/compare", params={"base": "cmp_a", "target": "cmp_a"}).json()[
+        "aggregate"]["unchanged_count"] == 1
+    assert client.get("/api/rounds/compare", params={"base": "cmp_a"}).status_code == 400
+    assert client.get("/api/rounds/compare", params={"base": "../x", "target": "cmp_a"}).status_code == 400
+
+
+def test_batch_api_endpoints(client):
+    # GET /api/batch/status
+    r = client.get("/api/batch/status")
+    assert r.status_code == 200
+    assert "running" in r.json()
+    assert r.json()["running"] is False and r.json()["total"] == 0
+
+    r = client.post("/api/batch/start", json={"doc_ids": [101, 102], "skip_existing": False, "concurrency": 2})
+    assert r.status_code == 202, r.text
+    assert r.json()["total"] == 2 and r.json()["status"] == "started"
+
+    st = wait_for_batch(client)
+    assert not st["running"] and st["completed"] == 2 and st["errors"] == 0
+    assert st["processed"] == 2 and st["percent"] == 100.0
+
+    # what the batch wrote is readable through the ordinary result endpoint
+    assert client.get("/api/documents/101/result").status_code == 200
+    assert client.get("/api/rounds/summary").json()["statistics"]["counts"]["AUTO_PASS"] == 2
+
+    # starting another batch over documents that now have results has nothing left to do
+    again = client.post("/api/batch/start", json={"doc_ids": [101, 102], "skip_existing": True})
+    assert again.status_code == 202 and again.json()["status"] == "nothing-to-run" and again.json()["skipped"] == 2
+
+    # an id the DMS does not know is counted, not fatal
+    other = client.post("/api/batch/start", json={"doc_ids": [9999], "skip_existing": False})
+    assert other.json()["unknown"] == 1 and other.json()["total"] == 0
+
+    # stopping a batch that already finished is not an error: it just says so
+    assert client.post("/api/batch/stop").json()["running"] is False
+
+
+def test_a_batch_in_flight_answers_409_and_a_stop_ends_it(client, parts):
+    from doubles import FakeRunner
+
+    app, svc, catalog = parts
+
+    class Slow(FakeRunner):
+        def run(self, doc_id, *, run):
+            time.sleep(0.4)
+            return self.payload
+
+    svc.runner = Slow(payload=svc.runner.payload)
+    r = client.post("/api/batch/start", json={"doc_ids": [101, 102, 103], "skip_existing": False, "concurrency": 1})
+    assert r.status_code == 202
+    assert client.post("/api/documents/101/process").status_code == 409      # the batch has this document
+    assert client.post("/api/rounds/select", json={"name": "elsewhere"}).status_code == 409
+    busy = client.get("/api/batch/status").json()
+    assert busy["running"] is True and busy["processed"] <= 1
+    assert client.post("/api/batch/stop").json()["stopped"] is True
+    st = wait_for_batch(client, timeout=15)
+    assert not st["running"] and st["stopped"] is True
+    assert st["cancelled"] + st["completed"] + st["errors"] == 3
+    assert client.post("/api/rounds/select", json={"name": "elsewhere"}).status_code == 200
+

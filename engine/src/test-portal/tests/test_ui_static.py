@@ -59,10 +59,11 @@ def test_boxes_are_drawn_from_the_payload_and_are_not_moved_or_guessed():
 
 
 def test_the_paths_that_were_removed_stay_removed():
-    for gone in ("/api/batch", "/api/replay", "/api/placeholder", "/api/demo", "items_by_page", "kept",
+    for gone in ("/api/replay", "/api/placeholder", "/api/demo", "items_by_page", "kept",
                  "perception", "<svg", "bbox_norm", "replay"):
         assert gone not in JS, gone
-    for gone in ("batch", "replay", "demo"):
+    assert "'/api/batch'" not in JS                # the old demo endpoint; the new ones are /api/batch/start etc.
+    for gone in ("replay", "demo"):
         assert gone not in HTML, gone
 
 
@@ -150,3 +151,76 @@ def test_the_comparison_table_shows_both_lists_and_works_out_nothing_of_its_own(
     assert "refAttr(v, l.ref)" in row                                 # an invoice row still lights its own box
     assert 'data-cmp' in body and "writeCmp()" in CODE and "initCmp()" in CODE   # the tester can narrow the view
     assert "cmp-need" in CODE and ".cmp.need" in HTML                 # and the narrowing is done in CSS
+
+
+# ------------------------------------------------------------------ rounds, batches, summary, comparison
+def test_the_round_and_batch_controls_are_in_the_page():
+    for el in ("round_sel", "btn_new_round", "btn_batch", "btn_stop", "skip_existing", "concurrency",
+               "btn_summary", "btn_compare", "modal_summary", "modal_compare", "batch_bar", "batch_fill",
+               "batch_txt", "cmp_base", "cmp_target", "cmp_body", "sm_body"):
+        assert f"id={el}" in HTML, el
+    css = HTML.split("<style>")[1].split("</style>")[0]
+    assert ".modal{display:none" in css and ".modal.on{display:flex}" in css    # shut until the tester asks
+    assert "#batch_bar{display:none" in css and "#batch_bar.on{display:" in css  # and no strip with no batch
+    assert "td.d-up" in css and "td.d-down" in css                    # better / worse is readable at a glance
+    assert ".v-AUTO_PASS" in css and ".v-MANUAL_REVIEW" in css        # one colour per verdict, in the page too
+
+
+def test_the_script_drives_the_round_and_batch_endpoints():
+    called = js_paths()
+    assert {"/api/rounds", "/api/rounds/create", "/api/rounds/select", "/api/rounds/summary",
+            "/api/rounds/summary/rebuild", "/api/rounds/compare",
+            "/api/batch/start", "/api/batch/stop", "/api/batch/status"} <= called, sorted(called)
+    assert "$('round_sel')" in CODE and "$('btn_new_round')" in CODE and "$('btn_batch')" in CODE
+    assert "$('btn_stop')" in CODE and "$('skip_existing').checked" in CODE
+    assert "$('concurrency').value" in CODE
+    assert "JSON.stringify" in CODE                                   # the body those endpoints ask for
+    assert "$('btn_batch').disabled = true" in CODE                   # one batch at a time, said with the button
+
+
+def test_switching_round_clears_every_view_of_the_round_before_it():
+    """A result the browser kept belongs to the round it was read from - showing it in another round is a lie."""
+    assert "round: ROUNDS.active" in CODE                             # a cached case says where it came from
+    assert "c.round !== ROUNDS.active" in CODE                        # and is not shown anywhere else
+    body = CODE.split("function resetForRound")[1].split("\nfunction ")[0]
+    assert "view: null" in body and "probed: false" in body            # every document is asked again, in the new round
+
+
+def test_the_batch_progress_and_the_row_marks_are_the_servers_counts():
+    seg = CODE.split("function applyBatch")[1].split("\nfunction ")[0]
+    for k in ("total", "processed", "completed", "errors", "cancelled", "skipped", "running", "percent"):
+        assert k in seg, k
+    assert "style.width" in seg and "%'" in seg                        # the strip is a bar of that percentage
+    assert "batchPoll" in CODE and "setTimeout" in CODE.split("function batchPoll")[1].split("\nfunction ")[0]
+    assert "r.b = " in seg                                             # the list row of each document is marked too
+    assert "data-ck" in CODE and "SEL" in CODE                          # the tester picks which documents to run
+
+
+def test_a_finished_batch_forgets_the_views_it_just_made_stale():
+    """After a re-run, opening a document must show the new result - not the view kept from the old one."""
+    seg = CODE.split("async function batchPoll")[1].split("\n}")[0]
+    assert "BATCH_IDS" in seg and "r.view = null" in seg and "r.probed = false" in seg
+    assert "dropCase(id)" in seg                                       # and the browser's own copy goes too
+
+
+def test_the_summary_modal_shows_the_servers_summary_and_nothing_else():
+    seg = CODE.split("function summaryHtml")[1].split("async function showSummary")[0]
+    for k in ("metadata", "statistics", "counts", "rules", "cases", "rule_id", "rule_results",
+             "pass", "fail", "manual_review", "not_evaluated", "recommendation", "doc_id", "elapsed_s"):
+        assert k in seg, k
+    for x in ("api.", "fetch("):                                       # one paint, no extra request
+        assert x not in seg, x
+    assert "api.summaryRebuild" in CODE                                # the button that folds it again
+
+
+def test_the_compare_modal_shows_only_the_verdicts_the_server_computed():
+    seg = CODE.split("function compareHtml")[1].split("\nfunction ")[0]
+    for k in ("aggregate", "cases", "delta", "base", "target", "improved_count", "regressed_count",
+              "unchanged_count", "added_count", "removed_count", "base_recommendation",
+              "target_recommendation", "rule_changes", "diff"):
+        assert k in seg, k
+    for chip in ("เฉพาะที่เปลี่ยน", "ทั้งหมด", "ดีขึ้น", "แย่ลง"):   # chips: only what moved / all / better / worse
+        assert chip in seg, chip
+    for invented in ("parseFloat", "Number(", "Math.", "reduce(", "sort("):
+        assert invented not in seg, invented          # the counting, the ranking and the order are the server's
+    assert "data-open" in seg                                          # a row opens that document in the portal

@@ -52,6 +52,7 @@ def split_number(raw: str) -> tuple[Decimal, Optional[str]]:
     a space or a bracket, unlike a strip-everything parser (``"1 (2PCS)"`` would become 12).
     """
     s = _CURRENCY.sub("", thai_to_arabic(str(raw))).strip()
+    s = re.sub(r"(?<=\d)\s*(?:\.-|-)(?=\s|$|/)", "", s).strip()
     m = _ACCOUNTING_NEG.match(s)
     if m:
         return -_dec(m.group(1)), None
@@ -105,10 +106,27 @@ def po_and_release(raw: str) -> tuple[str, Optional[str]]:
     return head, (parts[1] if len(parts) > 1 and parts[1].isdigit() else None)
 
 
-def date_iso(raw: str) -> str:
-    """dd/mm/yyyy · dd/mm/yy · yyyy/mm/dd (Buddhist or Gregorian year) -> ISO yyyy-mm-dd.
+_MONTHS = {
+    "JAN": 1, "JANUARY": 1, "ม.ค.": 1, "ม.ค": 1, "มกราคม": 1,
+    "FEB": 2, "FEBRUARY": 2, "ก.พ.": 2, "ก.พ": 2, "กุมภาพันธ์": 2,
+    "MAR": 3, "MARCH": 3, "มี.ค.": 3, "มี.ค": 3, "มีนาคม": 3,
+    "APR": 4, "APRIL": 4, "เม.ย.": 4, "เม.ย": 4, "เมษายน": 4,
+    "MAY": 5, "พ.ค.": 5, "พ.ค": 5, "พฤษภาคม": 5,
+    "JUN": 6, "JUNE": 6, "มิ.ย.": 6, "มิ.ย": 6, "มิถุนายน": 6,
+    "JUL": 7, "JULY": 7, "ก.ค.": 7, "ก.ค": 7, "กรกฎาคม": 7,
+    "AUG": 8, "AUGUST": 8, "ส.ค.": 8, "ส.ค": 8, "สิงหาคม": 8,
+    "SEP": 9, "SEPTEMBER": 9, "SEPT": 9, "ก.ย.": 9, "ก.ย": 9, "กันยายน": 9,
+    "OCT": 10, "OCTOBER": 10, "ต.ค.": 10, "ต.ค": 10, "ตุลาคม": 10,
+    "NOV": 11, "NOVEMBER": 11, "พ.ย.": 11, "พ.ย": 11, "พฤศจิกายน": 11,
+    "DEC": 12, "DECEMBER": 12, "ธ.ค.": 12, "ธ.ค": 12, "ธันวาคม": 12,
+}
 
-    Measured on the DMS batch: ``04/09/26`` (DMS-21) and ``2026/09/02`` (DMS-24) were rejected as DATE_FORMAT.
+
+def date_iso(raw: str) -> str:
+    """dd/mm/yyyy · dd/mm/yy · yyyy/mm/dd · d-Mon-yyyy (Buddhist or Gregorian year) -> ISO yyyy-mm-dd.
+
+    Measured on the DMS batch: ``04/09/26`` (DMS-21), ``2026/09/02`` (DMS-24),
+    ``4 Sep 2026`` (DMS-27), and ``07-SEP-2026`` (DMS-32).
     Two-digit years are read the way Thai invoices print them: 50-99 = Buddhist era 25xx, 00-49 = 20xx.
     """
     t = thai_to_arabic(raw)
@@ -116,17 +134,27 @@ def date_iso(raw: str) -> str:
     if m:
         y, mo, d = map(int, m.groups())
     else:
-        m = re.search(r"(?<!\d)(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4}|\d{2})(?!\d)", t)
-        if not m:
-            raise Invalid("DATE_FORMAT")
-        d, mo, y = map(int, m.groups())
-        if y < 100:
-            y = 2500 + y if y >= 50 else 2000 + y
+        # Check d-Mon-yyyy or d Mon yyyy (e.g. 4 Sep 2026, 07-SEP-2026, 1 ม.ค. 2569)
+        m_txt = re.search(r"(?<!\d)(\d{1,2})[\s\-/]+([A-Za-z\u0E01-\u0E4E.]+?)[\s\-/]+(\d{2,4})(?!\d)", t)
+        if m_txt and m_txt.group(2).strip().upper() in _MONTHS:
+            d = int(m_txt.group(1))
+            mo = _MONTHS[m_txt.group(2).strip().upper()]
+            y = int(m_txt.group(3))
+            if y < 100:
+                y = 2500 + y if y >= 50 else 2000 + y
+        else:
+            m = re.search(r"(?<!\d)(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4}|\d{2})(?!\d)", t)
+            if not m:
+                raise Invalid("DATE_FORMAT")
+            d, mo, y = map(int, m.groups())
+            if y < 100:
+                y = 2500 + y if y >= 50 else 2000 + y
     if y > 2400:
         y -= 543
     if not (1 <= mo <= 12 and 1 <= d <= 31):
         raise Invalid("DATE_FORMAT")
     return f"{y:04d}-{mo:02d}-{d:02d}"
+
 
 
 def text(raw: str) -> str:
@@ -201,7 +229,28 @@ def normalize(ext: ExtractionResult, std: Standard) -> tuple[InvoiceDoc, dict]:
     if stamp is not None:
         sigs["deliverer"] = stamp
         meta["deliverer_from_stamp"] = True
+    rcv_stamp = _receiver_from_stamp(ext, std, sigs)
+    if rcv_stamp is not None:
+        sigs["receiver"] = rcv_stamp
+        meta["receiver_from_stamp"] = True
     return InvoiceDoc(did, fields, tuple(lines), sigs, ext.pages_complete), meta
+
+
+def _receiver_from_stamp(ext: ExtractionResult, std: Standard, sigs: dict):
+    """Receiver slot undecided, but a warehouse receiving stamp was seen on a document page."""
+    cur = sigs.get("receiver")
+    th = float(std.policy.get("signature", {}).get("min_confidence", 0.5))
+    if cur is not None and cur.present is not None and (cur.confidence is None or cur.confidence >= th):
+        return None
+    for rg in getattr(ext, "regions", ()) or ():
+        label = str(rg.label or "").lower()
+        if (rg.kind == "stamp" or "stamp" in label) and any(w in label for w in ("received", "receiving", "receiver")):
+            if (rg.confidence or 0) >= th:
+                from .contracts import Region, SignatureObs
+                return SignatureObs(present=True, confidence=rg.confidence, kind=rg.label or "received_stamp",
+                                    region=Region(page=rg.page, bbox=rg.bbox))
+    return None
+
 
 
 def _deliverer_from_stamp(ext: ExtractionResult, std: Standard, sigs: dict):

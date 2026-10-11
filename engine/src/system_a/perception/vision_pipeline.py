@@ -82,6 +82,22 @@ LABEL_TO_FIELD = {
 CRITICAL_FIELDS = ("invoice_num", "po_number", "customer_name", "customer_address", "customer_tax_id",
                    "sub_total", "vat", "grand_total", "supplier_tax_id", "invoice_date", "supplier_name")
 
+PRIORITY_CROP_ORDER = (
+    "invoice_num", "po_number", "supplier_tax_id", "sub_total", "grand_total", "vat",
+    "invoice_date", "customer_tax_id", "supplier_name", "customer_name", "customer_address"
+)
+
+
+def field_crop_priority(names) -> list:
+    """Sort field names so core identifiers and amounts get evaluated for crop budget first."""
+    def key(n):
+        try:
+            return PRIORITY_CROP_ORDER.index(n)
+        except ValueError:
+            return 999
+    return sorted(names, key=key)
+
+
 #: the printed shape each field must have.  A reader whose value does not have it does not vote (DMS-25: a crop of
 #: the wrong box read the postal code "13160" as the customer Tax ID and out-voted the correct VLM value).
 _SHAPES = {"customer_tax_id": re.compile(r"^\d{13}$"), "supplier_tax_id": re.compile(r"^\d{13}$"),
@@ -115,8 +131,13 @@ DOC_TYPE_TO_PAGE = {
     "unknown": "UNKNOWN",
 }
 PAGE_TYPES = set(DOC_TYPE_TO_PAGE.values()) - {"UNKNOWN"} | {"UNKNOWN"}
-SIGNATURE_LABELS = {"receiver_signature": "receiver", "deliverer_signature": "deliverer",
-                    "authorized_signature": "receiver", "approver_signature": "receiver"}
+SIGNATURE_LABELS = {
+    "receiver_signature": "receiver", "deliverer_signature": "deliverer",
+    "authorized_signature": "receiver", "approver_signature": "receiver",
+    "received_stamp": "receiver", "receiving_stamp": "receiver",
+    "receiver_stamp": "receiver", "warehouse_stamp": "receiver",
+    "company_stamp": "deliverer",
+}
 REQUIRED_FIELD_NAMES = ("invoice_num", "po_number", "customer_name", "customer_address", "customer_tax_id",
                         "sub_total", "vat", "grand_total", "supplier_name", "supplier_tax_id", "invoice_date")
 _CURRENCY = re.compile(r"(THB|฿|บาท|BAHT)", re.I)
@@ -153,8 +174,20 @@ def _num(s):
     return "".join(parts)
 
 
+PO_PREFIX = re.compile(r"^(?:PO|P\.O\.|P/O|PO#|เลขที่สั่งซื้อ|PO\s*:?)\s*(\d{6,10}(?:-\d+)?)$", re.I)
+
+
+def normalize_po(s: Optional[str]) -> Optional[str]:
+    if not s:
+        return s
+    t = str(s).strip()
+    m = PO_PREFIX.match(t)
+    return m.group(1) if m else t
+
+
 def _key(s) -> str:
-    return _num(s) or _cmp(s)
+    s_norm = normalize_po(s)
+    return _num(s_norm) or _cmp(s_norm)
 
 
 #: The VLM reads a printed *block* ("รวมมูลค่าสินค้า / SUB TOTAL 25,432.00"), the PDF text layer reads the
@@ -478,8 +511,11 @@ class VisionPipeline:
                 if name:
                     candidates[name].append((p, it))
 
-        for name, options in candidates.items():
-            page, it = pick_candidate(name, options, first_invoice)
+        for name in field_crop_priority(candidates.keys()):
+            options = candidates[name]
+            page, it = pick_candidate(name, options, first_invoice, invoice_pages=invoice_pages)
+            if it is None:
+                continue
             page_words = ctx.layers.get(page, {}).get("words", [])
             inside = words_in_box(page_words, it["bbox"])
             layer_text = " ".join(w["text"] for w in inside) or None
@@ -579,19 +615,40 @@ class VisionPipeline:
             img_h = max(1, round(info.height_pt * self.dpi / 72))
             page_words = ctx.layers.get(page, {}).get("words", [])
             rows = None
+            page_lines = [it for it in read.items
+                          if str(it.get("label") or "").strip().lower().startswith("line_") and it.get("bbox")]
+            page_lines.sort(key=lambda it: (round(it["bbox"][1], 3), it["bbox"][0]))
+            table_headers = [it for it in read.items
+                             if (str(it.get("label") or "").strip().lower() in ("table_header", "item_table") or
+                                 str(it.get("type") or "").strip().lower() == "table") and it.get("bbox")]
+            th_y = min((it["bbox"][1] for it in table_headers), default=None)
+            th_box = next((it["bbox"] for it in table_headers if str(it.get("label") or "").lower() == "table_header"),
+                          (table_headers[0]["bbox"] if table_headers else None))
+
+            table_bbox_to_add = None
+            table_mislocated = False
             if self.do_table and order < self.table_pages:
                 try:
                     raw = self._ask("table_rows", "vision_table_rows", ctx.pngs[page],
                                     "Digitise the item table of this page.", page)
                     parsed = parse_table_rows(raw, img_w, img_h, page, words=page_words)
                     rows, rows_notes = parsed["rows"], parsed.get("notes") or []
-                    if raw.get("table_bbox"):
-                        regions.append(RegionNode(region_id=f"T{page}-001", page=page, kind="table",
-                                                  label="item_table", bbox=parsed["table_bbox"],
-                                                  confidence=0.9))
+
+                    t_bbox = parsed.get("table_bbox")
+                    if t_bbox and th_y is not None and (t_bbox[1] + t_bbox[3] <= th_y + 0.01 or t_bbox[1] < th_y - 0.02):
+                        table_mislocated = True
+
+                    if raw.get("table_bbox") and t_bbox:
+                        table_bbox_to_add = t_bbox
+
                     for i, col in enumerate(parsed["columns"], start=1):
+                        cb = col.get("bbox")
+                        if not cb or cb[2] <= 0 or cb[3] <= 0:
+                            continue
+                        if table_mislocated or (th_y is not None and cb[1] + cb[3] <= th_y + 0.01):
+                            continue
                         regions.append(RegionNode(region_id=f"T{page}-C{i:02d}", page=page, kind="section",
-                                                  label=f"column:{col['label']}", bbox=col["bbox"]))
+                                                  label=f"column:{col['label']}", bbox=cb))
                     notes.extend(rows_notes)
                     source["table_rows"] += len(rows)
                 except Exception as e:
@@ -601,36 +658,64 @@ class VisionPipeline:
             if rows is None:
                 rows = rows_from_line_items(read)
                 source["line_items"] += len(rows)
+            rows = fold_ghost_rows(rows)
             page_rows: list = []
-            for row in rows:
+            for r_idx, row in enumerate(rows):
                 cells = {}
-                if self.cell_box == "row":
-                    # bbox_testv3 highlights FULL ROWS from the page read.  Cell boxes of the second (table) call
-                    # measured off-target more often (22 % vs 14 %), so a cell is shown on the page-read row that
-                    # holds it; the table call still supplies the cell TEXT.
-                    rb = row_box_from_page(read, row.get("bbox"))
-                    if rb is not None:
-                        row["bbox"] = rb
-                        for cell in row["cells"].values():
+                rb = row_box_from_page(read, row.get("bbox"))
+                if rb is not None and th_y is not None and rb[1] < th_y - 0.01:
+                    rb = None
+                row_above_header = th_y is not None and row.get("bbox") and row["bbox"][1] < th_y - 0.01
+                if rb is None or row_above_header:
+                    fb = fallback_row_box(read, row, r_idx, page_lines)
+                    if fb is not None:
+                        rb = fb
+
+                if rb is not None:
+                    row["bbox"] = rb
+                    for cell in row["cells"].values():
+                        if self.cell_box == "row" or not cell.get("bbox") or cell["bbox"][2] <= 0 or cell["bbox"][3] <= 0:
                             if cell.get("bbox") or cell.get("text"):
                                 cell["bbox"] = rb
+                elif self.cell_box == "row":
+                    for cell in row["cells"].values():
+                        if row.get("bbox") and (cell.get("bbox") or cell.get("text")):
+                            cell["bbox"] = row["bbox"]
+
                 for col, cell in row["cells"].items():
                     if col not in CELL_LABELS:
                         continue
                     name = CELL_LABELS[col]
-                    inside = words_in_box(page_words, cell["bbox"]) if cell.get("bbox") else []
+                    cb = cell.get("bbox")
+                    if cb and (cb[2] <= 0 or cb[3] <= 0):
+                        cb = row.get("bbox") if (row.get("bbox") and row["bbox"][2] > 0 and row["bbox"][3] > 0) else None
+                    inside = words_in_box(page_words, cb) if cb else []
                     layer_text = " ".join(w["text"] for w in inside) or None
-                    agree = same_text(cell.get("text"), layer_text) or same_text(
-                        re.sub(r"[^0-9A-Za-z.,]", "", str(cell.get("text") or "")),
+                    c_text = cell.get("text")
+                    agree = same_text(c_text, layer_text) or same_text(
+                        re.sub(r"[^0-9A-Za-z.,]", "", str(c_text or "")),
                         re.sub(r"[^0-9A-Za-z.,]", "", str(layer_text or "")))
+                    if not agree and layer_text and c_text:
+                        if _cmp(c_text) and _cmp(c_text) in _cmp(layer_text):
+                            agree = True
                     conf = 0.96 if agree else round(min(float(cell.get("confidence") or 0.6), 0.7), 2)
                     cells[name] = RawField(raw=cell.get("text"), confidence=conf, agreement=agree,
-                                           region=Region(page=page, bbox=cell["bbox"]) if cell.get("bbox") else None,
+                                           region=Region(page=page, bbox=cb) if cb else None,
                                            word_ids=tuple(w["word_id"] for w in inside)[:20],
                                            source="consensus" if agree else "vlm",
                                            null_reason=None if cell.get("text") else "NOT_PRESENT")
                 page_rows.append((cells, Region(page=page, bbox=row["bbox"]) if row.get("bbox") else None))
             per_page[page] = page_rows
+
+            if table_bbox_to_add:
+                final_t_bbox = table_bbox_to_add
+                if table_mislocated or (th_y is not None and final_t_bbox[1] < th_y - 0.01):
+                    all_boxes = [b for b in [th_box] + [r[1].bbox for r in page_rows if r[1] and r[1].bbox] if b]
+                    final_t_bbox = union_box(all_boxes) or final_t_bbox
+                regions.append(RegionNode(region_id=f"T{page}-001", page=page, kind="table",
+                                          label="item_table", bbox=final_t_bbox,
+                                          confidence=0.9))
+
         kept, copy_notes = drop_duplicate_copies(
             per_page,
             {p: (reads[p].page_type if p in reads else "UNKNOWN") for p in per_page},
@@ -726,7 +811,7 @@ def consensus(vlm_text, layer_text, crop_text, vlm_conf: float, fuzzy: bool = Fa
     winner = next(v for v in votes if _key(v) == top)
     if count >= 2:
         conf = 0.98 if count >= 3 else 0.96
-        return winner, conf, True, "consensus", None
+        return normalize_po(winner), conf, True, "consensus", None
     if fuzzy and len(votes) >= 2:
         ratio, a, b = closest_pair(votes)
         if ratio >= TEXT_AGREEMENT_SIMILARITY:
@@ -734,9 +819,9 @@ def consensus(vlm_text, layer_text, crop_text, vlm_conf: float, fuzzy: bool = Fa
             chosen = a if _key(a) == page_read else (b if _key(b) == page_read else a)
             return chosen, TEXT_AGREEMENT_CONFIDENCE, True, "consensus", None
     if len(votes) == 1:
-        return winner, round(min(float(vlm_conf or 0.6), 0.70), 2), False, \
+        return normalize_po(winner), round(min(float(vlm_conf or 0.6), 0.70), 2), False, \
             ("vlm" if _key(winner) == _key(vlm_text or "") else "ocr"), None
-    return (vlm_text or winner), round(min(float(vlm_conf or 0.5), 0.55), 2), False, "vlm", \
+    return (normalize_po(vlm_text) or normalize_po(winner)), round(min(float(vlm_conf or 0.5), 0.55), 2), False, "vlm", \
         "CONFLICT_BETWEEN_SOURCES"
 
 
@@ -905,6 +990,13 @@ def _box_overlap(a, b) -> float:
     return inter / smaller if smaller > 0 else 0.0
 
 
+def _same_or_wrapped_desc(desc_a: Optional[str], desc_b: Optional[str]) -> bool:
+    if not desc_a or not desc_b:
+        return True
+    a, b = desc_a.strip().lower(), desc_b.strip().lower()
+    return a == b or a in b or b in a
+
+
 def merge_duplicate_rows(rows: list, page: int, tolerance: float = 0.5) -> tuple[list, list]:
     """One printed row must not become two rows.
 
@@ -916,7 +1008,10 @@ def merge_duplicate_rows(rows: list, page: int, tolerance: float = 0.5) -> tuple
     keep: list[dict] = []
     notes: list[dict] = []
     for row in rows:
-        target = next((p for p in keep if _same_printed_numbers(p, row) and _box_overlap(p["bbox"], row["bbox"]) >= tolerance),
+        target = next((p for p in keep if _same_printed_numbers(p, row)
+                       and _same_or_wrapped_desc((p["cells"].get("description") or {}).get("text"),
+                                                (row["cells"].get("description") or {}).get("text"))
+                       and _box_overlap(p["bbox"], row["bbox"]) >= tolerance),
                       None)
         if target is None:
             keep.append(row)
@@ -1008,6 +1103,58 @@ def _iter_boxes(raw):
             for cell in (r.get("cells") or {}).values() if isinstance(r.get("cells"), dict) else []:
                 if isinstance(cell, dict) and cell.get("bbox_2d"):
                     yield cell["bbox_2d"]
+def fold_ghost_rows(rows: list) -> list:
+    """Fold continuation rows (rows lacking qty, price, and amount) into the preceding item.
+
+    Multi-line descriptions or PO reference lines in item tables frequently get recognized as separate
+    table rows with empty qty/price/amount. Folding them into the previous row's description prevents
+    Rule V-07 from treating them as unmatched receipt lines (which causes false E13 HOLD).
+    """
+    if not rows:
+        return []
+    out = []
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        cells = r.get("cells") or {}
+        has_val = False
+        for k in ("qty", "unit_price", "amount"):
+            c = cells.get(k)
+            if isinstance(c, dict):
+                t = str(c.get("text") or "").strip()
+                if t:
+                    has_val = True
+                    break
+            elif isinstance(c, str) and c.strip():
+                has_val = True
+                break
+
+        desc_cell = cells.get("description")
+        desc_text = ""
+        if isinstance(desc_cell, dict):
+            desc_text = str(desc_cell.get("text") or "").strip()
+        elif isinstance(desc_cell, str):
+            desc_text = desc_cell.strip()
+
+        if not has_val:
+            if desc_text and out:
+                prev = out[-1]
+                prev_cells = prev.get("cells") or {}
+                prev_desc = prev_cells.get("description")
+                if isinstance(prev_desc, dict):
+                    old_text = str(prev_desc.get("text") or "").strip()
+                    new_text = f"{old_text} {desc_text}".strip()
+                    prev_desc["text"] = new_text
+                    if desc_cell and isinstance(desc_cell, dict) and desc_cell.get("bbox") and prev_desc.get("bbox"):
+                        prev_desc["bbox"] = union_box([prev_desc["bbox"], desc_cell["bbox"]])
+                else:
+                    prev_cells["description"] = {"text": desc_text, "bbox": r.get("bbox")}
+                if r.get("bbox") and prev.get("bbox"):
+                    prev["bbox"] = union_box([prev["bbox"], r["bbox"]])
+            continue
+
+        out.append(r)
+    return out
 
 
 def rows_from_line_items(read: PageRead) -> list[dict]:
@@ -1024,7 +1171,8 @@ def rows_from_line_items(read: PageRead) -> list[dict]:
             continue
         conf = float(it.get("confidence") or 0)
         parsed = cells_from_row_text(text)
-        if not parsed and out and any(k != "description" for k in out[-1]["cells"]):
+        has_money = bool(re.search(r"\b\d[\d,]*\.\d{2}\b", text))
+        if not parsed and not has_money and out and any(k != "description" for k in out[-1]["cells"]):
             # a printed row without qty/price/amount right under an item row is that item's wrapped description
             # ("( Project:AHD_AS ..., Task:07.2 - DFG0011022A )"), not an item of its own
             prev = out[-1]["cells"].get("description") or {"text": "", "bbox": it["bbox"], "confidence": conf}
@@ -1039,11 +1187,15 @@ def rows_from_line_items(read: PageRead) -> list[dict]:
     return out
 
 
-_NUM2 = r"\d[\d,]*\.\d{2}"
+_NUM2 = r"\d[\d,]*(?:\.\d{1,4})?"
 _ROW_TAIL = re.compile(rf"(?P<qty>\d[\d,]*(?:\.\d+)?)\s+(?P<uom>[A-Za-z\u0E01-\u0E4E][A-Za-z0-9\u0E01-\u0E4E./-]{{0,11}})\s+"
                        rf"(?P<money>{_NUM2}(?:\s+{_NUM2}){{1,2}})\s*$")
 _ROW_TAIL_UOM_FIRST = re.compile(rf"(?P<uom>[A-Za-z\u0E01-\u0E4E][A-Za-z0-9\u0E01-\u0E4E./-]{{0,11}})\s+(?P<qty>\d+(?:\.\d+)?)\s+"
                                  rf"(?P<money>{_NUM2}(?:\s+{_NUM2}){{1,2}})\s*$")
+_ROW_PRICE_UOM_AMOUNT = re.compile(
+    rf"(?:(?P<qty1>\d[\d,]*(?:\.\d+)?)\s+)?(?P<qty2>\d[\d,]*(?:\.\d+)?)\s+(?P<price>{_NUM2})\s+"
+    rf"(?P<uom>[A-Za-z\u0E01-\u0E4E][A-Za-z0-9\u0E01-\u0E4E./-]{{0,11}})\s+(?P<amount>{_NUM2})\s*$"
+)
 
 
 def cells_from_row_text(text: str) -> Optional[dict]:
@@ -1051,11 +1203,38 @@ def cells_from_row_text(text: str) -> Optional[dict]:
 
     Used when the table pass did not run for a page (DMS-22 pages 5+: every row came back description-only and
     produced 11 x 4 NOT_PRESENT cells).  Three trailing amounts (weight/price/amount or price/discount/amount) are
-    resolved by the row's own arithmetic; nothing is guessed when the row does not parse.
+    resolved by the row's own arithmetic; dual quantity lines (Sheet + KG) pick the arithmetic match.
+    Nothing is guessed when the row does not parse.
     """
     from decimal import Decimal, InvalidOperation
     t = re.sub(r"\b(THB|BAHT)\b|฿|บาท", " ", str(text or ""), flags=re.I)
     t = re.sub(r"\s+", " ", thai_to_arabic(t)).strip()
+
+    # 1. Dual-quantity / unit-after-price pattern (e.g. "... 1 3,006 49.940 KG 150,119.64")
+    m_pu = _ROW_PRICE_UOM_AMOUNT.search(t)
+    if m_pu:
+        try:
+            p_val = Decimal(m_pu.group("price").replace(",", ""))
+            a_val = Decimal(m_pu.group("amount").replace(",", ""))
+            q2_val = Decimal(m_pu.group("qty2").replace(",", ""))
+            q1_str = m_pu.group("qty1")
+            q1_val = Decimal(q1_str.replace(",", "")) if q1_str else None
+            chosen_qty = m_pu.group("qty2")
+            if q1_val is not None and abs(q1_val * p_val - a_val) <= Decimal("0.01"):
+                chosen_qty = q1_str
+            elif abs(q2_val * p_val - a_val) <= Decimal("0.01"):
+                chosen_qty = m_pu.group("qty2")
+            return {
+                "description": t[:m_pu.start()].strip() or None,
+                "qty": chosen_qty,
+                "uom": m_pu.group("uom"),
+                "unit_price": m_pu.group("price"),
+                "amount": m_pu.group("amount"),
+            }
+        except InvalidOperation:
+            pass
+
+    # 2. Standard tail patterns
     m = _ROW_TAIL.search(t) or _ROW_TAIL_UOM_FIRST.search(t)
     if not m:
         return None
@@ -1137,13 +1316,24 @@ def _money(v):
         return None
 
 
-def pick_candidate(name: str, options: list, first_invoice):
+INVOICE_HEADER_FIELDS = {"invoice_num", "invoice_date", "sub_total", "vat", "grand_total"}
+
+
+def pick_candidate(name: str, options: list, first_invoice, invoice_pages: Optional[list] = None):
     """Which of several regions labelled ``name`` is the field.
 
     Order: on the first invoice page, has the field's printed shape, highest stated confidence, earliest page.
     ``grand_total`` additionally prefers the largest well-shaped amount on that page: DMS-20 labels both
     "TOTAL / BAHT 49,215.00" and "GRAND TOTAL 52,660.05" grand_total and the first one failed V-03.
+    For invoice header fields, options outside invoice_pages are excluded when invoice_pages is known.
     """
+    if not options:
+        return None, None
+    if invoice_pages and name in INVOICE_HEADER_FIELDS:
+        filtered = [c for c in options if c[0] in invoice_pages]
+        if not filtered:
+            return None, None
+        options = filtered
     def key(c):
         page, it = c
         value = extract_value(name, it.get("text"))[0]
@@ -1162,6 +1352,17 @@ def po_from_lines(fields: dict, reads: dict, invoice_pages: list, log: list, lay
     item rows (``40117545-975`` = PO 40117545 release 975) when exactly one such PO appears there."""
     cur = fields.get("po_number")
     if cur is not None and cur.raw and shape_ok("po_number", cur.raw):
+        if not cur.agreement:
+            cur_digits = re.sub(r"\D", "", str(cur.raw))[:8]
+            for p in invoice_pages:
+                for it in (reads[p].items if p in reads else []):
+                    label = str(it.get("label") or "").lower()
+                    if not (label.startswith("line_") or label in ("po_number", "invoice_ref", "item_table", "remark")):
+                        continue
+                    if cur_digits and cur_digits in re.sub(r"\D", "", str(it.get("text") or "")):
+                        fields["po_number"] = cur.model_copy(update={"agreement": True, "confidence": max(cur.confidence or 0, 0.96), "null_reason": None})
+                        log.append({"field": "po_number", "corroborated": cur.raw, "rule": "PO number corroborated by item rows"})
+                        return
         return
     found: dict = {}
     for p in invoice_pages:
@@ -1253,16 +1454,27 @@ def reconcile_grand_total(fields: dict, candidates: dict, log: list) -> None:
     if s is None or v is None or (g is not None and abs(s + v - g) <= Decimal("0.01")):
         return
     target = s + v
-    for page, it in sorted(candidates.get("grand_total", []), key=lambda c: c[0]):
-        arabic = thai_to_arabic(str(it.get("text") or ""))
-        for m in MONEY_RE.finditer(arabic):
-            val = str(it.get("text"))[m.start():m.end()]
-            if shape_ok("grand_total", val) and _money(val) is not None and abs(_money(val) - target) <= Decimal("0.01"):
-                fields["grand_total"] = RawField(raw=val, confidence=0.95, agreement=True,
-                                                 region=Region(page=page, bbox=it["bbox"]), source="consensus")
-                log.append({"field": "grand_total", "replaced": grand.raw if grand else None, "derived": val, "page": page,
-                            "rule": "the printed amount that equals sub_total + vat"})
-                return
+    for label in ("grand_total", "total", "sub_total"):
+        for page, it in sorted(candidates.get(label, []), key=lambda c: c[0]):
+            arabic = thai_to_arabic(str(it.get("text") or ""))
+            for m in MONEY_RE.finditer(arabic):
+                val = str(it.get("text"))[m.start():m.end()]
+                if shape_ok("grand_total", val) and _money(val) is not None and abs(_money(val) - target) <= Decimal("0.01"):
+                    fields["grand_total"] = RawField(raw=val, confidence=0.95, agreement=True,
+                                                     region=Region(page=page, bbox=it["bbox"]), source="consensus")
+                    log.append({"field": "grand_total", "replaced": grand.raw if grand else None, "derived": val, "page": page,
+                                "rule": "the printed amount that equals sub_total + vat"})
+                    return
+    if g is not None and abs(g - s) <= Decimal("0.01"):
+        vat_expected = (s * Decimal("0.07")).quantize(Decimal("0.01"))
+        if abs(v - vat_expected) <= Decimal("0.05"):
+            target_str = f"{target:,.2f}"
+            region = grand.region if grand else None
+            fields["grand_total"] = RawField(raw=target_str, confidence=0.95, agreement=True,
+                                             region=region, source="derived")
+            log.append({"field": "grand_total", "replaced": grand.raw if grand else None, "derived": target_str,
+                        "rule": "derived as sub_total + vat (7% sound) when model duplicated subtotal"})
+
 
 
 def row_box_from_page(read, table_row_box):
@@ -1282,3 +1494,49 @@ def row_box_from_page(read, table_row_box):
         if r > score:
             best, score = tuple(b), r
     return best if score >= 0.5 else None
+
+
+def fallback_row_box(read, row: dict, order: int, page_lines: list = None) -> Optional[tuple]:
+    """Fallback row box from page read when geometric overlap with vision_table_rows fails.
+
+    Handles multi-grid invoices (e.g., DMS-102) where table_rows digitized the upper customer/PO grid
+    instead of the actual goods table. Matches by text similarity first, falling back to line order.
+    """
+    if not read or not getattr(read, "items", None):
+        return None
+    if page_lines is None:
+        page_lines = [it for it in read.items
+                      if str(it.get("label") or "").strip().lower().startswith("line_") and it.get("bbox")]
+        page_lines.sort(key=lambda it: (round(it["bbox"][1], 3), it["bbox"][0]))
+    if not page_lines:
+        return None
+
+    # 1. Match by text content (description / amount / tokens)
+    cells = row.get("cells") or {}
+    desc = str((cells.get("description") or {}).get("text") or "").strip().lower()
+    amt = str((cells.get("amount") or {}).get("text") or "").strip()
+    qty = str((cells.get("qty") or {}).get("text") or "").strip()
+    words = [w for w in re.findall(r"[a-zA-Z0-9\u0E00-\u0E7F]+", desc) if len(w) > 2]
+
+    best_pl, best_score = None, 0
+    for pl in page_lines:
+        pl_text = str(pl.get("text") or "").lower()
+        if not pl_text:
+            continue
+        score = 0
+        if desc and len(desc) >= 5 and desc in pl_text:
+            score += 100
+        else:
+            score += sum(2 for w in words if w in pl_text)
+        if amt and len(amt) >= 2 and amt in pl_text:
+            score += 50
+        if qty and qty in pl_text.split():
+            score += 10
+        if score > best_score:
+            best_score, best_pl = score, pl
+
+    if best_pl and best_score >= 4:
+        return tuple(best_pl["bbox"])
+    if order < len(page_lines):
+        return tuple(page_lines[order]["bbox"])
+    return tuple(page_lines[-1]["bbox"])

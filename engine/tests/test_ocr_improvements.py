@@ -302,3 +302,301 @@ def test_result_has_the_normalised_item_list(ext):
     summ = res["normalized_fields"]["items_summary"]
     assert summ["line_count"] == 1 and summ["sum_amount"] == "1000.00" and summ["sum_vs_sub_total_diff"] == "0.00"
     json.dumps(res)                                                     # serialisable
+
+
+def test_standard_uom_groups_include_trip_and_book():
+    from system_a.domain.standard import load_standard
+    std = load_standard()
+    assert std.uom_group("TRIP") == "TRIP"
+    assert std.uom_group("เที่ยว") == "TRIP"
+    assert std.uom_group("TP") == "TRIP"
+    assert std.uom_group("BOOK") == "BOOK"
+    assert std.uom_group("เล่ม") == "BOOK"
+
+
+def test_cells_from_row_text_dual_quantities():
+    t1 = "MB3B-41111K34/35-A WSS-M1A367-A45 FILL FLR TNL REINF RH/LH 2.00x940.00xC 667877 1 3,006 49.940 KG 150,119.64"
+    c1 = vp.cells_from_row_text(t1)
+    assert c1 is not None
+    assert c1["qty"].replace(",", "") == "3006"
+    assert c1["uom"] == "KG"
+    assert c1["unit_price"] == "49.940"
+    assert c1["amount"] == "150,119.64"
+
+    t2 = "MB3B-41111K34/35-A WSS-M1A367-A45 FILL FLR TNL REINF RH/LH 2.00x940.00xC 667877 1 2,906 49.940 KG 145,125.64"
+    c2 = vp.cells_from_row_text(t2)
+    assert c2 is not None
+    assert c2["qty"].replace(",", "") == "2906"
+    assert c2["uom"] == "KG"
+    assert c2["unit_price"] == "49.940"
+    assert c2["amount"] == "145,125.64"
+
+
+def test_rows_from_line_items_does_not_merge_rows_with_money():
+    read = vp.PageRead(page_no=1, items=[
+        {"label": "line_1", "text": "PART A 1 PCS 100.00 100.00", "bbox": (0.01, 0.25, 0.9, 0.05)},
+        {"label": "line_2", "text": "PART B 1 PCS 100.00 100.00", "bbox": (0.01, 0.35, 0.9, 0.05)},
+    ])
+    rows = vp.rows_from_line_items(read)
+    assert len(rows) == 2
+
+
+def test_rows_from_line_items_preserves_unparsed_row_with_money():
+    # line_2 has money 200.00 but unusual format that doesn't parse into tail cells
+    read = vp.PageRead(page_no=1, items=[
+        {"label": "line_1", "text": "PART A 1 PCS 100.00 100.00", "bbox": (0.01, 0.25, 0.9, 0.05)},
+        {"label": "line_2", "text": "PART B SPECIAL 200.00 EXTRA", "bbox": (0.01, 0.35, 0.9, 0.05)},
+    ])
+    rows = vp.rows_from_line_items(read)
+    assert len(rows) == 2
+    assert "PART B" in rows[1]["cells"]["description"]["text"]
+
+
+def test_merge_duplicate_rows_preserves_distinct_items_with_same_price():
+    rows = [
+        {"line_no": 1, "bbox": (0.01, 0.25, 0.9, 0.04), "cells": {
+            "description": {"text": "PART 001"}, "qty": {"text": "1"}, "unit_price": {"text": "100.00"}, "amount": {"text": "100.00"}}},
+        {"line_no": 2, "bbox": (0.01, 0.35, 0.9, 0.04), "cells": {
+            "description": {"text": "PART 002"}, "qty": {"text": "1"}, "unit_price": {"text": "100.00"}, "amount": {"text": "100.00"}}},
+    ]
+    kept, notes = vp.merge_duplicate_rows(rows, page=1)
+    assert len(kept) == 2
+
+
+def test_merge_duplicate_rows_preserves_distinct_items_even_if_bboxes_overlap():
+    rows = [
+        {"line_no": 1, "bbox": (0.01, 0.25, 0.9, 0.08), "cells": {
+            "description": {"text": "ITEM 1 BHA62147 F002"}, "qty": {"text": "1"}, "unit_price": {"text": "100.00"}, "amount": {"text": "100.00"}}},
+        {"line_no": 2, "bbox": (0.01, 0.28, 0.9, 0.08), "cells": {
+            "description": {"text": "ITEM 2 BHA62147 F003"}, "qty": {"text": "1"}, "unit_price": {"text": "100.00"}, "amount": {"text": "100.00"}}},
+    ]
+    kept, notes = vp.merge_duplicate_rows(rows, page=1)
+    assert len(kept) == 2
+
+
+def test_v08_n_to_1_group_passes_when_sum_matches():
+    from decimal import Decimal
+    from system_a.domain.contracts import InvoiceDoc, NField, NLine, ReceiptRow
+    from system_a.domain.matching import MatchGroup
+    from system_a.domain.standard import load_standard
+    from system_a.domain.v08 import build_payload
+
+    l1 = NLine(1, "D1-L1", {"description": NField("description", "d1", "A", "A", 1.0, True, None),
+                           "qty": NField("qty", "q1", "3006", Decimal("3006"), 1.0, True, None)}, "KG", ())
+    l2 = NLine(2, "D1-L2", {"description": NField("description", "d2", "B", "B", 1.0, True, None),
+                           "qty": NField("qty", "q2", "2906", Decimal("2906"), 1.0, True, None)}, "KG", ())
+    doc = InvoiceDoc("D1", {}, (l1, l2), {}, True)
+    r1 = ReceiptRow(176, "RCV1", "Rec", 1, "Item", Decimal("5912"), "Kilogram", Decimal("49.94"), Decimal("295245.28"), {})
+    group = MatchGroup(group_id="G1", relation="N:1", level="M3", invoice_line_nos=(1, 2), rcv_line_ids=("RCV1-1",), confidence=0.9, source="ai", rationale="Matched")
+
+    payload, expected = build_payload(doc, [group], {"RCV1-1": r1}, load_standard())
+    assert expected[1][0] == "pass"
+    assert expected[2][0] == "pass"
+
+
+def test_po_prefix_normalization_and_consensus():
+    v1, _, _ = vp.extract_value("po_number", "PO42052739")
+    v2, _, _ = vp.extract_value("po_number", "42052739")
+    assert v1 == "42052739"
+    assert v2 == "42052739"
+    winner, conf, agree, source, null_r = vp.consensus("PO42052739", None, "42052739", 0.95)
+    assert agree is True
+    assert winner == "42052739"
+    assert null_r is None
+
+
+def test_po_corroboration_from_line_items():
+    fields = {"po_number": vp.RawField(raw="42052739", confidence=0.7, agreement=False, region=None, source="vlm", null_reason=None)}
+    reads = {1: vp.PageRead(page_no=1, items=[
+        {"label": "line_1", "text": "ITEM A PO42052739 1 PCS 100.00 100.00", "bbox": (0.1, 0.2, 0.8, 0.05)}
+    ])}
+    log = []
+    vp.po_from_lines(fields, reads, [1], log)
+    assert fields["po_number"].agreement is True
+    assert fields["po_number"].confidence >= 0.96
+    assert fields["po_number"].null_reason is None
+
+
+def test_priority_crop_order_allocates_budget():
+    order = vp.field_crop_priority(["customer_address", "po_number", "customer_name", "invoice_num"])
+    assert order.index("invoice_num") < order.index("customer_address")
+    assert order.index("po_number") < order.index("customer_address")
+
+
+def test_header_scoping_ignores_attachment_doc_no():
+    options = [
+        (2, {"label": "doc_no", "text": "42052739", "confidence": 0.95, "bbox": (0.1, 0.1, 0.2, 0.05)})
+    ]
+    page, it = vp.pick_candidate("invoice_num", options, first_invoice=1, invoice_pages=[1])
+    assert page is None
+    assert it is None
+
+
+def test_ghost_rows_auto_fold_into_preceding_description():
+    rows = [
+        {"line_no": 1, "bbox": (0.01, 0.20, 0.9, 0.05), "cells": {
+            "description": {"text": "PART A MAIN"}, "qty": {"text": "2"}, "unit_price": {"text": "50.00"}, "amount": {"text": "100.00"}}},
+        {"line_no": 2, "bbox": (0.01, 0.26, 0.9, 0.04), "cells": {
+            "description": {"text": "EXTRA SPECIFICATION CONTINUED"}, "qty": {}, "unit_price": {}, "amount": {}}},
+    ]
+    folded = vp.fold_ghost_rows(rows)
+    assert len(folded) == 1
+    assert "EXTRA SPECIFICATION CONTINUED" in folded[0]["cells"]["description"]["text"]
+
+
+def test_date_iso_supports_english_and_thai_month_names():
+    from system_a.domain.normalize import date_iso
+    assert date_iso("4 Sep 2026") == "2026-09-04"
+    assert date_iso("07-SEP-2026") == "2026-09-07"
+    assert date_iso("15 October 2026") == "2026-10-15"
+    assert date_iso("1 ม.ค. 2569") == "2026-01-01"
+    assert date_iso("31 ส.ค. 69") == "2026-08-31"
+
+
+def test_split_number_supports_thai_dash_currency():
+    from decimal import Decimal
+    from system_a.domain.normalize import split_number
+    num, unit = split_number("3,000.-")
+    assert num == Decimal("3000.00")
+    num2, _ = split_number("15,500-")
+    assert num2 == Decimal("15500.00")
+    num3, u3 = split_number("300.- /PCS")
+    assert num3 == Decimal("300.00")
+    assert u3 == "PCS"
+
+
+def test_receiving_stamp_maps_to_receiver_signature():
+    assert "received_stamp" in vp.SIGNATURE_LABELS
+    assert vp.SIGNATURE_LABELS["received_stamp"] == "receiver"
+    read_p2 = vp.PageRead(page_no=2, items=[
+        {"type": "stamp", "label": "received_stamp", "text": "stamped", "bbox": [0.268, 0.528, 0.204, 0.072], "confidence": 0.9}
+    ])
+    pipe = vp.VisionPipeline(FakeVlm(), "fake", do_crops=False)
+    ctx = vp._Ctx(pdf=b"", infos={1: None, 2: None}, pngs={}, layers={})
+    fields, sigs, regions, _ = pipe._fields(ctx, {2: read_p2}, [1])
+    assert "receiver" in sigs
+    assert sigs["receiver"].present is True
+    assert sigs["receiver"].confidence == 0.9
+    assert sigs["receiver"].region.page == 2
+    assert tuple(sigs["receiver"].region.bbox) == (0.268, 0.528, 0.204, 0.072)
+
+
+def test_reconcile_grand_total_when_duplicated_subtotal():
+    # Case DMS-46: sub_total = 6400.00, vat = 448.00, grand_total read as 6400.00
+    fields = {"sub_total": _rf("6,400.00"), "vat": _rf("448.00"), "grand_total": _rf("6,400.00")}
+    cands = {"grand_total": []}
+    log = []
+    vp.reconcile_grand_total(fields, cands, log)
+    assert fields["grand_total"].raw == "6,848.00"
+    assert fields["grand_total"].agreement is True
+    assert log
+
+
+def test_collapse_duplicate_block_middle_block():
+    from system_a.domain.contracts import InvoiceDoc, NField, NLine
+    from system_a.domain.evidence import collapse_duplicate_block
+    from system_a.domain.standard import load_standard
+
+    def make_line(n, desc, amt):
+        return NLine(n, f"L{n}", {
+            "description": NField("description", f"L{n}-d", desc, desc, 1.0, True, None),
+            "qty": NField("qty", f"L{n}-q", "1", Decimal("1"), 1.0, True, None),
+            "unit_price": NField("unit_price", f"L{n}-p", str(amt), Decimal(str(amt)), 1.0, True, None),
+            "amount": NField("amount", f"L{n}-a", str(amt), Decimal(str(amt)), 1.0, True, None),
+        }, "PCS", ())
+
+    # Middle block duplicated: L1, L2, then duplicated L3(same as L1), L4(same as L2), then L5
+    # Subtotal is 100 + 200 + 300 = 600
+    l1 = make_line(1, "ITEM_A", 100)
+    l2 = make_line(2, "ITEM_B", 200)
+    l3 = make_line(3, "ITEM_A", 100) # dup of L1
+    l4 = make_line(4, "ITEM_B", 200) # dup of L2
+    l5 = make_line(5, "ITEM_C", 300)
+
+    doc = InvoiceDoc("D1", {"sub_total": NField("sub_total", "f-sub", "600.00", Decimal("600.00"), 1.0, True, None)},
+                     (l1, l2, l3, l4, l5), {}, True)
+    std = load_standard()
+    collapsed, note = collapse_duplicate_block(doc, None, std)
+    assert note is not None
+    assert [l.line_no for l in collapsed.lines] == [1, 2, 5]
+
+
+def test_multi_grid_table_rows_fallback_to_page_items():
+    """DMS-102: Multi-grid invoice where table_rows digitized the upper customer/PO grid (Y=0.20)
+    instead of the actual goods table (Y=0.33). Rows must fallback to page-read items and not float above header.
+    """
+    # Page read has table_header at Y=0.295, and two lines at Y=0.335 and Y=0.385
+    read = vp.PageRead(page_no=1, items=[
+        {"type": "table", "label": "table_header", "bbox": (0.075, 0.295, 0.83, 0.025), "text": "PRODUCT CODE QUANTITY DESCRIPTION AMOUNT"},
+        {"type": "line", "label": "line_1", "bbox": (0.135, 0.335, 0.805, 0.045), "text": "L3590 1 38.00 LOWER DIE FC 300 47.00/KG 1,786.00"},
+        {"type": "line", "label": "line_2", "bbox": (0.135, 0.385, 0.805, 0.025), "text": "L3591 1 136.00 UPPER DIE FC 300 47.00/KG 6,392.00"},
+    ])
+
+    # Mock VLM that returns table_rows in upper grid (Y=0.20, above header)
+    class FakeMultiGridVlm:
+        def chat_json(self, model, system, user, *, images=None, **kw):
+            return {
+                "table_bbox": [8, 165, 992, 245],
+                "columns": [{"label": "description", "bbox_2d": [532, 167, 814, 185]},
+                            {"label": "amount", "bbox_2d": [1000, 167, 1000, 185]}],  # zero width column
+                "rows": [
+                    {"line_no": 1, "bbox_2d": [8, 202, 992, 216], "cells": {
+                        "description": {"text": "LOWER DIE FC 300", "bbox_2d": [532, 204, 992, 215]},
+                        "qty": {"text": "38.00", "bbox_2d": [411, 204, 492, 215]},
+                        "amount": {"text": "1,786.00", "bbox_2d": [1000, 204, 1000, 215]}  # zero width cell
+                    }},
+                    {"line_no": 2, "bbox_2d": [8, 220, 992, 234], "cells": {
+                        "description": {"text": "UPPER DIE FC 300", "bbox_2d": [532, 221, 992, 232]},
+                        "qty": {"text": "136.00", "bbox_2d": [411, 221, 492, 232]},
+                        "amount": {"text": "6,392.00", "bbox_2d": [1000, 221, 1000, 232]}
+                    }}
+                ]
+            }
+
+    pipe = vp.VisionPipeline(FakeMultiGridVlm(), "fake", do_crops=False)
+    from system_a.domain.contracts import PageInfo
+    ctx = vp._Ctx(
+        pdf=b"",
+        pngs={1: b"fake"},
+        infos={1: PageInfo(page_no=1, width_pt=595, height_pt=842)},
+        layers={1: {"text": "", "words": []}}
+    )
+
+    lines, regions, errors, source, notes = pipe._lines(ctx, {1: read}, [1])
+
+    # Rows MUST NOT be above table header (Y >= 0.295)
+    assert lines[0].region.bbox[1] >= 0.295
+    assert lines[1].region.bbox[1] >= 0.295
+    # Row boxes must match page lines
+    assert lines[0].region.bbox == (0.135, 0.335, 0.805, 0.045)
+    assert lines[1].region.bbox == (0.135, 0.385, 0.805, 0.025)
+    # Cell boxes must carry row box and not be zero width
+    assert lines[0].cells["amount"].region.bbox[2] > 0
+    assert lines[0].cells["amount"].region.bbox == lines[0].region.bbox
+
+    # Table region T1-001 must not be floating above header
+    t_reg = next((r for r in regions if r.region_id == "T1-001"), None)
+    if t_reg:
+        assert t_reg.bbox[1] >= 0.295 or abs(t_reg.bbox[1] - 0.295) < 0.01
+
+
+def test_degenerate_bbox_sanitized_in_assembler():
+    """BBoxes with zero width or zero height must be sanitized to None in ocr.elements."""
+    from system_a.application.assembler import build_elements
+    from system_a.domain.contracts import ExtractionResult, InvoiceDoc, NField, NLine, PageInfo, RawField, RawLine, Region
+
+    rf_zero = RawField(raw="100.00", confidence=0.9, agreement=True, region=Region(page=1, bbox=(1.0, 0.20, 0.0, 0.01)))
+    rl = RawLine(line_no=1, region=Region(page=1, bbox=(0.1, 0.3, 0.8, 0.05)), cells={"amount": rf_zero})
+    nl = NLine(1, "D1-L1", {"amount": NField("amount", "D1-L1-amount", "100.00", Decimal("100.00"), 0.9, True, None)}, "PCS", ())
+
+    ext = ExtractionResult(
+        package_id="P1", dms_doc_id="DMS-102", file_sha256="abc",
+        pages=[PageInfo(page_no=1, width_pt=595, height_pt=842)], documents=[], invoice_document_id="D1",
+        pages_complete=True, fields={}, lines=[rl], signatures={}, words=[], regions=()
+    )
+    doc = InvoiceDoc("D1", {}, (nl,), {}, True)
+    els = build_elements(ext, doc)
+
+    # D1-L1-amount had zero width (0.0) -> its bbox in elements MUST be None!
+    assert els["D1-L1-amount"]["bbox"] is None
+

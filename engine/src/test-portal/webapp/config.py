@@ -50,8 +50,11 @@ def _path(v: Optional[str]) -> Optional[Path]:
 class Settings:
     host: str = "127.0.0.1"
     port: int = 8090
-    data_dir: Path = ROOT / "data"              # view + payload of what was processed (restart-proof)
-    workers: int = 4                            # documents processed at the same time
+    data_dir: Path = ROOT / "data"              # unused since results live in rounds; kept so an old .env still loads
+    results_dir: Path = ROOT.parents[1] / "results"   # engine/results - the batch rounds (DMS-<id>_result.json)
+    default_round: str = "portal"               # round used when nothing has been picked yet
+    workers: int = 4                            # documents a single click may have running at once
+    batch_concurrency: int = 10                 # documents a batch runs at the same time (the batch script does 10)
     render_dpi: int = 150                       # DPI the page images shown under the boxes are rendered at
     persist_results: bool = True                # false: nothing is written to disk (the browser holds the cases)
 
@@ -73,7 +76,10 @@ class Settings:
         s = cls(
             host=e("WEBAPP_HOST", "127.0.0.1"), port=int(e("WEBAPP_PORT", "8090")),
             data_dir=_path(e("WEBAPP_DATA_DIR")) or ROOT / "data",
+            results_dir=_path(e("WEBAPP_RESULTS_DIR")) or ROOT.parents[1] / "results",
+            default_round=(e("WEBAPP_ROUND") or "portal").strip(),
             workers=int(e("WEBAPP_WORKERS", "4")),
+            batch_concurrency=int(e("WEBAPP_BATCH_CONCURRENCY", "10")),
             render_dpi=int(e("WEBAPP_RENDER_DPI", "150")),
             persist_results=_bool(e("WEBAPP_PERSIST"), True),
             system_a_home=_path(e("SYSTEM_A_HOME")),
@@ -96,6 +102,12 @@ class Settings:
             raise ValueError(f"SYSTEM_A_MODE must be production|sandbox, got {self.mode!r}")
         if self.workers < 1:
             raise ValueError("WEBAPP_WORKERS must be >= 1")
+        if self.batch_concurrency < 1:
+            raise ValueError("WEBAPP_BATCH_CONCURRENCY must be >= 1")
+        if not self.default_round:
+            raise ValueError("WEBAPP_ROUND is empty: the portal needs a round to write into")
+        from .store import safe_round                       # one rule for what a round name may be (store owns it)
+        safe_round(self.default_round)
         if not 72 <= self.render_dpi <= 400:
             raise ValueError(f"WEBAPP_RENDER_DPI must be 72-400, got {self.render_dpi}")
         if self.paperless_limit < 1:

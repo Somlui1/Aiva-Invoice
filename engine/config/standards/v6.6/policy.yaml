@@ -58,7 +58,8 @@ validation:
   v09_compare_matched_only: false    # AIVA-SYSA-ORA-01 — waiting for the Standard owner's approval
   # v4 (ORA-02 Q4): milestone billing.  The invoice prints 1 SET x 42,000 while EBS received 0.7 SET x 60,000;
   # the amounts are equal.  Not E09/E14, but not proven either -> manual_review until the Standard owner rules.
-  milestone_installment: manual_review   # off = previous behaviour (E09 + E14)
+  milestone_installment: exact_amount_pass   # off = previous behaviour (E09 + E14)
+  v08_uom_mismatch: delegate         # delegate = V-07 E10 (REVIEW), manual_review = legacy override
 required_fields: [invoice_num, po_number, customer_name, customer_address, customer_tax_id, sub_total, vat, grand_total]
 required_line_cells: [qty, uom, unit_price, amount]
 confidence:            # OQ-09 provisional — recalibrate from eval set

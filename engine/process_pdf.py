@@ -118,6 +118,7 @@ def process_pdf(
     quick: bool = False,
     json_only: bool = False,
     quiet: bool = False,
+    model_vision: str | None = None,
 ) -> dict:
     t0 = time.time()
     load_env()
@@ -128,6 +129,9 @@ def process_pdf(
         settings = replace(settings, mode="production", ai_mode="litellm")
     else:
         settings = replace(settings, mode="sandbox", ai_mode="sim")
+
+    if model_vision:
+        settings = replace(settings, model_vision=model_vision)
 
     if quick:
         settings = replace(settings, do_crops=False, do_table=False)
@@ -233,6 +237,7 @@ def main() -> int:
     parser.add_argument("--quick", action="store_true", help="Skip detail crops/tables for faster dry-run")
     parser.add_argument("--json-only", action="store_true", help="Output only the final JSON to stdout")
     parser.add_argument("--quiet", "-q", action="store_true", help="Suppress all stdout printing except errors")
+    parser.add_argument("--model-vision", "--model", dest="model_vision", default=None, help="VLM vision model name")
 
     args = parser.parse_args()
 
@@ -248,6 +253,7 @@ def main() -> int:
             quick=args.quick,
             json_only=args.json_only,
             quiet=args.quiet,
+            model_vision=args.model_vision,
         )
         return 0
     except Exception as e:

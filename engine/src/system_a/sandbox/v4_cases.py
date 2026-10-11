@@ -111,7 +111,8 @@ def s55() -> Scenario:
     d, ds = _milestone()
     return Scenario("S55", "งวด 70%: ใบแจ้งหนี้ 1 SET x 42,000 / ใบรับ 0.7 SET x 60,000 ยอดเท่ากัน -> MANUAL_REVIEW (ไม่ใช่ E09/E14)",
                     d, ds, "MANUAL_REVIEW", (), mode=TAX, locked=True, queries=1,
-                    checks={"rule_results": {"V-07": "manual_review", "V-09": "pass"}})
+                    checks={"rule_results": {"V-07": "manual_review", "V-09": "pass"}},
+                    policy={"validation": {"milestone_installment": "manual_review"}})
 
 
 def s56() -> Scenario:

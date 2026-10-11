@@ -148,6 +148,9 @@ def v06_signatures(c: Ctx) -> RuleOutcome:
     if out:
         return _fail("V-06", out, unsure_slots=unsure)
     if unsure:
+        has_receipt = bool(getattr(c.snapshot, "active", None) or getattr(c.snapshot, "found", False))
+        if has_receipt and unsure == ["deliverer"]:
+            return _ok("V-06", detail="ยืนยันการรับของจากใบรับสินค้าใน Oracle EBS (waive deliverer)", data={"waived_slots": ["deliverer"]})
         return RuleOutcome("V-06", "manual_review", detail=f"ความมั่นใจต่ำ: {unsure}", data={"unsure_slots": unsure})
     return _ok("V-06")
 
@@ -312,17 +315,29 @@ def v05_customer(c: Ctx) -> RuleOutcome:
             r = c.entity_ai.parse_address(d.v("customer_address"))
             c.ai_trace.setdefault("v05", []).append({"task": "address", **r})
             if float(r.get("confidence", 0)) < th:
-                data.update(address_match=None)
-                return RuleOutcome("V-05", "manual_review", tuple(findings), "AI ไม่มั่นใจเรื่องที่อยู่", data=data)
-            ai_key = (thai_to_arabic(str(r.get("house_no") or "")) or None,
-                      thai_to_arabic(str(r.get("postal_code") or "")) or None)
-            hit = next((k for k, v in keys.items() if None not in ai_key and v == ai_key), None)
-            how = "ai_normalized"
-        data.update(address_match=bool(hit), address_matched=hit, address_method=how if hit else None)
-        if not hit:
+                data.update(address_match=None, address_method="ai_unconfident")
+                if data.get("tax_id_match") is True:
+                    findings.append(_f(c, "E07", "V-05", "AI ไม่มั่นใจเรื่องที่อยู่ลูกค้า", "Medium",
+                                       actual=d.v("customer_address"), element_ids=fid("customer_address")))
+                else:
+                    return RuleOutcome("V-05", "manual_review", tuple(findings), "AI ไม่มั่นใจเรื่องที่อยู่", data=data)
+            else:
+                ai_key = (thai_to_arabic(str(r.get("house_no") or "")) or None,
+                          thai_to_arabic(str(r.get("postal_code") or "")) or None)
+                hit = next((k for k, v in keys.items() if None not in ai_key and v == ai_key), None)
+                how = "ai_normalized"
+                data.update(address_match=bool(hit), address_matched=hit, address_method=how if hit else None)
+                if not hit:
+                    findings.append(_f(c, "E07", "V-05", f"ที่อยู่ลูกค้า (เลขที่ {inv_key[0]}, รหัสไปรษณีย์ {inv_key[1]}) "
+                                                         f"ไม่ตรงกับที่อยู่ของ ORG_ID {org}", "Medium",
+                                       actual=d.v("customer_address"), element_ids=fid("customer_address")))
+        elif not hit:
+            data.update(address_match=False, address_matched=None, address_method=None)
             findings.append(_f(c, "E07", "V-05", f"ที่อยู่ลูกค้า (เลขที่ {inv_key[0]}, รหัสไปรษณีย์ {inv_key[1]}) "
                                                  f"ไม่ตรงกับที่อยู่ของ ORG_ID {org}", "Medium",
                                actual=d.v("customer_address"), element_ids=fid("customer_address")))
+        else:
+            data.update(address_match=True, address_matched=hit, address_method="logic")
     if name_issue is not None:
         address_ok = data.get("address_match") is True or data.get("address_check") == "covered_by_customer_tax_id"
         if address_ok:
@@ -406,6 +421,15 @@ def v07_line_match(c: Ctx) -> RuleOutcome:
         # receipt line — same amount, the invoice prints the instalment as price, EBS as a fraction of qty.
         data["installments"] = installments
         c.match_trace["installment_lines"] = [i["invoice_line_no"] for i in installments]
+        mode = installments[0].get("mode", "manual_review")
+        if mode == "exact_amount_pass":
+            c.match_trace["installment_mode"] = "exact_amount_pass"
+            return _fail("V-07", out, **data) if out else _ok("V-07", detail=f"วางบิลเป็นงวด {len(installments)} บรรทัด (ยอดเงินตรงใบรับ)", **data)
+        elif mode == "review":
+            c.match_trace["installment_mode"] = "review"
+            out.append(_f(c, "E12", "V-07", f"วางบิลเป็นงวด {len(installments)} บรรทัด (ยอดเงินตรงใบรับ)", "Medium",
+                          element_ids=tuple(l.element_id for l in c.doc.lines if l.line_no in c.match_trace["installment_lines"])))
+            return _fail("V-07", out, **data)
         return RuleOutcome("V-07", "manual_review", tuple(out),
                            f"วางบิลเป็นงวด {len(installments)} บรรทัด (ยอดเงินตรงใบรับ แต่ราคา/จำนวนเป็นสัดส่วนงวด) "
                            "— รอมาตรฐานกำหนด ให้คนตรวจ", data=data)
@@ -419,7 +443,7 @@ def _installment(c: Ctx, l, rcv, g) -> Optional[dict]:
     PO price, while the invoice prints 1 SET at the instalment price.  Recognised only when every number
     agrees except that split: same amount, invoice qty x price = amount, receipt qty below invoice qty."""
     mode = str((c.std.policy.get("validation") or {}).get("milestone_installment") or "off")
-    if mode != "manual_review" or g.relation != "1:1" or len(rcv) != 1:
+    if mode not in ("manual_review", "exact_amount_pass", "review") or g.relation != "1:1" or len(rcv) != 1:
         return None
     r = rcv[0]
     q, p, a = l.v("qty"), l.v("unit_price"), l.v("amount")
@@ -430,7 +454,8 @@ def _installment(c: Ctx, l, rcv, g) -> Optional[dict]:
         return None
     return {"invoice_line_no": l.line_no, "rcv_line_id": r.rcv_line_id,
             "invoice": f"{q} x {p} = {a}", "receipt": f"{r.qty} x {r.unit_price} = {r.line_amount}",
-            "receipt_fraction": str((r.qty / q).normalize())}
+            "receipt_fraction": str((r.qty / q).normalize()),
+            "mode": mode}
 
 
 def _values_confirm(c: Ctx, l, rcv, g, pc) -> bool:
@@ -450,10 +475,20 @@ def v08_quantity(c: Ctx) -> RuleOutcome:
     merged, majority = v08mod.vote([c.qty_ai.judge(payload) for _ in range(n)])
     results, dis = v08mod.guard(merged, expected, c.std.policy["ai"]["v08_consistency_guard"])
     inst = set(c.match_trace.get("installment_lines") or ())
+    inst_mode = c.match_trace.get("installment_mode") or str((c.std.policy.get("validation") or {}).get("milestone_installment") or "off")
     if inst:                                      # v4: V-07 found a milestone split -> quantity is not E14/E15
-        results = [{**lr, "result": "manual_review", "code": None, "severity": None, "message": None,
-                    "reason": "INSTALLMENT (ดู V-07)"} if lr.get("invoice_line_no") in inst else lr
-                   for lr in results]
+        if inst_mode == "exact_amount_pass":
+            results = [{**lr, "result": "pass", "code": None, "severity": None, "message": None,
+                        "reason": "INSTALLMENT: ยอดเงินตรงใบรับ"} if lr.get("invoice_line_no") in inst else lr
+                       for lr in results]
+        elif inst_mode == "review":
+            results = [{**lr, "result": "not_evaluated", "code": None, "severity": None, "message": None,
+                        "reason": "INSTALLMENT (ดู V-07)"} if lr.get("invoice_line_no") in inst else lr
+                       for lr in results]
+        else:
+            results = [{**lr, "result": "manual_review", "code": None, "severity": None, "message": None,
+                        "reason": "INSTALLMENT (ดู V-07)"} if lr.get("invoice_line_no") in inst else lr
+                       for lr in results]
     c.ai_trace["v08"] = {"votes": n, "majority": majority, "disagreements": dis}
     lines = {l.line_no: l for l in c.doc.lines}
     gid_of = {x: g for g in c.groups for x in g.invoice_line_nos}

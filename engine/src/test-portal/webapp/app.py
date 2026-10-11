@@ -15,8 +15,22 @@
     GET    /api/documents/{id}/pages/{n}/image    that page rendered, to draw the boxes on
     GET    /api/search?q=                         ids of processed documents whose payload text contains q
 
+    GET    /api/rounds                            the rounds in the results directory and which one is open
+    POST   /api/rounds/create                     open a new round folder
+    POST   /api/rounds/select                     look at another round (nothing is deleted)
+    GET    /api/rounds/summary                    summary.json of the open round
+    POST   /api/rounds/summary/rebuild            fold it again from the DMS-*_result.json files
+    GET    /api/rounds/compare?base=&target=      what moved between two rounds
+
+    POST   /api/batch/start                       run a list of documents into the open round (202)
+    POST   /api/batch/stop                        let go of the queued ones
+    GET    /api/batch/status                      progress, for the polling browser
+
 There is no stand-in page and no second source anywhere in here: if System A did not produce something, the
 request says so (409 while it has not run, 502 when the file cannot be read) and the UI shows the failure.
+
+A round name arrives from the browser, so it goes through the store's own rule before anything is opened: a name
+that looks like a path is a 400, not a folder outside the results directory.
 """
 from __future__ import annotations
 
@@ -25,16 +39,29 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse, Response
+from pydantic import BaseModel
 
 from . import __version__
 from .config import Settings
-from .service import Busy, DocumentService, NotReady
+from .service import Busy, DocumentService, NotReady, NotRoundStore
 from .view import COLORS, DEFAULT_TYPES, ELEMENT_TYPES
 
 log = logging.getLogger("webapp.api")
 STATIC = Path(__file__).resolve().parent / "static"
 NO_STORE = {"Cache-Control": "no-store"}
 LONG_CACHE = {"Cache-Control": "private, max-age=3600"}
+
+
+class RoundName(BaseModel):
+    """The round the tester picked (or asked for) in the selector."""
+    name: str = ""
+
+
+class BatchRun(BaseModel):
+    """What to run: the documents ticked in the list, and how many of them at a time."""
+    doc_ids: list[int] = []
+    skip_existing: bool = True
+    concurrency: int = 0
 
 
 def create_app(settings: Settings, service: DocumentService, catalog) -> FastAPI:
@@ -45,6 +72,17 @@ def create_app(settings: Settings, service: DocumentService, catalog) -> FastAPI
             return catalog.get(doc_id)
         except KeyError:
             raise HTTPException(404, f"unknown document {doc_id}") from None
+
+    def round_command(fn, *args, **kw):
+        """Run a round/batch command and turn its complaints into a status the browser can act on.
+
+        A name the store will not accept is the caller's mistake (400); a document that is busy, a batch already
+        going, or a store with no rounds at all is a state to react to (409).
+        """
+        try:
+            return fn(*args, **kw)
+        except (ValueError, Busy, NotRoundStore) as e:
+            raise HTTPException(400 if isinstance(e, ValueError) else 409, str(e)) from None
 
     @app.get("/", include_in_schema=False)
     def index():
@@ -58,6 +96,7 @@ def create_app(settings: Settings, service: DocumentService, catalog) -> FastAPI
     def meta():
         return {"version": __version__, "engine": settings.engine, "mode": settings.mode, "quick": settings.quick,
                 "persist": settings.persist_results, "workers": settings.workers, "render_dpi": settings.render_dpi,
+                "round": getattr(service.store, "active_round", None), "results_dir": str(settings.results_dir),
                 "source": catalog.stats(), "system_a": str(settings.system_a_home or ""),
                 "colors": COLORS, "element_types": list(ELEMENT_TYPES), "default_types": list(DEFAULT_TYPES)}
 
@@ -163,5 +202,54 @@ def create_app(settings: Settings, service: DocumentService, catalog) -> FastAPI
     @app.get("/api/search")
     def search(q: str = Query("", max_length=200)):
         return {"q": q, "ids": service.search(q)}
+
+    # ------------------------------------------------------------------ rounds
+    @app.get("/api/rounds")
+    def rounds():
+        return round_command(service.rounds)
+
+    @app.post("/api/rounds/create")
+    def round_create(body: RoundName):
+        """Open a round folder.  Opening one does not look at it - that is ``select``."""
+        return round_command(service.create_round, body.name)
+
+    @app.post("/api/rounds/select")
+    def round_select(body: RoundName):
+        """Look at another round: the portal reads and writes that folder from now on, and nothing is deleted."""
+        return round_command(service.switch_round, body.name)
+
+    @app.get("/api/rounds/summary")
+    def round_summary():
+        try:
+            return JSONResponse(service.summary(), headers=NO_STORE)
+        except (NotReady, NotRoundStore) as e:
+            raise HTTPException(409, str(e)) from None
+
+    @app.post("/api/rounds/summary/rebuild")
+    def round_summary_rebuild():
+        """Fold ``summary.json`` of the open round again from the result files it holds."""
+        summary = round_command(service.rebuild_summary)
+        if summary is None:
+            raise HTTPException(500, "cannot write summary.json of this round - the portal log says why")
+        return JSONResponse(summary, headers=NO_STORE)
+
+    @app.get("/api/rounds/compare")
+    def round_compare(base: str = Query("", max_length=120), target: str = Query("", max_length=120)):
+        if not base.strip() or not target.strip():
+            raise HTTPException(400, "pick both rounds to compare")
+        return JSONResponse(round_command(service.compare_rounds, base.strip(), target.strip()), headers=NO_STORE)
+
+    # ------------------------------------------------------------------ batches
+    @app.post("/api/batch/start", status_code=202)
+    def batch_start(body: BatchRun):
+        return round_command(service.start_batch, list(body.doc_ids), body.skip_existing, int(body.concurrency))
+
+    @app.post("/api/batch/stop")
+    def batch_stop():
+        return service.stop_batch()
+
+    @app.get("/api/batch/status")
+    def batch_status():
+        return service.batch_status()
 
     return app

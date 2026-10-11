@@ -346,7 +346,8 @@ def s13() -> Scenario:
     lines = (L(1, "ITM-1001", BRACKET, 10, "KG", "100.00"),)
     return Scenario("S13", "หน่วยนับต่างกลุ่ม เทียบจำนวนไม่ได้", doc(lines=lines),
                     DS([E(PO_A, INV_A, [R(PO_A, "RCV-0000012345", 1, BRACKET, 10, "EA", "100.00")])],
-                       {PO_A: SUP_TAX}), "MANUAL_REVIEW", ("E10",), queries=1)
+                       {PO_A: SUP_TAX}), "MANUAL_REVIEW", ("E10",), queries=1,
+                    policy={"validation": {"v08_uom_mismatch": "manual_review"}})
 
 
 def s14() -> Scenario:

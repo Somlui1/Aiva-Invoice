@@ -350,4 +350,18 @@ def collapse_duplicate_block(doc: InvoiceDoc, snap: Optional[OracleSnapshot],
                     "same_as_line_nos": [l.line_no for l in lines[i:i + m]],
                     "basis": basis, "target": str(target),
                     "rule": "last rows repeat earlier rows (qty, price, amount, item code) and the rest closes"}
+        for i in range(0, n - 2 * m + 1):
+            block = sigs[i:i + m]
+            for j in range(i + m, n - m + 1):
+                if sigs[j:j + m] == block:
+                    rem_amounts = amounts[:j] + amounts[j + m:]
+                    if abs(sum(rem_amounts, Decimal(0)) - target) <= tol:
+                        kept = tuple(lines[:j] + lines[j + m:])
+                        return replace(doc, lines=kept), {
+                            "kept_line_nos": [l.line_no for l in kept],
+                            "dropped_line_nos": [l.line_no for l in lines[j:j + m]],
+                            "same_as_line_nos": [l.line_no for l in lines[i:i + m]],
+                            "basis": basis, "target": str(target),
+                            "rule": "middle rows repeat earlier rows (qty, price, amount, item code) and the rest closes"}
+
     return doc, None
