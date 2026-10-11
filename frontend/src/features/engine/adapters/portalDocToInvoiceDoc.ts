@@ -388,6 +388,7 @@ export function portalDocToInvoiceDoc(
 
   if (doc.receiverName) out.receiver = doc.receiverName
   if (opts.includeBoxes) {
+    out.bboxes = doc.bboxes
     out.raw_payload = portalBboxesToRawPayload(doc, opts) as unknown as Record<string, unknown>
   }
   return out

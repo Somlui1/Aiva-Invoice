@@ -29,17 +29,29 @@ export default function StandaloneViewerPage() {
           const d = data.document
           setDoc(d)
           setPageCount(d.pages || 1)
-          if (Array.isArray(d.bboxes)) {
-            const mapped: BBoxItem[] = d.bboxes.map((b: any, idx: number) => ({
-              id: b.id || `b-${idx}`,
-              pageNo: b.pageNo || 1,
-              type: mapBBoxType(b.fieldName, b.elementType),
-              label: b.fieldName || b.elementType || `box_${idx + 1}`,
-              text: b.rawValue || '',
-              bbox_norm: b.bbox || [0, 0, 0, 0],
-            }))
-            setItems(mapped)
-          }
+          const rawBoxes =
+            Array.isArray(d.bboxes) && d.bboxes.length > 0
+              ? d.bboxes
+              : Array.isArray(d.raw_payload?.ocr?.elements)
+                ? d.raw_payload.ocr.elements.map((el: any) => ({
+                    id: el.element_id,
+                    pageNo: el.page_no,
+                    bbox: el.bbox,
+                    fieldName: el.field_name,
+                    rawValue: el.raw_value,
+                    elementType: el.element_type,
+                  }))
+                : []
+
+          const mapped: BBoxItem[] = rawBoxes.map((b: any, idx: number) => ({
+            id: b.id || `b-${idx}`,
+            pageNo: b.pageNo || b.page_no || 1,
+            type: mapBBoxType(b.fieldName || b.field_name, b.elementType || b.element_type),
+            label: b.fieldName || b.field_name || b.elementType || b.element_type || `box_${idx + 1}`,
+            text: b.rawValue ?? b.raw_value ?? '',
+            bbox_norm: b.bbox || [0, 0, 0, 0],
+          }))
+          setItems(mapped)
         }
       })
       .catch((err) => {
