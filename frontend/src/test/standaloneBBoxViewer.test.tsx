@@ -242,7 +242,7 @@ describe('Task 4: Standalone PDF BBox Viewer', () => {
   })
 
   it('correctly classifies various field names into 10 categories with mapBBoxType', async () => {
-    const { mapBBoxType } = await import('../app/viewer/[id]/page')
+    const { mapBBoxType } = await import('../features/pdf-viewer/components/StandaloneBBoxViewer')
     expect(mapBBoxType('supplier_name', 'field')).toBe('supplier')
     expect(mapBBoxType('customer_tax_id', 'field')).toBe('customer')
     expect(mapBBoxType('doc_title', 'field')).toBe('header')

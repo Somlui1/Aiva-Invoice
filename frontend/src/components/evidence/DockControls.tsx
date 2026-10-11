@@ -101,7 +101,7 @@ export function DockControls({
     if (onOpenNewTab) {
       onOpenNewTab()
     } else if (doc?.doc) {
-      window.open(`/api/documents/${doc.doc}/pdf`, '_blank')
+      window.open(`/viewer/${doc.doc}`, '_blank')
     }
   }
 

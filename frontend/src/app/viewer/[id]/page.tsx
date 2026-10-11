@@ -5,66 +5,8 @@ import { useParams } from 'next/navigation'
 import {
   StandaloneBBoxViewer,
   type BBoxItem,
+  mapBBoxType,
 } from '@/features/pdf-viewer/components/StandaloneBBoxViewer'
-
-export function mapBBoxType(fieldName?: string, elementType?: string): string {
-  const f = (fieldName || '').toLowerCase()
-  const t = (elementType || '').toLowerCase()
-  if (
-    t === 'header' ||
-    f.includes('header') ||
-    f.includes('title') ||
-    f.includes('inv_num') ||
-    f.includes('doc_')
-  ) {
-    return 'header'
-  }
-  if (t === 'supplier' || f.includes('supplier') || f.includes('vendor')) {
-    return 'supplier'
-  }
-  if (t === 'customer' || f.includes('customer') || f.includes('buyer')) {
-    return 'customer'
-  }
-  if (t === 'table' || f.includes('table')) {
-    return 'table'
-  }
-  if (
-    t === 'line' ||
-    f.includes('line') ||
-    f.includes('item') ||
-    f.includes('desc') ||
-    f.includes('qty') ||
-    f.includes('price')
-  ) {
-    return 'line'
-  }
-  if (
-    t === 'total' ||
-    f.includes('total') ||
-    f.includes('vat') ||
-    f.includes('subtotal') ||
-    f.includes('amount')
-  ) {
-    return 'total'
-  }
-  if (
-    t === 'payment' ||
-    f.includes('payment') ||
-    f.includes('credit') ||
-    f.includes('term') ||
-    f.includes('bank') ||
-    f.includes('due')
-  ) {
-    return 'payment'
-  }
-  if (t === 'signature' || f.includes('sign')) {
-    return 'signature'
-  }
-  if (t === 'stamp' || f.includes('stamp')) {
-    return 'stamp'
-  }
-  return 'other'
-}
 
 export default function StandaloneViewerPage() {
   const params = useParams()
