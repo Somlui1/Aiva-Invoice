@@ -4259,6 +4259,22 @@ export const INITIAL_DOCS: InvoiceDoc[] = INITIAL_DOCS_RAW.map((d: any) => {
       match_level: l[8],
       diff: l[8] === '—' || l[8] === 'M5'
     })),
+    oracleReceiptLines: (d.lines || []).map((l: any, idx: number) => ({
+      poNumber: d.po || '42052823',
+      receiptNum: d.rcv || '530340001',
+      lineNo: idx + 1,
+      rcvLineId: `${d.rcv || '530340001'}-${idx + 1}`,
+      itemCode: `ITEM-${idx + 1}`,
+      itemDesc: l[0],
+      qty: l[6] ?? l[1],
+      uom: l[2] ?? 'PCS',
+      unitPrice: l[7] ?? l[3],
+      lineAmount: (l[6] ?? l[1]) * (l[7] ?? l[3]),
+      qtyBilled: l[1],
+      lineStatus: 'FULLY RECEIVED',
+      poLineStatus: 'CLOSED',
+      receiver: d.receiver,
+    })),
     pages: d.pages || 1,
     history: d.xh ? d.xh.map((x: any) => ({
       dt: x.t ? x.t.split(' ')[0] : '2026-10-01',
