@@ -33,4 +33,4 @@
 | val-task-2 | Validation Category Theme Definitions & Color Palette | completed | Created validationCategories.ts with 4 categories & theme tokens; added .hl.cat-* rules in evidence.css; RED->GREEN (4/4 tests pass, tsc clean) |
 | val-task-3 | Single-Active BBox Filtering & Cell Specificity in Projector | completed | Added activeRuleId/activeExceptionCode filtering in projectOverlayBoxes; attached category to OverlayBox & BoundingBoxOverlay; RED->GREEN (3/3 tests pass, 56/56 coordinateTransform pass, tsc clean) |
 | val-task-4 | Interactive Validation Card Click & Bi-directional Auto-Scroll Integration | completed | Made whole card clickable with category borders, openEvidenceDock & single active selection, auto-scroll centering; RED->GREEN (2/2 tests pass, 12/12 new tests pass, tsc clean) |
-| val-task-5 | End-to-End Verification & Full Regression Pass | pending | Run npm test, npx tsc, npm run build to verify zero regressions |
+| val-task-5 | End-to-End Verification & Full Regression Pass | completed | Full test suite 24/24 files (201/201 tests pass exit 0); npx tsc --noEmit (0 errors exit 0); Next.js production build (18/18 routes exit 0) |
