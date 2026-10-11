@@ -72,7 +72,7 @@ interface InvoiceContextType {
   /** True while the dock is fetching/rasterising the PDF; drives the spinners. */
   isPdfLoading: boolean
   setIsPdfLoading: (loading: boolean) => void
-  evidenceDockFocus: { page: number; ruleId?: string } | null
+  evidenceDockFocus: { page: number; ruleId?: string; nonce?: number } | null
   /**
    * Last box the analyst picked on the evidence surface — the reverse link of
    * `evidenceDockFocus`. The detail pane highlights the matching rule/row.
@@ -117,7 +117,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
   const [isEvidenceDockOpen, setIsEvidenceDockOpen] = useState<boolean>(false)
   const [dockSplitRatio, setDockSplitRatio] = useState<number>(0.4)
   const [isPdfLoading, setIsPdfLoading] = useState<boolean>(false)
-  const [evidenceDockFocus, setEvidenceDockFocus] = useState<{ page: number; ruleId?: string } | null>(null)
+  const [evidenceDockFocus, setEvidenceDockFocus] = useState<{ page: number; ruleId?: string; nonce?: number } | null>(null)
   const [evidenceSelection, setEvidenceSelection] = useState<EvidenceSelection | null>(null)
 
   useEffect(() => {
@@ -173,8 +173,9 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const openEvidenceDock = useCallback((page = 1, ruleId?: string) => {
+    setViewMode('split')
     setIsEvidenceDockOpen(true)
-    setEvidenceDockFocus({ page, ruleId })
+    setEvidenceDockFocus({ page, ruleId, nonce: Date.now() })
   }, [])
 
   const closeEvidenceDock = useCallback(() => {

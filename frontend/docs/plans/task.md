@@ -36,8 +36,8 @@
 | val-task-5 | End-to-End Verification & Full Regression Pass | completed | Full test suite 24/24 files (201/201 tests pass exit 0); npx tsc --noEmit (0 errors exit 0); Next.js production build (18/18 routes exit 0) |
 | oracle-bbox-brainstorm | Complete brainstorming & design for Oracle receipts, BBox viewer & schema | completed | Design approved & written to docs/plans/2026-10-11-oracle-receipts-pdf-bbox-viewer-design.md |
 | oracle-bbox-plan | Generate implementation plan | completed | Written to docs/plans/2026-10-11-oracle-receipts-pdf-bbox-viewer.md |
-| task-receipts-1 | Web Schema Contract & Domain Types Extension | pending | Task 1: temp/schemas/web_schema.json + portalDomain.ts + tests |
-| task-receipts-2 | Adapter Mapping for Oracle Receipt Lines & Multi-PO Grouping | pending | Task 2: engineToPortalAdapter.ts + backendApi.ts + tests |
-| task-receipts-3 | Oracle Receipts UI Tab in InvoiceDetailPane | pending | Task 3: InvoiceDetailPane.tsx + queue.css + tests |
-| task-receipts-4 | Standalone PDF BBox Viewer Route (/viewer/[id]) | pending | Task 4: StandaloneBBoxViewer.tsx + /viewer/[id]/page.tsx + tests |
+| task-receipts-1 | Web Schema Contract & Domain Types Extension | completed | Task 1: temp/schemas/web_schema.json + portalDomain.ts + tests (4/4 pass, commit af5f925) |
+| task-receipts-2 | Adapter Mapping for Oracle Receipt Lines & Multi-PO Grouping | completed | Task 2: engineToPortalAdapter.ts + backendApi.ts + tests (207/207 pass, commit 153dd55) |
+| task-receipts-3 | Oracle Receipts UI Tab in InvoiceDetailPane | completed | Task 3: InvoiceDetailPane.tsx + queue.css + tests (3/3 pass, commit 905b1cc) |
+| task-receipts-4 | Standalone PDF BBox Viewer Route (/viewer/[id]) | completed | Task 4: StandaloneBBoxViewer.tsx + /viewer/[id]/page.tsx + standaloneViewer.css + 6 tests pass; tsc clean |
 | task-receipts-5 | Link to Standalone Viewer & End-to-End Regression Pass | pending | Task 5: trigger buttons + full regression & build pass |
