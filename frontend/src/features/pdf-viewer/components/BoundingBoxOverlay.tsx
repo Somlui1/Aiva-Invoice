@@ -32,6 +32,7 @@ export interface BoundingBoxOverlayProps {
 const severityClass = (box: OverlayBox, hoveredId: string | null): string =>
   [
     'hl',
+    box.category ? `cat-${box.category}` : '',
     box.severity === 'High' ? 'High' : box.severity === 'Medium' ? 'Medium' : '',
     box.focused ? 'focus' : '',
     box.id === hoveredId ? 'hover' : '',
@@ -80,6 +81,7 @@ export function BoundingBoxOverlay({
                 key={box.id}
                 className={severityClass(box, hoveredId)}
                 style={style}
+                data-id={box.id}
                 data-rule={box.ruleId ?? undefined}
                 data-line={box.lineNo ?? undefined}
                 title={box.tooltip || undefined}
