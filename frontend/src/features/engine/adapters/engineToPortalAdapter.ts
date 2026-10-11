@@ -22,6 +22,7 @@ import {
   type PortalException,
   type PortalInvoiceDocument,
   type PortalLineItem,
+  type PortalOracleReceiptLine,
   type PortalPageType,
   type PortalRuleCheck,
   type PortalSeverity,
@@ -345,6 +346,50 @@ export function transformValidatedEngineResult(engine: EngineResultV3): PortalIn
   const poFromOracle = asArray(os.po_numbers).filter((x): x is string => typeof x === 'string')
   const poFromInvoice = str(nf.po_number)
 
+  const oracleReceiptLines: PortalOracleReceiptLine[] = receiptLines.map((l, idx) => {
+    const extra = asRecord(l.extra)
+    const poNum =
+      str(l.po_number) ??
+      str(extra.PO_NUM) ??
+      poFromOracle[0] ??
+      poFromInvoice ??
+      ''
+    const receiptNum = str(l.receipt_num) ?? receiptNums[0] ?? ''
+    const lineNo = num(l.line) ?? num(l.line_no) ?? idx + 1
+    const rcvLineId =
+      str(l.rcv_line_id) ?? (receiptNum ? `${receiptNum}-${lineNo}` : `rcv-${lineNo}`)
+    const itemCode = str(l.item_code) ?? str(extra.ITEM_CODE) ?? null
+    const itemDesc = str(l.item) ?? str(l.item_desc) ?? ''
+    const qty = num(l.qty) ?? 0
+    const uom = str(l.uom) ?? str(l.uom_group) ?? ''
+    const unitPrice = num(l.unit_price) ?? 0
+    const lineAmount = num(l.line_amount) ?? round2(qty * unitPrice)
+    const qtyBilled = num(l.qty_billed) ?? num(extra.QTY_BILLED) ?? undefined
+    const lineStatus = str(l.line_status) ?? null
+    const poLineStatus = str(l.po_line_status) ?? null
+    const receiver = str(l.receiver) ?? str(os.receiver) ?? null
+    const ouName = str(l.ou_name) ?? str(os.ou_name) ?? null
+
+    return {
+      poNumber: poNum,
+      receiptNum,
+      lineNo,
+      rcvLineId,
+      itemCode,
+      itemDesc,
+      qty,
+      uom,
+      unitPrice,
+      lineAmount,
+      qtyBilled,
+      lineStatus,
+      poLineStatus,
+      receiver,
+      ouName,
+      extra: Object.keys(extra).length > 0 ? extra : undefined,
+    }
+  })
+
   const recommendation = engine.recommendation.value
   const completedAt = engine.request.completed_at ?? new Date().toISOString()
 
@@ -386,6 +431,7 @@ export function transformValidatedEngineResult(engine: EngineResultV3): PortalIn
         ? `${num(itemsSummary.lines_matched) ?? 0}/${num(itemsSummary.line_count) ?? 0}`
         : undefined,
     lineItems,
+    oracleReceiptLines,
 
     // 4. Validation & rule results
     recommendation,
@@ -408,3 +454,5 @@ export function transformValidatedEngineResult(engine: EngineResultV3): PortalIn
     history: [],
   }
 }
+
+export { transformEngineResultToPortalDoc as engineToPortalAdapter }
