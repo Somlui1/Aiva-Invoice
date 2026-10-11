@@ -119,6 +119,7 @@ export interface InvoiceDoc {
  */
 export interface EvidenceSelection {
   ruleId?: string
+  exceptionCode?: string
   /** Table row of the picked box, for line-level linking. */
   lineNo?: number
   /** Tag text drawn on the box, reused as the detail-pane chip. */

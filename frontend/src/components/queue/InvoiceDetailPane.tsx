@@ -9,6 +9,7 @@ import { useInvoices, TODAY } from '../../context/InvoiceContext'
 import { useToastModal } from '../../context/ToastModalContext'
 import { COMPANIES, ORG_NAMES } from '../../mock/companies'
 import { RULES, EXCEPTION_CATALOG, EU_CODES, ActionType } from '../../mock/rules'
+import { getValidationCategory } from '../../features/pdf-viewer/lib/validationCategories'
 
 interface InvoiceDetailPaneProps {
   doc: InvoiceDoc
@@ -27,7 +28,8 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
     allowedAction,
     hasHighSeverity,
     isEuPending,
-    evidenceSelection
+    evidenceSelection,
+    setEvidenceSelection,
   } = useInvoices()
   const { toast } = useToastModal()
 
@@ -335,15 +337,36 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
                   const cat = EXCEPTION_CATALOG[c] || ['ข้อยกเว้น', 'acc']
                   const isEuAction = cat[1] === 'eu'
                   const sev = r.severity || 'High'
+                  const catKey = getValidationCategory(c, r.rule)
 
                   const picked = evidenceSelection?.ruleId === r.rule
+
+                  const handleSelectValidation = () => {
+                    const ruleId = r.rule || r.id
+                    const pageNo = r.page || 1
+                    openEvidenceDock(pageNo, ruleId)
+                    setEvidenceSelection({
+                      ruleId,
+                      exceptionCode: r.exception_code,
+                      surface: 'pdf',
+                    })
+                  }
 
                   return (
                     <div
                       key={r.id || r.rule}
                       data-rule={r.rule}
                       data-sel={picked ? '1' : undefined}
-                      className={`exc ${sev}${picked ? ' is-active sel' : ''}`}
+                      className={`exc ${sev}${picked ? ' is-active sel' : ''} cat-${catKey}`}
+                      onClick={handleSelectValidation}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          handleSelectValidation()
+                        }
+                      }}
                     >
                       <div className="exc-h">
                         <span className={`code ${sev}`}>{c}</span>
@@ -363,7 +386,10 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
                             <button
                               type="button"
                               className="link"
-                              onClick={() => openEvidenceDock(r.page || 1, r.rule || r.id)}
+                              onClick={e => {
+                                e.stopPropagation()
+                                handleSelectValidation()
+                              }}
                             >
                               <Icon name="target" size="sm" />
                               ดูหลักฐานหน้า {r.page || 1}
