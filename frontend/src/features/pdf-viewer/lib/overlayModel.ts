@@ -23,6 +23,7 @@ import {
   type PixelBox,
   type SizeBox,
 } from './coordinateTransform'
+import { getValidationCategory, type ValidationCategory } from './validationCategories'
 
 export type ViewerBBoxOrigin = 'rule' | 'engine' | 'mock-region'
 
@@ -54,6 +55,7 @@ export interface OverlayBox extends PixelBox {
   ruleId?: string
   lineNo?: number
   severity: ExceptionSeverity
+  category?: ValidationCategory
   /** Tag text, set on one box per rule only (the mockup does the same). */
   tag: string | null
   tooltip: string
@@ -76,6 +78,10 @@ export interface ProjectOptions {
   focusId?: string | null
   /** Draw only boxes tied to a rule. Default `false` — the caller sets the policy. */
   onlyEvidence?: boolean
+  /** Filter to only display boxes belonging to this specific validation rule. */
+  activeRuleId?: string | null
+  /** Optional exception code to further scope the active validation. */
+  activeExceptionCode?: string | null
 }
 
 /** Rules that point at whole regions of the mock page rather than at rows. */
@@ -148,11 +154,23 @@ export function projectOverlayBoxes(boxes: ViewerBBox[], opts: ProjectOptions): 
   const onlyEvidence = opts.onlyEvidence ?? false
   const padding = opts.padding ?? 0
   const rotation = opts.rotation ?? 0
+  const activeRule = opts.activeRuleId ?? null
+  const activeCode = opts.activeExceptionCode ?? null
 
   const placed: Array<OverlayBox & { viewer: ViewerBBox }> = []
   for (const b of boxes) {
     if (!b || b.pageNo !== opts.page) continue
     if (onlyEvidence && !b.ruleId) continue
+
+    if (activeRule) {
+      const matchRule =
+        b.ruleId === activeRule ||
+        b.id === activeRule ||
+        (b.id && b.id.includes(`:${activeRule}`)) ||
+        (b.ruleId && (activeRule.startsWith(b.ruleId) || b.ruleId.startsWith(activeRule)))
+      if (!matchRule) continue
+    }
+    if (activeCode && b.exceptionCode && b.exceptionCode !== activeCode) continue
 
     const norm = normalizeBBox(b.bbox)
     if (!norm) continue
@@ -169,6 +187,7 @@ export function projectOverlayBoxes(boxes: ViewerBBox[], opts: ProjectOptions): 
       ruleId: b.ruleId,
       lineNo: b.lineNo,
       severity: b.severity ?? 'Medium',
+      category: getValidationCategory(b.exceptionCode, b.ruleId),
       tag: null,
       tooltip: tooltipOf(b),
       focused: false,
@@ -190,7 +209,9 @@ export function projectOverlayBoxes(boxes: ViewerBBox[], opts: ProjectOptions): 
     }
     box.focused = !!opts.focusId
       ? box.id === opts.focusId
-      : !!opts.focusRuleId && box.ruleId === opts.focusRuleId
+      : activeRule
+        ? true
+        : !!opts.focusRuleId && box.ruleId === opts.focusRuleId
   }
 
   return placed.map(({ viewer: _viewer, ...box }) => box)
