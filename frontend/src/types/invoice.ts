@@ -11,6 +11,9 @@ export type InvoiceStatus =
   | 'Duplicate'
   | 'Import Failed'
 
+import type { PortalOracleReceiptLine } from '../features/engine/types/portalDomain'
+export type { PortalOracleReceiptLine }
+
 export type ExceptionSeverity = 'High' | 'Medium' | 'Low'
 
 export interface RuleCheck {
@@ -86,6 +89,7 @@ export interface InvoiceDoc {
   codes: string[]
   rules: RuleCheck[]
   lines?: InvoiceLineItem[]
+  oracleReceiptLines?: PortalOracleReceiptLine[]
   pages: number
   history: DocumentHistoryEntry[]
   unres?: boolean
