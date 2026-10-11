@@ -127,6 +127,25 @@ export interface PortalLineItem {
   elementId?: string | null
 }
 
+export interface PortalOracleReceiptLine {
+  poNumber: string
+  receiptNum: string
+  lineNo: number
+  rcvLineId: string
+  itemCode?: string | null
+  itemDesc: string
+  qty: number
+  uom: string
+  unitPrice: number
+  lineAmount: number
+  qtyBilled?: number
+  lineStatus?: string | null
+  poLineStatus?: string | null
+  receiver?: string | null
+  ouName?: string | null
+  extra?: Record<string, unknown>
+}
+
 export interface PortalRuleCheck {
   /** V-01 .. V-09 */
   ruleId: string
@@ -233,6 +252,7 @@ export interface PortalInvoiceDocument {
   invoiceVsReceiptDiff?: number
   linesMatched?: string
   lineItems: PortalLineItem[]
+  oracleReceiptLines?: PortalOracleReceiptLine[]
 
   // 4. Validation & Rule Results
   recommendation: EngineRecommendationValue
