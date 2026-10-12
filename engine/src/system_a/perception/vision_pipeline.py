@@ -195,7 +195,7 @@ def _key(s) -> str:
 #: with one deterministic pattern per field family, so three readers that all saw ``25,432.00`` are
 #: recognised as agreeing - and so the numeric normaliser is never handed a label as if it were a number.
 MONEY_RE = re.compile(r"\d[\d.,]*\d|\d")
-TAX_ID_RE = re.compile(r"(?<!\d)\d{13}(?!\d)")
+TAX_ID_RE = re.compile(r"(?<!\d)(?:\d{13}|\d-\d{4}-\d{5}-\d{1,2}-\d)(?!\d)")
 PO_RE = re.compile(r"(?<!\d)\d{6,10}(?!\d)")
 DATE_RE = re.compile(r"(?<!\d)(?:\d{4}[/.\-]\d{1,2}[/.\-]\d{1,2}|\d{1,2}[/.\-]\d{1,2}[/.\-](?:\d{4}|\d{2}))(?!\d)")
 VALUE_PATTERNS = {"sub_total": MONEY_RE, "vat": MONEY_RE, "grand_total": MONEY_RE, "discount": MONEY_RE,
@@ -374,6 +374,11 @@ def synthesize_stamp_items(reads: dict, pages_info: list[dict], selected: list[i
     return 0
 
 
+def _marker_digits(entry) -> str:
+    """Printed page position as bare digits ('หน้า 2 จาก 4' / '2/4' -> '24'); '' when unprinted."""
+    return "".join(re.findall(r"\d+", str((entry or {}).get("page_marker") or "")))
+
+
 def select_invoice_pages(pages_info: list[dict]) -> list[int]:
     """Select the invoice pages from the classify_batch result.
 
@@ -388,8 +393,18 @@ def select_invoice_pages(pages_info: list[dict]) -> list[int]:
         # No invoice classified - fall back to first page
         return [pages_info[0]["page"]] if pages_info else []
     pages = {p["page"] for p in invoices}
-    originals = [p for p in invoices
-                 if not (p.get("is_copy") and p.get("duplicate_of") in pages - {p.get("page")})]
+    by_page = {p["page"]: p for p in invoices}
+    originals = []
+    for p in invoices:
+        dup = p.get("duplicate_of")
+        if p.get("is_copy") and dup in pages - {p.get("page")}:
+            # A named reprint must REPEAT its sheet's printed position; a different page_marker proves a
+            # continuation page the VLM mis-named (DMS-26 p2 prints 'หน้า 2/4' beside p1's '1/4' - its
+            # rows are real). An unprinted marker on either side keeps the old trust in the naming.
+            mine, tgt = _marker_digits(p), _marker_digits(by_page.get(dup))
+            if not mine or mine == tgt:
+                continue
+        originals.append(p)
     if originals:
         return sorted(p["page"] for p in originals)
     # every invoice page claims to duplicate another invoice page: process them all and let the
@@ -419,8 +434,23 @@ def copy_or_delivery_titled(items: list) -> bool:
     return not TAX_TITLE_WORD.search(" / ".join(titles))
 
 
+#: fields whose printed WORDING carries their meaning: a reading whose region text contains tax wording
+# is stronger evidence than a shape-valid bare number (DMS-46: p1 printed an unrelated 13-digit number
+# while the PO sheet states the supplier's real TAX ID) - wording wins wherever it is printed.
+TAX_HINT = re.compile(r"ภาษี|TAX\s*ID|เลขประจำตัวผู้เสีย", re.I)
+HINTED_FIELDS = {"supplier_tax_id", "customer_tax_id"}
+
+
+def _shaped_or_extracted(name: str, text):
+    return shaped_value(name, text) or extract_value(name, text)[0]
+
+
 def pick_field_reading(name: str, primary_opts: list, secondary_opts: list, first_invoice):
     """Two-phase field reading: the invoice sheets answer first, copy/rescued sheets only fill gaps.
+
+    Tax-ID fields are the exception to page precedence: a reading printed under TAX ID wording with a
+    valid shape wins outright, wherever it sits (invoice sheet or rescued page) - the wording is the
+    field's meaning, the page position is not.
 
     A header the invoice sheets do not print (totals on a copy sheet, DMS-22/46) is taken from the
     secondary pages; an identifier whose only secondary reading carries the field's printed shape may
@@ -446,6 +476,13 @@ def pick_field_reading(name: str, primary_opts: list, secondary_opts: list, firs
                 return won
         return pick_candidate(name, opts, first_invoice, invoice_pages=None)
 
+    if name in HINTED_FIELDS:
+        worded = [o for o in list(primary_opts) + list(secondary_opts)
+                  if o[1] is not None and TAX_HINT.search(str(o[1].get("text") or ""))
+                  and shape_ok(name, _shaped_or_extracted(name, o[1].get("text")))]
+        if worded:
+            return pick_candidate(name, worded, first_invoice, invoice_pages=None)
+
     primary = best(primary_opts)
     if usable(primary):
         return primary
@@ -469,6 +506,7 @@ class PageRead:
     type_confidence: Optional[float] = None
     votes: list = dc_field(default_factory=list)
     is_copy: Optional[bool] = None
+    prints_tax_id: Optional[bool] = None
     coord_mode: str = "auto"
     coord_overflow: Optional[dict] = None
     ocr_quality: Optional[float] = None
@@ -576,6 +614,9 @@ class VisionPipeline:
                 "duplicate_of": info.get("duplicate_of") if str(info.get("duplicate_of") or "").isdigit()
                 else None,
                 "has_receiver_stamp": bool(info.get("has_receiver_stamp")),
+                "page_marker": (str(info.get("page_marker")).strip() or None)
+                               if info.get("page_marker") is not None else None,
+                "prints_tax_id": bool(info.get("prints_tax_id")),
                 "confidence": float(info.get("confidence") or 0),
             })
         return result
@@ -619,6 +660,7 @@ class VisionPipeline:
                     read.page_type = binfo.get("page_type", "UNKNOWN")
                     read.type_confidence = binfo.get("confidence")
                     read.is_copy = binfo.get("is_copy")
+                    read.prints_tax_id = binfo.get("prints_tax_id")
                     read.votes = [read.page_type]
                     read.ocr_quality = 1.0
                     reads[p] = read
@@ -892,6 +934,23 @@ class VisionPipeline:
         """
         missing = [n for n in self.RESCUE_FIELDS
                    if n in fields and not getattr(fields[n], "raw", None)]
+        # a tax id / PO that WAS read but never had the field's printed shape (DMS-30: a label swallowed
+        # the digits) is as good as missing; and a supplier tax that exists ONLY as a bare number, with
+        # no TAX ID wording on any invoice sheet, is weak evidence worth one bounded hunt (DMS-46).
+        for n in ("supplier_tax_id", "customer_tax_id", "po_number"):
+            raw = getattr(fields.get(n), "raw", None) if n in fields else None
+            if raw and not shape_ok(n, str(raw)) and n not in missing:
+                missing.append(n)
+        if "supplier_tax_id" not in missing and not any(
+                TAX_HINT.search(str(it.get("text") or ""))
+                and shape_ok("supplier_tax_id", _shaped_or_extracted("supplier_tax_id", it.get("text")))
+                for p in invoice_pages for it in reads[p].items
+                if str(it.get("label") or "").strip().lower() == "supplier_tax_id") \
+                and any(getattr(reads.get(p), "prints_tax_id", False)
+                        for p in used_map if p not in invoice_pages):
+            # the invoice sheets show the tax only as a bare number while classify SAW a taxpayer line on
+            # an unprocessed sheet - the wording exists, hunt it (and only now are calls worth spending)
+            missing.append("supplier_tax_id")
         if not missing:
             return []
         log: list[dict] = []
@@ -1670,8 +1729,12 @@ def pick_candidate(name: str, options: list, first_invoice, invoice_pages: Optio
         page, it = c
         value = extract_value(name, it.get("text"))[0]
         if name in IDENTIFIER_CONSENSUS_FIELDS:
-            # a tax id / PO printed with its shape on a later page beats a label-mixed reading on page 1
-            return (not shape_ok(name, value), page != first_invoice, -float(it.get("confidence") or 0), page)
+            # a tax id / PO printed with its shape on a later page beats a label-mixed reading on page 1;
+            # for tax ids, printed TAX wording then orders the equally-shaped readings (wording beats a
+            # bare number's page position)
+            worded = 0 if (name not in HINTED_FIELDS or TAX_HINT.search(str(it.get("text") or ""))) else 1
+            return (not shape_ok(name, value), worded, page != first_invoice,
+                    -float(it.get("confidence") or 0), page)
         return (page != first_invoice, not shape_ok(name, value), -float(it.get("confidence") or 0), page)
     ranked = sorted(options, key=key)
     page, it = ranked[0]

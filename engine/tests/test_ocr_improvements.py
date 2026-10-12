@@ -1132,3 +1132,172 @@ def test_field_rescue_reads_next_pages_until_missing_found():
 
 
 
+
+
+
+
+
+# ---------------------------------------------------------------- Loop 4: markers, dashed tax, hints, oracle rewrite
+from system_a.perception.vision_pipeline import (  # noqa: E402
+    select_invoice_pages, pick_field_reading, pick_candidate, extract_value, shape_ok)
+
+
+def test_page_marker_is_parsed_by_classify():
+    """_classify_batch keeps the printed page position (used to refute bogus duplicate claims)."""
+    from unittest.mock import MagicMock
+    from system_a.perception.vision_pipeline import VisionPipeline
+
+    client = MagicMock()
+    client.chat_json.return_value = {"pages": [
+        {"page": 1, "page_type": "TAX_INVOICE", "is_copy": False, "page_marker": "2/4",
+         "duplicate_of": None, "has_receiver_stamp": False, "confidence": .95}]}
+    pipe = VisionPipeline(client, "test-model", invoice_first=True)
+    res = pipe._classify_batch({1: b"png1"})
+    assert res[0]["page_marker"] == "2/4"
+
+
+def test_bogus_duplicate_claim_refuted_by_page_marker():
+    """A named duplicate reprinting a DIFFERENT printed page position is a continuation sheet
+    (DMS-26 p2 prints 2/4 while p1 prints 1/4) - it stays; same-position reprints still drop."""
+    entries = [
+        {"page": 1, "page_type": "TAX_INVOICE", "is_copy": False, "duplicate_of": None,
+         "page_marker": "1/4"},
+        {"page": 2, "page_type": "TAX_INVOICE", "is_copy": True, "duplicate_of": 1,
+         "page_marker": "2/4"},
+        {"page": 3, "page_type": "TAX_INVOICE", "is_copy": True, "duplicate_of": 1,
+         "page_marker": "1/4"},
+        {"page": 4, "page_type": "TAX_INVOICE", "is_copy": True, "duplicate_of": 1,
+         "page_marker": None},
+    ]
+    assert select_invoice_pages(entries) == [1, 2]   # p2 marker differs -> kept; p3/p4 dropped
+
+
+def test_extract_accepts_dash_formatted_thai_tax_id():
+    """0-1455-48001-54-9 is a printed Thai tax ID: extract keeps it verbatim, shape accepts it."""
+    printed = "เลขประจำตัวผู้เสียภาษี TAX ID : 0-1455-48001-54-9"
+    v = extract_value("supplier_tax_id", printed)[0]
+    assert v == "0-1455-48001-54-9"
+    assert shape_ok("supplier_tax_id", v)
+
+
+def test_tax_worded_candidate_beats_bare_number():
+    """A tax number printed under TAX ID wording outranks a shape-valid bare number from an
+    earlier page (DMS-46: the p1 number is not the supplier tax id; the PO sheet states it)."""
+    bare = (1, {"text": "0145555000137", "confidence": .9, "bbox": [1, 1, 2, 2]})
+    worded = (3, {"text": "TAX ID : 0-1455-48001-54-9", "confidence": .9, "bbox": [1, 1, 2, 2]})
+    page, it = pick_field_reading("supplier_tax_id", [bare], [worded], 1)
+    assert page == 3
+    page, it = pick_candidate("supplier_tax_id", [bare, worded], 1)
+    assert page == 3
+
+
+def _loop4_pdf(pages_text):
+    import fitz
+    doc = fitz.open()
+    for i, t in enumerate(pages_text):
+        p = doc.new_page(width=595, height=842)
+        p.insert_text((60, 100 + i * 30), t, fontsize=9)
+    b = doc.tobytes()
+    doc.close()
+    return b
+
+
+def test_weak_tax_triggers_rescue_and_worded_reading_wins(monkeypatch):
+    """A bare (un-worded) tax number on the invoice sheet is weak evidence: the bounded rescue reads
+    the PO sheet and the TAX-ID-worded reading becomes the field (DMS-46)."""
+    from system_a.perception.vision_pipeline import VisionPipeline
+
+    pdf_bytes = _loop4_pdf(["PAGE 1 INVOICE IV69-0410", "PAGE 2 PURCHASE ORDER 43043106"])
+
+    class FakeTaxVlm:
+        def __init__(self):
+            self.last_usage, self.last_salvaged = {}, False
+            self.page_reads = 0
+
+        def chat_json(self, model, system, user, *, images=None, **kw):
+            if "Classify these" in user:
+                return {"pages": [
+                    {"page": 1, "page_type": "TAX_INVOICE", "is_copy": False, "confidence": .95,
+                     "prints_tax_id": False},
+                    {"page": 2, "page_type": "PO", "is_copy": False, "confidence": .95,
+                     "prints_tax_id": True}]}
+            if "Digitise" in user:
+                return {"rows": []}
+            self.page_reads += 1
+            if self.page_reads == 1:                       # invoice sheet: a bare number, no wording
+                return {"doc_type": "invoice", "items": [
+                    {"type": "header", "label": "doc_no", "text": "IV69-0410", "bbox_2d": [60, 90, 400, 105]},
+                    {"type": "header", "label": "doc_title", "text": "ใบส่งสินค้า / ใบกำกับภาษี INVOICE / TAX INVOICE",
+                     "bbox_2d": [60, 60, 400, 88]},
+                    {"type": "header", "label": "supplier_name", "text": "บริษัท จารุณรัตน์ ผลิตภัณฑ์ จำกัด",
+                     "bbox_2d": [60, 120, 400, 145]},
+                    {"type": "header", "label": "customer_name", "text": "บริษัท อาปิโก ไฮเทค จำกัด (มหาชน)",
+                     "bbox_2d": [60, 150, 400, 175]},
+                    {"type": "header", "label": "customer_tax_id", "text": "0107545000179",
+                     "bbox_2d": [60, 180, 400, 200]},
+                    {"type": "header", "label": "supplier_tax_id", "text": "0145555000137",
+                     "bbox_2d": [60, 210, 400, 230]},
+                    {"type": "total", "label": "sub_total", "text": "6,470.00", "bbox_2d": [700, 700, 900, 715]},
+                    {"type": "total", "label": "vat", "text": "386.50", "bbox_2d": [700, 720, 900, 735]},
+                    {"type": "total", "label": "grand_total", "text": "6,856.50", "bbox_2d": [700, 740, 900, 755]}]}
+            return {"doc_type": "purchase_order", "items": [   # PO sheet states the real supplier TAX ID
+                {"type": "header", "label": "supplier_tax_id",
+                 "text": "เลขประจำตัวผู้เสียภาษี TAX ID : 0-1455-48001-54-9", "bbox_2d": [60, 100, 420, 122]}]}
+
+    pipe = VisionPipeline(FakeTaxVlm(), "fake-model", do_crops=False, invoice_first=True)
+    ext = pipe.extract(pdf_bytes, package_id="PKG-T", dms_doc_id="DMS-T")
+    assert [r["page"] for r in ext.extra["field_rescue"]] == [2]
+    assert "supplier_tax_id" in ext.extra["field_rescue"][0]["fields"]
+    assert ext.fields["supplier_tax_id"].raw == "0-1455-48001-54-9"
+    assert "crop_reread" not in [c["kind"] for c in pipe.calls]
+
+
+def test_corroborate_oracle_rewrites_failed_supplier_tax_from_po_master():
+    """Tax field unreadable + a receipt confirmed through the PO with the vendor tax resolved from
+    the PO master (source oracle_po) -> the master value becomes the field (tagged)."""
+    from system_a.domain.evidence import corroborate_oracle
+    from system_a.domain.contracts import InvoiceDoc, NField, OracleSnapshot, ReceiptRow
+
+    def mk():
+        return InvoiceDoc(document_id="D1", fields={"supplier_tax_id": NField(
+            name="supplier_tax_id", element_id="F1", raw="เลขประจำตัวผู้เสียภาษี 010556004925",
+            value="010556004925", confidence=.7, ok=False,
+            null_reason="TAX_ID_NOT_13_DIGITS")}, lines=(), signatures={}, pages_complete=True)
+    row = ReceiptRow(org_id=176, receipt_num="R1", receiver=None, line=1, item="A",
+                     qty=Decimal(1), uom="PCS", unit_price=Decimal(1), line_amount=Decimal(1),
+                     supplier_tax_id="0105556094925")
+    snap = OracleSnapshot(queried_at="x", lookup_path="RCV-V02",
+                          query_keys={"supplier_tax_id": "0105556094925",
+                                      "supplier_tax_id_source": "oracle_po"},
+                          rows=(row,), row_cap_hit=False, calls=[])
+    std = type("Std", (), {"policy": {"evidence": {"oracle": True}}, "entities": {}})()
+    out = corroborate_oracle(mk(), snap, std)
+    fld = out.fields["supplier_tax_id"]
+    assert fld.ok and fld.value == "0105556094925"
+    assert "oracle:supplier_tax_id_from_po" in fld.evidence
+
+    # source 'ocr' (value came from OUR read) must never rewrite anything
+    snap_ocr = OracleSnapshot(queried_at="x", lookup_path="RCV-V02",
+                              query_keys={"supplier_tax_id": "010556004925",
+                                          "supplier_tax_id_source": "ocr"},
+                              rows=(row,), row_cap_hit=False, calls=[])
+    out2 = corroborate_oracle(mk(), snap_ocr, std)
+    assert not out2.fields["supplier_tax_id"].ok
+
+
+def test_corroborate_oracle_keeps_ok_tax_field_untouched():
+    from system_a.domain.evidence import corroborate_oracle
+    from system_a.domain.contracts import InvoiceDoc, NField, OracleSnapshot, ReceiptRow
+    doc = InvoiceDoc(document_id="D1", fields={"supplier_tax_id": NField(
+        name="supplier_tax_id", element_id="F1", raw="0105556094925", value="0105556094925",
+        confidence=.9, ok=True)}, lines=(), signatures={}, pages_complete=True)
+    row = ReceiptRow(org_id=176, receipt_num="R1", receiver=None, line=1, item="A",
+                     qty=Decimal(1), uom="PCS", unit_price=Decimal(1), line_amount=Decimal(1),
+                     supplier_tax_id="0145555000137")
+    snap = OracleSnapshot(queried_at="x", lookup_path="RCV-V02",
+                          query_keys={"supplier_tax_id": "0145555000137",
+                                      "supplier_tax_id_source": "oracle_po"},
+                          rows=(row,), row_cap_hit=False, calls=[])
+    std = type("Std", (), {"policy": {"evidence": {"oracle": True}}, "entities": {}})()
+    out = corroborate_oracle(doc, snap, std)
+    assert out.fields["supplier_tax_id"].value == "0105556094925"

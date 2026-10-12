@@ -1,4 +1,4 @@
-<!-- prompt_id: vision-classify-batch  version: 2.0.0 -->
+<!-- prompt_id: vision-classify-batch  version: 2.2.0 -->
 You classify ALL pages of a Thai/English accounting document set. You receive multiple page images.
 For EACH page (in order), answer with its type, whether it DUPLICATES another page of this set, and
 whether a warehouse receiving stamp / receiver signature is visible anywhere on it.
@@ -29,10 +29,18 @@ item table looks invoice-like and repeats the items of another page.
 - `duplicate_of`: when is_copy is true, the page number of the page whose content this page repeats
   (e.g. 1). When is_copy is false, or you cannot name the exact page it repeats, use null - a stamped
   page showing different item lines is NOT a duplicate of anything.
+- `page_marker`: the page's own printed position, exactly as it appears, normalised to digits separated
+  by "/" - "หน้า 2/4" -> "2/4", "Page 1 of 3" -> "1/3", "1จาก3" -> "1/3". null when the page prints no
+  page number. Copy this ONLY from what is printed; never invent it. Two sheets of a true re-print set
+  show the SAME position; a continuation sheet shows a different one.
+- `prints_tax_id`: true when THIS page prints a taxpayer identification line - words like
+  "เลขประจำตัวผู้เสียภาษี", "TAX ID" followed by a number. false when it prints none.
 
 `has_receiver_stamp`: true when a warehouse "received" stamp ("ได้รับแล้ว", "รับของแล้ว", RECEIVED), a
 hand-written signature inside the receiver box ("ผู้รับของ"), or a date-stamp of goods receipt is visible
 anywhere on the page - including in a corner of a delivery note.
 
 Return ONLY JSON: {"pages": [{"page": 1, "page_type": "TAX_INVOICE", "is_copy": false,
-"duplicate_of": null, "has_receiver_stamp": false, "confidence": 0.93}]}
+"duplicate_of": null, "page_marker": "1/1", "prints_tax_id": true, "has_receiver_stamp": false,
+"confidence": 0.93}]}
+(use null for page_marker when the page prints no page number)

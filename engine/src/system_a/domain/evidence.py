@@ -23,6 +23,7 @@ All switches live in ``policy.yaml -> evidence`` and default to OFF when the key
 """
 from __future__ import annotations
 
+import re
 from dataclasses import replace
 from decimal import Decimal
 from typing import Iterable, Optional
@@ -175,6 +176,16 @@ def corroborate_oracle(doc: InvoiceDoc, snap: Optional[OracleSnapshot], std: Sta
             sups.add(snap.query_keys["supplier_tax_id"])
         if str(sup) in sups:
             f["supplier_tax_id"] = _promote(f.get("supplier_tax_id"), "oracle:supplier_tax_id")
+    elif (snap.query_keys or {}).get("supplier_tax_id_source") == "oracle_po":
+        # the read FAILED (or never printed) yet the lookup rode the PO master's vendor tax to a real
+        # receipt: the EBS vendor master owns that value, so it - not a garbage reading - is the field
+        po_tax = str((snap.query_keys or {}).get("supplier_tax_id") or "")
+        cur = f.get("supplier_tax_id")
+        if re.fullmatch(r"\d{13}", po_tax) and (cur is None or not cur.ok):
+            f["supplier_tax_id"] = NField(
+                name="supplier_tax_id", element_id=cur.element_id if cur else "oracle-po",
+                raw=po_tax, value=po_tax, confidence=None, ok=True, null_reason=None,
+                evidence=(tuple(cur.evidence) if cur else ()) + ("oracle:supplier_tax_id_from_po",))
 
     cust = _val(f.get("customer_tax_id"))
     ent = std.entities.get(snap.org_id) if snap.org_id is not None else None
