@@ -98,6 +98,10 @@ def _lines_count(result: dict) -> int:
     return len(((result or {}).get("extraction") or {}).get("lines") or [])
 
 
+def _alnum(s: str) -> str:
+    return "".join(ch for ch in s.upper() if ch.isalnum())
+
+
 def gate2_accuracy(target: Optional[dict], baseline: Optional[dict]) -> tuple[bool, list[str]]:
     """Gate 2: verdict non-regression, core-field parity, line-count parity vs baseline."""
     if target is None:
@@ -115,6 +119,10 @@ def gate2_accuracy(target: Optional[dict], baseline: Optional[dict]) -> tuple[bo
         if b_val and not t_val:
             reasons.append(f"{field} missing (baseline={b_val!r})")
         elif b_val and t_val != b_val:
+            # invoice_num parity ignores printed separators - '9290186640/' and '9290186640', 'SES 08470'
+            # and 'SES08470' are the same number; a cleaner reading is not a regression
+            if field == "invoice_num" and _alnum(str(t_val)) == _alnum(str(b_val)):
+                continue
             reasons.append(f"{field}={t_val!r} != baseline {b_val!r}")
         # baseline empty + target non-empty is an improvement: allowed
 

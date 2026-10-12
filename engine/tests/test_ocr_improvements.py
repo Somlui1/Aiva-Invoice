@@ -1301,3 +1301,136 @@ def test_corroborate_oracle_keeps_ok_tax_field_untouched():
     std = type("Std", (), {"policy": {"evidence": {"oracle": True}}, "entities": {}})()
     out = corroborate_oracle(doc, snap, std)
     assert out.fields["supplier_tax_id"].value == "0105556094925"
+
+
+# ------------------------------------------------- Loop 5: dashed-first tax, oracle party fix, money usability
+def test_dashed_tax_shape_beats_bare_solid_from_first_page():
+    """The canonical printed TAX ID notation (0-1455-48001-54-9, what a TAX ID line states) ranks
+    above a solid bare number of equal shape from the first page - it is the document's own wording
+    of the taxpayer line (DMS-46: p3's PO states the real supplier tax id)."""
+    solid = (1, {"text": "0145555000137", "confidence": .9, "bbox": [1, 1, 2, 2]})
+    dashed = (3, {"text": "0-1455-48001-54-9", "confidence": .9, "bbox": [1, 1, 2, 2]})
+    page, _it = pick_field_reading("supplier_tax_id", [solid], [dashed], 1)
+    assert page == 3
+
+
+def test_corroborate_overwrites_supplier_tax_equal_to_customer_tax_via_po_master():
+    """A supplier tax that EQUALS the customer's tax id is not the supplier (DMS-30: the PO form's
+    taxpayer line is the buyer's own). When the lookup rode the PO master to a receipt
+    (source oracle_po), the master value replaces the mislabelled field."""
+    from system_a.domain.evidence import corroborate_oracle
+    from system_a.domain.contracts import InvoiceDoc, NField, OracleSnapshot, ReceiptRow
+    doc = InvoiceDoc(document_id="D1", fields={
+        "supplier_tax_id": NField(name="supplier_tax_id", element_id="F1", raw="0-1075-45000-17-9",
+                                  value="0107545000179", confidence=.9, ok=True),
+        "customer_tax_id": NField(name="customer_tax_id", element_id="F2", raw="0107545000179",
+                                  value="0107545000179", confidence=.9, ok=True)},
+        lines=(), signatures={}, pages_complete=True)
+    row = ReceiptRow(org_id=101, receipt_num="R1", receiver=None, line=1, item="A",
+                     qty=Decimal(1), uom="PCS", unit_price=Decimal(1), line_amount=Decimal(1),
+                     supplier_tax_id="0105556094925")
+    snap = OracleSnapshot(queried_at="x", lookup_path="RCV-V02",
+                          query_keys={"supplier_tax_id": "0105556094925",
+                                      "supplier_tax_id_source": "oracle_po"},
+                          rows=(row,), row_cap_hit=False, calls=[])
+    std = type("Std", (), {"policy": {"evidence": {"oracle": True}}, "entities": {}})()
+    out = corroborate_oracle(doc, snap, std)
+    fld = out.fields["supplier_tax_id"]
+    assert fld.ok and fld.value == "0105556094925"
+    assert "oracle:supplier_tax_id_from_po" in fld.evidence
+
+
+def test_corroborate_keeps_distinct_supplier_tax_even_when_po_master_exists():
+    from system_a.domain.evidence import corroborate_oracle
+    from system_a.domain.contracts import InvoiceDoc, NField, OracleSnapshot, ReceiptRow
+    doc = InvoiceDoc(document_id="D1", fields={
+        "supplier_tax_id": NField(name="supplier_tax_id", element_id="F1", raw="0105537063173",
+                                  value="0105537063173", confidence=.9, ok=True),
+        "customer_tax_id": NField(name="customer_tax_id", element_id="F2", raw="0145548001557",
+                                  value="0145548001557", confidence=.9, ok=True)},
+        lines=(), signatures={}, pages_complete=True)
+    row = ReceiptRow(org_id=101, receipt_num="R1", receiver=None, line=1, item="A",
+                     qty=Decimal(1), uom="PCS", unit_price=Decimal(1), line_amount=Decimal(1),
+                     supplier_tax_id="0999999999999")
+    snap = OracleSnapshot(queried_at="x", lookup_path="RCV-V02",
+                          query_keys={"supplier_tax_id": "0999999999999",
+                                      "supplier_tax_id_source": "oracle_po"},
+                          rows=(row,), row_cap_hit=False, calls=[])
+    std = type("Std", (), {"policy": {"evidence": {"oracle": True}}, "entities": {}})()
+    out = corroborate_oracle(doc, snap, std)
+    assert out.fields["supplier_tax_id"].value == "0105537063173"
+
+
+def test_unshaped_primary_amount_falls_to_secondary_reading():
+    """'GRAND TOTAL BAHT (ถ้ามี...)' is not a usable reading of an amount: the secondary sheet's
+    real number answers (DMS-20, the page reader caught a label box)."""
+    garbage = (1, {"text": "GRAND TOTAL BAHT (ถ้ามีหนังสือหักภาษี)", "confidence": .9,
+                   "bbox": [1, 1, 2, 2]})
+    real = (2, {"text": "52,660.05", "confidence": .9, "bbox": [1, 1, 2, 2]})
+    page, it = pick_field_reading("grand_total", [garbage], [real], 1)
+    assert page == 2 and it["text"] == "52,660.05"
+
+
+def test_rescue_reads_stamp_placeholder_page_and_fills_money():
+    """A page holding ONLY the synthesized stamp item was never really read: the bounded rescue
+    reads it (DMS-24: the totals of a stamped copy sheet)."""
+    from system_a.perception.vision_pipeline import VisionPipeline
+
+    pdf_bytes = _loop4_pdf(["PAGE 1 TAX INVOICE IV9", "PAGE 2 STAMPED COPY SHEET"])
+
+    class FakeMoneyVlm:
+        def __init__(self):
+            self.last_usage, self.last_salvaged = {}, False
+            self.page_reads = 0
+
+        def chat_json(self, model, system, user, *, images=None, **kw):
+            if "Classify these" in user:
+                return {"pages": [
+                    {"page": 1, "page_type": "TAX_INVOICE", "is_copy": False, "confidence": .95,
+                     "page_marker": "1/1"},
+                    {"page": 2, "page_type": "TAX_INVOICE", "is_copy": True, "duplicate_of": 1,
+                     "page_marker": "1/1", "has_receiver_stamp": True, "confidence": .9}]}
+            if "Digitise" in user:
+                return {"rows": []}
+            self.page_reads += 1
+            if self.page_reads == 1:      # no amounts, supplier tax with its wording printed
+                return {"doc_type": "tax_invoice", "items": [
+                    {"type": "header", "label": "doc_no", "text": "IV9", "bbox_2d": [60, 90, 400, 105]},
+                    {"type": "header", "label": "doc_title", "text": "ใบกำกับภาษี TAX INVOICE",
+                     "bbox_2d": [60, 60, 400, 88]},
+                    {"type": "header", "label": "supplier_name", "text": "บริษัท เอ บี ซี จำกัด",
+                     "bbox_2d": [60, 120, 400, 145]},
+                    {"type": "header", "label": "customer_name", "text": "บริษัท อัปโก้ จำกัด",
+                     "bbox_2d": [60, 150, 400, 175]},
+                    {"type": "header", "label": "customer_tax_id", "text": "0107545000179",
+                     "bbox_2d": [60, 180, 400, 200]},
+                    {"type": "header", "label": "supplier_tax_id",
+                     "text": "เลขประจำตัวผู้เสียภาษี 0105556094925", "bbox_2d": [60, 210, 400, 230]}]}
+            return {"doc_type": "tax_invoice", "items": [   # the stamped sheet carries the totals
+                {"type": "total", "label": "sub_total", "text": "1,000.00", "bbox_2d": [700, 700, 900, 715]},
+                {"type": "total", "label": "vat", "text": "70.00", "bbox_2d": [700, 720, 900, 735]},
+                {"type": "total", "label": "grand_total", "text": "1,070.00", "bbox_2d": [700, 740, 900, 755]}]}
+
+    pipe = VisionPipeline(FakeMoneyVlm(), "fake-model", do_crops=False, invoice_first=True)
+    ext = pipe.extract(pdf_bytes, package_id="PKG-M", dms_doc_id="DMS-M")
+    assert [r["page"] for r in ext.extra["field_rescue"]] == [2]
+    assert ext.fields["grand_total"].raw == "1,070.00"
+    assert ext.extra["classify"] and ext.extra["classify"][1]["duplicate_of"] == 1
+
+
+def test_po_derivation_replaces_unsupported_shape_valid_po():
+    """A shape-valid 8-digit PO that the item rows never print is not the PO when EXACTLY one PO is
+    (DMS-33: the text layer's internal doc number beat the real PO; the rows print 40118928(+139))."""
+    from system_a.perception.vision_pipeline import po_from_lines
+    from system_a.domain.contracts import RawField, Region
+    fields = {"po_number": RawField(raw="34000183", confidence=0.6, agreement=False,
+                                    region=Region(page=1, bbox=[1, 1, 2, 2]), source="consensus",
+                                    null_reason="CONFLICT_BETWEEN_SOURCES")}
+
+    class R:
+        items = [{"type": "line", "label": "line_1", "text": "BOLT 10 40118928139 5",
+                  "bbox": [40, 330, 950, 350]}]
+    log: list = []
+    po_from_lines(fields, {1: R()}, [1], log, {})
+    assert fields["po_number"].raw == "40118928"
+    assert log and log[-1]["derived"] == "40118928"

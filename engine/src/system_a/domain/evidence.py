@@ -170,22 +170,30 @@ def corroborate_oracle(doc: InvoiceDoc, snap: Optional[OracleSnapshot], std: Sta
             f["po_number"] = _promote(f.get("po_number"), "oracle:po_on_receipt")
 
     sup = _val(f.get("supplier_tax_id"))
+    cur = f.get("supplier_tax_id")
+    promoted = False
     if sup is not None:
         sups = {r.supplier_tax_id for r in rows if r.supplier_tax_id}
         if (snap.query_keys or {}).get("supplier_tax_id"):
             sups.add(snap.query_keys["supplier_tax_id"])
         if str(sup) in sups:
             f["supplier_tax_id"] = _promote(f.get("supplier_tax_id"), "oracle:supplier_tax_id")
-    elif (snap.query_keys or {}).get("supplier_tax_id_source") == "oracle_po":
-        # the read FAILED (or never printed) yet the lookup rode the PO master's vendor tax to a real
-        # receipt: the EBS vendor master owns that value, so it - not a garbage reading - is the field
-        po_tax = str((snap.query_keys or {}).get("supplier_tax_id") or "")
-        cur = f.get("supplier_tax_id")
-        if re.fullmatch(r"\d{13}", po_tax) and (cur is None or not cur.ok):
-            f["supplier_tax_id"] = NField(
-                name="supplier_tax_id", element_id=cur.element_id if cur else "oracle-po",
-                raw=po_tax, value=po_tax, confidence=None, ok=True, null_reason=None,
-                evidence=(tuple(cur.evidence) if cur else ()) + ("oracle:supplier_tax_id_from_po",))
+            promoted = True
+    # The PO master path owns this value whenever the read failed - or read the CUSTOMER's own tax id
+    # into the supplier slot (DMS-30: the PO form's taxpayer line is the buyer's, and the doc's own
+    # customer field proves it). The lookup rode the PO master's vendor tax to a real receipt: the EBS
+    # vendor master, not the mislabel, is then the field.
+    qk = snap.query_keys or {}
+    po_tax = str(qk.get("supplier_tax_id") or "") if qk.get("supplier_tax_id_source") == "oracle_po" else ""
+    cust_f = f.get("customer_tax_id")
+    equal_to_customer = (cur is not None and cur.ok and cust_f is not None and cust_f.value is not None
+                         and str(cur.value) == str(cust_f.value))
+    if not promoted and re.fullmatch(r"\d{13}", po_tax) and (cur is None or not cur.ok
+                                                             or equal_to_customer):
+        f["supplier_tax_id"] = NField(
+            name="supplier_tax_id", element_id=cur.element_id if cur else "oracle-po",
+            raw=po_tax, value=po_tax, confidence=None, ok=True, null_reason=None,
+            evidence=(tuple(cur.evidence) if cur else ()) + ("oracle:supplier_tax_id_from_po",))
 
     cust = _val(f.get("customer_tax_id"))
     ent = std.entities.get(snap.org_id) if snap.org_id is not None else None

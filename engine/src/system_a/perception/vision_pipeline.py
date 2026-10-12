@@ -29,7 +29,7 @@ from typing import Optional
 
 from ..domain.contracts import (DocumentInfo, ExtractionResult, RawField, RawLine, Region,
                                 RegionNode, SignatureObs, Word)
-from ..domain.normalize import thai_to_arabic
+from ..domain.normalize import thai_to_arabic, tax_id as tax_id_norm, Invalid as InvalidNorm
 from ..domain.standard import load_prompt, load_standard
 from .coords import (bbox_problems, choose_coord_mode, coord_overflow, filter_items, union_box, words_in_box,
                      xywh_to_pt, xyxy_to_xywh)
@@ -105,6 +105,9 @@ _SHAPES = {"customer_tax_id": re.compile(r"^\d{13}$"), "supplier_tax_id": re.com
            "sub_total": re.compile(r"^\d[\d,]*\.\d{2}$"), "vat": re.compile(r"^\d[\d,]*\.\d{2}$"),
            "grand_total": re.compile(r"^\d[\d,]*\.\d{2}$")}
 PO_IN_TEXT = re.compile(r"(?<![\dA-Za-z])(\d{8})(?:-(\d{1,4}))?(?![\d])")
+# an undashed 8-digit PO + 3-digit release run (DMS-33: '40118928139' = PO 40118928 release 139, the
+# same 8+3 structure the dashed DMS-15 form prints) - the leading 8 digits are the customer's PO
+PO_RUN11 = re.compile(r"(?<!\d)(\d{8})\d{3}(?!\d)")
 
 
 def shape_ok(name: str, value) -> bool:
@@ -367,7 +370,10 @@ def synthesize_stamp_items(reads: dict, pages_info: list[dict], selected: list[i
     for entry in sorted(pages_info, key=lambda e: e.get("page") or 0):
         p = entry.get("page")
         if entry.get("has_receiver_stamp") and p not in selected and p in reads:
-            reads[p].items.append({"type": "header", "label": "received_stamp",
+            rd = reads[p]
+            if not rd.items:
+                rd.synthetic_only = True      # the rescue may still read this page for headers
+            rd.items.append({"type": "header", "label": "received_stamp",
                                    "text": "warehouse receiving stamp (batch classify)",
                                    "bbox": [0.0, 0.0, 1.0, 1.0], "confidence": 0.85})
             return 1
@@ -439,6 +445,11 @@ def copy_or_delivery_titled(items: list) -> bool:
 # while the PO sheet states the supplier's real TAX ID) - wording wins wherever it is printed.
 TAX_HINT = re.compile(r"ภาษี|TAX\s*ID|เลขประจำตัวผู้เสีย", re.I)
 HINTED_FIELDS = {"supplier_tax_id", "customer_tax_id"}
+#: fields whose reading must carry the field's printed shape to count at all (money/date families -
+#: their normalisers reject label text anyway, so a shapeless reading can only ever be a mistake)
+SHAPE_USABLE = {"sub_total", "vat", "grand_total", "discount", "wht", "total_qty",
+                "invoice_date", "doc_date", "due_date"}
+MONEY_LIKE = {"sub_total", "vat", "grand_total", "discount", "wht", "total_qty"}
 
 
 def _shaped_or_extracted(name: str, text):
@@ -462,10 +473,12 @@ def pick_field_reading(name: str, primary_opts: list, secondary_opts: list, firs
         page, it = page_it
         if it is None:
             return False
-        if name not in IDENTIFIER_CONSENSUS_FIELDS:
-            return True
-        value = shaped_value(name, it.get("text")) or extract_value(name, it.get("text"))[0]
-        return bool(value and shape_ok(name, value))
+        if name in IDENTIFIER_CONSENSUS_FIELDS or name in SHAPE_USABLE:
+            # a reading without the field's printed shape (a 'GRAND TOTAL BAHT (ถ้ามี)' label box read
+            # as the total, DMS-20) is not a reading - the secondary sheet's real number may answer
+            value = shaped_value(name, it.get("text")) or extract_value(name, it.get("text"))[0]
+            return bool(value and shape_ok(name, value))
+        return True
 
     def best(opts):
         if not opts:
@@ -477,16 +490,34 @@ def pick_field_reading(name: str, primary_opts: list, secondary_opts: list, firs
         return pick_candidate(name, opts, first_invoice, invoice_pages=None)
 
     if name in HINTED_FIELDS:
-        worded = [o for o in list(primary_opts) + list(secondary_opts)
-                  if o[1] is not None and TAX_HINT.search(str(o[1].get("text") or ""))
-                  and shape_ok(name, _shaped_or_extracted(name, o[1].get("text")))]
+        def canonical(o):
+            # a reading printed under TAX wording, or in the dashed canonical notation, with a valid
+            # shape (and for dashed numbers a valid checksum - the notation promises authority)
+            _p, it = o
+            if it is None:
+                return False
+            text = str(it.get("text") or "")
+            value = _shaped_or_extracted(name, text)
+            if not (value and shape_ok(name, value)):
+                return False
+            if TAX_HINT.search(text):
+                return True
+            if re.match(r"\d-\d", str(value)):
+                try:
+                    tax_id_norm(str(value))
+                    return True
+                except InvalidNorm:
+                    return False
+            return False
+        worded = [o for o in list(primary_opts) + list(secondary_opts) if canonical(o)]
         if worded:
             return pick_candidate(name, worded, first_invoice, invoice_pages=None)
 
     primary = best(primary_opts)
     if usable(primary):
         return primary
-    if primary_opts and primary[1] is not None and name not in ("supplier_tax_id", "customer_tax_id"):
+    if primary_opts and primary[1] is not None and name not in ("supplier_tax_id", "customer_tax_id") \
+            and name not in MONEY_LIKE:
         return primary        # identifier lacks its shape: the row derivation/oracle promotes it, not a copy page
     secondary = best(secondary_opts)
     if secondary[1] is None:
@@ -507,6 +538,7 @@ class PageRead:
     votes: list = dc_field(default_factory=list)
     is_copy: Optional[bool] = None
     prints_tax_id: Optional[bool] = None
+    synthetic_only: bool = False   # items are ONLY what synthesize_stamp_items injected - never page-read
     coord_mode: str = "auto"
     coord_overflow: Optional[dict] = None
     ocr_quality: Optional[float] = None
@@ -732,6 +764,9 @@ class VisionPipeline:
                 "truncated_pages": truncated, "render_dpi": self.dpi, "crop_dpi": self.crop_dpi,
                 "invoice_pages": invoice_pages, "pages_total": len(rendered),
                 "demoted_pages": demoted,
+                "classify": [{k: e.get(k) for k in ("page", "page_type", "is_copy", "duplicate_of",
+                                                    "page_marker", "prints_tax_id", "has_receiver_stamp")}
+                             for e in (batch_result if self.invoice_first else [])],
             },
             extractor={"vlm": self.model, "prompts": self.prompt_version, "ocr": "pdf-text-layer(pymupdf)",
                        "pipeline": f"vision-pipeline/{CODE_VERSION}"})
@@ -937,10 +972,11 @@ class VisionPipeline:
         # a tax id / PO that WAS read but never had the field's printed shape (DMS-30: a label swallowed
         # the digits) is as good as missing; and a supplier tax that exists ONLY as a bare number, with
         # no TAX ID wording on any invoice sheet, is weak evidence worth one bounded hunt (DMS-46).
-        for n in ("supplier_tax_id", "customer_tax_id", "po_number"):
+        for n in ("supplier_tax_id", "customer_tax_id", "po_number",
+                  "sub_total", "vat", "grand_total"):
             raw = getattr(fields.get(n), "raw", None) if n in fields else None
             if raw and not shape_ok(n, str(raw)) and n not in missing:
-                missing.append(n)
+                missing.append(n)         # read, but the reading never had the field's printed shape
         if "supplier_tax_id" not in missing and not any(
                 TAX_HINT.search(str(it.get("text") or ""))
                 and shape_ok("supplier_tax_id", _shaped_or_extracted("supplier_tax_id", it.get("text")))
@@ -958,8 +994,8 @@ class VisionPipeline:
         for p in sorted(reads):
             if p in invoice_pages or p not in used_map or len(log) >= self.RESCUE_MAX_PAGES:
                 continue
-            if reads[p].items:
-                continue      # a demoted copy sheet was already read for items - no second pass
+            if reads[p].items and not reads[p].synthetic_only:
+                continue      # a page genuinely read for items gets no second pass
             full = self._read_page_no_classify(used_map[p], ctx)
             keep = reads[p]
             known = {str(i.get("label") or "").strip().lower() for i in full.items}
@@ -1730,10 +1766,12 @@ def pick_candidate(name: str, options: list, first_invoice, invoice_pages: Optio
         value = extract_value(name, it.get("text"))[0]
         if name in IDENTIFIER_CONSENSUS_FIELDS:
             # a tax id / PO printed with its shape on a later page beats a label-mixed reading on page 1;
-            # for tax ids, printed TAX wording then orders the equally-shaped readings (wording beats a
-            # bare number's page position)
+            # for tax ids the canonical dashed notation (0-1455-48001-54-9 - how a TAX ID line prints the
+            # number) then the printed TAX wording order the readings ahead of a bare solid number's page
             worded = 0 if (name not in HINTED_FIELDS or TAX_HINT.search(str(it.get("text") or ""))) else 1
-            return (not shape_ok(name, value), worded, page != first_invoice,
+            dashed = 0 if (name.endswith("tax_id") and re.match(r"\d-\d", str(value or ""))) else \
+                (1 if name.endswith("tax_id") else 0)
+            return (not shape_ok(name, value), dashed, worded, page != first_invoice,
                     -float(it.get("confidence") or 0), page)
         return (page != first_invoice, not shape_ok(name, value), -float(it.get("confidence") or 0), page)
     ranked = sorted(options, key=key)
@@ -1795,26 +1833,38 @@ def po_from_lines(fields: dict, reads: dict, invoice_pages: list, log: list, lay
     item rows (``40117545-975`` = PO 40117545 release 975) when exactly one such PO appears there."""
     cur = fields.get("po_number")
     if cur is not None and cur.raw and shape_ok("po_number", cur.raw):
-        if not cur.agreement:
-            cur_digits = re.sub(r"\D", "", str(cur.raw))[:8]
-            for p in invoice_pages:
-                for it in (reads[p].items if p in reads else []):
-                    label = str(it.get("label") or "").lower()
-                    if not (label.startswith("line_") or label in ("po_number", "invoice_ref", "item_table", "remark")):
-                        continue
-                    if cur_digits and cur_digits in re.sub(r"\D", "", str(it.get("text") or "")):
-                        fields["po_number"] = cur.model_copy(update={"agreement": True, "confidence": max(cur.confidence or 0, 0.96), "null_reason": None})
-                        log.append({"field": "po_number", "corroborated": cur.raw, "rule": "PO number corroborated by item rows"})
-                        return
-        return
+        if cur.agreement:
+            return
+        cur_digits = re.sub(r"\D", "", str(cur.raw))[:8]
+        corroborated = False
+        for p in invoice_pages:
+            for it in (reads[p].items if p in reads else []):
+                label = str(it.get("label") or "").lower()
+                if not (label.startswith("line_") or label in ("po_number", "invoice_ref", "item_table", "remark")):
+                    continue
+                if cur_digits and cur_digits in re.sub(r"\D", "", str(it.get("text") or "")):
+                    fields["po_number"] = cur.model_copy(update={"agreement": True, "confidence": max(cur.confidence or 0, 0.96), "null_reason": None})
+                    log.append({"field": "po_number", "corroborated": cur.raw, "rule": "PO number corroborated by item rows"})
+                    corroborated = True
+                    break
+            if corroborated:
+                break
+        if corroborated:
+            return
+        # not printed by a single item row: the rows are the PO's authority - fall through to the
+        # derivation (DMS-33: the text layer's internal doc number 34000183 won a CONFLICT while the
+        # rows print the real customer PO 40118928)
     found: dict = {}
     for p in invoice_pages:
         for it in reads[p].items if p in reads else []:
             label = str(it.get("label") or "").lower()
             if not (label.startswith("line_") or label in ("po_number", "invoice_ref", "item_table", "remark")):
                 continue
-            for m in PO_IN_TEXT.finditer(thai_to_arabic(str(it.get("text") or ""))):
+            text = thai_to_arabic(str(it.get("text") or ""))
+            for m in PO_IN_TEXT.finditer(text):
                 found.setdefault(m.group(1), (p, it, m.group(0)))
+            for m in PO_RUN11.finditer(text):
+                found.setdefault(m.group(1), (p, it, m.group(1)))
     if len(found) != 1:
         if cur is not None and found:
             log.append({"field": "po_number", "derived": None, "candidates": sorted(found)})
