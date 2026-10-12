@@ -298,6 +298,36 @@ def page_type_of(value, fallback: str = "UNKNOWN") -> str:
     return upper if upper in PAGE_TYPES else fallback
 
 
+INVOICE_PAGE_TYPES = {"TAX_INVOICE", "INVOICE"}
+
+COPY_KEYWORDS = re.compile(
+    r"สำเนา|COPY|DUPLICATE|คู่ฉบับ|XEROX|เอกสารออกเป็นชุด",
+    re.I,
+)
+
+
+def text_layer_is_copy(text: str) -> bool:
+    """True when the PDF text layer contains keywords indicating a copy/duplicate."""
+    return bool(COPY_KEYWORDS.search(str(text or "")))
+
+
+def select_invoice_pages(pages_info: list[dict]) -> list[int]:
+    """Select invoice pages from classify_batch result, originals first with copy fallback.
+
+    Returns sorted page numbers of the invoice pages to process.
+    If no invoice pages are found at all, falls back to page 1.
+    """
+    invoices = [p for p in pages_info if p.get("page_type") in INVOICE_PAGE_TYPES]
+    if not invoices:
+        # No invoice classified — fall back to first page
+        return [pages_info[0]["page"]] if pages_info else []
+    originals = [p for p in invoices if not p.get("is_copy")]
+    if originals:
+        return sorted(p["page"] for p in originals)
+    # No originals — use copies as fallback
+    return sorted(p["page"] for p in invoices)
+
+
 @dataclass
 class PageRead:
     page_no: int
