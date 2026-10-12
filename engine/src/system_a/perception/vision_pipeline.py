@@ -255,6 +255,32 @@ def shaped_value(name: str, text):
     return good[0] if name in _TAKE_FIRST else good[-1]
 
 
+#: Header identifiers two independent page reads can vote on when several pages print them.
+IDENTIFIER_CONSENSUS_FIELDS = ("supplier_tax_id", "customer_tax_id", "po_number")
+
+
+def majority_identifier(name: str, options: list):
+    """The reading of an identifier that at least two page readers print identically, in the field's shape.
+
+    One misread digit (DMS-27's tax id on one page) loses to the repeated value no matter which page
+    printed it first. Returns the winning ``(page, item)`` or ``None`` when no value has a strict majority.
+    """
+    if name not in IDENTIFIER_CONSENSUS_FIELDS or len(options) < 2:
+        return None
+    votes = []
+    for page, it in options:
+        value = shaped_value(name, it.get("text")) or extract_value(name, it.get("text"))[0]
+        if value and shape_ok(name, value):
+            votes.append((page, it, str(value).strip()))
+    if len(votes) < 2:
+        return None
+    tally = Counter(v for _p, _i, v in votes)
+    best, count = tally.most_common(1)[0]
+    if count < 2 or list(tally.values()).count(count) > 1:
+        return None
+    return next((p, it) for p, it, v in votes if v == best)
+
+
 NAME_START = re.compile(r"(บริษัท|ห้างหุ้นส่วน|หจก\.?|[A-Z][A-Za-z&.,'\- ]{2,}(?:CO\.|COMPANY|LTD|LIMITED|CORP))", re.I)
 NAME_FIELDS = {"customer_name", "supplier_name"}
 
@@ -309,6 +335,43 @@ COPY_KEYWORDS = re.compile(
 def text_layer_is_copy(text: str) -> bool:
     """True when the PDF text layer contains keywords indicating a copy/duplicate."""
     return bool(COPY_KEYWORDS.search(str(text or "")))
+
+
+def reconcile_copy_flags(pages_info: list[dict], layers: dict) -> list[dict]:
+    """Annotate the batch classification with the PDF text-layer copy stamp - never overrule it.
+
+    The v2 classify prompt judges ``is_copy`` visually (duplicate CONTENT). Stamps such as "สำเนา/คู่ฉบับ/
+    เอกสารออกเป็นชุด" are printed on originals as well, so a keyword in the text layer is recorded for the
+    scorecard (``keyword_copy``) but cannot force a VLM-judged original into a copy.
+    """
+    for entry in pages_info:
+        layer_text = (layers.get(entry.get("page")) or {}).get("text") or ""
+        entry["keyword_copy"] = text_layer_is_copy(layer_text)
+    return pages_info
+
+
+RECEIVER_LABELS = {k for k, v in SIGNATURE_LABELS.items() if v == "receiver"}
+
+
+def synthesize_stamp_items(reads: dict, pages_info: list[dict], selected: list[int]) -> int:
+    """Give a warehouse receiving stamp on an unread page a voice in V-06.
+
+    The receiving stamp is usually printed on a page nothing else is read from (the delivery note), and in
+    invoice_first mode unselected pages only carry the batch-classify observation. A stamp the classify call
+    saw contributes a receiver-signature item - but only when the processed pages produced no real receiver
+    slot of their own (a real page read always outranks the synthesized observation).
+    """
+    if any(str(it.get("label") or "").strip().lower() in RECEIVER_LABELS
+           for p in selected if p in reads for it in reads[p].items):
+        return 0
+    for entry in sorted(pages_info, key=lambda e: e.get("page") or 0):
+        p = entry.get("page")
+        if entry.get("has_receiver_stamp") and p not in selected and p in reads:
+            reads[p].items.append({"type": "header", "label": "received_stamp",
+                                   "text": "warehouse receiving stamp (batch classify)",
+                                   "bbox": [0.0, 0.0, 1.0, 1.0], "confidence": 0.85})
+            return 1
+    return 0
 
 
 def select_invoice_pages(pages_info: list[dict]) -> list[int]:
@@ -442,6 +505,7 @@ class VisionPipeline:
                 "page": p,
                 "page_type": page_type_of(info.get("page_type"), "UNKNOWN"),
                 "is_copy": bool(info.get("is_copy")),
+                "has_receiver_stamp": bool(info.get("has_receiver_stamp")),
                 "confidence": float(info.get("confidence") or 0),
             })
         return result
@@ -460,12 +524,9 @@ class VisionPipeline:
             all_pngs = {r.info.page_no: r.png for r in used}
             batch_result = self._classify_batch(all_pngs)
 
-            # Corroborate is_copy with text layer
-            for entry in batch_result:
-                p = entry["page"]
-                layer_text = layers.get(p, {}).get("text") or ""
-                if text_layer_is_copy(layer_text):
-                    entry["is_copy"] = True
+            # The text layer may only annotate the copy judgement: a stamp keyword is printed on originals
+            # too, so the VLM's content-based duplicate reading stays authoritative.
+            reconcile_copy_flags(batch_result, layers)
 
             selected = select_invoice_pages(batch_result)
 
@@ -492,6 +553,7 @@ class VisionPipeline:
                     reads[p] = read
 
             invoice_pages = selected
+            synthesize_stamp_items(reads, batch_result, selected)
         else:
             for rp in used:
                 read = self._read_page(rp, ctx)
@@ -503,6 +565,12 @@ class VisionPipeline:
         documents, inv_doc_id = group_documents(reads, invoice_pages)
         words, words_skipped = self._words(ctx, invoice_pages)
         fields, signatures, regions, crop_log = self._fields(ctx, reads, invoice_pages)
+        rescue_log: list[dict] = []
+        if self.invoice_first:
+            used_map = {r.info.page_no: r for r in used}
+            rescue_log = self._rescue_missing_fields(ctx, reads, invoice_pages, fields, used_map)
+            if rescue_log:
+                fields, signatures, regions, crop_log = self._fields(ctx, reads, invoice_pages)
         lines, table_regions, row_errors, lines_source, table_notes = self._lines(ctx, reads, invoice_pages)
         regions = regions + table_regions + self._section_regions(reads)
         currency = self._currency(ctx, invoice_pages)
@@ -535,6 +603,7 @@ class VisionPipeline:
                                   | {"page": p} for p in reads for it in reads[p].dropped],
                 "page_errors": {str(p): reads[p].error for p in reads if reads[p].error},
                 "row_errors": row_errors, "lines_source": lines_source, "crop_reads": crop_log,
+                "field_rescue": rescue_log,
                 "table_notes": table_notes,
                 "corroborations": corroborations,
                 "calls": self.calls[call_start:],
@@ -640,7 +709,8 @@ class VisionPipeline:
 
         for name in field_crop_priority(candidates.keys()):
             options = candidates[name]
-            page, it = pick_candidate(name, options, first_invoice, invoice_pages=invoice_pages)
+            page, it = (majority_identifier(name, options) if name in IDENTIFIER_CONSENSUS_FIELDS else None) \
+                or pick_candidate(name, options, first_invoice, invoice_pages=invoice_pages)
             if it is None:
                 continue
             page_words = ctx.layers.get(page, {}).get("words", [])
@@ -692,6 +762,9 @@ class VisionPipeline:
                              "judged": "similarity" if name in FREE_TEXT_FIELDS else "exact",
                              "agreed": agree, "confidence": conf, "source": source})
 
+        po_family = [(p, it) for p in sorted(reads) for it in reads[p].items
+                     if str(it.get("label") or "").strip().lower() in ("po_number", "po_no", "po", "invoice_ref")]
+        po_semantic_fix(fields, po_family, crop_log)
         po_from_lines(fields, reads, invoice_pages, crop_log, ctx.layers)
         reconcile_grand_total(fields, candidates, crop_log)
 
@@ -711,6 +784,47 @@ class VisionPipeline:
             fields.setdefault(req, RawField(raw=None, confidence=None, agreement=False, source="vlm",
                                             null_reason="NOT_PRESENT"))
         return fields, signatures, regions, crop_log
+
+    #: identifiers worth one extra bounded page read when the invoice pages do not print them: on DMS-46 the
+    #: supplier tax id is printed on the PO form sheet, on DMS-52/56 on the second sheet of the set.
+    RESCUE_FIELDS = ("supplier_tax_id", "customer_tax_id", "po_number", "invoice_num",
+                     "sub_total", "vat", "grand_total")
+    RESCUE_MAX_PAGES = 2
+
+    def _rescue_missing_fields(self, ctx: _Ctx, reads: dict, invoice_pages: list,
+                               fields: dict, used_map: dict) -> list[dict]:
+        """Bounded field rescue: read at most two unprocessed pages when a critical field is still missing.
+
+        The old flow read every page and paid for it in calls; invoice_first trusts the batch classify and
+        can lose a header the invoice page does not print. A missing critical identifier is rare and is
+        printed somewhere in the set, so one page_items pass per unprocessed page (page_items only - never a
+        crop, never a table pass) is the cheap, honest way to find it. The rescue stops as soon as every
+        missing field has a candidate on the pages read.
+        """
+        missing = [n for n in self.RESCUE_FIELDS
+                   if n in fields and not getattr(fields[n], "raw", None)]
+        if not missing:
+            return []
+        log: list[dict] = []
+        still = list(missing)
+        for p in sorted(reads):
+            if p in invoice_pages or p not in used_map or len(log) >= self.RESCUE_MAX_PAGES:
+                continue
+            full = self._read_page_no_classify(used_map[p], ctx)
+            keep = reads[p]
+            known = {str(i.get("label") or "").strip().lower() for i in full.items}
+            full.items = full.items + [it for it in keep.items
+                                       if str(it.get("label") or "").strip().lower() not in known]
+            full.page_type, full.type_confidence = keep.page_type, keep.type_confidence
+            full.is_copy, full.votes = keep.is_copy, keep.votes
+            full.ocr_quality = keep.ocr_quality
+            reads[p] = full
+            log.append({"page": p, "fields": list(still), "rule": "field_rescue"})
+            here = {LABEL_TO_FIELD.get(str(it.get("label") or "").strip().lower()) for it in full.items}
+            still = [n for n in still if n not in here]
+            if not still:
+                break
+        return log
 
     def _crop_read(self, ctx: _Ctx, name: str, page: int, bbox) -> Optional[str]:
         info = ctx.infos[page]
@@ -1464,6 +1578,9 @@ def pick_candidate(name: str, options: list, first_invoice, invoice_pages: Optio
     def key(c):
         page, it = c
         value = extract_value(name, it.get("text"))[0]
+        if name in IDENTIFIER_CONSENSUS_FIELDS:
+            # a tax id / PO printed with its shape on a later page beats a label-mixed reading on page 1
+            return (not shape_ok(name, value), page != first_invoice, -float(it.get("confidence") or 0), page)
         return (page != first_invoice, not shape_ok(name, value), -float(it.get("confidence") or 0), page)
     ranked = sorted(options, key=key)
     page, it = ranked[0]
@@ -1472,6 +1589,51 @@ def pick_candidate(name: str, options: list, first_invoice, invoice_pages: Optio
         if len(same) > 1:
             page, it = max(same, key=lambda c: _money(extract_value(name, c[1].get("text"))[0]) or 0)
     return page, it
+
+
+PO_INTERNAL_HINT = re.compile(r"สั่งซื้อภายใน|ภายใน|INTERNAL", re.I)
+PO_ORDER_LABEL = re.compile(r"ใบสั่งซื้อ(?!\s*ภายใน)")
+
+
+def po_semantic_fix(fields: dict, candidates: list, log: list) -> None:
+    """An internal order number printed under "เลขที่สั่งซื้อภายใน" is not the customer PO.
+
+    DMS-24: the page reader labelled ``50688296`` (internal order) as po_number while the customer purchase
+    order ``42052615`` sat under the invoice_ref label. When the chosen po_number is printed under the
+    internal-order label and exactly one candidate printed under the customer purchase-order label has the
+    PO shape, that candidate wins.
+    """
+    cur = fields.get("po_number")
+    if cur is None or not cur.raw:
+        return
+    cur_raw = str(cur.raw).strip()
+    internal_reading = next((it for _p, it in candidates
+                             if str(extract_value("po_number", it.get("text"))[0] or "").strip() == cur_raw
+                             and PO_INTERNAL_HINT.search(str(it.get("text") or ""))), None)
+    if internal_reading is None:
+        return
+    found: dict = {}
+    for page, it in candidates:
+        label = str(it.get("label") or "").strip().lower()
+        if label not in ("po_number", "po_no", "po", "invoice_ref"):
+            continue
+        text = str(it.get("text") or "")
+        if PO_INTERNAL_HINT.search(text) or not PO_ORDER_LABEL.search(text):
+            continue
+        value = shaped_value("po_number", text) or extract_value("po_number", text)[0]
+        if value and shape_ok("po_number", value) and str(value).strip() != cur_raw:
+            found[str(value).strip()] = (page, it)
+    if len(found) != 1:
+        if found:
+            log.append({"field": "po_number", "derived": None, "candidates": sorted(found),
+                        "rule": "customer purchase-order label"})
+        return
+    value, (page, it) = next(iter(found.items()))
+    fields["po_number"] = cur.model_copy(update={
+        "raw": value, "confidence": max(cur.confidence or 0, 0.9), "agreement": True, "source": "derived",
+        "null_reason": None, "region": Region(page=page, bbox=it.get("bbox") or [0.0, 0.0, 1.0, 1.0])})
+    log.append({"field": "po_number", "replaced": cur_raw, "derived": value,
+                "from": str(it.get("label")), "page": page, "rule": "customer purchase-order label"})
 
 
 def po_from_lines(fields: dict, reads: dict, invoice_pages: list, log: list, layers: Optional[dict] = None) -> None:

@@ -799,6 +799,13 @@ def test_extract_invoice_first_limits_calls_to_three():
                     "amount": {"text": "1,000.00", "bbox_2d": [80, 330, 900, 350]}}}]}
             return {"doc_type": "tax_invoice", "items": [
                 {"type": "header", "label": "doc_no", "text": "IV690900285", "bbox_2d": [600, 100, 760, 115]},
+                {"type": "header", "label": "po_number", "text": "40111111", "bbox_2d": [600, 120, 760, 135]},
+                {"type": "header", "label": "supplier_tax_id", "text": "0123456789012",
+                 "bbox_2d": [60, 160, 400, 180]},
+                {"type": "header", "label": "customer_tax_id", "text": "0107545000179",
+                 "bbox_2d": [60, 200, 400, 220]},
+                {"type": "total", "label": "sub_total", "text": "1,000.00", "bbox_2d": [800, 700, 900, 715]},
+                {"type": "total", "label": "vat", "text": "70.00", "bbox_2d": [800, 720, 900, 735]},
                 {"type": "total", "label": "grand_total", "text": "1,070.00", "bbox_2d": [800, 740, 900, 755]},
                 {"type": "line", "label": "line_1", "text": "1 BRACKET ASSY 10 1,000.00", "bbox_2d": [40, 330, 950, 350]}]}
 
@@ -814,6 +821,181 @@ def test_extract_invoice_first_limits_calls_to_three():
     assert len(pipe.calls) == 3
     kinds = [c["kind"] for c in pipe.calls]
     assert kinds == ["classify_batch", "page_items", "table_rows"]
+
+
+# ---------------------------------------------------------------- 3-call eval loop fixes (loop 2)
+def test_classify_batch_parses_receiver_stamp_flags():
+    """_classify_batch keeps the VLM's per-page receiver-stamp observation."""
+    from unittest.mock import MagicMock
+    from system_a.perception.vision_pipeline import VisionPipeline
+
+    mock_client = MagicMock()
+    mock_client.chat_json.return_value = {
+        "pages": [
+            {"page": 1, "page_type": "TAX_INVOICE", "is_copy": False, "confidence": 0.95,
+             "has_receiver_stamp": False},
+            {"page": 2, "page_type": "DELIVERY_NOTE", "is_copy": False, "confidence": 0.90,
+             "has_receiver_stamp": True},
+        ]
+    }
+    pipe = VisionPipeline(mock_client, "test-model", invoice_first=True)
+    res = pipe._classify_batch({1: b"png1", 2: b"png2"})
+    assert res[0]["has_receiver_stamp"] is False
+    assert res[1]["has_receiver_stamp"] is True
+
+
+def test_reconcile_copy_flags_keyword_does_not_override_vlm():
+    """A text-layer stamp keyword annotates but never flips the VLM's visual copy judgement."""
+    from system_a.perception.vision_pipeline import reconcile_copy_flags
+    batch = [
+        {"page": 1, "page_type": "TAX_INVOICE", "is_copy": False, "confidence": 0.95},
+        {"page": 2, "page_type": "TAX_INVOICE", "is_copy": True, "confidence": 0.90},
+    ]
+    layers = {1: {"text": "ต้นฉบับใบกำกับภาษี เอกสารออกเป็นชุด"}, 2: {"text": ""}}
+    out = reconcile_copy_flags(batch, layers)
+    assert out[0]["is_copy"] is False and out[0]["keyword_copy"] is True
+    assert out[1]["is_copy"] is True
+
+
+def test_synthesize_stamp_items_only_when_no_real_receiver():
+    """A classify-detected receiving stamp on an unprocessed page becomes a receiver signature item,
+    but only when the processed pages did not already yield a real receiver signature."""
+    from system_a.perception.vision_pipeline import synthesize_stamp_items, PageRead
+
+    reads = {1: PageRead(page_no=1, items=[]), 2: PageRead(page_no=2, items=[])}
+    batch = [{"page": 2, "page_type": "DELIVERY_NOTE", "is_copy": False, "confidence": 0.9,
+              "has_receiver_stamp": True}]
+    assert synthesize_stamp_items(reads, batch, selected=[1]) == 1
+    labels = [it["label"] for it in reads[2].items]
+    assert labels == ["received_stamp"]
+
+    reads2 = {1: PageRead(page_no=1, items=[{"type": "header", "label": "receiver_signature",
+                                             "text": "signed", "bbox": [0.1, 0.1, 0.1, 0.1]}]),
+              2: PageRead(page_no=2, items=[])}
+    assert synthesize_stamp_items(reads2, batch, selected=[1]) == 0
+
+    # a stamped page that WAS processed must not be synthesized (its page_items is the authority)
+    reads3 = {1: PageRead(page_no=1, items=[]), 2: PageRead(page_no=2, items=[])}
+    assert synthesize_stamp_items(reads3, batch, selected=[1, 2]) == 0
+
+
+def test_majority_identifier_prefers_repeated_shaped_value():
+    """A digit-misread on one page loses to the same 13-digit tax id printed on two other pages."""
+    from system_a.perception.vision_pipeline import majority_identifier
+
+    def opt(page, text):
+        return page, {"label": "supplier_tax_id", "text": text, "bbox": [0.1, 0.1, 0.2, 0.02]}
+    options = [opt(1, "0105540008838"), opt(2, "0105540008888"), opt(3, "0105540008888")]
+    page, it = majority_identifier("supplier_tax_id", options)
+    assert page == 2 and it["text"] == "0105540008888"
+
+    # no repeated value -> no majority -> fall back to the regular picker
+    tie = [opt(1, "0105540008838"), opt(2, "0105540008888")]
+    assert majority_identifier("supplier_tax_id", tie) is None
+
+    # values without the field's printed shape never vote (12-digit misread)
+    junk = [opt(1, "เลขประจำตัวผู้เสียภาษี 010556004925"), opt(2, "เลข 010556004925")]
+    assert majority_identifier("supplier_tax_id", junk) is None
+
+
+def test_pick_candidate_shape_first_for_identifiers():
+    """For tax-id/PO identifiers a well-shaped reading on a later page beats a label-mixed first page."""
+    from system_a.perception.vision_pipeline import pick_candidate
+
+    opts = [(1, {"label": "supplier_tax_id", "text": "เลขประจำตัวผู้เสียภาษี 010556004925",
+                 "bbox": [0.1, 0.2, 0.4, 0.02], "confidence": 0.9}),
+            (2, {"label": "supplier_tax_id", "text": "0105556094925",
+                 "bbox": [0.1, 0.3, 0.3, 0.02], "confidence": 0.7})]
+    page, it = pick_candidate("supplier_tax_id", opts, first_invoice=1, invoice_pages=[1, 2])
+    assert page == 2, f"shape-OK reading must beat first-page garbage, got page {page}"
+
+
+def test_po_semantic_fix_prefers_customer_order_label():
+    """DMS-24: a po read from 'เลขที่สั่งซื้อภายใน' (internal order) is replaced by the value printed
+    under the customer purchase-order label 'เลขที่ใบสั่งซื้อ'."""
+    from system_a.domain.contracts import RawField, Region
+    from system_a.perception.vision_pipeline import po_semantic_fix
+
+    fields = {"po_number": RawField(raw="50688296", confidence=0.96, agreement=True,
+                                    region=Region(page=1, bbox=[0.1, 0.2, 0.3, 0.02]), source="vlm")}
+    candidates = [
+        (1, {"label": "po_number", "text": "เลขที่สั่งซื้อภายใน/ วันที่ 50688296/ 2026-08-18"}),
+        (1, {"label": "invoice_ref", "text": "เลขที่ใบสั่งซื้อ/วันที่ 42052615 / 2026-08-18"}),
+    ]
+    log = []
+    po_semantic_fix(fields, candidates, log)
+    assert fields["po_number"].raw == "42052615"
+    assert log and log[0]["field"] == "po_number" and log[0]["rule"] == "customer purchase-order label"
+
+    # when the current reading is not the internal-order one, nothing is touched
+    fields2 = {"po_number": RawField(raw="42052615", confidence=0.96, agreement=True,
+                                     region=Region(page=1, bbox=[0.1, 0.2, 0.3, 0.02]), source="vlm")}
+    po_semantic_fix(fields2, candidates, [])
+    assert fields2["po_number"].raw == "42052615"
+
+
+def test_field_rescue_reads_next_pages_until_missing_found():
+    """A missing critical identifier triggers at most a bounded page_items rescue on unprocessed pages."""
+    import fitz
+    from system_a.perception.vision_pipeline import VisionPipeline
+
+    doc = fitz.open()
+    for i in range(3):
+        p = doc.new_page(width=595, height=842)
+        p.insert_text((100, 100), f"PAGE {i + 1} TAX INVOICE IV1", fontsize=9)
+    pdf_bytes = doc.tobytes()
+    doc.close()
+
+    class FakeRescueVlm:
+        def __init__(self):
+            self.last_usage, self.last_salvaged = {}, False
+            self.page_reads = 0
+
+        def chat_json(self, model, system, user, *, images=None, **kw):
+            if "Classify these" in user:
+                return {"pages": [
+                    {"page": 1, "page_type": "TAX_INVOICE", "is_copy": False, "confidence": 0.95},
+                    {"page": 2, "page_type": "TAX_INVOICE", "is_copy": True, "confidence": 0.90},
+                    {"page": 3, "page_type": "PO", "is_copy": False, "confidence": 0.90}]}
+            if "Digitise" in user:
+                return {"rows": [{"line_no": 1, "bbox_2d": [40, 330, 950, 350], "cells": {
+                    "description": {"text": "BOLT", "bbox_2d": [80, 330, 300, 350]},
+                    "qty": {"text": "2", "bbox_2d": [520, 330, 560, 350]},
+                    "amount": {"text": "200.00", "bbox_2d": [80, 330, 900, 350]}}}]}
+            self.page_reads += 1
+            if self.page_reads == 1:      # page 1: full header but no supplier_tax_id
+                return {"doc_type": "tax_invoice", "items": [
+                    {"type": "header", "label": "doc_no", "text": "IV1", "bbox_2d": [600, 100, 760, 115]},
+                    {"type": "header", "label": "po_number", "text": "40111111", "bbox_2d": [600, 120, 760, 135]},
+                    {"type": "header", "label": "supplier_name", "text": "บริษัท เอ บี ซี จำกัด",
+                     "bbox_2d": [60, 60, 400, 90]},
+                    {"type": "header", "label": "customer_name", "text": "บริษัท อัปโก้ จำกัด",
+                     "bbox_2d": [60, 150, 400, 180]},
+                    {"type": "header", "label": "supplier_address", "text": "99 บางนา",
+                     "bbox_2d": [60, 90, 400, 110]},
+                    {"type": "header", "label": "customer_address", "text": "100 อโศก",
+                     "bbox_2d": [60, 180, 400, 200]},
+                    {"type": "header", "label": "customer_tax_id", "text": "0107545000179",
+                     "bbox_2d": [60, 210, 400, 230]},
+                    {"type": "header", "label": "invoice_date", "text": "01/09/2569",
+                     "bbox_2d": [600, 140, 760, 155]},
+                    {"type": "total", "label": "sub_total", "text": "200.00", "bbox_2d": [700, 700, 900, 715]},
+                    {"type": "total", "label": "vat", "text": "14.00", "bbox_2d": [700, 720, 900, 735]},
+                    {"type": "total", "label": "grand_total", "text": "214.00", "bbox_2d": [700, 740, 900, 755]},
+                    {"type": "line", "label": "line_1", "text": "1 BOLT 2 200.00", "bbox_2d": [40, 330, 950, 350]}]}
+            # rescue read (page 2): carries the supplier_tax_id
+            return {"doc_type": "tax_invoice", "items": [
+                {"type": "header", "label": "supplier_tax_id", "text": "0123456789012",
+                 "bbox_2d": [60, 100, 400, 120]}]}
+
+    pipe = VisionPipeline(FakeRescueVlm(), "fake-model", do_crops=False, invoice_first=True)
+    ext = pipe.extract(pdf_bytes, package_id="PKG-R", dms_doc_id="DMS-R")
+    assert ext.fields["supplier_tax_id"].raw == "0123456789012"
+    kinds = [c["kind"] for c in pipe.calls]
+    assert kinds.count("page_items") == 2, f"rescue must spend exactly one extra page_items, got {kinds}"
+    assert "crop_reread" not in kinds
+    assert ext.extra["invoice_pages"] == [1]      # selection unchanged; rescue is logged separately
+    assert [r["page"] for r in ext.extra["field_rescue"]] == [2]
 
 
 

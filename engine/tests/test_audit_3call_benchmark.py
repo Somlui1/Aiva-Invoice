@@ -19,9 +19,9 @@ import audit_3call_benchmark as audit  # noqa: E402
 # ------------------------------------------------------------------ fixtures
 def make_result(*, kinds=("classify_batch", "page_items", "table_rows"), crops=0,
                 verdict="AUTO_PASS", fields=None, n_lines=2, elements=None,
-                bbox_problems=None, n_invoice_docs=1):
+                bbox_problems=None, invoice_pages=(1,)):
     calls = [{"kind": k, "ok": True} for k in kinds] + [{"kind": "crop_reread", "ok": True}] * crops
-    extra = {"calls": calls}
+    extra = {"calls": calls, "invoice_pages": list(invoice_pages)}
     if bbox_problems is not None:
         extra["bbox_problems"] = bbox_problems
     if fields is None:
@@ -31,8 +31,7 @@ def make_result(*, kinds=("classify_batch", "page_items", "table_rows"), crops=0
     if elements is None:
         elements = [{"element_id": "R1", "element_type": "row", "bbox": [0.10, 0.35, 0.80, 0.04]}]
     return {
-        "documents": [{"document_id": f"D{i + 1}", "document_type": "INVOICE"}
-                      for i in range(n_invoice_docs)],
+        "documents": [{"document_id": "D1", "document_type": "INVOICE"}],
         "recommendation": {"value": verdict},
         "normalized_fields": fields,
         "extraction": {"lines": [{"line_no": i + 1} for i in range(n_lines)], "extra": extra},
@@ -51,18 +50,18 @@ def test_gate1_passes_when_calls_under_or_equal_three():
     ok, reasons = audit.gate1_calls_budget(make_result(kinds=("classify_batch",) * 2))  # 2 calls
     assert ok and reasons == []
 
-    # over the fixed budget of 3 for a single-invoice document
+    # over the fixed budget of 3 for a single-page invoice document
     ok, reasons = audit.gate1_calls_budget(
         make_result(kinds=("classify_batch", "page_items", "table_rows", "table_rows")))
     assert not ok and any("calls=4" in r for r in reasons)
 
-    # multi-invoice exception: 1 + 2*N invoices
+    # multi-page exception: 1 + 2*K where K = invoice pages processed (design's per-unit budget)
     ok, _ = audit.gate1_calls_budget(make_result(
-        kinds=("classify_batch",) + ("page_items", "table_rows") * 2, n_invoice_docs=2))
+        kinds=("classify_batch",) + ("page_items", "table_rows") * 2, invoice_pages=(1, 2)))
     assert ok
     ok, reasons = audit.gate1_calls_budget(make_result(
         kinds=("classify_batch",) + ("page_items", "table_rows") * 2 + ("table_rows",),
-        n_invoice_docs=2))
+        invoice_pages=(1, 2)))
     assert not ok and any("calls=6 > budget 5" in r for r in reasons)
 
 

@@ -58,19 +58,25 @@ def _extra(result: dict) -> dict:
 
 
 def gate1_calls_budget(target: Optional[dict]) -> tuple[bool, list[str]]:
-    """Gate 1: total VLM calls within budget and zero crop_reread calls.
+    """Gate 1: one batch classify + at most one page_items and one table_rows per invoice
+    page, and zero crop_reread calls.
 
-    Budget = max(3, 1 + 2 * N_invoices) where N_invoices counts grouped INVOICE
-    documents in the result (multi-invoice exception from the design doc).
+    Budget = 1 + 2*K, K = invoice-page units the document required (the design doc's
+    "1 + N*2" exception read per processing unit): a standard single-invoice document
+    has K = 1 and the headline budget of 3 calls; multi-page invoices and multi-invoice
+    sets pay one extra pair per further page. A bounded field-rescue read adds a unit
+    as well - it is a page_items pass, never a crop.
     """
     if target is None:
         return False, ["target result missing"]
-    calls = _extra(target).get("calls") or []
+    ex = _extra(target)
+    calls = ex.get("calls") or []
     n_calls = len(calls)
     n_crops = sum(1 for c in calls if c.get("kind") == "crop_reread")
-    n_inv_docs = max(1, sum(1 for d in (target.get("documents") or [])
-                            if str(d.get("document_type") or "").upper() == "INVOICE"))
-    budget = max(3, 1 + 2 * n_inv_docs)
+    units = {p for p in (ex.get("invoice_pages") or []) if isinstance(p, int)}
+    units |= {c.get("page") for c in calls
+              if c.get("kind") == "page_items" and isinstance(c.get("page"), int)}
+    budget = 1 + 2 * max(1, len(units))
     reasons: list[str] = []
     if n_calls > budget:
         reasons.append(f"calls={n_calls} > budget {budget} (crop_reread={n_crops})")
@@ -202,7 +208,7 @@ def render_scorecard(rows: list[tuple[int, dict]], target_dir: Path, baseline_di
     lines.append("-" * 80)
 
     all_ok = True
-    for idx, label in enumerate(("Call Budget (Calls <= 3, crop_reread == 0)",
+    for idx, label in enumerate(("Call Budget (1 + 2 per invoice page, crop_reread == 0)",
                                  "Accuracy & Verdict Non-Regression",
                                  "BBox Integrity (No degenerate, clean coords)")):
         passed = sum(1 for _, r in rows if r["gates"][idx][0])

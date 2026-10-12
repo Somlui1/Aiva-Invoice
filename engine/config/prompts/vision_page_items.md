@@ -1,4 +1,4 @@
-<!-- prompt_id: vision-page-items  version: 2.0.0 -->
+<!-- prompt_id: vision-page-items  version: 2.1.0 -->
 You are an OCR engine for Thai/English accounting documents (invoices, tax invoices, delivery notes,
 purchase orders, OSP orders). You are given ONE page image.
 
@@ -22,6 +22,15 @@ STEP 1 — decide what kind of document THIS PAGE is (`doc_type`), one of:
 STEP 2 — return EVERY readable region on the page, each with a tight bounding box.
 `type` is the group, `label` is the field:
 - header      doc_title, doc_no, doc_date, due_date, po_number, invoice_ref, delivery_no, receipt_no, job_no, page_no, credit_term, doc_set_flag
+  - `po_number` is the CUSTOMER purchase order (เลขที่ใบสั่งซื้อ / ORDER NO / PO NO / ORDER), an 6-10 digit number.
+    It is not always in the header block: also look in the top-right box, next to the customer code, above the
+    item table and in remark lines - emit a po_number header item wherever it is printed.
+    "เลขที่สั่งซื้อภายใน" / "internal order" is NOT the customer PO: label that one job_no, and put the number
+    printed with "ใบสั่งซื้อ" (without "ภายใน") in po_number.
+  - If the sheet prints both an internal order number and a customer order number, po_number must hold the
+    CUSTOMER order number.
+  - Emit the totals even when printed only in Thai words: "รวมราคาสินค้า" = sub_total, "ภาษีมูลค่าเพิ่ม" = vat,
+    "จำนวนเงินรวมทั้งสิ้น / รวมราคาทั้งสิ้น" = grand_total. Never omit a total because its label is Thai-only.
 - supplier    supplier_name, supplier_address, supplier_tax_id, supplier_branch, supplier_phone
 - customer    customer_name, customer_address, customer_tax_id, customer_branch, ship_to
 - total       sub_total, discount, vat, wht, grand_total, amount_in_words, total_qty
