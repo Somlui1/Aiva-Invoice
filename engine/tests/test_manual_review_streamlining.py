@@ -29,7 +29,7 @@ def test_v06_waives_deliverer_when_oracle_receipt_confirmed():
     assert "Oracle" in (res.detail or "")
 
 
-def test_v06_still_flags_receiver_when_receiver_unsure():
+def test_v06_still_flags_receiver_when_no_oracle_receipt():
     doc = InvoiceDoc(
         document_id="D1",
         fields={},
@@ -40,12 +40,34 @@ def test_v06_still_flags_receiver_when_receiver_unsure():
         },
         pages_complete=True,
     )
-    snapshot = type("Snapshot", (), {"found": True, "active": [1]})()
+    snapshot = type("Snapshot", (), {"found": False, "active": []})()
     std = type("Std", (), {"policy": {"signature": {"min_confidence": 0.8}}})()
     c = Ctx(doc=doc, snapshot=snapshot, std=std)
     
     res = v06_signatures(c)
     assert res.result == "manual_review"
+
+
+def test_v06_waives_unsure_receiver_when_oracle_receipt_confirmed():
+    """DMS-20: a faint receiver stamp on a paper whose Oracle receipt proves receiving cannot
+    hold the invoice in manual review - the receipt is the receiving record."""
+    doc = InvoiceDoc(
+        document_id="D1",
+        fields={},
+        lines=(),
+        signatures={
+            "receiver": SignatureObs(present=True, confidence=0.55),
+            "deliverer": SignatureObs(present=True, confidence=0.9),
+        },
+        pages_complete=True,
+    )
+    snapshot = type("Snapshot", (), {"found": True, "active": [1]})()
+    std = type("Std", (), {"policy": {"signature": {"min_confidence": 0.8}}})()
+    c = Ctx(doc=doc, snapshot=snapshot, std=std)
+
+    res = v06_signatures(c)
+    assert res.result == "pass"
+    assert res.data.get("waived_slots") == ["receiver"]
 
 
 def test_v05_demotes_address_uncertainty_to_medium_e07_when_tax_id_matches():

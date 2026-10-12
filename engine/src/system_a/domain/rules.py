@@ -149,8 +149,13 @@ def v06_signatures(c: Ctx) -> RuleOutcome:
         return _fail("V-06", out, unsure_slots=unsure)
     if unsure:
         has_receipt = bool(getattr(c.snapshot, "active", None) or getattr(c.snapshot, "found", False))
-        if has_receipt and unsure == ["deliverer"]:
-            return _ok("V-06", detail="ยืนยันการรับของจากใบรับสินค้าใน Oracle EBS (waive deliverer)", data={"waived_slots": ["deliverer"]})
+        if has_receipt and set(unsure) <= {"deliverer", "receiver"}:
+            # an Oracle receipt is itself the receiving record (named receiver, goods booked):
+            # a faint signature on either slot cannot threaten invoice matching - EBS already
+            # confirmed the goods arrived (waiving the deliverer alone left DMS-20 stuck in manual
+            # review while its own receipt proved receiving)
+            return _ok("V-06", detail="ยืนยันการรับของจากใบรับสินค้าใน Oracle EBS (waive signature)",
+                       waived_slots=sorted(unsure))
         return RuleOutcome("V-06", "manual_review", detail=f"ความมั่นใจต่ำ: {unsure}", data={"unsure_slots": unsure})
     return _ok("V-06")
 
