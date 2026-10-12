@@ -742,3 +742,29 @@ def test_copy_detection_from_text_layer():
     assert text_layer_is_copy("ใบกำกับภาษี") is False
 
 
+def test_classify_batch_method_execution():
+    from unittest.mock import MagicMock
+    from system_a.perception.vision_pipeline import VisionPipeline
+
+    mock_client = MagicMock()
+    mock_client.chat_json.return_value = {
+        "pages": [
+            {"page": 2, "page_type": "DELIVERY_NOTE", "is_copy": False, "confidence": 0.85},
+            {"page": 1, "page_type": "TAX_INVOICE", "is_copy": False, "confidence": 0.95},
+        ]
+    }
+    vp = VisionPipeline(mock_client, "test-model", invoice_first=True)
+    res = vp._classify_batch({1: b"png1", 2: b"png2"})
+
+    assert len(res) == 2
+    assert res[0]["page"] == 1
+    assert res[0]["page_type"] == "TAX_INVOICE"
+    assert res[0]["is_copy"] is False
+    assert res[1]["page"] == 2
+    assert res[1]["page_type"] == "DELIVERY_NOTE"
+    assert len(vp.calls) == 1
+    assert vp.calls[0]["kind"] == "classify_batch"
+    assert vp.calls[0]["ok"] is True
+
+
+

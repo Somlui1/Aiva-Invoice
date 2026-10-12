@@ -358,18 +358,22 @@ class VisionPipeline:
     def __init__(self, client, model: str, *, dpi: int = 150, crop_dpi: int = 300, coord: str = "auto",
                  max_pages: int = 12, max_tokens: int = 8000, table_pages: int = 8, critical_crops: int = 16,
                  do_table: bool = True, do_crops: bool = True, do_classify: bool = True,
+                 invoice_first: bool = False,
                  json_mode: bool = False, max_words: int = 2500, crop_pad_pt: float = 8.0,
                  message_layout: str = "v3", cell_box: str = "row"):
         self.client, self.model = client, model
         self.dpi, self.crop_dpi, self.coord, self.max_pages = dpi, crop_dpi, coord, max_pages
         self.max_tokens, self.table_pages, self.critical_crops = max_tokens, table_pages, critical_crops
         self.do_table, self.do_crops, self.do_classify = do_table, do_crops, do_classify
+        self.invoice_first = invoice_first
         self.json_mode, self.max_words = json_mode, max_words
         self.message_layout, self.cell_box = message_layout, cell_box
         self.crop_dpi = float(crop_dpi)
         self.crop_pad_pt = float(crop_pad_pt)
         self.prompts = {name: load_prompt(name) for name in PROMPTS}
-        self.prompt_version = "+".join(prompt_identity(n, self.prompts[n]) for n in PROMPTS)
+        if self.invoice_first:
+            self.prompts["vision_classify_batch"] = load_prompt("vision_classify_batch")
+        self.prompt_version = "+".join(prompt_identity(n, self.prompts[n]) for n in sorted(self.prompts.keys()))
         self.code_version = CODE_VERSION
         self.calls: list[dict] = []
         self.stats: dict = {}
@@ -394,6 +398,51 @@ class VisionPipeline:
         self.calls.append({**entry, "ok": True, "ms": round((time.time() - t0) * 1000),
                            "usage": dict(getattr(self.client, "last_usage", {}) or {})})
         return out if isinstance(out, dict) else {}
+
+    def _classify_batch(self, pngs: dict[int, bytes]) -> list[dict]:
+        """Classify all pages in one multi-image VLM call.
+
+        Returns list of {"page": int, "page_type": str, "is_copy": bool, "confidence": float}.
+        """
+        pages_sorted = sorted(pngs.keys())
+        b64_images = [f"data:image/png;base64,{base64.b64encode(pngs[p]).decode()}" for p in pages_sorted]
+        instruction = f"Classify these {len(pages_sorted)} pages. Page numbers are {', '.join(str(p) for p in pages_sorted)}."
+        entry = {"kind": "classify_batch", "page": pages_sorted, "model": self.model}
+        t0 = time.time()
+        try:
+            out = self.client.chat_json(
+                self.model, self.prompts["vision_classify_batch"], instruction,
+                layout=self.message_layout, images=b64_images, temperature=0,
+                max_tokens=self.max_tokens, json_mode=self.json_mode,
+            )
+        except Exception as e:
+            self.calls.append({**entry, "ok": False, "ms": round((time.time() - t0) * 1000),
+                               "error": f"{type(e).__name__}: {str(e)[:200]}"})
+            raise
+        self.calls.append({**entry, "ok": True, "ms": round((time.time() - t0) * 1000),
+                           "usage": dict(getattr(self.client, "last_usage", {}) or {})})
+        raw_pages = (out.get("pages") if isinstance(out, dict) else []) or []
+        page_dict = {}
+        for item in raw_pages:
+            if isinstance(item, dict):
+                pg_num = item.get("page")
+                if isinstance(pg_num, int):
+                    page_dict[pg_num] = item
+                elif str(pg_num).isdigit():
+                    page_dict[int(pg_num)] = item
+        result = []
+        for i, p in enumerate(pages_sorted):
+            info = page_dict.get(p)
+            if info is None and i < len(raw_pages) and isinstance(raw_pages[i], dict):
+                info = raw_pages[i]
+            info = info or {}
+            result.append({
+                "page": p,
+                "page_type": page_type_of(info.get("page_type"), "UNKNOWN"),
+                "is_copy": bool(info.get("is_copy")),
+                "confidence": float(info.get("confidence") or 0),
+            })
+        return result
 
     # ------------------------------------------------------------------ document pipeline
     def extract(self, pdf: bytes, *, package_id: str, dms_doc_id: str) -> ExtractionResult:
