@@ -115,6 +115,7 @@ def build_perception(settings: Settings, client=None):
     return VisionPipeline(client, settings.model_vision, dpi=settings.render_dpi, crop_dpi=settings.crop_dpi,
                           coord=settings.coord_mode, max_pages=settings.max_pages, do_table=settings.do_table,
                           do_crops=settings.do_crops, do_classify=settings.do_classify,
+                          invoice_first=settings.invoice_first,
                           json_mode=settings.json_mode, message_layout=settings.message_layout,
                           cell_box=settings.cell_box)
 
