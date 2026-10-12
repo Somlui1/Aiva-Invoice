@@ -39,6 +39,7 @@ class Settings:
     do_table: bool = os.getenv("PERCEPTION_TABLE", "1") == "1"
     do_crops: bool = os.getenv("PERCEPTION_CROPS", "1") == "1"
     do_classify: bool = os.getenv("PERCEPTION_CLASSIFY", "1") == "1"
+    invoice_first: bool = os.getenv("PERCEPTION_INVOICE_FIRST", "0") == "1"
     json_mode: bool = os.getenv("PERCEPTION_JSON_MODE", "0") == "1"           # bbox_testv3: no response_format
     message_layout: str = os.getenv("PERCEPTION_MESSAGE_LAYOUT", "v3")         # v3 | system
     cell_box: str = os.getenv("PERCEPTION_CELL_BOX", "row")                     # row (v3) | cell
@@ -122,5 +123,6 @@ def perception_options(settings: Settings) -> dict:
     """The options that change a perception answer — part of the cache key."""
     return {"dpi": settings.render_dpi, "crop_dpi": settings.crop_dpi, "max_pages": settings.max_pages,
             "coord": settings.coord_mode, "table": settings.do_table, "crops": settings.do_crops,
-            "classify": settings.do_classify, "json_mode": settings.json_mode,
+            "classify": settings.do_classify, "invoice_first": settings.invoice_first,
+            "json_mode": settings.json_mode,
             "layout": settings.message_layout, "cell_box": settings.cell_box}
