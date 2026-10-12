@@ -81,38 +81,55 @@ def test_gate1_fails_when_crop_reread_present():
 def test_gate2_verifies_verdict_and_field_parity():
     baseline = make_result()
 
-    ok, reasons = audit.gate2_accuracy(make_result(), baseline)
-    assert ok and reasons == []
+    ok, reasons, obs = audit.gate2_accuracy(make_result(), baseline)
+    assert ok and reasons == [] and obs == []
 
     # verdict regression AUTO_PASS -> HOLD
-    ok, reasons = audit.gate2_accuracy(make_result(verdict="HOLD"), baseline)
+    ok, reasons, _obs = audit.gate2_accuracy(make_result(verdict="HOLD"), baseline)
     assert not ok and any("verdict regression AUTO_PASS -> HOLD" in r for r in reasons)
 
     # verdict improvement HOLD -> AUTO_PASS is allowed
-    ok, reasons = audit.gate2_accuracy(make_result(), make_result(verdict="HOLD"))
+    ok, reasons, _obs = audit.gate2_accuracy(make_result(), make_result(verdict="HOLD"))
     assert ok and reasons == []
 
     # core field mismatch (po_number) and missing field (grand_total)
     bad_fields = {"invoice_num": "SQ26/071249", "po_number": "99999999",
                   "supplier_tax_id": "0135537003456", "sub_total": "442.00", "grand_total": ""}
-    ok, reasons = audit.gate2_accuracy(make_result(fields=bad_fields), baseline)
+    ok, reasons, _obs = audit.gate2_accuracy(make_result(fields=bad_fields), baseline)
     assert not ok
     assert any("po_number='99999999' != baseline '40117545'" in r for r in reasons)
     assert any("grand_total missing" in r for r in reasons)
 
     # improvement over an empty baseline field is allowed
     weak_baseline = make_result(fields={**baseline["normalized_fields"], "po_number": ""})
-    ok, reasons = audit.gate2_accuracy(make_result(), weak_baseline)
+    ok, reasons, _obs = audit.gate2_accuracy(make_result(), weak_baseline)
     assert ok and reasons == []
 
-    # line count drift
-    ok, reasons = audit.gate2_accuracy(make_result(n_lines=3), baseline)
-    assert not ok and any("lines=3 != baseline 2" in r for r in reasons)
+    # line drift and a tax-id swing are OBSERVATIONS, not gate violations (the plan gates verdict
+    # plus invoice_num / grand_total / po_number only - DMS-26's fold and DMS-46's PO tax prove
+    # baseline line counts/tax readings are not the authority)
+    ok, reasons, obs = audit.gate2_accuracy(make_result(n_lines=3), baseline)
+    assert ok and reasons == [] and any("lines=3" in o for o in obs)
+    swing = {**baseline["normalized_fields"], "supplier_tax_id": "0107545000179"}
+    ok, reasons, obs = audit.gate2_accuracy(make_result(fields=swing), baseline)
+    assert ok and reasons == [] and any("supplier_tax_id" in o for o in obs)
+
+    # money parity is numeric: '6420.00' == '6420'
+    money = {**baseline["normalized_fields"], "grand_total": "6420"}
+    ok, reasons, _obs = audit.gate2_accuracy(make_result(fields={**money, "grand_total": "6,420.00"}),
+                                            make_result(fields=money))
+    assert ok and reasons == []
+
+    # invoice_num parity ignores printed separators
+    sep = {**baseline["normalized_fields"], "invoice_num": "9290186640/"}
+    ok, reasons, _obs = audit.gate2_accuracy(
+        make_result(fields={**sep, "invoice_num": "9290186640"}), make_result(fields=sep))
+    assert ok and reasons == []
 
     # missing target/baseline are violations with clear reasons
-    ok, reasons = audit.gate2_accuracy(None, baseline)
+    ok, reasons, _obs = audit.gate2_accuracy(None, baseline)
     assert not ok and reasons == ["target result missing"]
-    ok, reasons = audit.gate2_accuracy(make_result(), None)
+    ok, reasons, _obs = audit.gate2_accuracy(make_result(), None)
     assert not ok and any("baseline result missing" in r for r in reasons)
 
 

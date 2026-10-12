@@ -1341,7 +1341,7 @@ def test_corroborate_overwrites_supplier_tax_equal_to_customer_tax_via_po_master
         lines=(), signatures={}, pages_complete=True)
     row = ReceiptRow(org_id=101, receipt_num="R1", receiver=None, line=1, item="A",
                      qty=Decimal(1), uom="PCS", unit_price=Decimal(1), line_amount=Decimal(1),
-                     supplier_tax_id="0105556094925")
+                     supplier_tax_id="0105556094925", customer_tax_id="0107545000179")
     snap = OracleSnapshot(queried_at="x", lookup_path="RCV-V02",
                           query_keys={"supplier_tax_id": "0105556094925",
                                       "supplier_tax_id_source": "oracle_po"},
@@ -1351,6 +1351,30 @@ def test_corroborate_overwrites_supplier_tax_equal_to_customer_tax_via_po_master
     fld = out.fields["supplier_tax_id"]
     assert fld.ok and fld.value == "0105556094925"
     assert "oracle:supplier_tax_id_from_po" in fld.evidence
+
+
+def test_corroborate_never_rewrites_a_supplier_tax_oracle_does_not_call_the_customer():
+    """DMS-46: the printed PO form states the supplier's TAX ID and the doc's own (contaminated)
+    customer field equals it - the EBS receipt rows do NOT name that number as the customer, so the
+    read stands: the PO master's different tax id must not overwrite a corroborated printed field."""
+    from system_a.domain.evidence import corroborate_oracle
+    from system_a.domain.contracts import InvoiceDoc, NField, OracleSnapshot, ReceiptRow
+    doc = InvoiceDoc(document_id="D1", fields={
+        "supplier_tax_id": NField(name="supplier_tax_id", element_id="F1", raw="0-1455-48001-54-9",
+                                  value="0145548001549", confidence=.9, ok=True),
+        "customer_tax_id": NField(name="customer_tax_id", element_id="F2", raw="0145548001549",
+                                  value="0145548001549", confidence=.9, ok=True)},
+        lines=(), signatures={}, pages_complete=True)
+    row = ReceiptRow(org_id=176, receipt_num="R1", receiver=None, line=1, item="A",
+                     qty=Decimal(1), uom="PCS", unit_price=Decimal(1), line_amount=Decimal(1),
+                     supplier_tax_id="0145555000137", customer_tax_id="0107545000179")
+    snap = OracleSnapshot(queried_at="x", lookup_path="TAX-INV",
+                          query_keys={"supplier_tax_id": "0145555000137",
+                                      "supplier_tax_id_source": "oracle_po"},
+                          rows=(row,), row_cap_hit=False, calls=[])
+    std = type("Std", (), {"policy": {"evidence": {"oracle": True}}, "entities": {}})()
+    out = corroborate_oracle(doc, snap, std)
+    assert out.fields["supplier_tax_id"].value == "0145548001549"
 
 
 def test_corroborate_keeps_distinct_supplier_tax_even_when_po_master_exists():

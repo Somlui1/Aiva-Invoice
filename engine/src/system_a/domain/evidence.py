@@ -185,9 +185,11 @@ def corroborate_oracle(doc: InvoiceDoc, snap: Optional[OracleSnapshot], std: Sta
     # vendor master, not the mislabel, is then the field.
     qk = snap.query_keys or {}
     po_tax = str(qk.get("supplier_tax_id") or "") if qk.get("supplier_tax_id_source") == "oracle_po" else ""
-    cust_f = f.get("customer_tax_id")
-    equal_to_customer = (cur is not None and cur.ok and cust_f is not None and cust_f.value is not None
-                         and str(cur.value) == str(cust_f.value))
+    # equal to the customer's tax id AS ORACLE STATES IT (the receipt rows' own customer column):
+    # DMS-30's mislabel is the buyer's number, confirmed independently. The doc's own customer field
+    # proves nothing (a mislabelled PO form can contaminate both slots, DMS-46).
+    oracle_cust = {str(r.customer_tax_id) for r in rows if r.customer_tax_id}
+    equal_to_customer = cur is not None and cur.ok and str(cur.value) in oracle_cust
     if not promoted and re.fullmatch(r"\d{13}", po_tax) and (cur is None or not cur.ok
                                                              or equal_to_customer):
         f["supplier_tax_id"] = NField(

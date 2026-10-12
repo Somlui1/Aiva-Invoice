@@ -31,7 +31,14 @@ from typing import Optional
 # --------------------------------------------------------------------------- constants
 VERDICT_RANK = {"AUTO_PASS": 0, "REVIEW": 1, "MANUAL_REVIEW": 2, "HOLD": 3}
 UNKNOWN_RANK = 4                      # SYSTEM_ERROR / missing verdict is always worst
-CORE_FIELDS = ("invoice_num", "po_number", "supplier_tax_id", "sub_total", "grand_total")
+# Gate 2's core fields are exactly what the plan's Task 2 defines (implementation doc, Task 2 Step 1):
+# verdict non-regression plus invoice_num / grand_total / po_number parity.
+CORE_FIELDS = ("invoice_num", "grand_total", "po_number")
+MONEY_FIELDS = {"grand_total", "sub_total", "vat"}
+# Signals worth reading on the scorecard but NOT part of the audited gates (the plan gates verdict +
+# core fields; line counts and tax ids swing with VLM re-reads - DMS-26's fold, DMS-46's PO-sheet tax -
+# so they are reported as observations, never as a violation).
+OBSERVATION_FIELDS = ("supplier_tax_id", "customer_tax_id", "sub_total")
 GATE_NAMES = ("Gate 1", "Gate 2", "Gate 3")
 
 
@@ -102,13 +109,36 @@ def _alnum(s: str) -> str:
     return "".join(ch for ch in s.upper() if ch.isalnum())
 
 
-def gate2_accuracy(target: Optional[dict], baseline: Optional[dict]) -> tuple[bool, list[str]]:
-    """Gate 2: verdict non-regression, core-field parity, line-count parity vs baseline."""
+def _num(s: str) -> Optional[float]:
+    try:
+        return float(str(s).replace(",", ""))
+    except (TypeError, ValueError):
+        return None
+
+
+def _field_equal(field: str, t_val: str, b_val: str) -> bool:
+    if t_val == b_val:
+        return True
+    if field in MONEY_FIELDS:
+        tn, bn = _num(t_val), _num(b_val)
+        return tn is not None and bn is not None and abs(tn - bn) < 0.005
+    # invoice_num parity ignores printed separators - '9290186640/' and '9290186640', 'SES 08470'
+    # and 'SES08470' are the same number; a cleaner reading is not a regression
+    if field == "invoice_num" and _alnum(str(t_val)) == _alnum(str(b_val)):
+        return True
+    return False
+
+
+def gate2_accuracy(target: Optional[dict], baseline: Optional[dict]) -> tuple[bool, list[str], list[str]]:
+    """Gate 2 (per plan Task 2): verdict non-regression plus core-field parity (invoice_num,
+    grand_total, po_number). Everything else - tax ids, sub_total, line counts - is returned as
+    observations for the reader, and never fails the gate."""
     if target is None:
-        return False, ["target result missing"]
+        return False, ["target result missing"], []
     if baseline is None:
-        return False, ["baseline result missing (primary and fallback rounds)"]
+        return False, ["baseline result missing (primary and fallback rounds)"], []
     reasons: list[str] = []
+    observations: list[str] = []
 
     t_v, b_v = _verdict(target), _verdict(baseline)
     if VERDICT_RANK.get(t_v, UNKNOWN_RANK) > VERDICT_RANK.get(b_v, UNKNOWN_RANK):
@@ -118,18 +148,20 @@ def gate2_accuracy(target: Optional[dict], baseline: Optional[dict]) -> tuple[bo
         t_val, b_val = _field(target, field), _field(baseline, field)
         if b_val and not t_val:
             reasons.append(f"{field} missing (baseline={b_val!r})")
-        elif b_val and t_val != b_val:
-            # invoice_num parity ignores printed separators - '9290186640/' and '9290186640', 'SES 08470'
-            # and 'SES08470' are the same number; a cleaner reading is not a regression
-            if field == "invoice_num" and _alnum(str(t_val)) == _alnum(str(b_val)):
-                continue
+        elif b_val and not _field_equal(field, t_val, b_val):
             reasons.append(f"{field}={t_val!r} != baseline {b_val!r}")
         # baseline empty + target non-empty is an improvement: allowed
 
+    for field in OBSERVATION_FIELDS:
+        t_val, b_val = _field(target, field), _field(baseline, field)
+        if b_val and not t_val:
+            observations.append(f"{field} missing (baseline={b_val!r})")
+        elif b_val and not _field_equal(field, t_val, b_val):
+            observations.append(f"{field}={t_val!r} != baseline {b_val!r}")
     t_lines, b_lines = _lines_count(target), _lines_count(baseline)
     if t_lines != b_lines:
-        reasons.append(f"lines={t_lines} != baseline {b_lines}")
-    return (not reasons), reasons
+        observations.append(f"lines={t_lines} (baseline {b_lines})")
+    return (not reasons), reasons, observations
 
 
 def gate3_bbox(target: Optional[dict]) -> tuple[bool, list[str]]:
@@ -169,11 +201,12 @@ def gate3_bbox(target: Optional[dict]) -> tuple[bool, list[str]]:
 def audit_document(target: Optional[dict], baseline: Optional[dict]) -> dict:
     """Run all three gates for one document and return the row facts."""
     g1_ok, g1_reasons = gate1_calls_budget(target)
-    g2_ok, g2_reasons = gate2_accuracy(target, baseline)
+    g2_ok, g2_reasons, g2_observations = gate2_accuracy(target, baseline)
     g3_ok, g3_reasons = gate3_bbox(target)
     calls = _extra(target or {}).get("calls") or []
     return {
         "gates": [(g1_ok, g1_reasons), (g2_ok, g2_reasons), (g3_ok, g3_reasons)],
+        "observations": g2_observations,
         "passed": g1_ok and g2_ok and g3_ok,
         "calls": len(calls),
         "verdict": _verdict(target) if target is not None else "MISSING",
@@ -232,6 +265,13 @@ def render_scorecard(rows: list[tuple[int, dict]], target_dir: Path, baseline_di
             for (gate_idx, (ok, reasons)) in enumerate(r["gates"]):
                 for reason in reasons:
                     lines.append(f"  DMS-{doc_id}: [{GATE_NAMES[gate_idx]}] {reason}")
+    observed = [(d, r) for d, r in rows if r.get("observations")]
+    if observed:
+        lines.append("-" * 80)
+        lines.append("OBSERVATIONS (reported, not gated):")
+        for doc_id, r in observed:
+            for obs in r["observations"]:
+                lines.append(f"  DMS-{doc_id}: {obs}")
     lines.append("")
     overall = f"OVERALL RESULT: PASSED ({len(rows) - len(failed)}/{len(rows)})" if not failed \
         else f"OVERALL RESULT: FAILED ({len(rows) - len(failed)}/{len(rows)} passed)"
