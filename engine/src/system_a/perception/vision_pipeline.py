@@ -454,13 +454,50 @@ class VisionPipeline:
         ctx = _Ctx(pdf=pdf, infos={r.info.page_no: r.info for r in rendered},
                    pngs={r.info.page_no: r.png for r in rendered}, layers=layers)
         reads: dict[int, PageRead] = {}
-        for rp in used:
-            read = self._read_page(rp, ctx)
-            reads[rp.info.page_no] = read
+        if self.invoice_first:
+            all_pngs = {r.info.page_no: r.png for r in used}
+            batch_result = self._classify_batch(all_pngs)
 
-        invoice_pages = sorted(p for p, r in reads.items() if r.page_type in ("INVOICE", "TAX_INVOICE"))
-        if not invoice_pages and reads:
-            invoice_pages = [min(reads)]        # nothing classified as an invoice: page 1 carries the document
+            # Corroborate is_copy with text layer
+            for entry in batch_result:
+                p = entry["page"]
+                layer_text = layers.get(p, {}).get("text") or ""
+                if text_layer_is_copy(layer_text):
+                    entry["is_copy"] = True
+
+            selected = select_invoice_pages(batch_result)
+
+            batch_by_page = {e["page"]: e for e in batch_result}
+            for rp in used:
+                p = rp.info.page_no
+                binfo = batch_by_page.get(p, {})
+                if p in selected:
+                    read = self._read_page_no_classify(rp, ctx)
+                    read.page_type = binfo.get("page_type", "UNKNOWN")
+                    read.type_confidence = binfo.get("confidence")
+                    read.is_copy = binfo.get("is_copy")
+                    read.votes = [read.page_type]
+                    reads[p] = read
+                else:
+                    # Minimal read for non-selected pages (for document grouping)
+                    read = PageRead(page_no=p)
+                    read.doc_type = binfo.get("page_type", "UNKNOWN").lower()
+                    read.page_type = binfo.get("page_type", "UNKNOWN")
+                    read.type_confidence = binfo.get("confidence")
+                    read.is_copy = binfo.get("is_copy")
+                    read.votes = [read.page_type]
+                    read.ocr_quality = 1.0
+                    reads[p] = read
+
+            invoice_pages = selected
+        else:
+            for rp in used:
+                read = self._read_page(rp, ctx)
+                reads[rp.info.page_no] = read
+
+            invoice_pages = sorted(p for p, r in reads.items() if r.page_type in ("INVOICE", "TAX_INVOICE"))
+            if not invoice_pages and reads:
+                invoice_pages = [min(reads)]        # nothing classified as an invoice: page 1 carries the document
         documents, inv_doc_id = group_documents(reads, invoice_pages)
         words, words_skipped = self._words(ctx, invoice_pages)
         fields, signatures, regions, crop_log = self._fields(ctx, reads, invoice_pages)
@@ -516,6 +553,15 @@ class VisionPipeline:
                       "fields": len(fields), "lines": len(lines), "words": len(words),
                       "by_kind": dict(Counter(c["kind"] for c in self.calls))}
         return ext
+
+    def _read_page_no_classify(self, rp, ctx: _Ctx) -> PageRead:
+        """Read page items without running the classify step (already done by _classify_batch)."""
+        saved = self.do_classify
+        self.do_classify = False
+        try:
+            return self._read_page(rp, ctx)
+        finally:
+            self.do_classify = saved
 
     def _read_page(self, rp, ctx: _Ctx) -> PageRead:
         info = rp.info

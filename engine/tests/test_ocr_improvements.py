@@ -767,4 +767,54 @@ def test_classify_batch_method_execution():
     assert vp.calls[0]["ok"] is True
 
 
+def test_extract_invoice_first_limits_calls_to_three():
+    """On a 2-page doc (page 1=TAX_INVOICE, page 2=DELIVERY_NOTE), invoice_first makes exactly 3 VLM calls."""
+    import fitz
+    from system_a.perception.vision_pipeline import VisionPipeline
+
+    doc = fitz.open()
+    p1 = doc.new_page(width=595, height=842)
+    p1.insert_text((100, 100), "TAX INVOICE IV690900285", fontsize=9)
+    p2 = doc.new_page(width=595, height=842)
+    p2.insert_text((100, 100), "DELIVERY NOTE DN001", fontsize=9)
+    pdf_bytes = doc.tobytes()
+    doc.close()
+
+    class FakeBatchVlm:
+        def __init__(self):
+            self.last_usage, self.last_salvaged = {}, False
+
+        def chat_json(self, model, system, user, *, images=None, **kw):
+            if "Classify these" in user:
+                return {
+                    "pages": [
+                        {"page": 1, "page_type": "TAX_INVOICE", "is_copy": False, "confidence": 0.95},
+                        {"page": 2, "page_type": "DELIVERY_NOTE", "is_copy": False, "confidence": 0.90},
+                    ]
+                }
+            if "Digitise" in user:
+                return {"rows": [{"line_no": 1, "bbox_2d": [40, 330, 950, 350], "cells": {
+                    "description": {"text": "BRACKET ASSY", "bbox_2d": [80, 330, 300, 350]},
+                    "qty": {"text": "10", "bbox_2d": [520, 330, 560, 350]},
+                    "amount": {"text": "1,000.00", "bbox_2d": [80, 330, 900, 350]}}}]}
+            return {"doc_type": "tax_invoice", "items": [
+                {"type": "header", "label": "doc_no", "text": "IV690900285", "bbox_2d": [600, 100, 760, 115]},
+                {"type": "total", "label": "grand_total", "text": "1,070.00", "bbox_2d": [800, 740, 900, 755]},
+                {"type": "line", "label": "line_1", "text": "1 BRACKET ASSY 10 1,000.00", "bbox_2d": [40, 330, 950, 350]}]}
+
+    pipe = VisionPipeline(FakeBatchVlm(), "fake-model", do_crops=False, invoice_first=True)
+    ext = pipe.extract(pdf_bytes, package_id="PKG-INV-1", dms_doc_id="DMS-INV-1")
+
+    assert ext.invoice_document_id == "D1"
+    assert ext.extra["invoice_pages"] == [1]
+    # Page 1 has items; Page 2 was NOT read for items
+    assert len(ext.extra["items_by_page"]["1"]) > 0
+    assert len(ext.extra["items_by_page"]["2"]) == 0
+    # Calls: 1 classify_batch + 1 page_items (page 1) + 1 table_rows (page 1) = 3 calls
+    assert len(pipe.calls) == 3
+    kinds = [c["kind"] for c in pipe.calls]
+    assert kinds == ["classify_batch", "page_items", "table_rows"]
+
+
+
 
