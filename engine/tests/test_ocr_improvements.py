@@ -844,10 +844,10 @@ def test_copy_or_delivery_titled_demotes_copy_and_delivery_pages():
     def items(*titles):
         return [{"type": "header", "label": "doc_title", "text": t} for t in titles]
 
-    assert copy_or_delivery_titled(items("COPY TAX INVOICE/DELIVERY ORDER")) is True     # DMS-22 p2
-    assert copy_or_delivery_titled(items("COPY INVOICE/DELIVERY ORDER")) is True          # DMS-22 p3
-    assert copy_or_delivery_titled(items("ใบส่งสินค้า DELIVERY ORDER")) is True           # DMS-33 p4
-    assert copy_or_delivery_titled(items("คู่ฉบับใบกำกับภาษี")) is True                     # stamped duplicate prefix
+    assert copy_or_delivery_titled(items("COPY TAX INVOICE/DELIVERY ORDER")) is False   # copy-stamped but tax-worded: the fold decides (DMS-26 p2 lesson)
+    assert copy_or_delivery_titled(items("COPY INVOICE/DELIVERY ORDER")) is False        # DMS-22 p3 - rows fold away
+    assert copy_or_delivery_titled(items("ใบส่งสินค้า DELIVERY ORDER")) is True           # DMS-33 p4: no tax wording at all
+    assert copy_or_delivery_titled(items("คู่ฉบับใบกำกับภาษี")) is False                    # stamped duplicate of a TAX INVOICE - read it
     assert copy_or_delivery_titled(items("TAX INVOICE /DELIVERY ORDER /INVOICE")) is False  # DMS-26 p3
     assert copy_or_delivery_titled(items("ต้นฉบับใบกำกับภาษี /ใบส่งของ /ใบแจ้งหนี้ TAX INV")) is False
     assert copy_or_delivery_titled(items("ใบกำกับภาษี/สำเนาใบส่งสินค้า/สำเนาใบเสร็จรับเงิน")) is False  # DMS-15 combined
@@ -888,9 +888,10 @@ def test_pick_field_reading_secondary_only_fills_or_rescues_gaps():
     assert page == 1
 
 
-def test_extract_demotes_copy_titled_page_from_lines_but_keeps_its_fields():
-    """A selected page whose own title says COPY is dropped from the table pass yet still supplies
-    header fields the original page does not print."""
+def test_extract_demotes_delivery_titled_page_from_lines_but_keeps_its_fields():
+    """A selected page whose own title carries no tax wording is dropped from the table pass yet still
+    supplies header fields the original page does not print (a COPY-stamped title stays in the table
+    pass - only the fold decides its rows)."""
     import fitz
     from system_a.perception.vision_pipeline import VisionPipeline
 
@@ -940,7 +941,7 @@ def test_extract_demotes_copy_titled_page_from_lines_but_keeps_its_fields():
                     {"type": "line", "label": "line_1", "text": "1 BOLT 2 200.00",
                      "bbox_2d": [40, 330, 950, 350]}]}
             return {"doc_type": "tax_invoice", "items": [
-                {"type": "header", "label": "doc_title", "text": "COPY TAX INVOICE",
+                {"type": "header", "label": "doc_title", "text": "ใบส่งสินค้า / DELIVERY ORDER",
                  "bbox_2d": [60, 40, 400, 60]},
                 {"type": "total", "label": "sub_total", "text": "200.00", "bbox_2d": [700, 700, 900, 715]},
                 {"type": "total", "label": "vat", "text": "14.00", "bbox_2d": [700, 720, 900, 735]},
@@ -948,7 +949,7 @@ def test_extract_demotes_copy_titled_page_from_lines_but_keeps_its_fields():
 
     pipe = VisionPipeline(FakeCopyVlm(), "fake-model", do_crops=False, invoice_first=True)
     ext = pipe.extract(pdf_bytes, package_id="PKG-C", dms_doc_id="DMS-C")
-    assert ext.extra["invoice_pages"] == [1], f"COPY-titled page must leave the table set: {ext.extra['invoice_pages']}"
+    assert ext.extra["invoice_pages"] == [1], f"delivery-titled page must leave the table set: {ext.extra['invoice_pages']}"
     assert ext.fields["sub_total"].raw == "200.00"       # totals still come from the copy sheet
     assert ext.fields["grand_total"].raw == "214.00"
     kinds = [c["kind"] for c in pipe.calls]
@@ -1304,14 +1305,26 @@ def test_corroborate_oracle_keeps_ok_tax_field_untouched():
 
 
 # ------------------------------------------------- Loop 5: dashed-first tax, oracle party fix, money usability
-def test_dashed_tax_shape_beats_bare_solid_from_first_page():
-    """The canonical printed TAX ID notation (0-1455-48001-54-9, what a TAX ID line states) ranks
-    above a solid bare number of equal shape from the first page - it is the document's own wording
-    of the taxpayer line (DMS-46: p3's PO states the real supplier tax id)."""
-    solid = (1, {"text": "0145555000137", "confidence": .9, "bbox": [1, 1, 2, 2]})
-    dashed = (3, {"text": "0-1455-48001-54-9", "confidence": .9, "bbox": [1, 1, 2, 2]})
-    page, _it = pick_field_reading("supplier_tax_id", [solid], [dashed], 1)
+def test_worded_secondary_beats_bare_primary_and_worded_primary_beats_worded_secondary():
+    """Tiered tax picking: no invoice sheet states the taxpayer line -> the PO sheet's worded reading
+    answers (DMS-46); once an invoice sheet states it with wording, a worded (even dashed) secondary
+    reading cannot outrank it (DMS-19: a PO form's TAX line is the buyer's own); and a value two sheets
+    reprint identically settles the field before any worded single reading (majority first)."""
+    bare_primary = (1, {"text": "0145555000137", "confidence": .9, "bbox": [1, 1, 2, 2]})
+    worded_secondary = (3, {"text": "เลขประจำตัวผู้เสียภาษี TAX ID : 0-1455-48001-54-9",
+                            "confidence": .9, "bbox": [1, 1, 2, 2]})
+    page, _it = pick_field_reading("supplier_tax_id", [bare_primary], [worded_secondary], 1)
     assert page == 3
+    worded_primary = (1, {"text": "เลขประจำตัวผู้เสียภาษี 0115538001783", "confidence": .9,
+                          "bbox": [1, 1, 2, 2]})
+    worded_secondary2 = (4, {"text": "เลขประจำตัวผู้เสียภาษี TAX ID : 0-1455-48001-55-7",
+                             "confidence": .9, "bbox": [1, 1, 2, 2]})
+    page, _it = pick_field_reading("supplier_tax_id", [worded_primary], [worded_secondary2], 1)
+    assert page == 1
+    twin1 = (1, {"text": "0115538001783", "confidence": .9, "bbox": [1, 1, 2, 2]})
+    twin2 = (2, {"text": "เลขประจำตัวผู้เสียภาษี 0115538001783", "confidence": .9, "bbox": [1, 1, 2, 2]})
+    page, _it = pick_field_reading("supplier_tax_id", [twin1], [twin2, worded_secondary2], 1)
+    assert page == 1     # repeated value wins before the worded-secondary tier is consulted
 
 
 def test_corroborate_overwrites_supplier_tax_equal_to_customer_tax_via_po_master():

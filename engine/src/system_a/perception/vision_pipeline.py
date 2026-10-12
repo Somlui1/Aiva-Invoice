@@ -414,20 +414,20 @@ TAX_TITLE_WORD = re.compile(r"ภาษี|TAX\s*INVOICE|INVOICE|ใบแจ้
 
 
 def copy_or_delivery_titled(items: list) -> bool:
-    """True when a page's OWN content title is a prefixed copy or carries no tax/invoice wording.
+    """True when a page's OWN content title carries no tax/invoice wording at all.
 
     The batch classify calls a sheet TAX_INVOICE by layout; the page reader reads what the sheet titles
-    itself. "COPY TAX INVOICE" (DMS-22) or a bare "ใบส่งสินค้า / DELIVERY ORDER" (DMS-33) must not add a
-    second copy of the item table, while "ใบกำกับภาษี/สำเนาใบส่งสินค้า" (DMS-15) - a tax invoice that
-    duplicates the *delivery note* - is an invoice sheet. A page with no readable title is kept.
+    itself. A bare "ใบส่งสินค้า / DELIVERY ORDER" (DMS-33 p4) is not an invoice sheet of this set - its
+    rows duplicate the invoice table without being it. A COPY-stamped title is NOT demoted: five
+    evaluation loops proved copy-stamped sheets can carry unique item rows (DMS-26 p2 prints 'สำเนา...'
+    yet holds 14 lines no other sheet has) - and the row fold already discards a true reprint's table
+    for free, so reading it costs calls and never double-counts.
     """
     titles = [str(it.get("text") or "").strip() for it in items or []
               if str(it.get("label") or "").strip().lower() == "doc_title"]
     titles = [t for t in titles if t]
     if not titles:
         return False
-    if any(COPY_TITLE_PREFIX.search(t) for t in titles):
-        return True
     return not TAX_TITLE_WORD.search(" / ".join(titles))
 
 
@@ -480,29 +480,32 @@ def pick_field_reading(name: str, primary_opts: list, secondary_opts: list, firs
                 return won
         return pick_candidate(name, opts, first_invoice, invoice_pages=None)
 
+    if name in IDENTIFIER_CONSENSUS_FIELDS:
+        # a value at least two page readers print identically is settled before anything else - the
+        # repeated reading beats any single sheet's worded or dashed claim (DMS-19: three sheets reprint
+        # the supplier's tax id; one PO form's mislabelled TAX line cannot outrank them)
+        won = majority_identifier(name, list(primary_opts) + list(secondary_opts))
+        if won:
+            return won
     if name in HINTED_FIELDS:
-        def canonical(o):
-            # a reading printed under TAX wording, or in the dashed canonical notation, with a valid
-            # shape (and for dashed numbers a valid checksum - the notation promises authority)
+        # tax wording is the field's meaning, but WHERE it is printed still ranks: a taxpayer line on
+        # the invoice sheets outranks every other reading; only when no invoice sheet states the number
+        # with its wording may a wording-carrying secondary sheet answer (DMS-46: the PO form is the
+        # only sheet that prints the supplier's TAX ID line). A bare number never outranks a worded
+        # one by notation - only by page position within its tier.
+        def worded(o):
             _p, it = o
             if it is None:
                 return False
             text = str(it.get("text") or "")
             value = _shaped_or_extracted(name, text)
-            if not (value and shape_ok(name, value)):
-                return False
-            if TAX_HINT.search(text):
-                return True
-            if re.match(r"\d-\d", str(value)):
-                try:
-                    tax_id_norm(str(value))
-                    return True
-                except InvalidNorm:
-                    return False
-            return False
-        worded = [o for o in list(primary_opts) + list(secondary_opts) if canonical(o)]
-        if worded:
-            return pick_candidate(name, worded, first_invoice, invoice_pages=None)
+            return bool(value and shape_ok(name, value)) and bool(TAX_HINT.search(text))
+        prim_worded = [o for o in primary_opts if worded(o)]
+        if prim_worded:
+            return pick_candidate(name, prim_worded, first_invoice, invoice_pages=None)
+        sec_worded = [o for o in secondary_opts if worded(o)]
+        if sec_worded:
+            return pick_candidate(name, sec_worded, first_invoice, invoice_pages=None)
 
     primary = best(primary_opts)
     if usable(primary):
@@ -1757,12 +1760,10 @@ def pick_candidate(name: str, options: list, first_invoice, invoice_pages: Optio
         value = extract_value(name, it.get("text"))[0]
         if name in IDENTIFIER_CONSENSUS_FIELDS:
             # a tax id / PO printed with its shape on a later page beats a label-mixed reading on page 1;
-            # for tax ids the canonical dashed notation (0-1455-48001-54-9 - how a TAX ID line prints the
-            # number) then the printed TAX wording order the readings ahead of a bare solid number's page
+            # for tax ids, printed TAX wording then orders the equally-shaped readings (wording beats a
+            # bare number's page position)
             worded = 0 if (name not in HINTED_FIELDS or TAX_HINT.search(str(it.get("text") or ""))) else 1
-            dashed = 0 if (name.endswith("tax_id") and re.match(r"\d-\d", str(value or ""))) else \
-                (1 if name.endswith("tax_id") else 0)
-            return (not shape_ok(name, value), dashed, worded, page != first_invoice,
+            return (not shape_ok(name, value), worded, page != first_invoice,
                     -float(it.get("confidence") or 0), page)
         return (page != first_invoice, not shape_ok(name, value), -float(it.get("confidence") or 0), page)
     ranked = sorted(options, key=key)
