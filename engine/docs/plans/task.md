@@ -48,13 +48,11 @@
 | Phase 4 Task 4: Negative Constraint in Prompt | Done | Added explicit MULTI-GRID NEGATIVE CONSTRAINT in `vision_table_rows.md` prompt; bumped prompt version to 2.1.0 |
 | Phase 4 Task 5: Full Regression & Target DMS Verification | Done | 60/60 pytest engine suite pass; 153/153 portal suite pass; DMS-102 simulation confirmed lines aligned to Y=0.335..0.415 with zero degenerate boxes |
 
-## Plan: Brainstorm & Root Cause Analysis on `run_20261011`
+## Plan: Perception Cache Defense & Run Reconciliation (`2026-10-12-perception-cache-defense-and-run-reconciliation-implementation.md`)
 
 | Task | Status | Description |
 |---|---|---|
-| Step 1: Explore project context & inspect run results | Done | Discovered 110 poisoned perception caches due to network drop (getaddrinfo failed), causing 101 empty documents in run_20261011 |
-| Step 2: Clarifying questions & intent alignment | In Progress | Ask user clarifying questions one at a time |
-| Step 3: Propose 2-3 approaches | Pending | Outline resolution & analysis approaches with trade-offs |
-| Step 4: Present design sections | Pending | Present architecture/fix design and get user approval |
-| Step 5: Write design doc & commit | Pending | Save design doc to docs/plans/ and commit |
-| Step 6: Transition to writing-plans | Pending | Invoke writing-plans skill |
+| Task 1: Cache Defense Guard (`is_cacheable`, `save`, `load`) via TDD | Pending | Add is_cacheable validator rejecting ConnectError/transport drops; guard PerceptionCache save/load |
+| Task 2: Purge Tooling & Poisoned Cache Cleanup | Pending | Implement scripts/clean_perception_cache.py and delete 110 poisoned cache files |
+| Task 3: Selective Result Pruning & Batch Re-execution | Pending | Prune 108 invalid results in run_20261011 and resume batch execution via test_paperless_invoices.py |
+| Task 4: Regression Verification & Target Document Inspection | Pending | Run pytest regression suites and verify Multi-Grid document bboxes (DMS-102 etc.) |
