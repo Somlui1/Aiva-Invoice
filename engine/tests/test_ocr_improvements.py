@@ -600,3 +600,87 @@ def test_degenerate_bbox_sanitized_in_assembler():
     # D1-L1-amount had zero width (0.0) -> its bbox in elements MUST be None!
     assert els["D1-L1-amount"]["bbox"] is None
 
+
+def test_is_cacheable_rejects_transport_errors():
+    """is_cacheable must reject extractions that suffered network drops or have all empty fields."""
+    from system_a.domain.contracts import ExtractionResult, PageInfo, RawField
+    from system_a.perception.cache import is_cacheable
+
+    # Case 1: Incomplete pages
+    ext_incomplete = ExtractionResult(
+        package_id="P1", dms_doc_id="D1", file_sha256="sha",
+        pages=[PageInfo(page_no=1, width_pt=595, height_pt=842)], documents=[], invoice_document_id="D1",
+        pages_complete=False, fields={}, lines=[], signatures={}, words=[], regions=()
+    )
+    assert is_cacheable(ext_incomplete) is False
+
+    # Case 2: ConnectError / getaddrinfo failed in page_errors
+    ext_transport_err = ExtractionResult(
+        package_id="P1", dms_doc_id="D1", file_sha256="sha",
+        pages=[PageInfo(page_no=1, width_pt=595, height_pt=842)], documents=[], invoice_document_id="D1",
+        pages_complete=True, fields={}, lines=[], signatures={}, words=[], regions=(),
+        extra={"page_errors": {"1": "AITransportError: ConnectError: [Errno 11001] getaddrinfo failed"}}
+    )
+    assert is_cacheable(ext_transport_err) is False
+
+    # Case 3: Empty fields when document has pages
+    ext_empty_fields = ExtractionResult(
+        package_id="P1", dms_doc_id="D1", file_sha256="sha",
+        pages=[PageInfo(page_no=1, width_pt=595, height_pt=842)], documents=[], invoice_document_id="D1",
+        pages_complete=True,
+        fields={"invoice_num": RawField(raw=None, null_reason="NOT_PRESENT")},
+        lines=[], signatures={}, words=[], regions=()
+    )
+    assert is_cacheable(ext_empty_fields) is False
+
+    # Case 4: Valid extraction with complete pages and extracted fields
+    ext_valid = ExtractionResult(
+        package_id="P1", dms_doc_id="D1", file_sha256="sha",
+        pages=[PageInfo(page_no=1, width_pt=595, height_pt=842)], documents=[], invoice_document_id="D1",
+        pages_complete=True,
+        fields={"invoice_num": RawField(raw="INV-001", confidence=0.95)},
+        lines=[], signatures={}, words=[], regions=()
+    )
+    assert is_cacheable(ext_valid) is True
+
+
+def test_perception_cache_save_skips_uncacheable(tmp_path):
+    """PerceptionCache.save must never persist uncacheable/corrupted extraction results."""
+    from system_a.domain.contracts import ExtractionResult, PageInfo
+    from system_a.perception.cache import PerceptionCache
+
+    cache = PerceptionCache(tmp_path)
+    ext_poisoned = ExtractionResult(
+        package_id="P1", dms_doc_id="D1", file_sha256="sha_poison",
+        pages=[PageInfo(page_no=1, width_pt=595, height_pt=842)], documents=[], invoice_document_id="D1",
+        pages_complete=False, fields={}, lines=[], signatures={}, words=[], regions=(),
+        extra={"page_errors": {"1": "ConnectError: getaddrinfo failed"}}
+    )
+
+    saved_path = cache.save("test_key", ext_poisoned)
+    assert saved_path is None
+    assert not (tmp_path / "test_key.json").exists()
+
+
+def test_perception_cache_load_rejects_poisoned_file(tmp_path):
+    """PerceptionCache.load must reject and remove corrupted files on disk."""
+    from system_a.domain.contracts import ExtractionResult, PageInfo
+    from system_a.perception.cache import PerceptionCache
+
+    cache = PerceptionCache(tmp_path)
+    ext_poisoned = ExtractionResult(
+        package_id="P1", dms_doc_id="D1", file_sha256="sha_disk",
+        pages=[PageInfo(page_no=1, width_pt=595, height_pt=842)], documents=[], invoice_document_id="D1",
+        pages_complete=False, fields={}, lines=[], signatures={}, words=[], regions=(),
+        extra={"page_errors": {"1": "ConnectError: getaddrinfo failed"}}
+    )
+    # Manually write poisoned file to disk
+    p = tmp_path / "corrupted_key.json"
+    p.write_text(ext_poisoned.model_dump_json(), encoding="utf-8")
+    assert p.exists()
+
+    loaded = cache.load("corrupted_key", "sha_disk")
+    assert loaded is None
+    assert cache.rejected == 1
+    assert not p.exists()  # Poisoned file was unlinked
+
