@@ -73,14 +73,10 @@ def run_batch(
     specific_doc_id: Optional[int] = None,
     concurrency: int = 5,
     model_vision: Optional[str] = None,
-    invoice_first: bool = False,
 ) -> int:
     t_start = time.time()
     out_dir.mkdir(parents=True, exist_ok=True)
     load_env()
-    if invoice_first:
-        import os
-        os.environ["PERCEPTION_INVOICE_FIRST"] = "1"
     settings = Settings()
     if model_vision:
         import os
@@ -368,11 +364,6 @@ def main() -> int:
         default=None,
         help="VLM vision model name (e.g. Qwen/Qwen3-VL-8B-Instruct)",
     )
-    parser.add_argument(
-        "--invoice-first",
-        action="store_true",
-        help="Enable Invoice-First <=3 VLM calls algorithm",
-    )
 
     args = parser.parse_args()
 
@@ -386,7 +377,6 @@ def main() -> int:
         specific_doc_id=args.doc_id,
         concurrency=args.concurrency,
         model_vision=args.model_vision,
-        invoice_first=args.invoice_first,
     )
 
 

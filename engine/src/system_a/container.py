@@ -39,7 +39,7 @@ class Settings:
     do_table: bool = os.getenv("PERCEPTION_TABLE", "1") == "1"
     do_crops: bool = os.getenv("PERCEPTION_CROPS", "1") == "1"
     do_classify: bool = os.getenv("PERCEPTION_CLASSIFY", "1") == "1"
-    invoice_first: bool = os.getenv("PERCEPTION_INVOICE_FIRST", "0") == "1"
+    invoice_first: bool = os.getenv("PERCEPTION_INVOICE_FIRST", "1") == "1"
     json_mode: bool = os.getenv("PERCEPTION_JSON_MODE", "0") == "1"           # bbox_testv3: no response_format
     message_layout: str = os.getenv("PERCEPTION_MESSAGE_LAYOUT", "v3")         # v3 | system
     cell_box: str = os.getenv("PERCEPTION_CELL_BOX", "row")                     # row (v3) | cell
