@@ -346,6 +346,12 @@ def main() -> int:
         default=Path("results/paperless_invoices"),
         help="Directory to save individual result JSONs and summary.json (default: results/paperless_invoices)",
     )
+    parser.add_argument(
+        "--round-name",
+        type=str,
+        default=None,
+        help="Convenience alias to set out-dir to results/<round-name>",
+    )
     parser.add_argument("--limit", type=int, default=None, help="Limit number of documents to verify (e.g. 5)")
     parser.add_argument("--skip-existing", action="store_true", help="Skip documents that already have a result JSON in out-dir")
     parser.add_argument("--quick", action="store_true", help="Pass --quick flag to skip crop/table perception details")
@@ -367,10 +373,12 @@ def main() -> int:
 
     args = parser.parse_args()
 
+    out_dir = Path("results") / args.round_name if args.round_name else args.out_dir
+
     return run_batch(
         tag_name=args.tag,
         mode=args.mode,
-        out_dir=args.out_dir,
+        out_dir=out_dir,
         limit=args.limit,
         skip_existing=args.skip_existing,
         quick=args.quick,
