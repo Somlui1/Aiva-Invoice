@@ -531,6 +531,7 @@ class PageRead:
     type_confidence: Optional[float] = None
     votes: list = dc_field(default_factory=list)
     is_copy: Optional[bool] = None
+    duplicate_of: Optional[int] = None
     prints_tax_id: Optional[bool] = None
     synthetic_only: bool = False   # items are ONLY what synthesize_stamp_items injected - never page-read
     coord_mode: str = "auto"
@@ -677,6 +678,7 @@ class VisionPipeline:
                     read.page_type = binfo.get("page_type", "UNKNOWN")
                     read.type_confidence = binfo.get("confidence")
                     read.is_copy = binfo.get("is_copy")
+                    read.duplicate_of = binfo.get("duplicate_of")
                     read.votes = [read.page_type]
                     reads[p] = read
                 else:
@@ -686,6 +688,7 @@ class VisionPipeline:
                     read.page_type = binfo.get("page_type", "UNKNOWN")
                     read.type_confidence = binfo.get("confidence")
                     read.is_copy = binfo.get("is_copy")
+                    read.duplicate_of = binfo.get("duplicate_of")
                     read.prints_tax_id = binfo.get("prints_tax_id")
                     read.votes = [read.page_type]
                     read.ocr_quality = 1.0
@@ -1140,7 +1143,8 @@ class VisionPipeline:
         kept, copy_notes = drop_duplicate_copies(
             per_page,
             {p: (reads[p].page_type if p in reads else "UNKNOWN") for p in per_page},
-            {p: page_identity(reads[p]) for p in per_page if p in reads})
+            {p: page_identity(reads[p]) for p in per_page if p in reads},
+            named_dup={p for p in per_page if p in reads and getattr(reads[p], "duplicate_of", None)})
         notes.extend(copy_notes)
         source["lines"] = len(kept)
         for line_no, (cells, region) in enumerate(kept, start=1):
@@ -1308,7 +1312,8 @@ def _similar(a: str, b: str) -> bool:
     return difflib.SequenceMatcher(None, x, y).ratio() >= COPY_TEXT_SIMILARITY
 
 
-def drop_duplicate_copies(per_page: dict, page_types: dict, identity: dict | None = None) -> tuple[list, list]:
+def drop_duplicate_copies(per_page: dict, page_types: dict, identity: dict | None = None,
+                          named_dup=frozenset()) -> tuple[list, list]:
     """Return ``([(cells, region), ...], notes)`` with the **extra printed copies** of the invoice removed.
 
     These invoice PDFs are the whole printed set in one file - ``ต้นคบกณ ORIGINAL``,
@@ -1346,7 +1351,20 @@ def drop_duplicate_copies(per_page: dict, page_types: dict, identity: dict | Non
             if not same_no:
                 continue          # this page does not carry the same printed invoice number
             first_sig = [x for x in (_row_signature(c) for c, _ in first_rows) if any(x)]
-            if not sig or first_sig != sig:
+            if not sig:
+                continue
+            rule = None
+            if first_sig == sig:
+                rule = "same invoice number and the same qty / price / amount row by row -> printed copy"
+            elif page in named_dup and len(sig) == len(first_sig) \
+                    and sorted(s[1] for s in sig) == sorted(s[1] for s in first_sig) \
+                    and sorted(s[2] for s in sig) == sorted(s[2] for s in first_sig):
+                # the batch classify NAMED this page a reprint of another sheet, it prints the same
+                # invoice number and reproduces every unit price and amount: a qty column read wrong
+                # (DMS-102's multi-grid copy read '1' for '38'/'136'/'40') cannot prove new content
+                rule = ("classify-named duplicate, same printed invoice number and equal "
+                        "unit-price / amount rows - a copy's misread qty does not prove new content")
+            else:
                 continue
             # identical money row by row: a different page type (the DELIVERY ORDER copy of the set) is still a copy
             # when there are at least two rows; a single row is too little evidence on its own
@@ -1354,7 +1372,7 @@ def drop_duplicate_copies(per_page: dict, page_types: dict, identity: dict | Non
                 continue
             notes.append({"page": page, "same_as_page": first_page, "rows": len(rows),
                           "printed": {"invoice_num": stamp[0], "grand_total": stamp[1]},
-                          "rule": "same invoice number and the same qty / price / amount row by row -> printed copy"})
+                          "rule": rule})
             break
         else:
             kept_pages.append((page, rows))

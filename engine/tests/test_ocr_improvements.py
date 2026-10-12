@@ -1472,3 +1472,23 @@ def test_po_derivation_replaces_unsupported_shape_valid_po():
     po_from_lines(fields, {1: R()}, [1], log, {})
     assert fields["po_number"].raw == "40118928"
     assert log and log[-1]["derived"] == "40118928"
+
+
+# ------------------------------------------------------- Loop 8c: classify-named copies with misread qty
+def test_classify_named_copy_page_drops_even_with_misread_qty():
+    """DMS-102: a copy the batch classify NAMES as repeating an invoice sheet reproduces its printed
+    invoice number and its unit-price / amount rows; only the qty column came back misread ('1' x3).
+    A misread qty on a NAMED duplicate cannot prove new content - the page drops. An unnamed page is
+    held to the old exact row-by-row rule."""
+    from system_a.domain.contracts import RawField
+    def cells(q, p, a, d="BOLT"):
+        return {"description": RawField(raw=d), "qty": RawField(raw=q), "unit_price": RawField(raw=p),
+                "amount": RawField(raw=a)}
+    per_page = {1: [(cells("38", "47.00", "1786.00"), None), (cells("136", "47.00", "6392.00"), None)],
+                3: [(cells("1", "47.00", "1786.00"), None), (cells("1", "47.00", "6392.00"), None)]}
+    types = {1: "TAX_INVOICE", 3: "TAX_INVOICE"}
+    identity = {1: ("k07289", "11190.06"), 3: ("k07289", "11190.06")}
+    kept, notes = vp.drop_duplicate_copies(per_page, types, identity, named_dup={3})
+    assert len(kept) == 2 and len(notes) == 1 and notes[0]["page"] == 3
+    kept2, notes2 = vp.drop_duplicate_copies(per_page, types, identity)
+    assert len(kept2) == 4 and notes2 == []
