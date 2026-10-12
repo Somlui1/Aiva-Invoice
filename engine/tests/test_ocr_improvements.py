@@ -824,9 +824,9 @@ def test_extract_invoice_first_limits_calls_to_three():
 
 
 # ---------------------------------------------------------------- 3-call eval loop fixes (loop 2)
-def test_select_invoice_pages_drops_only_named_duplicates():
-    """A copy is dropped only when the classify names the exact page it repeats; a stamped page without a
-    named original stays in the set (DMS-26's p2 is stamped but carries different rows)."""
+def test_select_invoice_pages_keeps_every_invoice_sheet_including_named_duplicates():
+    """The classify's duplicate claims never remove a sheet: true reprints cost nothing at the fold,
+    wrongly-named continuation sheets (DMS-26/27) would cost the document its real item rows."""
     from system_a.perception.vision_pipeline import select_invoice_pages
     pages_info = [
         {"page": 1, "page_type": "TAX_INVOICE", "is_copy": False, "duplicate_of": None, "confidence": 0.95},
@@ -834,7 +834,7 @@ def test_select_invoice_pages_drops_only_named_duplicates():
         {"page": 3, "page_type": "TAX_INVOICE", "is_copy": True, "duplicate_of": 1, "confidence": 0.92},
         {"page": 4, "page_type": "DELIVERY_NOTE", "is_copy": False, "duplicate_of": None, "confidence": 0.88},
     ]
-    assert select_invoice_pages(pages_info) == [1, 2]
+    assert select_invoice_pages(pages_info) == [1, 2, 3]
 
 
 def test_copy_or_delivery_titled_demotes_copy_and_delivery_pages():
@@ -1156,9 +1156,9 @@ def test_page_marker_is_parsed_by_classify():
     assert res[0]["page_marker"] == "2/4"
 
 
-def test_bogus_duplicate_claim_refuted_by_page_marker():
-    """A named duplicate reprinting a DIFFERENT printed page position is a continuation sheet
-    (DMS-26 p2 prints 2/4 while p1 prints 1/4) - it stays; same-position reprints still drop."""
+def test_page_marker_never_removes_a_sheet():
+    """Marker-equal named duplicates are STILL read (DMS-26 p2 / DMS-27 p3 print a repeated position yet
+    carry real rows); the fold, not the selection, decides what a true reprint contributes."""
     entries = [
         {"page": 1, "page_type": "TAX_INVOICE", "is_copy": False, "duplicate_of": None,
          "page_marker": "1/4"},
@@ -1169,7 +1169,7 @@ def test_bogus_duplicate_claim_refuted_by_page_marker():
         {"page": 4, "page_type": "TAX_INVOICE", "is_copy": True, "duplicate_of": 1,
          "page_marker": None},
     ]
-    assert select_invoice_pages(entries) == [1, 2]   # p2 marker differs -> kept; p3/p4 dropped
+    assert select_invoice_pages(entries) == [1, 2, 3, 4]
 
 
 def test_extract_accepts_dash_formatted_thai_tax_id():
@@ -1371,9 +1371,9 @@ def test_unshaped_primary_amount_falls_to_secondary_reading():
     assert page == 2 and it["text"] == "52,660.05"
 
 
-def test_rescue_reads_stamp_placeholder_page_and_fills_money():
-    """A page holding ONLY the synthesized stamp item was never really read: the bounded rescue
-    reads it (DMS-24: the totals of a stamped copy sheet)."""
+def test_named_duplicate_stamped_sheet_is_read_and_its_totals_are_used():
+    """A stamped copy-named sheet is READ anyway (selection never drops content): its totals answer the
+    header the original sheet does not print, and no rescue pass is needed (DMS-24)."""
     from system_a.perception.vision_pipeline import VisionPipeline
 
     pdf_bytes = _loop4_pdf(["PAGE 1 TAX INVOICE IV9", "PAGE 2 STAMPED COPY SHEET"])
@@ -1413,7 +1413,8 @@ def test_rescue_reads_stamp_placeholder_page_and_fills_money():
 
     pipe = VisionPipeline(FakeMoneyVlm(), "fake-model", do_crops=False, invoice_first=True)
     ext = pipe.extract(pdf_bytes, package_id="PKG-M", dms_doc_id="DMS-M")
-    assert [r["page"] for r in ext.extra["field_rescue"]] == [2]
+    assert ext.extra["invoice_pages"] == [1, 2]           # selection keeps the named duplicate
+    assert ext.extra["field_rescue"] == []                # it was read outright - nothing to rescue
     assert ext.fields["grand_total"].raw == "1,070.00"
     assert ext.extra["classify"] and ext.extra["classify"][1]["duplicate_of"] == 1
 

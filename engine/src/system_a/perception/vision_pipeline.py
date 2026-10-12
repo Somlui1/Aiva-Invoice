@@ -398,23 +398,14 @@ def select_invoice_pages(pages_info: list[dict]) -> list[int]:
     if not invoices:
         # No invoice classified - fall back to first page
         return [pages_info[0]["page"]] if pages_info else []
-    pages = {p["page"] for p in invoices}
-    by_page = {p["page"]: p for p in invoices}
-    originals = []
-    for p in invoices:
-        dup = p.get("duplicate_of")
-        if p.get("is_copy") and dup in pages - {p.get("page")}:
-            # A named reprint must REPEAT its sheet's printed position; a different page_marker proves a
-            # continuation page the VLM mis-named (DMS-26 p2 prints 'หน้า 2/4' beside p1's '1/4' - its
-            # rows are real). An unprinted marker on either side keeps the old trust in the naming.
-            mine, tgt = _marker_digits(p), _marker_digits(by_page.get(dup))
-            if not mine or mine == tgt:
-                continue
-        originals.append(p)
-    if originals:
-        return sorted(p["page"] for p in originals)
-    # every invoice page claims to duplicate another invoice page: process them all and let the
-    # content-title demotion and row folding sort it out
+    pages = {p["page"] for p in invoices}  # noqa: F841 - kept for audit of classify-vs-page-set drift
+    # Every invoice-type page is read. The classify's duplicate claims - even marker-checked ones -
+    # proved unreliable for CONTENT across five evaluation loops: DMS-26's p2 and DMS-27's p3/p8 print a
+    # repeated page position yet carry item rows no other sheet prints (baseline-proven), while the row
+    # fold already makes a TRUE reprint free: its rows are dropped at merge. A named duplicate therefore
+    # costs two reads and buys nothing; a wrongly-named continuation page costs the document its lines.
+    # The page_marker / duplicate_of observations stay recorded in extra["classify"] for audit, and copy
+    # sheets that TITLE themselves COPY are still demoted by content (copy_or_delivery_titled).
     return sorted(p["page"] for p in invoices)
 
 
