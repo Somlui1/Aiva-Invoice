@@ -76,9 +76,9 @@
 |---|---|---|
 | Task 1: Benchmark Corpus Configuration & Default Hardening | Done | Create config/benchmark_3call_ids.json (16 docs) and default do_crops to False; 70/70 tests pass; committed b8274a0 |
 | Task 2: Automated 3-Pillar Audit Script | Done | Implement scripts/audit_3call_benchmark.py evaluating Calls, Accuracy, BBox; CLI + smoke test pass; committed c6d306f |
-| Task 3: Unit Tests for 3-Pillar Audit Script | Done | Add tests/test_audit_3call_benchmark.py verifying gate assertions; 4/4 tests pass, suite 74/74; committed TBD |
-| Task 4: Execute Initial Benchmark Run & Audit (Loop 1) | Pending | Run 16 benchmark docs into results/eval_3call_loop and produce initial scorecard |
-| Task 5: Targeted Root-Cause Fix & Re-verification Loop | Pending | Isolate failures, patch engine, and re-audit until 16/16 pass |
+| Task 3: Unit Tests for 3-Pillar Audit Script | Done | Add tests/test_audit_3call_benchmark.py verifying gate assertions; 4/4 tests pass, suite 74/74; committed aa7697b |
+| Task 4: Execute Initial Benchmark Run & Audit (Loop 1) | Done | Ran 16 docs into results/eval_3call_loop (added --doc-ids filter); initial scorecard 4/16 (G1 9/16, G2 7/16, G3 16/16); root causes mapped for Task 5 |
+| Task 5: Targeted Root-Cause Fix & Re-verification Loop | In Progress | Isolate failures, patch engine, and re-audit until 16/16 pass |
 | Task 6: Full Regression Verification & Documentation | Pending | Run full test suite regression and finalize results in task tracker |
 
 
