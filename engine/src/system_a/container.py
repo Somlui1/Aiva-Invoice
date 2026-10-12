@@ -37,7 +37,7 @@ class Settings:
     max_pages: int = int(os.getenv("PERCEPTION_MAX_PAGES", "12"))
     coord_mode: str = os.getenv("PERCEPTION_COORD", "auto")                  # auto | pixel | norm1000 | norm1
     do_table: bool = os.getenv("PERCEPTION_TABLE", "1") == "1"
-    do_crops: bool = os.getenv("PERCEPTION_CROPS", "1") == "1"
+    do_crops: bool = os.getenv("PERCEPTION_CROPS", "0") == "1"
     do_classify: bool = os.getenv("PERCEPTION_CLASSIFY", "1") == "1"
     invoice_first: bool = os.getenv("PERCEPTION_INVOICE_FIRST", "1") == "1"
     json_mode: bool = os.getenv("PERCEPTION_JSON_MODE", "0") == "1"           # bbox_testv3: no response_format

@@ -357,7 +357,7 @@ class VisionPipeline:
 
     def __init__(self, client, model: str, *, dpi: int = 150, crop_dpi: int = 300, coord: str = "auto",
                  max_pages: int = 12, max_tokens: int = 8000, table_pages: int = 8, critical_crops: int = 16,
-                 do_table: bool = True, do_crops: bool = True, do_classify: bool = True,
+                 do_table: bool = True, do_crops: bool = False, do_classify: bool = True,
                  invoice_first: bool = True,
                  json_mode: bool = False, max_words: int = 2500, crop_pad_pt: float = 8.0,
                  message_layout: str = "v3", cell_box: str = "row"):

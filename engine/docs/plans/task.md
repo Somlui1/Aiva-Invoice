@@ -74,7 +74,7 @@
 
 | Task | Status | Description |
 |---|---|---|
-| Task 1: Benchmark Corpus Configuration & Default Hardening | Pending | Create config/benchmark_3call_ids.json (16 docs) and default do_crops to False |
+| Task 1: Benchmark Corpus Configuration & Default Hardening | Done | Create config/benchmark_3call_ids.json (16 docs) and default do_crops to False; 70/70 tests pass; committed TBD |
 | Task 2: Automated 3-Pillar Audit Script | Pending | Implement scripts/audit_3call_benchmark.py evaluating Calls, Accuracy, BBox |
 | Task 3: Unit Tests for 3-Pillar Audit Script | Pending | Add tests/test_audit_3call_benchmark.py verifying gate assertions |
 | Task 4: Execute Initial Benchmark Run & Audit (Loop 1) | Pending | Run 16 benchmark docs into results/eval_3call_loop and produce initial scorecard |
