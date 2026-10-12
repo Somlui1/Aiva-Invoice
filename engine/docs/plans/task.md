@@ -52,7 +52,22 @@
 
 | Task | Status | Description |
 |---|---|---|
-| Task 1: Cache Defense Guard (`is_cacheable`, `save`, `load`) via TDD | Pending | Add is_cacheable validator rejecting ConnectError/transport drops; guard PerceptionCache save/load |
-| Task 2: Purge Tooling & Poisoned Cache Cleanup | Pending | Implement scripts/clean_perception_cache.py and delete 110 poisoned cache files |
-| Task 3: Selective Result Pruning & Batch Re-execution | Pending | Prune 108 invalid results in run_20261011 and resume batch execution via test_paperless_invoices.py |
+| Task 1: Cache Defense Guard (`is_cacheable`, `save`, `load`) via TDD | Done | Add is_cacheable validator rejecting ConnectError/transport drops; guard PerceptionCache save/load |
+| Task 2: Purge Tooling & Poisoned Cache Cleanup | Done | Implement scripts/clean_perception_cache.py and delete 110 poisoned cache files |
+| Task 3: Selective Result Pruning & Batch Re-execution | In Progress | Prune 108 invalid results in run_20261011 and resume batch execution via test_paperless_invoices.py |
 | Task 4: Regression Verification & Target Document Inspection | Pending | Run pytest regression suites and verify Multi-Grid document bboxes (DMS-102 etc.) |
+
+## Plan: Invoice-First <=3 VLM Calls (`2026-10-12-invoice-first-3call-implementation.md`)
+
+| Task | Status | Description |
+|---|---|---|
+| Task 1: New `vision_classify_batch` Prompt | Done | Create config/prompts/vision_classify_batch.md for multi-page batch classification; committed efc2453 |
+| Task 2: Add `invoice_first` Setting to Container | Done | Add PERCEPTION_INVOICE_FIRST env setting and perception_options entry in container.py; committed 365fb74 |
+| Task 3: TDD — Unit Tests for Invoice-First Logic | Done | Write failing unit tests for select_invoice_pages and text_layer_is_copy in test_ocr_improvements.py; committed 24bb524 |
+| Task 4: Implement `select_invoice_pages()` and `text_layer_is_copy()` | Done | Implement pure functions in vision_pipeline.py to pass TDD tests; committed 77b09c8 |
+| Task 5: Implement `_classify_batch()` in VisionPipeline | Done | Add _classify_batch method sending multi-image call to LiteLLM; committed f3efdf0 |
+| Task 6: Refactor `extract()` for Invoice-First Flow | Done | Branch in extract() to run batch classify then page_items & table_rows on invoice originals; committed 079c73a |
+| Task 7: Wire `invoice_first` in Container | Done | Pass invoice_first setting to VisionPipeline in build_perception; committed 3cfedb7 |
+| Task 8: Full Regression Verification | Done | 70/70 engine tests pass; 153/153 portal tests pass; 3-call limit verified; committed 6e20511 |
+
+
