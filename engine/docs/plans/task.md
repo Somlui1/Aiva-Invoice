@@ -47,3 +47,14 @@
 | Phase 4 Task 3: Degenerate BBox Sanitization | Done | Sanitized degenerate boxes (`w <= 0` or `h <= 0`) to `None` in `assembler.py` `build_elements()`; filtered invalid columns in `_lines()` |
 | Phase 4 Task 4: Negative Constraint in Prompt | Done | Added explicit MULTI-GRID NEGATIVE CONSTRAINT in `vision_table_rows.md` prompt; bumped prompt version to 2.1.0 |
 | Phase 4 Task 5: Full Regression & Target DMS Verification | Done | 60/60 pytest engine suite pass; 153/153 portal suite pass; DMS-102 simulation confirmed lines aligned to Y=0.335..0.415 with zero degenerate boxes |
+
+## Plan: Brainstorm & Root Cause Analysis on `run_20261011`
+
+| Task | Status | Description |
+|---|---|---|
+| Step 1: Explore project context & inspect run results | Done | Discovered 110 poisoned perception caches due to network drop (getaddrinfo failed), causing 101 empty documents in run_20261011 |
+| Step 2: Clarifying questions & intent alignment | In Progress | Ask user clarifying questions one at a time |
+| Step 3: Propose 2-3 approaches | Pending | Outline resolution & analysis approaches with trade-offs |
+| Step 4: Present design sections | Pending | Present architecture/fix design and get user approval |
+| Step 5: Write design doc & commit | Pending | Save design doc to docs/plans/ and commit |
+| Step 6: Transition to writing-plans | Pending | Invoke writing-plans skill |
