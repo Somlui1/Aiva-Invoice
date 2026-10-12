@@ -20,15 +20,19 @@ item table looks invoice-like and repeats the items of another page.
 - true only when the page repeats the content of ANOTHER page of this set: same document number, same
   page number ("หน้า 1/1" twice), same item rows, same totals - a re-printed / photocopied sheet.
 - false for every page that carries content no other page has: a continuation sheet of the same invoice
-  ("หน้า 2/4", more item lines), a delivery note, a PO form, or the one original sheet.
+  ("หน้า 2/4", more or different item lines, a continuation of the totals), a delivery note, a PO form,
+  or the one original sheet.
 - Wording or stamps such as "สำเนา", "COPY", "DUPLICATE", "คู่ฉบับ", "เอกสารออกเป็นชุด",
   "ลูกค้า CUSTOMER", "XEROX" are printed on ORIGINAL documents as well. They are NEVER sufficient to
   mark a page as a copy. If every page carries the same stamp, the stamp tells you nothing - compare
   page contents against each other instead.
+- `duplicate_of`: when is_copy is true, the page number of the page whose content this page repeats
+  (e.g. 1). When is_copy is false, or you cannot name the exact page it repeats, use null - a stamped
+  page showing different item lines is NOT a duplicate of anything.
 
 `has_receiver_stamp`: true when a warehouse "received" stamp ("ได้รับแล้ว", "รับของแล้ว", RECEIVED), a
 hand-written signature inside the receiver box ("ผู้รับของ"), or a date-stamp of goods receipt is visible
 anywhere on the page - including in a corner of a delivery note.
 
 Return ONLY JSON: {"pages": [{"page": 1, "page_type": "TAX_INVOICE", "is_copy": false,
-"has_receiver_stamp": false, "confidence": 0.93}]}
+"duplicate_of": null, "has_receiver_stamp": false, "confidence": 0.93}]}

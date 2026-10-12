@@ -375,20 +375,88 @@ def synthesize_stamp_items(reads: dict, pages_info: list[dict], selected: list[i
 
 
 def select_invoice_pages(pages_info: list[dict]) -> list[int]:
-    """Select invoice pages from classify_batch result, originals first with copy fallback.
+    """Select the invoice pages from the classify_batch result.
 
-    Returns sorted page numbers of the invoice pages to process.
+    Every invoice-type page enters the processed set: a stamp keyword or an ``is_copy`` flag alone cannot
+    prove a page is a duplicate of THIS set (originals carry the same stamps), and dropping a continuation
+    page loses real rows (DMS-26). Pure duplicates are removed later by their own content title
+    (``copy_or_delivery_titled``) and by row folding; nothing here throws away content.
     If no invoice pages are found at all, falls back to page 1.
     """
     invoices = [p for p in pages_info if p.get("page_type") in INVOICE_PAGE_TYPES]
     if not invoices:
-        # No invoice classified — fall back to first page
+        # No invoice classified - fall back to first page
         return [pages_info[0]["page"]] if pages_info else []
-    originals = [p for p in invoices if not p.get("is_copy")]
+    pages = {p["page"] for p in invoices}
+    originals = [p for p in invoices
+                 if not (p.get("is_copy") and p.get("duplicate_of") in pages - {p.get("page")})]
     if originals:
         return sorted(p["page"] for p in originals)
-    # No originals — use copies as fallback
+    # every invoice page claims to duplicate another invoice page: process them all and let the
+    # content-title demotion and row folding sort it out
     return sorted(p["page"] for p in invoices)
+
+
+COPY_TITLE_PREFIX = re.compile(r"^\s*(COPY|DUPLICATE|XEROX)\b|^\s*(?:ของ)?(?:สำเนา|คู่ฉบับ)", re.I)
+TAX_TITLE_WORD = re.compile(r"ภาษี|TAX\s*INVOICE|INVOICE|ใบแจ้งหนี้", re.I)
+
+
+def copy_or_delivery_titled(items: list) -> bool:
+    """True when a page's OWN content title is a prefixed copy or carries no tax/invoice wording.
+
+    The batch classify calls a sheet TAX_INVOICE by layout; the page reader reads what the sheet titles
+    itself. "COPY TAX INVOICE" (DMS-22) or a bare "ใบส่งสินค้า / DELIVERY ORDER" (DMS-33) must not add a
+    second copy of the item table, while "ใบกำกับภาษี/สำเนาใบส่งสินค้า" (DMS-15) - a tax invoice that
+    duplicates the *delivery note* - is an invoice sheet. A page with no readable title is kept.
+    """
+    titles = [str(it.get("text") or "").strip() for it in items or []
+              if str(it.get("label") or "").strip().lower() == "doc_title"]
+    titles = [t for t in titles if t]
+    if not titles:
+        return False
+    if any(COPY_TITLE_PREFIX.search(t) for t in titles):
+        return True
+    return not TAX_TITLE_WORD.search(" / ".join(titles))
+
+
+def pick_field_reading(name: str, primary_opts: list, secondary_opts: list, first_invoice):
+    """Two-phase field reading: the invoice sheets answer first, copy/rescued sheets only fill gaps.
+
+    A header the invoice sheets do not print (totals on a copy sheet, DMS-22/46) is taken from the
+    secondary pages; an identifier whose only secondary reading carries the field's printed shape may
+    RESCUE a label-mixed primary reading (DMS-30's tax id). A malformed PO is deliberately NOT rescued -
+    the derivation from the item rows owns that repair (DMS-33: a copy sheet printed a misread 10-digit
+    "PO" that would otherwise outrank the real 8-digit PO on the invoice rows).
+    """
+    def usable(page_it):
+        page, it = page_it
+        if it is None:
+            return False
+        if name not in IDENTIFIER_CONSENSUS_FIELDS:
+            return True
+        value = shaped_value(name, it.get("text")) or extract_value(name, it.get("text"))[0]
+        return bool(value and shape_ok(name, value))
+
+    def best(opts):
+        if not opts:
+            return None, None
+        if name in IDENTIFIER_CONSENSUS_FIELDS:
+            won = majority_identifier(name, opts)
+            if won:
+                return won
+        return pick_candidate(name, opts, first_invoice, invoice_pages=None)
+
+    primary = best(primary_opts)
+    if usable(primary):
+        return primary
+    if primary_opts and primary[1] is not None and name not in ("supplier_tax_id", "customer_tax_id"):
+        return primary        # identifier lacks its shape: the row derivation/oracle promotes it, not a copy page
+    secondary = best(secondary_opts)
+    if secondary[1] is None:
+        return primary
+    if primary[1] is None or usable(secondary):
+        return secondary
+    return primary
 
 
 @dataclass
@@ -505,6 +573,8 @@ class VisionPipeline:
                 "page": p,
                 "page_type": page_type_of(info.get("page_type"), "UNKNOWN"),
                 "is_copy": bool(info.get("is_copy")),
+                "duplicate_of": info.get("duplicate_of") if str(info.get("duplicate_of") or "").isdigit()
+                else None,
                 "has_receiver_stamp": bool(info.get("has_receiver_stamp")),
                 "confidence": float(info.get("confidence") or 0),
             })
@@ -520,6 +590,7 @@ class VisionPipeline:
         ctx = _Ctx(pdf=pdf, infos={r.info.page_no: r.info for r in rendered},
                    pngs={r.info.page_no: r.png for r in rendered}, layers=layers)
         reads: dict[int, PageRead] = {}
+        demoted: list[int] = []
         if self.invoice_first:
             all_pngs = {r.info.page_no: r.png for r in used}
             batch_result = self._classify_batch(all_pngs)
@@ -554,6 +625,12 @@ class VisionPipeline:
 
             invoice_pages = selected
             synthesize_stamp_items(reads, batch_result, selected)
+            # Content-title demotion (DMS-22/26/33): a sheet the page reader itself titles COPY/duplicate or
+            # without any tax wording is not an invoice sheet of this set - it keeps supplying header
+            # evidence as a secondary page, but its table is never counted into the item lines.
+            demoted = [p for p in selected if copy_or_delivery_titled(reads[p].items)]
+            if demoted:
+                invoice_pages = [p for p in selected if p not in demoted]
         else:
             for rp in used:
                 read = self._read_page(rp, ctx)
@@ -564,13 +641,15 @@ class VisionPipeline:
                 invoice_pages = [min(reads)]        # nothing classified as an invoice: page 1 carries the document
         documents, inv_doc_id = group_documents(reads, invoice_pages)
         words, words_skipped = self._words(ctx, invoice_pages)
-        fields, signatures, regions, crop_log = self._fields(ctx, reads, invoice_pages)
+        fields, signatures, regions, crop_log = self._fields(ctx, reads, invoice_pages, secondary_pages=demoted)
         rescue_log: list[dict] = []
         if self.invoice_first:
             used_map = {r.info.page_no: r for r in used}
-            rescue_log = self._rescue_missing_fields(ctx, reads, invoice_pages, fields, used_map)
+            rescue_log = self._rescue_missing_fields(ctx, reads, invoice_pages + demoted, fields, used_map)
             if rescue_log:
-                fields, signatures, regions, crop_log = self._fields(ctx, reads, invoice_pages)
+                fields, signatures, regions, crop_log = self._fields(
+                    ctx, reads, invoice_pages,
+                    secondary_pages=demoted + [r["page"] for r in rescue_log])
         lines, table_regions, row_errors, lines_source, table_notes = self._lines(ctx, reads, invoice_pages)
         regions = regions + table_regions + self._section_regions(reads)
         currency = self._currency(ctx, invoice_pages)
@@ -610,6 +689,7 @@ class VisionPipeline:
                 "words_capped_at": self.max_words, "words_skipped": words_skipped,
                 "truncated_pages": truncated, "render_dpi": self.dpi, "crop_dpi": self.crop_dpi,
                 "invoice_pages": invoice_pages, "pages_total": len(rendered),
+                "demoted_pages": demoted,
             },
             extractor={"vlm": self.model, "prompts": self.prompt_version, "ocr": "pdf-text-layer(pymupdf)",
                        "pipeline": f"vision-pipeline/{CODE_VERSION}"})
@@ -693,7 +773,12 @@ class VisionPipeline:
                 out.append(Word(word_id=w["word_id"], page=p, text=w["text"], bbox=w["bbox"], confidence=1.0))
         return tuple(out), skipped
 
-    def _fields(self, ctx: _Ctx, reads: dict, invoice_pages: list):
+    #: fields a PO / supporting sheet must never supply: its amounts are the order's, not the invoice's
+    AMOUNT_FIELDS = ("sub_total", "vat", "grand_total", "discount", "wht", "invoice_num", "invoice_date")
+    NON_INVOICE_SHEET_TYPES = ("PO", "OSP", "SUPPORTING")
+
+    def _fields(self, ctx: _Ctx, reads: dict, invoice_pages: list, secondary_pages: Optional[list] = None):
+        secondary_pages = secondary_pages or []
         fields: dict[str, RawField] = {}
         signatures: dict[str, SignatureObs] = {}
         regions: list[RegionNode] = []
@@ -709,8 +794,12 @@ class VisionPipeline:
 
         for name in field_crop_priority(candidates.keys()):
             options = candidates[name]
-            page, it = (majority_identifier(name, options) if name in IDENTIFIER_CONSENSUS_FIELDS else None) \
-                or pick_candidate(name, options, first_invoice, invoice_pages=invoice_pages)
+            primary_opts = [o for o in options if o[0] in invoice_pages]
+            secondary_opts = [o for o in options if o[0] in secondary_pages
+                              and not (name in self.AMOUNT_FIELDS
+                                       and str(reads[o[0]].page_type).upper() in self.NON_INVOICE_SHEET_TYPES)]
+            page, it = pick_field_reading(name, primary_opts, secondary_opts,
+                                          invoice_pages[0] if invoice_pages else None)
             if it is None:
                 continue
             page_words = ctx.layers.get(page, {}).get("words", [])
@@ -810,6 +899,8 @@ class VisionPipeline:
         for p in sorted(reads):
             if p in invoice_pages or p not in used_map or len(log) >= self.RESCUE_MAX_PAGES:
                 continue
+            if reads[p].items:
+                continue      # a demoted copy sheet was already read for items - no second pass
             full = self._read_page_no_classify(used_map[p], ctx)
             keep = reads[p]
             known = {str(i.get("label") or "").strip().lower() for i in full.items}

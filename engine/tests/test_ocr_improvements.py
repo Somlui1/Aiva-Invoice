@@ -686,7 +686,7 @@ def test_perception_cache_load_rejects_poisoned_file(tmp_path):
 
 
 def test_classify_batch_selects_invoice_originals():
-    """classify_batch returns only original invoice pages when both original and copy exist."""
+    """Every invoice-type page enters the processed set; copies are decided later by their own content title."""
     from system_a.perception.vision_pipeline import select_invoice_pages
     pages_info = [
         {"page": 1, "page_type": "TAX_INVOICE", "is_copy": False, "confidence": 0.95},
@@ -694,7 +694,7 @@ def test_classify_batch_selects_invoice_originals():
         {"page": 3, "page_type": "DELIVERY_NOTE", "is_copy": False, "confidence": 0.88},
     ]
     selected = select_invoice_pages(pages_info)
-    assert selected == [1], f"Expected [1] originals only, got {selected}"
+    assert selected == [1, 2], f"Expected all invoice-type pages, got {selected}"
 
 
 def test_classify_batch_falls_back_to_copy_when_no_original():
@@ -824,6 +824,138 @@ def test_extract_invoice_first_limits_calls_to_three():
 
 
 # ---------------------------------------------------------------- 3-call eval loop fixes (loop 2)
+def test_select_invoice_pages_drops_only_named_duplicates():
+    """A copy is dropped only when the classify names the exact page it repeats; a stamped page without a
+    named original stays in the set (DMS-26's p2 is stamped but carries different rows)."""
+    from system_a.perception.vision_pipeline import select_invoice_pages
+    pages_info = [
+        {"page": 1, "page_type": "TAX_INVOICE", "is_copy": False, "duplicate_of": None, "confidence": 0.95},
+        {"page": 2, "page_type": "TAX_INVOICE", "is_copy": True, "duplicate_of": None, "confidence": 0.90},
+        {"page": 3, "page_type": "TAX_INVOICE", "is_copy": True, "duplicate_of": 1, "confidence": 0.92},
+        {"page": 4, "page_type": "DELIVERY_NOTE", "is_copy": False, "duplicate_of": None, "confidence": 0.88},
+    ]
+    assert select_invoice_pages(pages_info) == [1, 2]
+
+
+def test_copy_or_delivery_titled_demotes_copy_and_delivery_pages():
+    """A page's own content title decides: COPY-prefixed or tax-less titles carry header evidence but no table."""
+    from system_a.perception.vision_pipeline import copy_or_delivery_titled
+
+    def items(*titles):
+        return [{"type": "header", "label": "doc_title", "text": t} for t in titles]
+
+    assert copy_or_delivery_titled(items("COPY TAX INVOICE/DELIVERY ORDER")) is True     # DMS-22 p2
+    assert copy_or_delivery_titled(items("COPY INVOICE/DELIVERY ORDER")) is True          # DMS-22 p3
+    assert copy_or_delivery_titled(items("ใบส่งสินค้า DELIVERY ORDER")) is True           # DMS-33 p4
+    assert copy_or_delivery_titled(items("คู่ฉบับใบกำกับภาษี")) is True                     # stamped duplicate prefix
+    assert copy_or_delivery_titled(items("TAX INVOICE /DELIVERY ORDER /INVOICE")) is False  # DMS-26 p3
+    assert copy_or_delivery_titled(items("ต้นฉบับใบกำกับภาษี /ใบส่งของ /ใบแจ้งหนี้ TAX INV")) is False
+    assert copy_or_delivery_titled(items("ใบกำกับภาษี/สำเนาใบส่งสินค้า/สำเนาใบเสร็จรับเงิน")) is False  # DMS-15 combined
+    assert copy_or_delivery_titled(items()) is False                        # no title -> keep
+    assert copy_or_delivery_titled([{"type": "header", "label": "doc_no", "text": "IV1"}]) is False
+
+
+def test_pick_field_reading_secondary_only_fills_or_rescues_gaps():
+    """Header fields prefer the processed invoice pages; secondary (copy/rescued) pages fill a missing
+    field and may only rescue an identifier whose primary reading lacks the printed shape."""
+    from system_a.perception.vision_pipeline import pick_field_reading
+
+    def opt(page, label, text, conf=0.9):
+        return page, {"label": label, "text": text, "bbox": [0.1, 0.2, 0.3, 0.02], "confidence": conf}
+
+    # missing on the primary pages -> taken from the secondary page (DMS-22 totals on a copy sheet)
+    primary = []                       # no sub_total candidate printed on the invoice sheets
+    secondary = [opt(3, "sub_total", "30,541.32")]
+    page, it = pick_field_reading("sub_total", primary, secondary, first_invoice=1)
+    assert page == 3 and it["text"] == "30,541.32"
+
+    # printed on both -> the primary page wins
+    primary2 = [opt(1, "sub_total", "30,541.32")]
+    page, it = pick_field_reading("sub_total", primary2, secondary, first_invoice=1)
+    assert page == 1
+
+    # identifier with a label-mixed primary reading is rescued by a shaped secondary reading (DMS-30)
+    primary3 = [opt(1, "supplier_tax_id", "เลขประจำตัวผู้เสียภาษี 010556004925")]
+    secondary3 = [opt(2, "supplier_tax_id", "0105556094925")]
+    page, it = pick_field_reading("supplier_tax_id", primary3, secondary3, first_invoice=1)
+    assert page == 2
+
+    # but a PO whose primary reading lacks the shape is NOT replaced by a secondary reading -
+    # the derivation from the item rows owns that repair (DMS-33's misread PO lived on a copy page)
+    primary4 = [opt(1, "po_number", "40118928139")]
+    secondary4 = [opt(4, "po_number", "0118928139")]
+    page, it = pick_field_reading("po_number", primary4, secondary4, first_invoice=1)
+    assert page == 1
+
+
+def test_extract_demotes_copy_titled_page_from_lines_but_keeps_its_fields():
+    """A selected page whose own title says COPY is dropped from the table pass yet still supplies
+    header fields the original page does not print."""
+    import fitz
+    from system_a.perception.vision_pipeline import VisionPipeline
+
+    doc = fitz.open()
+    for i in range(2):
+        p = doc.new_page(width=595, height=842)
+        p.insert_text((100, 100), f"PAGE {i + 1}", fontsize=9)
+    pdf_bytes = doc.tobytes()
+    doc.close()
+
+    class FakeCopyVlm:
+        def __init__(self):
+            self.last_usage, self.last_salvaged = {}, False
+            self.page_reads = 0
+
+        def chat_json(self, model, system, user, *, images=None, **kw):
+            if "Classify these" in user:
+                return {"pages": [
+                    {"page": 1, "page_type": "TAX_INVOICE", "is_copy": False, "confidence": 0.95},
+                    {"page": 2, "page_type": "TAX_INVOICE", "is_copy": True, "confidence": 0.90}]}
+            if "Digitise" in user:
+                return {"rows": [{"line_no": 1, "bbox_2d": [40, 330, 950, 350], "cells": {
+                    "description": {"text": "BOLT", "bbox_2d": [80, 330, 300, 350]},
+                    "qty": {"text": "2", "bbox_2d": [520, 330, 560, 350]},
+                    "amount": {"text": "200.00", "bbox_2d": [80, 330, 900, 350]}}}]}
+            self.page_reads += 1
+            if self.page_reads == 1:
+                return {"doc_type": "tax_invoice", "items": [
+                    {"type": "header", "label": "doc_title", "text": "TAX INVOICE",
+                     "bbox_2d": [60, 40, 400, 60]},
+                    {"type": "header", "label": "doc_no", "text": "IV1", "bbox_2d": [600, 100, 760, 115]},
+                    {"type": "header", "label": "po_number", "text": "40111111", "bbox_2d": [600, 120, 760, 135]},
+                    {"type": "header", "label": "supplier_name", "text": "บริษัท เอ บี ซี จำกัด",
+                     "bbox_2d": [60, 60, 400, 90]},
+                    {"type": "header", "label": "customer_name", "text": "บริษัท อัปโก้ จำกัด",
+                     "bbox_2d": [60, 150, 400, 180]},
+                    {"type": "header", "label": "supplier_address", "text": "99 บางนา",
+                     "bbox_2d": [60, 90, 400, 110]},
+                    {"type": "header", "label": "customer_address", "text": "100 อโศก",
+                     "bbox_2d": [60, 180, 400, 200]},
+                    {"type": "header", "label": "customer_tax_id", "text": "0107545000179",
+                     "bbox_2d": [60, 210, 400, 230]},
+                    {"type": "header", "label": "supplier_tax_id", "text": "0123456789012",
+                     "bbox_2d": [60, 240, 400, 260]},
+                    {"type": "header", "label": "invoice_date", "text": "01/09/2569",
+                     "bbox_2d": [600, 140, 760, 155]},
+                    {"type": "line", "label": "line_1", "text": "1 BOLT 2 200.00",
+                     "bbox_2d": [40, 330, 950, 350]}]}
+            return {"doc_type": "tax_invoice", "items": [
+                {"type": "header", "label": "doc_title", "text": "COPY TAX INVOICE",
+                 "bbox_2d": [60, 40, 400, 60]},
+                {"type": "total", "label": "sub_total", "text": "200.00", "bbox_2d": [700, 700, 900, 715]},
+                {"type": "total", "label": "vat", "text": "14.00", "bbox_2d": [700, 720, 900, 735]},
+                {"type": "total", "label": "grand_total", "text": "214.00", "bbox_2d": [700, 740, 900, 755]}]}
+
+    pipe = VisionPipeline(FakeCopyVlm(), "fake-model", do_crops=False, invoice_first=True)
+    ext = pipe.extract(pdf_bytes, package_id="PKG-C", dms_doc_id="DMS-C")
+    assert ext.extra["invoice_pages"] == [1], f"COPY-titled page must leave the table set: {ext.extra['invoice_pages']}"
+    assert ext.fields["sub_total"].raw == "200.00"       # totals still come from the copy sheet
+    assert ext.fields["grand_total"].raw == "214.00"
+    kinds = [c["kind"] for c in pipe.calls]
+    assert kinds.count("page_items") == 2 and kinds.count("table_rows") == 1
+    assert "crop_reread" not in kinds
+
+
 def test_classify_batch_parses_receiver_stamp_flags():
     """_classify_batch keeps the VLM's per-page receiver-stamp observation."""
     from unittest.mock import MagicMock
@@ -955,7 +1087,7 @@ def test_field_rescue_reads_next_pages_until_missing_found():
             if "Classify these" in user:
                 return {"pages": [
                     {"page": 1, "page_type": "TAX_INVOICE", "is_copy": False, "confidence": 0.95},
-                    {"page": 2, "page_type": "TAX_INVOICE", "is_copy": True, "confidence": 0.90},
+                    {"page": 2, "page_type": "DELIVERY_NOTE", "is_copy": False, "confidence": 0.90},
                     {"page": 3, "page_type": "PO", "is_copy": False, "confidence": 0.90}]}
             if "Digitise" in user:
                 return {"rows": [{"line_no": 1, "bbox_2d": [40, 330, 950, 350], "cells": {
