@@ -684,3 +684,61 @@ def test_perception_cache_load_rejects_poisoned_file(tmp_path):
     assert cache.rejected == 1
     assert not p.exists()  # Poisoned file was unlinked
 
+
+def test_classify_batch_selects_invoice_originals():
+    """classify_batch returns only original invoice pages when both original and copy exist."""
+    from system_a.perception.vision_pipeline import select_invoice_pages
+    pages_info = [
+        {"page": 1, "page_type": "TAX_INVOICE", "is_copy": False, "confidence": 0.95},
+        {"page": 2, "page_type": "TAX_INVOICE", "is_copy": True, "confidence": 0.90},
+        {"page": 3, "page_type": "DELIVERY_NOTE", "is_copy": False, "confidence": 0.88},
+    ]
+    selected = select_invoice_pages(pages_info)
+    assert selected == [1], f"Expected [1] originals only, got {selected}"
+
+
+def test_classify_batch_falls_back_to_copy_when_no_original():
+    """When no original invoice exists, copies are used as fallback."""
+    from system_a.perception.vision_pipeline import select_invoice_pages
+    pages_info = [
+        {"page": 1, "page_type": "TAX_INVOICE", "is_copy": True, "confidence": 0.90},
+        {"page": 2, "page_type": "DELIVERY_NOTE", "is_copy": False, "confidence": 0.88},
+    ]
+    selected = select_invoice_pages(pages_info)
+    assert selected == [1], f"Expected [1] (copy fallback), got {selected}"
+
+
+def test_classify_batch_multi_invoice_all_originals():
+    """Multiple distinct invoices: all original invoice pages are selected."""
+    from system_a.perception.vision_pipeline import select_invoice_pages
+    pages_info = [
+        {"page": 1, "page_type": "TAX_INVOICE", "is_copy": False, "confidence": 0.95},
+        {"page": 2, "page_type": "INVOICE", "is_copy": False, "confidence": 0.92},
+        {"page": 3, "page_type": "DELIVERY_NOTE", "is_copy": False, "confidence": 0.88},
+    ]
+    selected = select_invoice_pages(pages_info)
+    assert selected == [1, 2], f"Expected [1, 2], got {selected}"
+
+
+def test_classify_batch_no_invoice_falls_back_to_page1():
+    """When no page is classified as invoice, page 1 is used as fallback."""
+    from system_a.perception.vision_pipeline import select_invoice_pages
+    pages_info = [
+        {"page": 1, "page_type": "DELIVERY_NOTE", "is_copy": False, "confidence": 0.88},
+        {"page": 2, "page_type": "SUPPORTING", "is_copy": False, "confidence": 0.80},
+    ]
+    selected = select_invoice_pages(pages_info)
+    assert selected == [1], f"Expected [1] (fallback to page 1), got {selected}"
+
+
+def test_copy_detection_from_text_layer():
+    """Text layer keywords corroborate is_copy detection."""
+    from system_a.perception.vision_pipeline import text_layer_is_copy
+    assert text_layer_is_copy("บริษัท ABC สำเนา") is True
+    assert text_layer_is_copy("CUSTOMER COPY") is True
+    assert text_layer_is_copy("DUPLICATE") is True
+    assert text_layer_is_copy("คู่ฉบับ") is True
+    assert text_layer_is_copy("TAX INVOICE original") is False
+    assert text_layer_is_copy("ใบกำกับภาษี") is False
+
+
