@@ -70,4 +70,16 @@
 | Task 7: Wire `invoice_first` in Container | Done | Pass invoice_first setting to VisionPipeline in build_perception; committed 3cfedb7 |
 | Task 8: Full Regression Verification | Done | 70/70 engine tests pass; 153/153 portal tests pass; 3-call limit verified; committed 6e20511 |
 
+## Plan: Pi Agent 3-Call Benchmark Evaluation Loop (`2026-10-12-pi-agent-3call-eval-loop-implementation.md`)
+
+| Task | Status | Description |
+|---|---|---|
+| Task 1: Benchmark Corpus Configuration & Default Hardening | Pending | Create config/benchmark_3call_ids.json (16 docs) and default do_crops to False |
+| Task 2: Automated 3-Pillar Audit Script | Pending | Implement scripts/audit_3call_benchmark.py evaluating Calls, Accuracy, BBox |
+| Task 3: Unit Tests for 3-Pillar Audit Script | Pending | Add tests/test_audit_3call_benchmark.py verifying gate assertions |
+| Task 4: Execute Initial Benchmark Run & Audit (Loop 1) | Pending | Run 16 benchmark docs into results/eval_3call_loop and produce initial scorecard |
+| Task 5: Targeted Root-Cause Fix & Re-verification Loop | Pending | Isolate failures, patch engine, and re-audit until 16/16 pass |
+| Task 6: Full Regression Verification & Documentation | Pending | Run full test suite regression and finalize results in task tracker |
+
+
 
