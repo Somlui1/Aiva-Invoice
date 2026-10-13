@@ -93,12 +93,12 @@
 
 | Task | Status | Description |
 |---|---|---|
-| Orientation Task 1: PP-LCNet Setup & Runtime Loader | Pending | Add opencv/numpy deps, PP-LCNet_x1_0_doc_ori ONNX asset & sha256, cv2.dnn loader with onnxruntime fallback, official preprocessing & label mapping tests |
-| Orientation Task 2: Horizontal Projection Profile Skew Measurement | Pending | Implement fine skew angle search (-10°..+10°), thresholding (<0.3° -> 0.0), sparse text handling, and detect_page_orientation() |
-| Orientation Task 3: Affine Image Rotation & Inverse Coordinate Mapping | Pending | Implement rotate_image (white border) and rotate_box_back via M_inv yielding standard bbox and oriented rbox [cx, cy, w, h, angle] |
-| Orientation Task 4: Contract Updates & Schema Compatibility | Pending | Add rbox to Region, RegionNode, and schemas/result-3.0.schema.json; wire in assembler; verify 68/68 scenarios pass |
-| Orientation Task 5: Pipeline Integration (`SinglePassPipeline`) | Pending | Wire orientation detection into 80 DPI step, upright classify, 130 DPI extract rotation, PageAnswer.region() inverse mapping, and prompt cleanup |
-| Orientation Task 6: Full Regression Verification & Acceptance Gates | Pending | Verify 107+ engine tests, 153 portal tests, 68 sandbox scenarios, and test-portal live run on target docs |
+| Orientation Task 1: PP-LCNet Setup & Runtime Loader | Done | Add opencv/numpy deps, PP-LCNet_x1_0_doc_ori ONNX asset & sha256, cv2.dnn loader with onnxruntime fallback, official preprocessing & label mapping tests; committed 89253ee |
+| Orientation Task 2: Horizontal Projection Profile Skew Measurement | Done | Implement fine skew angle search (-10°..+10°), thresholding (<0.3° -> 0.0), sparse text handling, and detect_page_orientation(); committed 89253ee |
+| Orientation Task 3: Affine Image Rotation & Inverse Coordinate Mapping | Done | Implement rotate_image (white border) and rotate_box_back via M_inv yielding standard bbox and oriented rbox [cx, cy, w, h, angle]; committed 02fe780 |
+| Orientation Task 4: Contract Updates & Schema Compatibility | Done | Add rbox to Region, RegionNode, and schemas/result-3.0.schema.json; wire in assembler; verify 68/68 scenarios pass; committed 45aa609 |
+| Orientation Task 5: Pipeline Integration (`SinglePassPipeline`) | Done | Wire orientation detection into 80 DPI step, upright classify, 130 DPI extract rotation, PageAnswer.region() inverse mapping, and prompt cleanup; committed a2a4a49 |
+| Orientation Task 6: Full Regression Verification & Acceptance Gates | Done | 129/129 engine tests pass; 153/153 portal tests pass; 68/68 sandbox scenarios pass with valid schema; 218/218 frontend tests pass; all acceptance gates satisfied |
 
 
 
