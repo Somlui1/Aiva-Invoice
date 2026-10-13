@@ -7,9 +7,14 @@ detected per page (measured rule from the working prototype ``tests/bbox_testv3.
 """
 from __future__ import annotations
 
-from typing import Iterable, Optional, Sequence
+import math
+from typing import Any, Iterable, Optional, Sequence, Tuple
+
+import cv2
+import numpy as np
 
 BBox = tuple[float, float, float, float]
+RBox = tuple[float, float, float, float, float]
 
 EMPTY_TEXT = {"", "-", "--", "—", "?", "??", "...", "…", "n/a", "na", "null", "none", "nil", "unknown",
               "unreadable", "illegible", "not readable", "empty", "blank", "not visible", "no text", "[]"}
@@ -79,6 +84,111 @@ def xywh_to_pt(box: Sequence[float], width_pt: float, height_pt: float) -> tuple
     """Normalized box -> PDF points (x0, y0, x1, y1); used for cropping and for the HTML overlay."""
     x, y, w, h = (float(v) for v in box[:4])
     return (x * width_pt, y * height_pt, (x + w) * width_pt, (y + h) * height_pt)
+
+
+def rotate_image(img: Any, angle_cw: float) -> Tuple[Any, np.ndarray]:
+    """Rotate image clockwise by angle_cw degrees with white border (borderValue=255).
+
+    Returns:
+        (rotated_image, M) where M is the 2x3 affine transformation matrix.
+        Supports both numpy ndarray and PIL.Image.Image.
+    """
+    if abs(angle_cw) < 1e-4:
+        identity_m = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], dtype=np.float32)
+        return img, identity_m
+
+    is_pil = hasattr(img, "convert") and hasattr(img, "size")
+    if is_pil:
+        img_np = np.array(img.convert("RGB"))
+    else:
+        img_np = np.asarray(img)
+
+    h, w = img_np.shape[:2]
+    rad = math.radians(angle_cw)
+    sin_a, cos_a = abs(math.sin(rad)), abs(math.cos(rad))
+    new_w = int(math.ceil(h * sin_a + w * cos_a))
+    new_h = int(math.ceil(h * cos_a + w * sin_a))
+
+    center = (w / 2.0, h / 2.0)
+    # In OpenCV, positive angle rotates counter-clockwise, so -angle_cw rotates clockwise
+    M = cv2.getRotationMatrix2D(center, -angle_cw, 1.0)
+    M[0, 2] += (new_w / 2.0) - center[0]
+    M[1, 2] += (new_h / 2.0) - center[1]
+
+    rot_np = cv2.warpAffine(img_np, M, (new_w, new_h), flags=cv2.INTER_LINEAR,
+                            borderValue=(255, 255, 255))
+
+    if is_pil:
+        from PIL import Image
+        return Image.fromarray(rot_np), M
+    return rot_np, M
+
+
+def rotate_box_back(box: Sequence[float], rot_w: int, rot_h: int,
+                    orig_w: int, orig_h: int, M: Optional[np.ndarray],
+                    mode: str = "norm1000") -> Tuple[BBox, RBox]:
+    """Map a box predicted on rotated image back to original unrotated image coordinates.
+
+    Args:
+        box: [x1, y1, x2, y2] predicted on rotated image.
+        rot_w, rot_h: pixel dimensions of rotated image.
+        orig_w, orig_h: pixel dimensions of 130 DPI image before rotation (never PDF points).
+        M: 2x3 forward transformation matrix used to rotate the image.
+        mode: coordinate frame ('norm1000', 'norm1', 'pixel').
+
+    Returns:
+        (bbox, rbox) where:
+          bbox: normalized [x, y, w, h] axis-aligned bounding box enclosing the rotated box.
+          rbox: normalized [cx, cy, w, h, angle] oriented box with angle in [-45°, +45°] (degrees clockwise).
+    """
+    x1, y1, x2, y2 = xyxy_px(box, rot_w, rot_h, mode)
+
+    if M is None or np.allclose(M, [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], atol=1e-4):
+        bbox = px_to_xywh((x1, y1, x2, y2), orig_w, orig_h)
+        cx = round(bbox[0] + bbox[2] / 2.0, 4)
+        cy = round(bbox[1] + bbox[3] / 2.0, 4)
+        rbox = (cx, cy, bbox[2], bbox[3], 0.0)
+        return bbox, rbox
+
+    # 4 corner points on rotated image
+    pts_rot = np.array([[[x1, y1]], [[x2, y1]], [[x2, y2]], [[x1, y2]]], dtype=np.float32)
+    M_inv = cv2.invertAffineTransform(M)
+    pts_orig = cv2.transform(pts_rot, M_inv).reshape(4, 2)
+
+    xs, ys = pts_orig[:, 0], pts_orig[:, 1]
+    min_x, max_x = float(np.min(xs)), float(np.max(xs))
+    min_y, max_y = float(np.min(ys)), float(np.max(ys))
+
+    bx = round(max(0.0, min(1.0, min_x / orig_w)), 4)
+    by = round(max(0.0, min(1.0, min_y / orig_h)), 4)
+    bw = round(max(0.0, min(1.0 - bx, (max_x - min_x) / orig_w)), 4)
+    bh = round(max(0.0, min(1.0 - by, (max_y - min_y) / orig_h)), 4)
+    bbox = (bx, by, bw, bh)
+
+    cx = round(max(0.0, min(1.0, float(np.mean(xs)) / orig_w)), 4)
+    cy = round(max(0.0, min(1.0, float(np.mean(ys)) / orig_h)), 4)
+    edge_w = float(np.linalg.norm(pts_orig[1] - pts_orig[0])) / orig_w
+    edge_h = float(np.linalg.norm(pts_orig[2] - pts_orig[1])) / orig_h
+
+    dx = float(pts_orig[1, 0] - pts_orig[0, 0])
+    dy = float(pts_orig[1, 1] - pts_orig[0, 1])
+    raw_angle = math.degrees(math.atan2(dy, dx))
+
+    angle = raw_angle
+    while angle > 45.0:
+        angle -= 90.0
+        edge_w, edge_h = edge_h, edge_w
+    while angle <= -45.0:
+        angle += 90.0
+        edge_w, edge_h = edge_h, edge_w
+
+    if abs(angle) < 0.05:
+        angle = 0.0
+        edge_w, edge_h = bw, bh
+        cx, cy = round(bx + bw / 2.0, 4), round(by + bh / 2.0, 4)
+
+    rbox = (cx, cy, round(edge_w, 4), round(edge_h, 4), round(angle, 2))
+    return bbox, rbox
 
 
 def text_drop_reason(item: dict) -> str | None:
