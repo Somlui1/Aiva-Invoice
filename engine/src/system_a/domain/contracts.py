@@ -31,6 +31,7 @@ class _M(BaseModel):
 class Region(_M):
     page: int
     bbox: BBox
+    rbox: Optional[tuple[float, float, float, float, float]] = None
 
 
 class RawField(_M):
@@ -95,6 +96,7 @@ class RegionNode(_M):
     text: Optional[str] = None
     confidence: Optional[float] = None
     bbox: BBox
+    rbox: Optional[tuple[float, float, float, float, float]] = None
     parent_id: Optional[str] = None
 
 
