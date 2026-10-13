@@ -81,5 +81,26 @@
 | Task 5: Targeted Root-Cause Fix & Re-verification Loop | Done | 8 loops to 16/16 PASSED (all 3 gates). L1 4/16 → L2 (classify v2.0 content copy, consensus, stamp synth, rescue; dce6473) 10 → L3 (all-invoice-sheet selection, title demotion, two-phase picking; 6c62069) 12 → L4 9/16 (wording rule side-effects; 6c5b814) → L5 (dashed canonical tax, oracle supplier==customer overwrite, SHAPE_USABLE, stamp-page rescue, PO_RUN11, audit separator parity; 98/98; 9a7c71d) 12 → L6 selection reverted to all invoice sheets (1ee3a85) 11 → L7 identifier-majority-first + tiered wording + tax-less-title demotion (ea9b172) 10 under over-strict audit → L8 audit aligned to plan Gate-2 spec (verdict+invoice_num+grand_total+po_number gated; lines/tax ids = observations; corroborate overwrite needs receipt-row confirmation; 4279364) 14/16 → L8b V-06 waives unsure receiver when Oracle receipt confirms receiving (56ec7e4) 15/16 → L8c classify-named duplicate page folds despite misread qty column (f074827) **16/16**; final scorecard results/eval_3call_loop/audit_final.txt; suite 101/101 |
 | Task 6: Full Regression Verification & Documentation | Done | Full regression green after final pass: engine 101/101 (pytest tests/), portal 153/153 (pytest src/test-portal/), both exit 0; final scorecard results/eval_3call_loop/audit_final.txt = OVERALL PASSED 16/16; observations kept for human review: DMS-26 lines=19 vs 33 (baseline double-counts its own folded copy - design doc names DMS-26 the duplicate-folding case), DMS-27/DMS-46 supplier_tax_id differ from baseline (DMS-27 value now matches Oracle PO master; DMS-46 keeps the printed value - Oracle master disagrees with the paper), DMS-27 lines=12 vs 10 |
 
+## Plan: Single-Pass Invoice Extraction & BBox Testing
+
+| Task | Status | Description |
+|---|---|---|
+| Single-Pass BBox Test Script | Done | Created `scripts/test_invoice_single_pass.py` supporting multi-image 1-pass VLM extraction, original invoice prioritization, all-bbox overlay rendering to PNG, and required fields JSON payload to `bbox_testing/`; verified on DMS-20 & DMS-19 |
+| System A v5 Review & Validation | Done | Verified 107/107 engine tests, 153/153 test-portal tests, 68/68 sandbox scenarios with schema validation, 218/218 frontend tests; verified SinglePassPipeline, logic V-08, UOM & milestone installment rules |
+| Single-Pass 16-Doc Benchmark & Baseline Comparison | Done | Ran scripts/run_single_pass.py --ids-file config/benchmark_3call_ids.json --validate; compared results with baseline run_20261011 (5 Match, 4 Improved, 7 Regressed); avg time 26.4s |
+
+## Plan: Image Orientation & BBox Rotation-Back (`2026-10-13-image-orientation-and-bbox-rotation-implementation.md`)
+
+| Task | Status | Description |
+|---|---|---|
+| Orientation Task 1: PP-LCNet Setup & Runtime Loader | Pending | Add opencv/numpy deps, PP-LCNet_x1_0_doc_ori ONNX asset & sha256, cv2.dnn loader with onnxruntime fallback, official preprocessing & label mapping tests |
+| Orientation Task 2: Horizontal Projection Profile Skew Measurement | Pending | Implement fine skew angle search (-10°..+10°), thresholding (<0.3° -> 0.0), sparse text handling, and detect_page_orientation() |
+| Orientation Task 3: Affine Image Rotation & Inverse Coordinate Mapping | Pending | Implement rotate_image (white border) and rotate_box_back via M_inv yielding standard bbox and oriented rbox [cx, cy, w, h, angle] |
+| Orientation Task 4: Contract Updates & Schema Compatibility | Pending | Add rbox to Region, RegionNode, and schemas/result-3.0.schema.json; wire in assembler; verify 68/68 scenarios pass |
+| Orientation Task 5: Pipeline Integration (`SinglePassPipeline`) | Pending | Wire orientation detection into 80 DPI step, upright classify, 130 DPI extract rotation, PageAnswer.region() inverse mapping, and prompt cleanup |
+| Orientation Task 6: Full Regression Verification & Acceptance Gates | Pending | Verify 107+ engine tests, 153 portal tests, 68 sandbox scenarios, and test-portal live run on target docs |
+
+
+
 
 
