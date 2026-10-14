@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-export interface DirectoryEmployee {
+interface DirectoryEmployee {
   samAccount: string
   name: string
   email: string
@@ -15,7 +15,7 @@ export interface DirectoryEmployee {
   enabled: boolean
 }
 
-export const DIRECTORY_EMPLOYEES: DirectoryEmployee[] = [
+const DIRECTORY_EMPLOYEES: DirectoryEmployee[] = [
   { samAccount: 'somsak.j', name: 'สมศักดิ์ ใจดี', email: 'somsak.j@aapico.com', upn: 'somsak.j@aapico.com', empId: '10231', title: 'หัวหน้าคลัง', unit: 'คลังวัตถุดิบ', ou: 'OU=Warehouse,OU=AH,DC=aapico,DC=com', enabled: true },
   { samAccount: 'wilaiwan.s', name: 'วิไลวรรณ ศรีสุข', email: 'wilaiwan.s@aapico.com', upn: 'wilaiwan.s@aapico.co.th', empId: '20417', title: 'เจ้าหน้าที่ซ่อมบำรุง', unit: 'ฝ่ายซ่อมบำรุง', ou: 'OU=Maintenance,OU=AHT,DC=aapico,DC=com', enabled: true },
   { samAccount: 'thanakorn.m', name: 'ธนากร มั่นคง', email: 'thanakorn.m@aapico.com', upn: 'thanakorn.m@aapico.com', empId: '30552', title: 'เจ้าหน้าที่คลังอะไหล่', unit: 'คลังอะไหล่', ou: 'OU=Spare,OU=AM,DC=aapico,DC=com', enabled: true },

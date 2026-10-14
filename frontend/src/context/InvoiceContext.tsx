@@ -448,6 +448,28 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
         setSelectedDocId(n.doc)
         logAudit('อัปโหลดเอกสารใหม่', n.doc, rule)
         toast(`อัปโหลดแล้ว · ${rule}`)
+
+        // Persist upload revision to server API
+        try {
+          fetch(`/api/documents/${encodeURIComponent(doc.doc)}/actions`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-user-id': currentUser.id,
+              'x-user-role': currentUser.role,
+              'x-user-name': encodeURIComponent(currentUser.n),
+            },
+            body: JSON.stringify({
+              action: 'upload_revision',
+              reason: rule,
+              simOutcome,
+              uploadFile,
+            }),
+          }).catch(err => console.warn('Upload revision persistence error:', err))
+        } catch (err) {
+          console.warn('Upload revision request error:', err)
+        }
+
         return { ok: true, msg: `อัปโหลดแล้ว · ${rule}` }
       }
 
@@ -506,7 +528,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
 
       // Persist to server API
       try {
-        const actionType = action === 'upload' ? 'upload_revision' : action
+        const actionType = action
         await fetch(`/api/documents/${encodeURIComponent(docId)}/actions`, {
           method: 'POST',
           headers: {

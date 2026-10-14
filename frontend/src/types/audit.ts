@@ -1,4 +1,5 @@
 export interface AuditEntry {
+  id?: string
   dt: string
   t: string
   who: string

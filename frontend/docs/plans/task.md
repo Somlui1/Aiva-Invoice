@@ -51,4 +51,4 @@
 | prod-task-4 | Directory Search & User Provisioning API | completed | GET /api/ad/search with auto-mapping & POST /api/users persistence; 2/2 tests pass; commit 47d6f7d |
 | prod-task-5 | Interactive Permission Admin UI (Mockup v3) | completed | PermissionExcelGrid, AdUserSearchModal, SaveDiffModal mounted in RbacPage for ADM; 10/10 smoke + rbacPageInteractive tests pass |
 | prod-task-6 | Oracle AP Batch Staging & Locking Pipeline | completed | POST/GET /api/ap/batches, /api/ap/batches/[id]/callback, and ApPage live sync; 4/4 apBatch tests pass |
-| prod-task-7 | Full Verification & End-to-End Regression Pass | in-progress | Full test suite, TypeScript check, and production build verification |
+| prod-task-7 | Full Verification & End-to-End Regression Pass | completed | Full vitest suite 35/35 test files (236/236 tests) pass; tsc --noEmit clean; Next.js 15 production build (19/19 routes) clean |

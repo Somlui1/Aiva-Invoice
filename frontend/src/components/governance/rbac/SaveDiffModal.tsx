@@ -7,6 +7,9 @@ export interface UserDiff {
     id: string
     name: string
     email: string
+    samAccount?: string | null
+    empId?: string | null
+    unit?: string | null
     role: string
     companies: string[]
     receivers: string[]
