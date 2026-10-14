@@ -100,7 +100,14 @@
 | Orientation Task 5: Pipeline Integration (`SinglePassPipeline`) | Done | Wire orientation detection into 80 DPI step, upright classify, 130 DPI extract rotation, PageAnswer.region() inverse mapping, and prompt cleanup; committed a2a4a49 |
 | Orientation Task 6: Full Regression Verification & Acceptance Gates | Done | 129/129 engine tests pass; 153/153 portal tests pass; 68/68 sandbox scenarios pass with valid schema; 218/218 frontend tests pass; all acceptance gates satisfied |
 
+## Plan: Invoice Separation, Dual-Quantity & Matching Robustness (2026-10-14-invoice-separation-and-dual-qty-matching-implementation.md)
 
-
-
+| Task | Status | Description |
+|---|---|---|
+| Task 1: Prompt Enhancements for Visual Unit Matching & Negative Discounts | Pending | Update single_pass_extract.md and ision_table_rows.md with Visual Unit Matching, header UOM inheritance, and negative discount rules |
+| Task 2: Safe Upstream Duplicate Page Separation | Pending | Implement safe duplicate copy pruning in select_invoice_pages while protecting multi-page continuation sheets |
+| Task 3: Resilient Midstream Row Folding for Installments & Fuzzy Match | Pending | Decouple installment folding from subtotal equality and support fuzzy block matching against OCR noise in collapse_repeated_copies |
+| Task 4: Engine Self-Evidence Token Fallback for Dual-Quantity | Pending | Implement self-evidence fallback in corroborate_lines using row OCR tokens without Oracle peeking |
+| Task 5: Business Rule Fast-Paths | Pending | Add V-05 AAPICO Tax ID 100% bypass and V-08 service line amount match |
+| Task 6: Target Document Verification & Full Regression | Pending | Verify target cases (DMS-109, 112, 113, 86, 153, 40, 28, 33, 62, 89, 101, etc.) and run full regression suites |
 
