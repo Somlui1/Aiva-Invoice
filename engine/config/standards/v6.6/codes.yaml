@@ -10,7 +10,7 @@ codes:
   E07: {name: Customer Mismatch,                severity: conditional, rule: V-05}   # Tax ID=High, name/address=Medium
   E08: {name: Signature Missing,                severity: conditional, rule: V-06}   # receiver=High, deliverer=Medium
   E09: {name: Price Variance,                   severity: High,   rule: V-07}
-  E10: {name: UOM Mismatch,                     severity: Medium, rule: V-07}
+  E10: {name: UOM Mismatch,                     severity: conditional, rule: V-07}
   E11: {name: Line Resolved by Description,     severity: Medium, rule: V-07}
   E12: {name: Price Variance Within Tolerance,  severity: Medium, rule: V-07}
   E13: {name: Line Not Identified,              severity: High,   rule: V-07}

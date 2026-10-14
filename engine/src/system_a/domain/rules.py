@@ -415,8 +415,10 @@ def v07_line_match(c: Ctx) -> RuleOutcome:
                 if _uom_cfg(c, "amount_check"):
                     tail = (f" · ยอดบรรทัดเท่ากัน {a:,} = {ra:,}" if amount_equal
                             else f" · ยอดบรรทัดไม่ตรง (Inv: {a if a is not None else '-'}, Rcv: {ra})")
+                e10_sev = "Low" if amount_equal else "Medium"
                 out.append(_f(c, "E10", "V-07", f"{_line_tag(l)}: หน่วยนับต่างกลุ่มหลังแปลง "
                                                  f"(Inv: {inv_raw}→{l.uom_group}, Rcv: {rcv_txt}){tail}",
+                              sev=e10_sev,
                               actual=str(l.uom_group), expected=",".join(sorted(str(x) for x in rcv_groups)),
                               element_ids=(l.element_id, l.cells["uom"].element_id, l.cells["amount"].element_id),
                               oracle_refs=refs))

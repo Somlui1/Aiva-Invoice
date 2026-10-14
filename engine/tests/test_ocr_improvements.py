@@ -1938,3 +1938,43 @@ def test_v08_service_line_amount_match():
     lr = res.data["line_results"][0]
     assert lr["result"] == "pass"
     assert "service line amount match" in lr["reason"]
+
+
+def test_v07_e10_severity_low_when_amount_equal():
+    from decimal import Decimal
+    from system_a.domain.contracts import InvoiceDoc, NField, NLine, ReceiptRow
+    from system_a.domain.matching import MatchGroup
+    from system_a.domain.rules import Ctx, v07_line_match
+    from system_a.domain.standard import load_standard
+
+    cells = {
+        "description": NField("description", "L1-d", "ITEM A", "ITEM A", 1.0, True),
+        "qty": NField("qty", "L1-q", "10", Decimal("10"), 1.0, True),
+        "uom": NField("uom", "L1-u", "PCS", "PCS", 1.0, True),
+        "unit_price": NField("unit_price", "L1-p", "100.00", Decimal("100.00"), 1.0, True),
+        "amount": NField("amount", "L1-a", "1000.00", Decimal("1000.00"), 1.0, True),
+    }
+    l1 = NLine(line_no=1, element_id="L1", cells=cells, uom_group="PCS")
+    doc = InvoiceDoc("D1", {}, (l1,), {}, True)
+
+    rcv_row = ReceiptRow(101, "R1", "WH", 1, "ITEM A", Decimal("10"), "Sheet", Decimal("100.00"), Decimal("1000.00"), {"rcv_line_id": "R1-1"})
+    snapshot = type("Snapshot", (), {
+        "found": True,
+        "active": [rcv_row],
+        "rows": [rcv_row],
+        "receipt_lines": [rcv_row],
+        "org_id": 101,
+        "receipt_nums": ["R1"],
+        "query_keys": {},
+    })()
+    std = load_standard()
+
+    group = MatchGroup(group_id="G1", relation="1:1", level="M1", confidence=1.0, source="logic", invoice_line_nos=(1,), rcv_line_ids=("R1-1",))
+    c = Ctx(doc=doc, snapshot=snapshot, std=std, groups=[group], match_trace={}, ai_trace={})
+
+    res = v07_line_match(c)
+    assert res.result == "pass"
+    e10_finding = next((f for f in res.findings if f.code == "E10"), None)
+    assert e10_finding is not None
+    assert e10_finding.severity == "Low"
+
