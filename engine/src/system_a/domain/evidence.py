@@ -71,12 +71,82 @@ def _rebuild(doc: InvoiceDoc, fields: dict, lines: Iterable[NLine]) -> InvoiceDo
 
 
 # ======================================================================== printed copies
+def _norm_ocr(s: str) -> str:
+    s = "".join(c for c in (s or "").upper() if c.isalnum())
+    return s.replace("0", "O").replace("1", "I")
+
+
+def _is_same_text(s0: str, s1: str) -> tuple[bool, bool]:
+    """Returns (is_match, is_conflict)."""
+    if not s0 or not s1:
+        return False, False
+    n0, n1 = _norm_ocr(s0), _norm_ocr(s1)
+    if n0 == n1:
+        return True, False
+    # Check if trailing digit differs (e.g. #2 vs #3, item-1 vs item-2)
+    if n0 and n1 and n0[-1].isdigit() and n1[-1].isdigit() and n0[-1] != n1[-1]:
+        return False, True
+    import difflib
+    ratio = difflib.SequenceMatcher(None, n0, n1).ratio()
+    if ratio >= 0.85:
+        return True, False
+    if ratio < 0.6:
+        return False, True
+    return False, False
+
+
+def _row_similarity(r0: dict, r1: dict, tol: Decimal) -> float:
+    # Check text conflict first
+    if r0["item_code"] and r1["item_code"]:
+        match_c, conf_c = _is_same_text(r0["item_code"], r1["item_code"])
+        if conf_c:
+            return 0.0
+    else:
+        match_c = False
+
+    if r0["desc"] and r1["desc"]:
+        match_d, conf_d = _is_same_text(r0["desc"], r1["desc"])
+        if conf_d:
+            return 0.0
+    else:
+        match_d = False
+
+    # 1. Exact numeric match
+    if r0["amount"] is not None and r1["amount"] is not None and abs(r0["amount"] - r1["amount"]) <= tol:
+        if (r0["qty"] is None or r1["qty"] is None or r0["qty"] == r1["qty"]) and \
+           (r0["unit_price"] is None or r1["unit_price"] is None or abs(r0["unit_price"] - r1["unit_price"]) <= tol):
+            return 1.0
+
+    # 2. Matching on mutually present numeric fields (e.g. DMS-86: missing unit_price)
+    shared_nums = [k for k in ("qty", "unit_price", "amount") if r0[k] is not None and r1[k] is not None]
+    if shared_nums and all(abs(r0[k] - r1[k]) <= tol for k in shared_nums):
+        if len(shared_nums) >= 2 or (len(shared_nums) == 1 and shared_nums[0] == "amount"):
+            return 0.95
+
+    # 3. Text match + close numerics (e.g. DMS-109 line 5: 158,000 vs 156,000 OCR noise)
+    if match_c or match_d:
+        if r0["qty"] is not None and r1["qty"] is not None and r0["qty"] == r1["qty"]:
+            if r0["amount"] is not None and r1["amount"] is not None:
+                max_amt = max(abs(r0["amount"]), abs(r1["amount"]), Decimal(1))
+                if (abs(r0["amount"] - r1["amount"]) / max_amt) <= Decimal("0.05"):
+                    return 0.9
+            else:
+                return 0.85
+
+    # 4. Pure numeric typo without text match (relative difference < 3% on amount while qty matches)
+    if r0["qty"] is not None and r1["qty"] is not None and r0["qty"] == r1["qty"]:
+        if r0["amount"] is not None and r1["amount"] is not None:
+            max_amt = max(abs(r0["amount"]), abs(r1["amount"]), Decimal(1))
+            if (abs(r0["amount"] - r1["amount"]) / max_amt) <= Decimal("0.03"):
+                return 0.8
+
+    return 0.0
+
+
 def collapse_repeated_copies(doc: InvoiceDoc, std: Standard) -> tuple[InvoiceDoc, Optional[dict]]:
     """Original + copy pages read as one table: the line list is k identical blocks and
-    sum(amount) == k x sub_total.  Keep the first block (measured: DMS-39 x3, DMS-88/104 x2).
-
-    Identity of a block = (qty, unit_price, amount) of every line in order; descriptions are not
-    compared (OCR spells them differently per copy).  Without a readable sub_total nothing is done.
+    sum(amount) == k x sub_total (or repeated blocks in installment invoices). Keep the first block
+    (measured: DMS-39 x3, DMS-88/104 x2, DMS-109 fuzzy typo, DMS-112/113 installments).
     """
     if not enabled(std, "collapse_repeated_copies"):
         return doc, None
@@ -85,24 +155,122 @@ def collapse_repeated_copies(doc: InvoiceDoc, std: Standard) -> tuple[InvoiceDoc
     n = len(lines)
     if n < 2 or sub is None or sub <= 0:
         return doc, None
-    sig = [tuple(_dec(_val(l.cells.get(k))) for k in ("qty", "unit_price", "amount")) for l in lines]
-    amounts = [s_[2] for s_ in sig]
-    if None in amounts:
-        return doc, None
-    total = sum(amounts, Decimal(0))
+
     tol = std.tol("total")
+    row_info = []
+    for l in lines:
+        q = _dec(_val(l.cells.get("qty")))
+        p = _dec(_val(l.cells.get("unit_price")))
+        a = _dec(_val(l.cells.get("amount")))
+        if a is None and q is not None and p is not None:
+            a = (q * p).quantize(Q2)
+        code = str(_val(l.cells.get("item_code")) or "").strip().upper()
+        desc = str(_val(l.cells.get("description")) or "").strip().upper()
+        row_info.append({
+            "qty": q,
+            "unit_price": p,
+            "amount": a,
+            "item_code": code,
+            "desc": desc,
+            "line": l,
+        })
+
+    amounts = [r["amount"] for r in row_info]
+    # If all amounts are present and sum(amounts) == sub_total, every row is needed (not duplicate copies)
+    if None not in amounts:
+        total = sum(amounts, Decimal(0))
+        if abs(total - sub) <= tol:
+            return doc, None
+    else:
+        total = sum((a for a in amounts if a is not None), Decimal(0))
+
     for k in range(n, 1, -1):
         if n % k:
             continue
         size = n // k
-        blocks = [sig[i * size:(i + 1) * size] for i in range(k)]
-        if all(b == blocks[0] for b in blocks) and abs(total - k * sub) <= tol * k \
-                and abs(sum(amounts[:size], Decimal(0)) - sub) <= tol:
-            kept = tuple(lines[:size])
-            note = {"copies": k, "kept_line_nos": [l.line_no for l in kept],
-                    "dropped_line_nos": [l.line_no for l in lines[size:]],
-                    "rule": "k identical (qty, unit_price, amount) blocks and sum(amount) = k x sub_total"}
+        blocks = [row_info[i * size : (i + 1) * size] for i in range(k)]
+        b0 = blocks[0]
+        b0_amounts = [r["amount"] for r in b0]
+        b0_sum = sum((a for a in b0_amounts if a is not None), Decimal(0))
+
+        # Check block matching for all subsequent blocks
+        all_blocks_match = True
+        for b in blocks[1:]:
+            sims = [_row_similarity(b0[i], b[i], tol) for i in range(size)]
+            block_sim = sum(sims) / size
+            matched_rows = sum(1 for s in sims if s >= 0.7)
+            if size == 1:
+                # For single-row blocks, require high similarity (>= 0.9)
+                # and ensure descriptions don't clearly conflict
+                if block_sim < 0.9:
+                    all_blocks_match = False
+                    break
+                d0, d1 = b0[0]["desc"], b[0]["desc"]
+                if d0 and d1:
+                    t0, t1 = set(re.findall(r"\w+", d0)), set(re.findall(r"\w+", d1))
+                    if t0 and t1 and not (t0 & t1):
+                        all_blocks_match = False
+                        break
+            else:
+                if block_sim < 0.75 and (matched_rows / size) < 0.75:
+                    all_blocks_match = False
+                    break
+
+        if not all_blocks_match:
+            continue
+
+        # Subtotal checks:
+        # Case 1: Standard copy pages where b0_sum == sub_total and total == k * sub_total
+        standard_match = (
+            abs(total - k * sub) <= tol * k
+            and abs(b0_sum - sub) <= tol
+        )
+
+        # Case 2: Fuzzy OCR noise on copy pages where total ~ k * sub_total and b0_sum == sub_total
+        fuzzy_standard_match = (
+            abs(b0_sum - sub) <= tol
+            and abs(total - k * sub) <= max(tol * k, sub * Decimal("0.05"))
+        )
+
+        # Case 3: Installment invoice decoupling (DMS-112, DMS-113)
+        # Table partitions into k repeated blocks, total ~ k * b0_sum, but sub_total is installment amount
+        installment_match = (
+            b0_sum > 0
+            and abs(total - k * b0_sum) <= max(tol * k, b0_sum * Decimal("0.05"))
+            and abs(total - sub) > tol
+        )
+
+        if standard_match or fuzzy_standard_match or installment_match:
+            # Backfill any missing cells in kept lines from the duplicate blocks if available
+            kept_lines = []
+            for i in range(size):
+                cur_line = lines[i]
+                new_cells = dict(cur_line.cells)
+                for dup_b in blocks[1:]:
+                    dup_line = dup_b[i]["line"]
+                    for cell_key in ("unit_price", "qty", "amount", "uom", "item_code"):
+                        cur_cell = new_cells.get(cell_key)
+                        dup_cell = dup_line.cells.get(cell_key)
+                        if (cur_cell is None or not cur_cell.ok or cur_cell.value is None) and (
+                            dup_cell is not None and dup_cell.ok and dup_cell.value is not None
+                        ):
+                            new_cells[cell_key] = _promote(dup_cell, "copy_page_reconciled")
+                kept_lines.append(replace(cur_line, cells=new_cells))
+
+            kept = tuple(kept_lines)
+            rule_desc = (
+                "k identical (qty, unit_price, amount) blocks and sum(amount) = k x sub_total"
+                if (standard_match or fuzzy_standard_match)
+                else "k repeated blocks in installment invoice (sub_total != block_sum)"
+            )
+            note = {
+                "copies": k,
+                "kept_line_nos": [l.line_no for l in kept],
+                "dropped_line_nos": [l.line_no for l in lines[size:]],
+                "rule": rule_desc,
+            }
             return replace(doc, lines=kept), note
+
     return doc, None
 
 

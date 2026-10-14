@@ -1739,4 +1739,75 @@ def test_prompts_have_visual_unit_and_discount_rules():
         assert "Horizontal Row Gating" in prompt_text, f"{fname} missing horizontal gating rule"
 
 
+def test_collapse_repeated_copies_installment_without_subtotal_equality():
+    from system_a.domain.contracts import InvoiceDoc, NField, NLine
+    from system_a.domain.evidence import collapse_repeated_copies
+    from system_a.domain.standard import load_standard
 
+    def make_line(line_no, desc, qty, price, amt):
+        return NLine(
+            line_no=line_no,
+            element_id=f"L{line_no}",
+            cells={
+                "item_code": NField("item_code", f"L{line_no}-c", desc, desc, 1.0, True),
+                "description": NField("description", f"L{line_no}-d", desc, desc, 1.0, True),
+                "qty": NField("qty", f"L{line_no}-q", str(qty), Decimal(str(qty)), 1.0, True),
+                "unit_price": NField("unit_price", f"L{line_no}-p", str(price), Decimal(str(price)), 1.0, True),
+                "amount": NField("amount", f"L{line_no}-a", str(amt), Decimal(str(amt)), 1.0, True),
+            },
+            uom_group="SET",
+        )
+
+    l1 = make_line(1, "44591-BZ390 #2", 1, "17000.00", "17000.00")
+    l2 = make_line(2, "44591-BZ390 #3", 1, "17000.00", "17000.00")
+    l3 = make_line(3, "44591-BZ390 #2", 1, "17000.00", "17000.00")
+    l4 = make_line(4, "44591-BZ390 #3", 1, "17000.00", "17000.00")
+
+    sub_field = NField("sub_total", "f-sub", "10200.00", Decimal("10200.00"), 1.0, True)
+    doc = InvoiceDoc("D112", {"sub_total": sub_field}, (l1, l2, l3, l4), {}, True)
+    std = load_standard()
+
+    folded_doc, note = collapse_repeated_copies(doc, std)
+    assert note is not None, "Failed to fold installment repeated copies"
+    assert len(folded_doc.lines) == 2
+    assert [l.line_no for l in folded_doc.lines] == [1, 2]
+    assert note["copies"] == 2
+
+
+def test_collapse_repeated_copies_fuzzy_ocr_noise():
+    from system_a.domain.contracts import InvoiceDoc, NField, NLine
+    from system_a.domain.evidence import collapse_repeated_copies
+    from system_a.domain.standard import load_standard
+
+    def make_line(line_no, desc, qty, price, amt):
+        return NLine(
+            line_no=line_no,
+            element_id=f"L{line_no}",
+            cells={
+                "description": NField("description", f"L{line_no}-d", desc, desc, 1.0, True),
+                "qty": NField("qty", f"L{line_no}-q", str(qty), Decimal(str(qty)), 1.0, True),
+                "unit_price": NField("unit_price", f"L{line_no}-p", str(price), Decimal(str(price)), 1.0, True),
+                "amount": NField("amount", f"L{line_no}-a", str(amt), Decimal(str(amt)), 1.0, True),
+            },
+            uom_group="SET",
+        )
+
+    l1 = make_line(1, "90146 2LSOA FL-REST", 1, "156000.00", "156000.00")
+    l2 = make_line(2, "90146 2LSOA PI-CUT", 1, "135000.00", "135000.00")
+    l3 = make_line(3, "90146 2LSOA DR", 1, "192000.00", "192000.00")
+    l4 = make_line(4, "90146 2LSOA TR-PI", 1, "162000.00", "162000.00")
+
+    l5 = make_line(5, "90146 2LS0A FL-REST", 1, "158000.00", "158000.00")
+    l6 = make_line(6, "90146 2LS0A PI-CUT", 1, "135000.00", "135000.00")
+    l7 = make_line(7, "90146 2LS0A DR", 1, "192000.00", "192000.00")
+    l8 = make_line(8, "90146 2LS0A TR-PI", 1, "162000.00", "162000.00")
+
+    sub_field = NField("sub_total", "f-sub", "645000.00", Decimal("645000.00"), 1.0, True)
+    doc = InvoiceDoc("D109", {"sub_total": sub_field}, (l1, l2, l3, l4, l5, l6, l7, l8), {}, True)
+    std = load_standard()
+
+    folded_doc, note = collapse_repeated_copies(doc, std)
+    assert note is not None, "Failed to fold duplicate copies with fuzzy OCR noise"
+    assert len(folded_doc.lines) == 4
+    assert [l.line_no for l in folded_doc.lines] == [1, 2, 3, 4]
+    assert note["copies"] == 2
