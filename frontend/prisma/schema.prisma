@@ -28,6 +28,8 @@ model Document {
   linesMatched    String?
   assignedRole    String   @default("EU")
   apStatus        String   @default("unconfirmed")
+  confirmedBy     String?
+  confirmedAt     DateTime?
   
   // Concurrency & Document Locking
   isLocked        Boolean  @default(false)
