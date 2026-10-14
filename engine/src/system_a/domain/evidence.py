@@ -274,6 +274,35 @@ def collapse_repeated_copies(doc: InvoiceDoc, std: Standard) -> tuple[InvoiceDoc
     return doc, None
 
 
+def collapse_ghost_rows(doc: InvoiceDoc) -> InvoiceDoc:
+    """Fold description-only continuation rows (ghost rows without qty, price, or amount)
+    into the preceding row's description and remove the empty row.
+    """
+    if not doc.lines:
+        return doc
+    new_lines = []
+    for l in doc.lines:
+        q = _dec(_val(l.cells.get("qty")))
+        p = _dec(_val(l.cells.get("unit_price")))
+        a = _dec(_val(l.cells.get("amount")))
+        is_ghost = (q is None and p is None and a is None)
+        if is_ghost and new_lines:
+            prev = new_lines[-1]
+            prev_desc_field = prev.cells.get("description")
+            curr_desc_field = l.cells.get("description")
+            prev_desc = (prev_desc_field.raw or "") if prev_desc_field else ""
+            curr_desc = (curr_desc_field.raw or "") if curr_desc_field else ""
+            combined_desc = f"{prev_desc} {curr_desc}".strip()
+            if prev_desc_field is not None:
+                new_desc_field = replace(prev_desc_field, raw=combined_desc, value=combined_desc)
+                new_cells = dict(prev.cells)
+                new_cells["description"] = new_desc_field
+                new_lines[-1] = replace(prev, cells=new_cells)
+        else:
+            new_lines.append(l)
+    return replace(doc, lines=tuple(new_lines))
+
+
 # ======================================================================== B — arithmetic
 def corroborate_arithmetic(doc: InvoiceDoc, std: Standard) -> InvoiceDoc:
     if not enabled(std, "arithmetic"):
@@ -289,6 +318,46 @@ def corroborate_arithmetic(doc: InvoiceDoc, std: Standard) -> InvoiceDoc:
             l = _with_cells(l, qty=_promote(l.cells.get("qty"), tag),
                             unit_price=_promote(l.cells.get("unit_price"), tag),
                             amount=_promote(l.cells.get("amount"), tag))
+        elif p is not None and a is not None and p > 0:
+            # Dual-quantity / self-evidence token fallback
+            # If qty * unit_price != amount, check if target_qty = amount / unit_price
+            # physically appears in the row's own raw text / OCR cells.
+            target_qty = (a / p).quantize(Decimal("0.001"))
+            target_ints = [int(target_qty)] if target_qty == int(target_qty) else []
+            cand_tokens = {str(target_qty), f"{target_qty:.2f}", f"{target_qty:.3f}"}
+            if target_ints:
+                cand_tokens.add(str(target_ints[0]))
+
+            row_raw_text = " ".join(str(c.raw or "") for c in l.cells.values()).upper()
+            row_tokens = set(re.findall(r"\b\d+(?:,\d+)*(?:\.\d+)?\b", row_raw_text))
+            row_tokens_clean = {t.replace(",", "") for t in row_tokens}
+
+            found_token = bool(cand_tokens & row_tokens_clean)
+            if found_token:
+                fmt_target = str(target_ints[0]) if target_ints else str(target_qty)
+                tag = f"arith:target_qty_found_in_row_tokens:{fmt_target}"
+                qf = l.cells.get("qty")
+                new_q = replace(qf or NField("qty", f"{l.element_id}-qty", fmt_target, target_qty, 1.0, True),
+                                value=Decimal(fmt_target), ok=True, null_reason=None,
+                                evidence=tuple((qf.evidence if qf else ())) + (tag,))
+                cells_update = {
+                    "qty": new_q,
+                    "unit_price": _promote(l.cells.get("unit_price"), tag),
+                    "amount": _promote(l.cells.get("amount"), tag),
+                }
+                uom_field = l.cells.get("uom")
+                new_uom_group = l.uom_group
+                for u_candidate in ("KGS", "KG", "กิโล", "TON", "ตัน", "PCS", "SET", "BOX"):
+                    if re.search(rf"\b{u_candidate}\b", row_raw_text, re.IGNORECASE):
+                        resolved_grp = std.uom_group(u_candidate)
+                        if resolved_grp in std.uom_groups:
+                            new_uom_group = resolved_grp
+                            base_u = uom_field or NField("uom", f"{l.element_id}-uom", u_candidate, resolved_grp, 1.0, True)
+                            cells_update["uom"] = replace(base_u, value=resolved_grp, ok=True, null_reason=None,
+                                                          evidence=tuple(base_u.evidence or ()) + (tag,))
+                            break
+                l = _with_cells(l, **cells_update)
+                l = replace(l, uom_group=new_uom_group)
         lines.append(l)
 
     f = dict(doc.fields)

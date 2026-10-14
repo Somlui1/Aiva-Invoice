@@ -1811,3 +1811,59 @@ def test_collapse_repeated_copies_fuzzy_ocr_noise():
     assert len(folded_doc.lines) == 4
     assert [l.line_no for l in folded_doc.lines] == [1, 2, 3, 4]
     assert note["copies"] == 2
+
+
+def test_ghost_row_auto_folding_into_preceding_description():
+    from system_a.domain.contracts import InvoiceDoc, NField, NLine
+    from system_a.domain.evidence import collapse_ghost_rows
+
+    def make_line(line_no, desc, qty=None, price=None, amt=None):
+        cells = {
+            "description": NField("description", f"L{line_no}-d", desc, desc, 1.0, True),
+            "qty": NField("qty", f"L{line_no}-q", str(qty) if qty is not None else None,
+                          Decimal(str(qty)) if qty is not None else None, 1.0, qty is not None),
+            "unit_price": NField("unit_price", f"L{line_no}-p", str(price) if price is not None else None,
+                                Decimal(str(price)) if price is not None else None, 1.0, price is not None),
+            "amount": NField("amount", f"L{line_no}-a", str(amt) if amt is not None else None,
+                            Decimal(str(amt)) if amt is not None else None, 1.0, amt is not None),
+        }
+        return NLine(line_no=line_no, element_id=f"L{line_no}", cells=cells, uom_group="KG")
+
+    l1 = make_line(1, "STEEL COIL JIS G3141", 701, "35.70", "25025.70")
+    l2 = make_line(2, "COIL NO: A123 / PO: 42038471")
+    l3 = make_line(3, "STEEL COIL JIS G3131", 500, "30.00", "15000.00")
+
+    doc = InvoiceDoc("D1", {}, (l1, l2, l3), {}, True)
+    folded_doc = collapse_ghost_rows(doc)
+
+    assert len(folded_doc.lines) == 2
+    assert folded_doc.lines[0].line_no == 1
+    assert "STEEL COIL JIS G3141 COIL NO: A123 / PO: 42038471" in folded_doc.lines[0].cells["description"].value
+    assert folded_doc.lines[1].line_no == 3
+
+
+def test_corroborate_dual_quantity_from_row_tokens():
+    from system_a.domain.contracts import InvoiceDoc, NField, NLine
+    from system_a.domain.evidence import corroborate_arithmetic
+    from system_a.domain.standard import load_standard
+
+    cells = {
+        "description": NField("description", "L1-d", "COIL NO: A123 WEIGHT: 701 KGS", "COIL NO: A123 WEIGHT: 701 KGS", 1.0, True),
+        "qty": NField("qty", "L1-q", "1", Decimal("1"), 0.9, True),
+        "uom": NField("uom", "L1-u", "COIL", "COIL", 0.9, True),
+        "unit_price": NField("unit_price", "L1-p", "35.70", Decimal("35.70"), 1.0, True),
+        "amount": NField("amount", "L1-a", "25025.70", Decimal("25025.70"), 1.0, True),
+    }
+    l1 = NLine(line_no=1, element_id="L1", cells=cells, uom_group="COIL")
+    sub_field = NField("sub_total", "f-sub", "25025.70", Decimal("25025.70"), 1.0, True)
+    vat_field = NField("vat", "f-vat", "1751.80", Decimal("1751.80"), 1.0, True)
+    grand_field = NField("grand_total", "f-grand", "26777.50", Decimal("26777.50"), 1.0, True)
+
+    doc = InvoiceDoc("D1", {"sub_total": sub_field, "vat": vat_field, "grand_total": grand_field}, (l1,), {}, True)
+    std = load_standard()
+
+    corroborated_doc = corroborate_arithmetic(doc, std)
+    res_line = corroborated_doc.lines[0]
+    assert res_line.v("qty") == Decimal("701")
+    assert any("target_qty_found_in_row_tokens:701" in ev for ev in res_line.cells["qty"].evidence)
+    assert res_line.uom_group == "KG"

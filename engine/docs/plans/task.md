@@ -107,7 +107,7 @@
 | Task 1: Prompt Enhancements for Visual Unit Matching & Negative Discounts | Done | Added 2D table extraction rules (horizontal gating, visual unit matching, header UOM inheritance, negative discounts) to single_pass_extract.md and vision_table_rows.md; 1 test passes |
 | Task 2: Safe Upstream Duplicate Page Separation | Done | Prune copy sheets when original exists for same doc_no without markers while protecting multi-page continuation; 2 new tests pass |
 | Task 3: Resilient Midstream Row Folding for Installments & Fuzzy Match | Done | Decouple installment folding from subtotal equality and support fuzzy block matching against OCR noise in collapse_repeated_copies; 2 new tests pass, 138/138 engine tests pass |
-| Task 4: Engine Self-Evidence Token Fallback for Dual-Quantity | Pending | Implement self-evidence fallback in corroborate_lines using row OCR tokens without Oracle peeking |
+| Task 4: Engine Self-Evidence Token Fallback for Dual-Quantity | Done | Implement self-evidence fallback in corroborate_arithmetic using row OCR tokens without Oracle peeking and ghost row auto-folding; 2 new tests pass, 140/140 engine tests pass |
 | Task 5: Business Rule Fast-Paths | Pending | Add V-05 AAPICO Tax ID 100% bypass and V-08 service line amount match |
 | Task 5B: Pure Numeric Line Pairing & Split-Line Aggregation | Done | Deterministic 1:1, N:1, and 1:N numeric aggregation in matching.py and v08.py; 4 new tests pass, 133/133 engine tests pass, 153/153 portal tests pass |
 
