@@ -113,3 +113,12 @@
 
 | Task 6: Target Document Verification & Full Regression | Done | Verified target scorecard cases (DMS-80, 174, 210 -> AUTO_PASS; DMS-86, 153, 40, 39, 37 -> REVIEW; DMS-109, 112, 113 copies folded; DMS-179, 188 continuation preserved); full suites pass: 142/142 engine tests, 153/153 portal tests |
 
+## Plan: Auto-Pass Boost, Orientation BBox Alignment, UOM E10 Demotion & PO Relaxation (2026-10-14-autopass-boost-orientation-and-po-uom-relax-implementation.md)
+
+| Task | Status | Description |
+|---|---|---|
+| Task 1: Orientation Threshold Optimization & Margin Check in `orientation.py` | Pending | Lower CONFIDENCE_THRESHOLD to 0.75 and add margin rule to rotate DMS-59 upright and fix BBox misalignment |
+| Task 2: UOM Mismatch (E10) Conditional Low Severity when Amount is Equal | Pending | Emit E10 with severity='Low' when amount_equal == True in rules.py & codes.yaml |
+| Task 3: PO Corroboration Relaxation in Rule V-01 | Pending | Demote uncorroborated/missing PO finding in V-01 to Low severity when Oracle EBS receipt confirmed |
+| Task 4: Target Document Verification, Regression Suite & Tracker Update | Pending | Verify DMS-59 BBox alignment, target review cases, full pytest engine & portal suites |
+
