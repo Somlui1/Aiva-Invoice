@@ -115,7 +115,7 @@ def rotate_image(img: Any, angle_cw: float) -> Tuple[Any, np.ndarray]:
     M[0, 2] += (new_w / 2.0) - center[0]
     M[1, 2] += (new_h / 2.0) - center[1]
 
-    rot_np = cv2.warpAffine(img_np, M, (new_w, new_h), flags=cv2.INTER_LINEAR,
+    rot_np = cv2.warpAffine(img_np, M, (new_w, new_h), flags=cv2.INTER_CUBIC,
                             borderValue=(255, 255, 255))
 
     if is_pil:

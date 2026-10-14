@@ -435,7 +435,7 @@ class SinglePassPipeline:
     enable_thinking=, max_tokens=, json_mode=)``, ``last_usage``, ``last_salvaged``).
     """
 
-    def __init__(self, client, model: str, *, dpi: int = 130, classify_dpi: int = 80, max_pages: int = 12,
+    def __init__(self, client, model: str, *, dpi: int = 150, classify_dpi: int = 80, max_pages: int = 12,
                  max_tokens: int = 8000, coord: str = "norm1000", json_mode: bool = False,
                  thinking: Optional[bool] = False):
         self.client, self.model = client, model

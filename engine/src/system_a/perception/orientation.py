@@ -185,7 +185,7 @@ def measure_skew(img_rgb: np.ndarray) -> float:
             best_fine = float(a)
 
     res = round(float(best_fine), 2)
-    return 0.0 if abs(res) < 0.3 else res
+    return 0.0 if abs(res) < 0.5 else res
 
 
 def detect_page_orientation(img_rgb: np.ndarray,

@@ -44,6 +44,13 @@ class Settings:
     message_layout: str = os.getenv("PERCEPTION_MESSAGE_LAYOUT", "v3")         # v3 | system
     cell_box: str = os.getenv("PERCEPTION_CELL_BOX", "row")                     # row (v3) | cell
     perception_cache: str = os.getenv("PERCEPTION_CACHE_DIR", ".cache/perception")
+    # v5: single_pass = classify once + one upright page per extract call (perception/single_pass.py)
+    #     vision      = the v4 multi-pass VisionPipeline (perception/vision_pipeline.py, unchanged)
+    perception_engine: str = os.getenv("PERCEPTION_ENGINE", "single_pass")
+    classify_dpi: int = int(os.getenv("PERCEPTION_CLASSIFY_DPI", "80"))
+    extract_dpi: int = int(os.getenv("PERCEPTION_EXTRACT_DPI", "150"))
+    single_pass_coord: str = os.getenv("PERCEPTION_SINGLE_PASS_COORD", "norm1000")   # norm1000 | auto
+    single_pass_thinking: str = os.getenv("PERCEPTION_THINKING", "0")                  # 0 | 1 | default
     llm_timeout_s: float = float(os.getenv("LITELLM_TIMEOUT_SECONDS", "300"))
     llm_max_inflight: int = int(os.getenv("LITELLM_MAX_INFLIGHT", "6"))
 
@@ -105,13 +112,22 @@ def build_paperless(settings: Settings):
 
 
 def build_perception(settings: Settings, client=None):
-    """Real perception (Qwen page-items + PDF text layer).  Uses the same LiteLLM endpoint as the AI rules."""
-    from .perception.vision_pipeline import VisionPipeline
+    """Real perception.  PERCEPTION_ENGINE=single_pass (v5 default) | vision (v4 VisionPipeline, unchanged)."""
     if client is None:
         from .adapters.llm.litellm_client import LiteLLMClient
         if not settings.litellm_url:
             raise RuntimeError("LITELLM_URL is required for real perception")
         client = LiteLLMClient(settings.litellm_url, settings.litellm_key, timeout_s=600, max_inflight=8)
+    if settings.perception_engine == "single_pass":
+        from .perception.single_pass import SinglePassPipeline
+        thinking = {"0": False, "1": True}.get(settings.single_pass_thinking)       # "default" -> server default
+        return SinglePassPipeline(client, settings.model_vision, dpi=settings.extract_dpi,
+                                  classify_dpi=settings.classify_dpi, max_pages=settings.max_pages,
+                                  coord=settings.single_pass_coord, json_mode=settings.json_mode,
+                                  thinking=thinking)
+    if settings.perception_engine != "vision":
+        raise RuntimeError(f"unknown PERCEPTION_ENGINE={settings.perception_engine!r} (single_pass | vision)")
+    from .perception.vision_pipeline import VisionPipeline
     return VisionPipeline(client, settings.model_vision, dpi=settings.render_dpi, crop_dpi=settings.crop_dpi,
                           coord=settings.coord_mode, max_pages=settings.max_pages, do_table=settings.do_table,
                           do_crops=settings.do_crops, do_classify=settings.do_classify,
@@ -122,6 +138,10 @@ def build_perception(settings: Settings, client=None):
 
 def perception_options(settings: Settings) -> dict:
     """The options that change a perception answer — part of the cache key."""
+    if settings.perception_engine == "single_pass":
+        return {"engine": "single_pass", "dpi": settings.extract_dpi, "classify_dpi": settings.classify_dpi,
+                "max_pages": settings.max_pages, "coord": settings.single_pass_coord,
+                "json_mode": settings.json_mode, "thinking": settings.single_pass_thinking}
     return {"dpi": settings.render_dpi, "crop_dpi": settings.crop_dpi, "max_pages": settings.max_pages,
             "coord": settings.coord_mode, "table": settings.do_table, "crops": settings.do_crops,
             "classify": settings.do_classify, "invoice_first": settings.invoice_first,

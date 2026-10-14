@@ -2026,3 +2026,21 @@ def test_v01_po_missing_corroborated_by_oracle_receipt_is_low():
     assert "ยืนยันได้จากใบรับในระบบ Oracle" in res.findings[0].message_th
 
 
+def test_tax_id_auto_repair_12digit():
+    """12-digit Thai Tax ID starting with 0155 (dropped 1 from 01155) is repaired to 13-digit."""
+    from system_a.domain.normalize import tax_id, tax_id_loose
+    # 015533000479 is missing one '1' in Samut Prakan DBD prefix '01155'
+    repaired = tax_id("015533000479")
+    assert repaired == "0115533000479"
+    assert tax_id_loose("015533000479") == "0115533000479"
+
+
+def test_fine_skew_deadband_ignores_small_tilt():
+    """Fine skew angles < 0.5 deg (such as DMS-65's 0.3 deg) return 0.0 to prevent optical blur."""
+    import numpy as np
+    from system_a.perception.orientation import measure_skew
+    # A blank or tiny tilt image below 0.5 degrees
+    img = np.full((800, 600, 3), 255, dtype=np.uint8)
+    assert measure_skew(img) == 0.0
+
+
