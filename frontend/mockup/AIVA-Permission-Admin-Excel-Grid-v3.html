@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AIVA Permission Admin — เพิ่มผู้ใช้จาก AD (LDAP) + เชื่อม Login ด้วย Email</title>
+<style>
+/* AIVA Permission Admin — ตารางดิบแบบ Excel (v3: ปุ่มเพิ่ม user ด้านบน · เลือกจาก AD LDAP · เชื่อม Login ด้วย Email)
+   หลักการกัน bug ตอน zoom (คงไว้จาก v2): ไม่มีความสูง/กว้างขั้นต่ำแบบตายตัว · table-layout:fixed + chip ขึ้นบรรทัดใหม่ · จอแคบเปลี่ยนเป็นการ์ด · dropdown คำนวณตำแหน่งจากขนาดจริง */
+:root{--navy-900:#0B192C;--navy-800:#0D274D;--navy-700:#1E3E62;--navy-600:#295F98;--teal:#00B5AF;--teal-d:#00857F;
+ --s-100:#F1F5F9;--s-200:#E2E8F0;--s-300:#CBD5E1;--s-400:#94A3B8;--s-500:#64748B;--s-600:#475569;--s-700:#334155;--s-800:#1E293B;--s-900:#0F172A;
+ --ok:#047857;--ok-bg:#ECFDF5;--ok-bd:#A7F3D0;--warn:#B45309;--warn-bg:#FFFBEB;--warn-bd:#FDE68A;--err:#B91C1C;--err-bg:#FEF2F2;--err-bd:#FECACA;--org:#C2410C;--vio:#6D28D9;--info:#1D4ED8;--info-bg:#EFF6FF;--info-bd:#BFDBFE;
+ --font:'Inter','Sarabun','Leelawadee UI','Noto Sans Thai',system-ui,-apple-system,'Segoe UI',sans-serif;--mono:'JetBrains Mono',ui-monospace,'Cascadia Mono',Consolas,monospace;
+ --grid:#C9CFD8;--gh:#E9ECF0;--e-2:0 4px 12px rgba(15,23,42,.1);--e-3:0 20px 48px rgba(15,23,42,.24);--focus:0 0 0 2px #fff,0 0 0 4px #2563EB;--xl:#217346}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{font-family:var(--font);font-size:12.5px;line-height:1.4;color:var(--s-900);background:#fff;-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}[hidden]{display:none!important}
+button:focus-visible,select:focus-visible{outline:none;box-shadow:var(--focus)}
+::-webkit-scrollbar{width:11px;height:11px}::-webkit-scrollbar-thumb{background:#BFC6D0;border-radius:6px;border:2px solid #F3F4F6;background-clip:padding-box}::-webkit-scrollbar-corner{background:#F3F4F6}
+.ico{width:15px;height:15px;flex:none;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}.ico.sm{width:13px;height:13px}.ico.lg{width:18px;height:18px}
+.mono{font-family:var(--mono)}.muted{color:var(--s-500)}.xs{font-size:11px}.grow{flex:1}
+.shell{position:fixed;inset:0;display:grid;grid-template-rows:48px minmax(0,1fr);overflow:hidden}
+.topbar{background:#0D274D;color:#fff;display:flex;align-items:center;gap:12px;padding:0 16px;min-width:0}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}.brand-mark{width:28px;height:28px;border-radius:7px;background:var(--teal);color:var(--navy-900);display:grid;place-items:center;font-weight:800;font-size:12px;flex:none}
+.brand-name{font-weight:700;font-size:14px;display:flex;gap:6px;align-items:center;white-space:nowrap}.brand-ver{font-size:10px;font-weight:700;background:rgba(255,255,255,.14);color:#BFDBFE;padding:1px 6px;border-radius:4px}.brand-sub{font-size:11px;color:#94A3B8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.env{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#FCD34D;border:1px solid rgba(252,211,77,.45);background:rgba(252,211,77,.1);padding:2px 9px;border-radius:999px;white-space:nowrap}.env i{width:6px;height:6px;border-radius:50%;background:#FCD34D}
+.user-sel{height:30px;background:#0A1F3E;color:#fff;border:1px solid rgba(255,255,255,.16);border-radius:6px;padding:0 8px;width:280px;max-width:44vw;min-width:0;cursor:pointer;text-overflow:ellipsis}
+.rpill{display:inline-flex;font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px;white-space:nowrap}
+.body{display:grid;grid-template-columns:200px minmax(0,1fr);min-height:0;min-width:0}
+.nav{background:#071326;color:#CBD5E1;display:flex;flex-direction:column;overflow:hidden}
+.nav-org{display:flex;align-items:center;gap:9px;padding:11px 13px;border-bottom:1px solid rgba(148,163,184,.12)}.nav-org .av{width:28px;height:28px;border-radius:7px;display:grid;place-items:center;font-weight:700;font-size:11px;background:rgba(37,99,235,.22);color:#93C5FD;flex:none}.nav-org b{display:block;color:#fff;font-size:12px}.nav-org span{font-size:10.5px;color:#94A3B8}
+.nav-list{flex:1;padding:8px;overflow:auto}.nav-sec{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#64748B;padding:10px 8px 5px}
+.nav-it{display:flex;align-items:center;min-height:30px;padding:3px 9px;border-radius:6px;color:#AFBBCB;font-size:12.5px;opacity:.5;position:relative}.nav-it.on{opacity:1;background:#17375F;color:#fff;border:1px solid #24507F}.nav-it.on::before{content:"";position:absolute;left:-8px;top:7px;bottom:7px;width:3px;border-radius:0 3px 3px 0;background:var(--teal)}
+.nav-it .cnt{margin-left:auto;font-size:10.5px;font-weight:700;background:var(--teal);color:var(--navy-900);border-radius:999px;padding:0 7px;line-height:17px}
+.nav-foot{padding:9px 13px;border-top:1px solid rgba(148,163,184,.12);background:#060F1F;font-size:11px;color:#94A3B8}
+.main{min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;background:#fff}
+/* toolbar */
+.bar{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap;padding:6px 12px;background:#F6F7F9;border-bottom:1px solid var(--grid);min-width:0}
+.ttl{display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:800;color:var(--navy-800);white-space:nowrap}
+.srch{position:relative;flex:0 1 240px;min-width:120px}.srch .ico{position:absolute;left:8px;top:50%;transform:translateY(-50%);color:var(--s-400);pointer-events:none}.srch input{width:100%;height:28px;padding:0 8px 0 27px;border:1px solid #B8C0CC;border-radius:4px;background:#fff}.srch input:focus{outline:none;border-color:var(--xl);box-shadow:0 0 0 2px rgba(33,115,70,.2)}
+.hint{font-size:11px;color:var(--s-500)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:28px;padding:0 11px;border-radius:5px;border:1px solid transparent;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;box-shadow:0 1px 2px rgba(15,23,42,.08)}
+.btn:active:not(:disabled){filter:brightness(.92)}.btn:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
+.btn-primary{background:var(--navy-800);color:#fff;border-color:var(--navy-900);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 1px 2px rgba(15,23,42,.08)}.btn-primary:hover:not(:disabled){background:var(--navy-700)}
+.btn-add{background:var(--xl);color:#fff;border-color:#185A37;box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 1px 2px rgba(15,23,42,.1)}.btn-add:hover:not(:disabled){background:#1B5E3A}
+.btn-sec{background:#fff;color:var(--s-800);border-color:#B8C0CC}.btn-sec:hover:not(:disabled){background:#F3F5F8}
+.btn-danger{background:#fff;color:var(--err);border-color:#FCA5A5}.btn-danger:hover:not(:disabled){background:var(--err-bg)}
+.btn .short{display:none}
+.btn.is-busy{pointer-events:none}.spn{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:sp .8s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
+kbd{font-family:var(--mono);font-size:10px;border:1px solid var(--s-300);border-bottom-width:2px;border-radius:3px;padding:0 4px;color:var(--s-500);background:#fff}.btn-primary kbd,.btn-add kbd{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.45);color:#fff}
+
+/* ===== ตาราง ===== */
+.sheet{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;background:#fff;overscroll-behavior:contain}
+table.xl{border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed;font-size:12.5px}
+table.xl col.c-n{width:40px}table.xl col.c-name{width:178px}table.xl col.c-user{width:118px}table.xl col.c-email{width:204px}table.xl col.c-login{width:124px}table.xl col.c-role{width:196px}table.xl col.c-act{width:40px}
+table.xl th,table.xl td{border-right:1px solid var(--grid);border-bottom:1px solid var(--grid);padding:3px 7px;vertical-align:middle;background:#fff;min-width:0;overflow:hidden;scroll-margin:34px 0 8px}
+table.xl th{position:sticky;top:0;z-index:5;background:linear-gradient(#F4F5F7,var(--gh));font-weight:700;font-size:11.5px;color:var(--s-700);text-align:left;height:26px;padding:2px 7px;border-bottom:0;box-shadow:inset 0 -1px 0 #A9B1BD;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+table.xl th.scope{white-space:normal}
+table.xl td{height:30px;white-space:nowrap}
+table.xl td.n,table.xl th.n{padding:0;text-align:center;background:var(--gh);color:var(--s-500);font-size:11px;font-weight:600}
+table.xl th.n{background:linear-gradient(#F4F5F7,var(--gh))}
+table.xl td.name{font-weight:600}
+table.xl .nm{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+table.xl .em2{display:none;font:400 11px var(--mono);color:var(--s-500);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+table.xl td.user,table.xl td.email{font-family:var(--mono);font-size:11.5px;color:var(--s-600);text-overflow:ellipsis}
+table.xl td.scope{white-space:normal;overflow:visible}
+table.xl td.login{white-space:normal;padding-top:2px;padding-bottom:2px}
+table.xl td.act{padding:0;text-align:center;white-space:nowrap}
+table.xl th:last-child,table.xl td:last-child{border-right:0}
+table.xl tbody tr:hover td:not(.n){background-color:#F5F9FF}
+table.xl td:focus-within{outline:2px solid var(--xl);outline-offset:-2px}
+table.xl td.chg{background:#FFF9DB!important}
+table.xl tr.newr td:not(.n){background:#F1FAF4}
+table.xl tr.newr td.n{box-shadow:inset 3px 0 0 var(--teal)}
+table.xl tr.dirty td.n{box-shadow:inset 3px 0 0 #F59E0B}
+table.xl td.err{background:#FEF2F2!important;box-shadow:inset 0 0 0 1px #FCA5A5}
+table.xl td.warnc{background:#FFFBEB!important;box-shadow:inset 0 0 0 1px #FCD34D}
+@keyframes fl{0%{background-color:#FCD34D}100%{background-color:transparent}}
+table.xl tr.flash td:not(.n){animation:fl 1s ease-out}
+table.xl td.lk{background:repeating-linear-gradient(135deg,#F3F4F6 0 5px,#fff 5px 10px)}
+table.xl td.lk .lkx{display:inline-flex;align-items:center;gap:5px;color:var(--s-400);font-size:11.5px}
+.nores{padding:28px 16px;text-align:center;color:var(--s-500)}
+.rin{display:block;width:100%;min-width:0;height:24px;border:0;background:transparent;font-weight:700;font-size:12.5px;cursor:pointer;outline:0;padding:0 16px 0 0;text-overflow:ellipsis;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2364748B' stroke-width='1.6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 2px center}
+.rin:disabled{cursor:not-allowed;background-image:none;opacity:.75}
+/* chip: ขึ้นบรรทัดใหม่ได้ → แถวสูงขึ้นแทนการเลื่อนแนวนอน */
+.cw{display:flex;align-items:center;gap:3px;flex-wrap:wrap;min-height:24px;padding:1px 0;cursor:text;min-width:0}
+.cin{flex:1 1 56px;min-width:44px;width:auto;height:22px;border:0;outline:0;background:transparent;font-size:12.5px;padding:0 4px}.cin::placeholder{color:var(--s-400)}
+.tchip{display:inline-flex;flex:0 1 auto;align-items:center;gap:3px;height:20px;max-width:100%;padding:0 1px 0 6px;border-radius:4px;background:var(--s-200);border:1px solid var(--s-300);color:var(--s-800);font:700 11px var(--mono);white-space:nowrap;min-width:0}
+.tchip>span{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.tchip button{flex:none;border:0;background:none;color:var(--s-500);cursor:pointer;display:grid;place-items:center;width:17px;height:17px;border-radius:3px}.tchip button:hover{background:rgba(185,28,28,.15);color:var(--err)}.tchip button:active{filter:brightness(.85)}
+.tchip.co{font-family:var(--font);font-size:11.5px}.tchip.new{background:#FEF3C7;border-color:#FCD34D;color:#78350F}
+.tchip.gone{background:var(--err-bg);border:1px dashed #F87171;color:var(--err)}.tchip.gone>span{text-decoration:line-through}.tchip.gone button{color:var(--err)}.tchip.gone button:hover{background:var(--ok-bg);color:var(--ok)}
+.tchip.armed{outline:2px solid #2563EB;outline-offset:1px;background:#DBEAFE}
+.clr{flex:none;height:20px;border:1px solid #B8C0CC;border-radius:4px;background:#fff;color:var(--s-600);font-size:10.5px;font-weight:700;padding:0 6px;cursor:pointer;margin-left:auto}.clr:hover{background:var(--err-bg);border-color:#FCA5A5;color:var(--err)}
+.rowbtn{display:inline-grid;place-items:center;width:22px;height:22px;border:1px solid #B8C0CC;border-radius:4px;background:#fff;color:var(--s-600);cursor:pointer}.rowbtn:hover{background:var(--err-bg);border-color:#FCA5A5;color:var(--err)}.rowbtn:active{filter:brightness(.9)}
+.tag{display:inline-block;font-size:10px;font-weight:800;color:#fff;background:#0F766E;border-radius:3px;padding:0 5px;line-height:15px;margin-left:5px;vertical-align:1px}.tag.p{background:var(--vio)}
+/* Login (เชื่อมด้วย Email) */
+.lps{display:flex;flex-wrap:wrap;gap:2px}
+.lp{display:inline-flex;align-items:center;gap:3px;height:18px;padding:0 6px 0 4px;border-radius:999px;font-size:10px;font-weight:800;white-space:nowrap;border:1px solid}
+.lp .ico{width:10px;height:10px;stroke-width:3}
+.lp.m365{background:#EFF6FF;color:#1D4ED8;border-color:#BFDBFE}.lp.ldap{background:#ECFDF5;color:#047857;border-color:#A7F3D0}.lp.sso{background:#F5F3FF;color:#6D28D9;border-color:#DDD6FE}
+.lp.none{background:#F3F4F6;color:var(--s-500);border-color:var(--s-300);font-weight:700;padding:0 7px}
+.lp.wait{background:#FFFBEB;color:#92400E;border:1px dashed #F59E0B;font-weight:700;padding:0 7px}
+.lp.none,.lp.wait{white-space:normal;height:auto;min-height:18px;line-height:1.2;padding:1px 7px;text-align:center}
+/* dropdown */
+.dd{position:fixed;z-index:75;background:#fff;border:1px solid #AEB7C4;border-radius:8px;box-shadow:var(--e-3);display:flex;flex-direction:column;overflow:hidden;max-width:calc(100vw - 16px)}
+.dd-h{display:flex;align-items:center;gap:8px;padding:5px 10px;background:#F3F5F8;border-bottom:1px solid var(--s-200);font-size:11px;color:var(--s-500)}.dd-h b{color:var(--navy-800);font-size:11.5px}
+.dd-l{overflow:auto;padding:3px;overscroll-behavior:contain}
+.dd-i{display:flex;align-items:center;gap:9px;padding:5px 8px;border-radius:5px;cursor:pointer;border-left:3px solid transparent}.dd-i.on{background:#E6F0FB;border-left-color:var(--navy-600)}.dd-i.dis{opacity:.55;cursor:not-allowed}
+.dd-ic{flex:none;width:20px;display:grid;place-items:center;color:var(--s-500)}.dd-ic .star{color:#D97706}
+.dd-t{flex:1;min-width:0}.dd-t b{display:block;font:700 12px var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dd-t b.f{font-family:var(--font);font-size:12.5px}.dd-t small{display:block;font-size:11px;color:var(--s-500);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dd-t small .dr{color:var(--err);font-weight:600}
+.dd mark{background:#FDE68A;color:inherit;border-radius:2px;padding:0 1px}
+.dd-b{flex:none;font-size:10.5px;font-weight:800;padding:0 7px;border-radius:999px;line-height:18px;white-space:nowrap}.dd-b.o{background:#FFF7ED;color:var(--org);border:1px solid #FED7AA}.dd-b.g{background:var(--s-100);color:var(--s-600);border:1px solid var(--s-200)}.dd-b.s{background:#FEF3C7;color:#92400E;border:1px solid #FCD34D}
+.dd-e{padding:14px 12px;color:var(--s-500);font-size:12px;text-align:center}
+.dd-f{display:flex;gap:10px;flex-wrap:wrap;padding:4px 10px;background:#F6F8FA;border-top:1px solid var(--s-200);font-size:10.5px;color:var(--s-500)}
+.star-t{font-family:var(--font);font-size:10.5px;font-weight:800;color:#B45309;margin-left:6px}
+/* status bar */
+.foot{flex:none;display:flex;align-items:center;gap:8px;flex-wrap:wrap;row-gap:4px;padding:5px 12px;background:#F3F5F8;border-top:1px solid #A9B1BD;font-size:12px;color:var(--s-600);min-height:42px;min-width:0}
+.foot.dirty{background:#FFFBEB;border-top:2px solid #F59E0B;padding-top:4px}.fs{display:inline-flex;align-items:center;gap:6px;min-width:0}.foot.dirty .fs{color:#78350F;font-weight:600}.fs .ico{color:var(--ok)}.foot.dirty .fs .ico{color:#B45309}
+.fi{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 9px;border-radius:999px;font-size:11.5px;font-weight:700;cursor:pointer;border:1px solid;white-space:nowrap}.fi.err{background:var(--err-bg);color:var(--err);border-color:var(--err-bd)}.fi.warn{background:var(--warn-bg);color:var(--warn);border-color:var(--warn-bd)}
+.vsep{width:1px;height:18px;background:#C9CFD8}
+/* modal */
+.ov{position:fixed;inset:0;background:rgba(15,23,42,.55);display:none;place-items:center;z-index:60;padding:12px}.ov.on{display:grid}
+.modal{background:#fff;border:1px solid var(--s-200);border-radius:12px;width:min(680px,100%);max-height:100%;display:flex;flex-direction:column;box-shadow:var(--e-3);overflow:hidden}
+.mh{display:flex;align-items:center;gap:12px;padding:13px 18px;border-bottom:1px solid var(--s-200);background:#F3F5F8}.mh .mi{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;flex:none;background:#FFF7ED;color:var(--org)}.mh .mi.g{background:#E6F4EA;color:var(--xl)}.mh .mi.b{background:var(--info-bg);color:var(--info)}.mh h4{font-size:14.5px;font-weight:700}.mh p{font-size:12px;color:var(--s-500)}
+.mb{padding:14px 18px;overflow:auto;min-height:0}.mb label.lb{display:flex;align-items:center;gap:6px;font-weight:700;font-size:12.5px;margin:14px 0 6px}.mb label.lb:first-child{margin-top:0}.mb input.in{width:100%;height:34px;padding:0 10px;border:1px solid #B8C0CC;border-radius:6px;font-size:13px}.mb input.in:focus{outline:none;border-color:var(--teal-d);box-shadow:0 0 0 3px rgba(0,181,175,.18)}.mb .req{color:var(--err)}
+.mf{display:flex;justify-content:flex-end;gap:8px;padding:10px 18px;border-top:1px solid var(--s-200);background:#F3F5F8;flex-wrap:wrap}
+.note{display:flex;gap:8px;margin:0 0 8px;padding:8px 12px;border-radius:8px;font-size:12.5px;border:1px solid var(--warn-bd);background:var(--warn-bg);color:#78350F}
+.sumr{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap}.sumr div{flex:1 1 80px;padding:6px 10px;background:#fff;border:1px solid var(--s-200);border-radius:8px}.sumr b{display:block;font:800 18px var(--mono)}.sumr span{font-size:11px;color:var(--s-500)}
+.diff{border:1px solid var(--s-200);border-radius:7px;overflow:hidden;margin-bottom:8px}.diff .u{display:flex;align-items:center;gap:8px;padding:5px 10px;background:#F3F5F8;border-bottom:1px solid var(--s-200);font-size:12px;flex-wrap:wrap}
+.df{display:flex;align-items:center;gap:8px;padding:4px 10px;border-bottom:1px solid #EEF1F5;font-size:12px;flex-wrap:wrap}.df:last-child{border-bottom:0}.df s{color:var(--s-500)}
+.dk{display:inline-flex;align-items:center;gap:4px;min-width:112px;font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;border:1px solid;white-space:nowrap}.dk.ok{background:var(--ok-bg);color:var(--ok);border-color:var(--ok-bd)}.dk.err{background:var(--err-bg);color:var(--err);border-color:var(--err-bd)}.dk.warn{background:var(--warn-bg);color:var(--warn);border-color:var(--warn-bd)}
+.df .esc{margin-left:auto;font-size:10.5px;font-weight:800;color:#fff;background:#B45309;border-radius:4px;padding:0 5px;line-height:16px}
+/* --- ฟอร์มเพิ่ม user (AD LDAP) --- */
+.cbhost{position:relative}.cbhost>.ico{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--s-400);pointer-events:none}
+.mb input.nu-in{height:38px;padding-left:34px;font-size:13.5px}
+.selcard{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--xl);background:#F1FAF4;border-radius:8px}
+.selcard .av{flex:none;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:13px;background:#DDEFE3;color:var(--xl)}
+.selcard .t{flex:1;min-width:0}.selcard .t b{display:block;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.selcard .t span{display:block;font:11px var(--mono);color:var(--s-600);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.af{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px}
+.af .f{min-width:0}.af .f.w2{grid-column:1/-1}
+.af .f>label{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--s-500);margin-bottom:2px}
+.adt{font-size:9.5px;font-weight:800;color:#fff;background:#0F766E;border-radius:3px;padding:0 4px;line-height:14px}
+.af .v{display:flex;align-items:center;gap:6px;height:30px;padding:0 8px;background:#F3F5F8;border:1px solid var(--s-200);border-radius:6px;font-size:12.5px;color:var(--s-800);white-space:nowrap;overflow:hidden}
+.af .v span{overflow:hidden;text-overflow:ellipsis}.af .v .ico{color:var(--s-400)}.af .v.m span{font-family:var(--mono);font-size:12px}
+.af .v.empty{color:var(--s-400);font-style:italic}
+.af .v.sk{border-color:transparent;background:linear-gradient(90deg,#EEF1F5 25%,#F8F9FB 50%,#EEF1F5 75%);background-size:200% 100%;animation:shim 1s linear infinite}.af .v.sk *{visibility:hidden}
+@keyframes shim{to{background-position:-200% 0}}
+.af .fn{font-size:10.5px;color:var(--warn);margin-top:2px}
+.rcs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.rc{display:flex;align-items:flex-start;gap:8px;text-align:left;padding:7px 9px;border:1px solid #B8C0CC;border-radius:7px;background:#fff;cursor:pointer;box-shadow:0 1px 2px rgba(15,23,42,.06);min-width:0}
+.rc:hover{background:#F8FAFC;border-color:var(--s-400)}.rc:active{filter:brightness(.95)}.rc.on{border-color:var(--navy-600);background:#F5F9FE;box-shadow:inset 0 0 0 1px var(--navy-600)}
+.rc .rk{flex:none;min-width:34px;text-align:center;font:800 10.5px var(--mono);padding:2px 0;border-radius:5px}
+.rc b{display:block;font-size:12.5px}.rc small{display:block;font-size:10.5px;color:var(--s-500);line-height:1.3}.rc .tx{min-width:0}
+.lnk{border:1px solid var(--info-bd);background:var(--info-bg);border-radius:8px;padding:9px 11px;font-size:12px;color:#1E3A8A}
+.lnk .keyl{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;margin:2px 0 6px}.lnk code{font:700 11.5px var(--mono);background:#fff;border:1px solid var(--info-bd);border-radius:4px;padding:0 5px}
+.lnk .pr{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 8px;align-items:center}.lnk .pr span.d{font-size:11.5px;color:#1E3A8A}
+.lnk .ft{margin-top:6px;font-size:11.5px;color:#334155}
+.lnk.off{background:#F6F7F9;border-color:var(--s-200);color:var(--s-500)}
+.warn-t{font-size:11.5px;color:var(--warn);font-weight:600;margin-top:5px}
+/* ฟอร์มจำลอง Login */
+.seg{display:inline-flex;background:#F1F3F6;border:1px solid var(--s-200);border-radius:7px;padding:2px;flex-wrap:wrap}
+.seg button{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border:0;border-radius:6px;background:none;font-size:12px;font-weight:600;color:var(--s-500);cursor:pointer;white-space:nowrap}
+.seg button.on{background:#fff;color:var(--s-900);box-shadow:0 0 0 1px #B8C0CC,0 1px 2px rgba(15,23,42,.08)}
+.qk{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;align-items:center;font-size:11px;color:var(--s-500)}
+.qk button{height:22px;padding:0 8px;border:1px solid #B8C0CC;border-radius:999px;background:#fff;font:600 11px var(--mono);cursor:pointer;color:var(--s-700)}.qk button:hover{background:#F3F5F8}.qk button:active{filter:brightness(.92)}
+.res{margin-top:12px;border:1px solid;border-radius:8px;padding:9px 12px;font-size:12.5px}
+.res.ok{background:var(--ok-bg);border-color:var(--ok-bd);color:#065F46}.res.bad{background:var(--err-bg);border-color:var(--err-bd);color:#7F1D1D}.res.wn{background:var(--warn-bg);border-color:var(--warn-bd);color:#78350F}
+.res h5{font-size:13px;display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.res dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 10px;font-size:12px;margin-top:4px}.res dt{color:inherit;opacity:.75}.res dd{font-weight:600;min-width:0;overflow-wrap:anywhere}.res dd.m{font-family:var(--mono);font-size:11.5px}
+/* toast */
+.toasts{position:fixed;right:20px;bottom:56px;z-index:80;display:flex;flex-direction:column;gap:8px;pointer-events:none;max-width:calc(100vw - 24px)}
+.toast{display:flex;align-items:center;gap:8px;background:var(--s-900);color:#fff;padding:9px 14px;border-radius:8px;font-size:12.5px;box-shadow:var(--e-2);border-left:3px solid #10B981;pointer-events:auto;animation:tin .15s ease-out;max-width:520px}.toast.e{background:#991B1B;border-left-color:#FCA5A5}.toast .ico{color:#6EE7B7}.toast.e .ico{color:#FCA5A5}.toast .tu-b{margin-left:10px;background:none;border:0;color:#7DD3FC;font-weight:700;font-size:12.5px;cursor:pointer;text-decoration:underline}
+@keyframes tin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.lockp{margin:auto;max-width:420px;text-align:center;padding:40px 20px}.lockp .ico{width:34px;height:34px;color:var(--s-400)}
+
+/* ===== ตอบสนองตามความกว้าง (zoom เข้า = viewport แคบลง) ===== */
+@media (max-width:1399px){                      /* ซ่อน Username + Email → ไปอยู่บรรทัดที่ 2 ใต้ชื่อ */
+ table.xl col.c-user,table.xl col.c-email,table.xl th.user,table.xl td.user,table.xl th.email,table.xl td.email{display:none}
+ table.xl col.c-name{width:218px}table.xl col.c-role{width:172px}table.xl col.c-login{width:96px}
+ table.xl .em2{display:block}
+ .hint.kb{display:none}
+}
+@media (max-width:1000px){.body{grid-template-columns:minmax(0,1fr)}.nav{display:none}}
+@media (max-width:999px){table.xl col.c-name{width:200px}table.xl col.c-role{width:160px}}
+@media (max-width:900px){.brand-sub,.env{display:none}.btn .lbl{display:none}.btn kbd{display:none}.btn{padding:0 9px}}
+@media (max-width:899px){                       /* การ์ดต่อผู้ใช้ 1 คน */
+ .topbar{padding:0 10px;gap:8px}.bar{padding:5px 10px}
+ .btn .full{display:none}.btn .short{display:inline}
+ table.xl,table.xl tbody{display:block;table-layout:auto}
+ table.xl colgroup,table.xl thead{display:none}
+ table.xl tr{display:grid;grid-template-columns:30px minmax(0,1fr) 32px;grid-template-areas:"n name act" "n login login" "n role role" "n scope scope";border-bottom:2px solid var(--grid);padding:0 0 4px}
+ table.xl td{display:block;border:0;height:auto;padding:2px 8px 1px;white-space:normal;background:#fff;overflow:visible}
+ table.xl td.n{grid-area:n;padding:6px 0 0;border-right:1px solid var(--grid)}
+ table.xl td.name{grid-area:name}table.xl td.login{grid-area:login}table.xl td.role{grid-area:role}table.xl td.scope{grid-area:scope}table.xl td.act{grid-area:act;padding:3px 4px 0 0;text-align:right}
+ table.xl td.user,table.xl td.email{display:none}
+ table.xl td.login::before,table.xl td.role::before,table.xl td.scope::before{content:attr(data-l);display:block;font-size:10.5px;font-weight:700;color:var(--s-500);margin-bottom:1px}
+ table.xl td.role{border-top:1px dashed var(--grid)}
+ table.xl td.lk{background:#F3F4F6}
+}
+@media (max-width:759px){.foot{flex-wrap:nowrap;padding:5px 10px}.fs{flex:1 1 0;min-width:0;overflow:hidden;white-space:nowrap}.fs>span{overflow:hidden;text-overflow:ellipsis}.fi .lbl{display:none}.vsep{display:none}.fs .more{display:none}}
+@media (max-width:640px){.af{grid-template-columns:minmax(0,1fr)}.rcs{grid-template-columns:minmax(0,1fr)}.modal .mh,.modal .mb,.modal .mf{padding-left:12px;padding-right:12px}}
+@media (max-width:520px){.ttl{display:none}.brand-ver,.rpill{display:none}.user-sel{max-width:60vw}}
+@media (max-height:520px){
+ .shell{grid-template-rows:40px minmax(0,1fr)}.topbar{padding:0 10px}.brand-sub{display:none}
+ .bar{padding:3px 10px}.foot{min-height:36px;padding-top:3px;padding-bottom:3px}.dd-f{display:none}
+ .mh{padding:8px 14px}.mb{padding:10px 14px}.mf{padding:8px 14px}
+}
+@media (max-height:420px){.shell{grid-template-rows:34px minmax(0,1fr)}.ttl{display:none}.brand-name .brand-ver{display:none}.bar{padding:2px 10px}.foot{min-height:32px}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+</style>
+</head>
+<body>
+<div class="shell">
+ <header class="topbar">
+  <div class="brand"><span class="brand-mark">AI</span><div><div class="brand-name">AIVA Portal <span class="brand-ver">Admin</span></div><div class="brand-sub">SRS v1.1 · จัดการสิทธิ์</div></div></div>
+  <span style="flex:1"></span><span class="env" title="ข้อมูลทั้งหมดเป็นค่าสมมติ"><i></i>Mock Prototype</span>
+  <span class="rpill" id="rolebadge"></span><label style="position:absolute;width:1px;height:1px;overflow:hidden" for="user">สลับผู้ใช้ (mockup)</label><select class="user-sel" id="user" onchange="switchUser()"></select>
+ </header>
+ <div class="body">
+  <aside class="nav" aria-label="เมนูหลัก"><div class="nav-org"><span class="av">AP</span><div><b>AAPICO AP Hub</b><span>ระบบตรวจสอบใบแจ้งหนี้อัตโนมัติ</span></div></div>
+   <nav class="nav-list"><div class="nav-sec">งานหลัก</div><div class="nav-it">คิวตรวจสอบ</div><div class="nav-it">ส่งเข้า AP Interface</div>
+   <div class="nav-sec">การกำกับดูแล</div><div class="nav-it on" aria-current="page">จัดการสิทธิ์ (Admin)<span class="cnt" id="navCnt" hidden>0</span></div><div class="nav-it">บันทึกการเข้าถึง</div><div class="nav-it">ตั้งค่า</div></nav>
+   <div class="nav-foot"><b style="color:#CBD5E1">Standard</b> v6.10 · schema 1.7</div></aside>
+  <main class="main" id="app"></main>
+ </div>
+</div>
+<div class="ov" id="ov" onclick="if(event.target===this)closeM()"><div class="modal" id="mdl" role="dialog" aria-modal="true" aria-labelledby="mtitle"><div class="mh" id="mh"></div><div class="mb" id="mb"></div><div class="mf"><button class="btn btn-sec" id="mcancel" onclick="closeM()">ยกเลิก</button><button class="btn btn-sec" id="mok2" hidden>เพิ่มต่อ</button><button class="btn" id="mok">ยืนยัน</button></div></div></div>
+<div class="dd" id="dd" hidden onmousedown="event.preventDefault()"></div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<script>
+/* =====================================================================
+   โมเดล (ชื่อตัวแปรตรงกับ AIVA Portal v4.21: COMPANY / ROLES / USERS / MAPS)
+   กติกา: Receiver (EU) → ผูก Oracle account เท่านั้น (ไม่ต้องเลือกบริษัท) · Accounting / Acc. Head → เลือกบริษัท · IT Admin → ไม่ใช้ขอบเขต
+   ตัวตนของผู้ใช้ = Email (จาก AD LDAP) · Login ด้วย M365 / AD(LDAP) / SSO อื่น ๆ จะถูกจับคู่เข้ากับผู้ใช้ด้วย Email นี้
+   ===================================================================== */
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const escA=s=>esc(s).replace(/"/g,"&quot;");
+const jq=s=>String(s).replace(/\\/g,"\\\\").replace(/'/g,"\\'");
+const RM=()=>!!(window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches);
+const TODAY="2026-10-07";
+const stamp=()=>TODAY+" "+new Date().toTimeString().slice(0,5);
+const I={x:"M18 6 6 18M6 6l12 12",check:"M20 6 9 17l-5-5",checkc:"M22 11.08V12a10 10 0 1 1-5.93-9.14M22 4 12 14.01l-3-3",shield:"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM9 12l2 2 4-4",
+ search:"M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.35-4.35",alert:"M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01",
+ undo:"M9 14 4 9l5-5M4 9h11a5 5 0 0 1 0 10h-1",redo:"M15 14l5-5-5-5M20 9H9.5A5.5 5.5 0 0 0 4 14.5 5.5 5.5 0 0 0 9.5 20H13",lock:"M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4",
+ plus:"M12 5v14M5 12h14",trash:"M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6",save:"M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2zM17 21v-8H7v8M7 3v5h8",
+ userplus:"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM19 8v6M22 11h-6",user:"M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z",
+ login:"M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3",info:"M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 16v-4M12 8h.01",
+ link:"M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71",
+ star:"M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14 2 9.27l6.91-1.01L12 2z",db:"M12 8c4.97 0 9-1.34 9-3s-4.03-3-9-3-9 1.34-9 3 4.03 3 9 3zM3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3"};
+const icon=(n,c="")=>`<svg class="ico ${c}" viewBox="0 0 24 24" aria-hidden="true"><path d="${I[n]}"/></svg>`;
+const COMPANY={AH:{name:"อาปิโก ไฮเทค (มหาชน)"},AHT:{name:"อาปิโก ไฮเทค ทูลลิ่ง"},AHP:{name:"อาปิโก ไฮเทค พาร์ทส์"},AM:{name:"เอเบิล มอเตอร์ส"},"?":{name:"ไม่ระบุบริษัท (ORG_ID ยังไม่ทราบ)"}};
+const CO=Object.keys(COMPANY);
+const ROLES={
+ EU:{n:"ผู้ใช้งาน",en:"Receiver",c:"#C2410C",bg:"#FFF1E3",d:"เห็นเอกสารตามใบรับของตนเอง · ผูก Oracle account (ไม่ต้องเลือกบริษัท)"},
+ ACC:{n:"เจ้าหน้าที่บัญชี",en:"Accounting",c:"#1E8A5F",bg:"#E3F4E8",d:"เห็นทุกเอกสารของบริษัทที่เลือก · Confirm / Review / Hold / Reject"},
+ APR:{n:"หัวหน้าฝ่ายบัญชี",en:"Acc. Head",c:"#1E6FB2",bg:"#E8F1FB",d:"สิทธิ์ Accounting + ตัดสิน Manual Review · ส่ง Batch เข้า AP"},
+ ADM:{n:"ผู้ดูแลระบบ",en:"IT Admin",c:"#7A4A9E",bg:"#F2E9F8",d:"จัดการสิทธิ์ · ไม่เห็นเนื้อหาเอกสาร · ไม่ใช้ขอบเขต"}};
+const RK=["EU","ACC","APR","ADM"];
+const roleLabel=r=>ROLES[r].en+" · "+ROLES[r].n;
+/* ผู้ใช้ในพอร์ทัล: email = Email หลัก (mail) · upn = UserPrincipalName · alias = Email อื่นที่ใช้ login ได้ */
+const USERS=[
+ {id:"u1",n:"สมศักดิ์ ใจดี",sam:"somsak.j",email:"somsak.j@aapico.com",upn:"somsak.j@aapico.com",alias:[],emp:"10231",title:"หัวหน้าคลัง",unit:"คลังวัตถุดิบ",role:"EU",co:[]},
+ {id:"u2",n:"วิไลวรรณ ศรีสุข",sam:"wilaiwan.s",email:"wilaiwan.s@aapico.com",upn:"wilaiwan.s@aapico.co.th",alias:[],emp:"20417",title:"เจ้าหน้าที่ซ่อมบำรุง",unit:"ฝ่ายซ่อมบำรุง",role:"EU",co:[]},
+ {id:"u3",n:"ธนากร มั่นคง",sam:"thanakorn.m",email:"thanakorn.m@aapico.com",upn:"thanakorn.m@aapico.com",alias:[],emp:"30552",title:"เจ้าหน้าที่คลังอะไหล่",unit:"คลังอะไหล่",role:"EU",co:[]},
+ {id:"u4",n:"ปณิดา รักงาน",sam:"panida.r",email:"panida.r@aapico.com",upn:"panida.r@aapico.com",alias:[],emp:"11020",title:"นักบัญชี",unit:"ฝ่ายบัญชี AH/AHT",role:"ACC",co:["AH","AHT"]},
+ {id:"u5",n:"กมลวรรณ ใจงาม",sam:"kamonwan.j",email:"kamonwan.j@aapico.com",upn:"kamonwan.j@aapico.com",alias:[],emp:"31005",title:"นักบัญชี",unit:"ฝ่ายบัญชี AM/AHP",role:"ACC",co:["AM","AHP"]},
+ {id:"u6",n:"สมชาย วงศ์ทอง",sam:"somchai.w",email:"somchai.w@aapico.com",upn:"somchai.w@aapico.com",alias:[],emp:"11001",title:"หัวหน้าฝ่ายบัญชี",unit:"ฝ่ายบัญชี",role:"APR",co:["AH","AHT","AHP","AM","?"]},
+ {id:"u7",n:"อนุชา ไอที",sam:"anucha.i",email:"anucha.i@aapico.com",upn:"anucha.i@aapico.com",alias:[],emp:"90007",title:"IT Admin",unit:"IT",role:"ADM",co:[]},
+ {id:"u8",n:"กิตติ สมบูรณ์",sam:"kitti.s",email:"kitti.s@aapico.com",upn:"kitti.s@aapico.com",alias:[],emp:"10388",title:"หัวหน้าคลัง",unit:"คลัง (ดูแลหลาย account)",role:"EU",co:[]}];
+const MAPS=[{id:"m1",user:"u1",acct:"SOMSAK JAIDEE"},{id:"m2",user:"u2",acct:"WILAIWAN SRISUK"},{id:"m3",user:"u3",acct:"THANAKORN MANKONG"},
+ {id:"m4",user:"u8",acct:"SOMSAK JAIDEE"},{id:"m5",user:"u8",acct:"WILAIWAN SRISUK"},{id:"m6",user:"u8",acct:"THANAKORN MANKONG"}];
+const EXTRA=[],AUDIT=[];
+/* ---------- AD (LDAP) — ไดเรกทอรีที่ค้นหาตอนเพิ่ม user ---------- */
+const AD=[
+ {sam:"somsak.j",n:"สมศักดิ์ ใจดี",mail:"somsak.j@aapico.com",upn:"somsak.j@aapico.com",emp:"10231",title:"หัวหน้าคลัง",dept:"คลังวัตถุดิบ",ou:"OU=Warehouse,OU=AH,DC=aapico,DC=com",en:1},
+ {sam:"wilaiwan.s",n:"วิไลวรรณ ศรีสุข",mail:"wilaiwan.s@aapico.com",upn:"wilaiwan.s@aapico.co.th",emp:"20417",title:"เจ้าหน้าที่ซ่อมบำรุง",dept:"ฝ่ายซ่อมบำรุง",ou:"OU=Maintenance,OU=AHT,DC=aapico,DC=com",en:1},
+ {sam:"thanakorn.m",n:"ธนากร มั่นคง",mail:"thanakorn.m@aapico.com",upn:"thanakorn.m@aapico.com",emp:"30552",title:"เจ้าหน้าที่คลังอะไหล่",dept:"คลังอะไหล่",ou:"OU=Spare,OU=AM,DC=aapico,DC=com",en:1},
+ {sam:"panida.r",n:"ปณิดา รักงาน",mail:"panida.r@aapico.com",upn:"panida.r@aapico.com",emp:"11020",title:"นักบัญชี",dept:"ฝ่ายบัญชี AH/AHT",ou:"OU=Accounting,OU=AH,DC=aapico,DC=com",en:1},
+ {sam:"kamonwan.j",n:"กมลวรรณ ใจงาม",mail:"kamonwan.j@aapico.com",upn:"kamonwan.j@aapico.com",emp:"31005",title:"นักบัญชี",dept:"ฝ่ายบัญชี AM/AHP",ou:"OU=Accounting,OU=AM,DC=aapico,DC=com",en:1},
+ {sam:"somchai.w",n:"สมชาย วงศ์ทอง",mail:"somchai.w@aapico.com",upn:"somchai.w@aapico.com",emp:"11001",title:"หัวหน้าฝ่ายบัญชี",dept:"ฝ่ายบัญชี",ou:"OU=Accounting,OU=AH,DC=aapico,DC=com",en:1},
+ {sam:"anucha.i",n:"อนุชา ไอที",mail:"anucha.i@aapico.com",upn:"anucha.i@aapico.com",emp:"90007",title:"IT Admin",dept:"IT",ou:"OU=IT,OU=AH,DC=aapico,DC=com",en:1},
+ {sam:"kitti.s",n:"กิตติ สมบูรณ์",mail:"kitti.s@aapico.com",upn:"kitti.s@aapico.com",emp:"10388",title:"หัวหน้าคลัง",dept:"คลัง (ดูแลหลาย account)",ou:"OU=Warehouse,OU=AH,DC=aapico,DC=com",en:1},
+ {sam:"narong.p",n:"ณรงค์ พลศรี",mail:"narong.p@aapico.com",upn:"narong.p@aapico.com",emp:"40118",title:"เจ้าหน้าที่คลัง",dept:"คลังสินค้า MGP",ou:"OU=Warehouse,OU=MGP,DC=aapico,DC=com",en:1},
+ {sam:"praphan.k",n:"ประพันธ์ แก้วกล้า",mail:"praphan.k@aapico.com",upn:"praphan.k@aapico.com",emp:"40227",title:"เจ้าหน้าที่คลัง",dept:"คลังน้ำมันหล่อลื่น",ou:"OU=Warehouse,OU=AH,DC=aapico,DC=com",en:1},
+ {sam:"anan.t",n:"อนันต์ ทองดี",mail:"anan.t@aapico.com",upn:"anan.t@aapico.com",emp:"40301",title:"ช่างซ่อมบำรุง",dept:"บำรุงรักษา ATD",ou:"OU=Maintenance,OU=ATD,DC=aapico,DC=com",en:1},
+ {sam:"siriporn.k",n:"ศิริพร แก้วใส",mail:"siriporn.k@aapico.com",upn:"siriporn.k@aapico.com",emp:"40412",title:"เจ้าหน้าที่คลัง",dept:"คลังวัตถุดิบ",ou:"OU=Warehouse,OU=AH,DC=aapico,DC=com",en:1},
+ {sam:"theerapong.t",n:"ธีรพงษ์ ทองดี",mail:"theerapong.t@aapico.com",upn:"theerapong.t@aapico.com",emp:"40533",title:"นักบัญชี",dept:"ฝ่ายบัญชี AHT",ou:"OU=Accounting,OU=AHT,DC=aapico,DC=com",en:1},
+ {sam:"napassorn.p",n:"นภัสสร พึ่งบุญ",mail:"napassorn.p@aapico.com",upn:"napassorn.p@aapico.com",emp:"40640",title:"เจ้าหน้าที่คลังอะไหล่",dept:"คลังอะไหล่ AHP",ou:"OU=Spare,OU=AHP,DC=aapico,DC=com",en:1},
+ {sam:"kittipong.s",n:"กิตติพงษ์ สมบัติ",mail:"kittipong.s@aapico.com",upn:"kittipong.s@aapico.com",emp:"40755",title:"เจ้าหน้าที่คลังอะไหล่",dept:"คลังอะไหล่ AM",ou:"OU=Spare,OU=AM,DC=aapico,DC=com",en:1},
+ {sam:"wipa.s",n:"วิภา ศรีสุข",mail:"wipa.s@aapico.com",upn:"wipa.s@aapico.co.th",emp:"40866",title:"หัวหน้าสายการผลิต",dept:"ฝ่ายผลิต AHT",ou:"OU=Production,OU=AHT,DC=aapico,DC=com",en:1},
+ {sam:"nattapon.k",n:"ณัฐพล คงมั่น",mail:"nattapon.k@aapico.com",upn:"nattapon.k@aapico.com",emp:"40971",title:"เจ้าหน้าที่คลัง",dept:"คลังวัตถุดิบ",ou:"OU=Disabled,DC=aapico,DC=com",en:0}];
+/* ---------- Login (เชื่อมด้วย Email) ---------- */
+const PROV={m365:{n:"Microsoft 365",s:"M365",d:"Entra ID · อ่าน Email / UPN จาก token"},ldap:{n:"AD (LDAP)",s:"AD",d:"ใส่ Username → อ่าน mail จาก AD"},sso:{n:"SSO อื่น ๆ",s:"SSO",d:"SAML / OIDC · อ่าน email claim"}};
+const LOGINS=[{u:"u1",p:"m365",first:"2026-09-20 09:31",last:"2026-10-07 08:12"},{u:"u2",p:"m365",first:"2026-09-20 09:40",last:"2026-10-07 07:55"},{u:"u3",p:"ldap",first:"2026-09-21 08:05",last:"2026-10-06 16:40"},
+ {u:"u4",p:"m365",first:"2026-09-20 08:50",last:"2026-10-07 08:03"},{u:"u4",p:"ldap",first:"2026-09-28 13:20",last:"2026-10-02 13:10"},{u:"u6",p:"m365",first:"2026-09-20 08:44",last:"2026-10-07 08:30"},{u:"u7",p:"m365",first:"2026-09-20 08:30",last:"2026-10-07 09:02"},
+ {u:"u8",p:"m365",first:"2026-10-02 14:50",last:"2026-10-05 10:15"},{u:"u8",p:"sso",first:"2026-10-03 09:02",last:"2026-10-05 09:58"}];
+/* u5 (กมลวรรณ) ยังไม่เคย login → แสดง "ยังไม่เคย login" */
+const loginsOf=id=>LOGINS.filter(l=>l.u===id);
+const normE=s=>String(s||"").trim().toLowerCase();
+const idsOf=u=>[u.email,u.upn,...(u.alias||[])].map(normE).filter(Boolean);
+/* เอกสารตัวอย่างแบบย่อ [บริษัท, Receiver, สถานะ, มีรหัสที่ผู้ใช้งานต้องแก้] — ค่าสมมติ ใช้แสดงข้อมูลประกอบใน dropdown */
+const DC=[["AH","SOMSAK JAIDEE","Auto-pass",0],["AH","SOMSAK JAIDEE","Auto-pass",0],["AHT","WILAIWAN SRISUK","Review",1],["AH","SOMSAK JAIDEE","Hold",0],["AH","SOMSAK JAIDEE","Hold",1],
+ ["AM","THANAKORN MANKONG","Hold",0],["AM","THANAKORN MANKONG","Review",0],["AH","SOMSAK JAIDEE","Hold",1],["AHT","WILAIWAN SRISUK","Review",1],["AHT","WILAIWAN SRISUK","Hold",0],["AM","THANAKORN MANKONG","Review",1],["AH","SOMSAK JAIDEE","Review",0],
+ ["AM","THANAKORN MANKONG","Hold",0],["AH","SOMSAK JAIDEE","Hold",0],["AHT","WILAIWAN SRISUK","Hold",1],["AM","THANAKORN MANKONG","Hold",1],["?","NARONG PHOLSRI","Manual Review",0],["?","ANAN THONGDEE","Manual Review",0],
+ ["AH","SOMSAK JAIDEE","Manual Review",0],["AH","SOMSAK JAIDEE","Auto-pass",0],["AH","PRAPHAN KAEWKLA","Review",1],["AH","SOMSAK JAIDEE","Superseded",1],["AHT","WILAIWAN SRISUK","Superseded",1],["AM","THANAKORN MANKONG","Duplicate",1],
+ ["AH","SOMSAK JAIDEE","Rejected",0],["AHT","WILAIWAN SRISUK","Confirmed",0],["AM","THANAKORN MANKONG","Confirmed",0],["AHP","KITTI SOMBOON","Confirmed",0],["AH","SOMSAK JAIDEE","Sent",0],["AHT","WILAIWAN SRISUK","Posted",0],["AH","SOMSAK JAIDEE","Import Failed",0]];
+const OPEN_ST=["Auto-pass","Review","Hold","Manual Review"];
+/* ---------- state ---------- */
+const PM={w:null,b:null,hist:[],redo:[],cx:[],q:"",cb:null,flash:null,applied:null,redraw:false,nu:null,lt:null};
+let ME=USERS.find(u=>u.id==="u7"),mseq=10;
+const clone=()=>({users:USERS.map(u=>({...u,co:[...u.co],alias:[...(u.alias||[])]})),maps:MAPS.map(m=>({...m})),extra:[...EXTRA]});
+const U=(id,w)=>(w||PM.w).users.find(u=>u.id===id);
+const accOf=(w,id)=>w.maps.filter(m=>m.user===id).map(m=>m.acct);
+const usersOf=(w,a)=>w.maps.filter(m=>m.acct===a).map(m=>({m,u:w.users.find(x=>x.id===m.user)})).filter(x=>x.u);
+const boundA=(w,a)=>usersOf(w,a).some(x=>x.u.role==="EU");
+const allAccts=w=>[...new Set([...DC.map(d=>d[1]).filter(Boolean),...w.maps.map(m=>m.acct),...w.extra])].sort();
+function acctInfo(w,a){const ds=DC.filter(d=>d[1]===a);return {a,n:ds.length,open:ds.filter(d=>OPEN_ST.includes(d[2])).length,cos:[...new Set(ds.map(d=>d[0]))].sort((x,y)=>CO.indexOf(x)-CO.indexOf(y)),bnd:boundA(w,a)}}
+function nameMatch(a,u){const [f,i]=u.email.split("@")[0].split("."),t=a.toLowerCase().split(" ");return !!f&&t[0]===f&&(!i||(t[1]||"").startsWith(i))}
+const normAcct=raw=>String(raw||"").trim().toUpperCase().replace(/\s+/g," ");
+const validAcct=a=>a.length<=60&&/^[A-Z][A-Z.-]+( [A-Z][A-Z.-]*)+$/.test(a);
+/* สถานะของบัญชี AD เมื่อจะเพิ่มเป็นผู้ใช้พอร์ทัล: "off" = ปิดใช้งานใน AD · "in" = มีในพอร์ทัลแล้ว (รวมแถวที่ยังเป็นร่าง) · "" = เพิ่มได้ */
+const AD_MSG={off:"บัญชีถูกปิดใช้งานใน AD · เพิ่มไม่ได้ (ให้ฝ่าย IT เปิดบัญชีใน AD ก่อน)",in:"มีในพอร์ทัลแล้ว (อยู่ในตาราง) · ไม่เพิ่มซ้ำ"};
+const AD_BADGE={off:"ปิดใน AD",in:"มีแล้ว"};
+function adState(a){if(!a.en)return "off";const ids=[a.mail,a.upn].map(normE);return PM.w.users.some(u=>u.sam===a.sam||idsOf(u).some(x=>ids.includes(x)))?"in":""}
+/* ---------- diff / validation ---------- */
+function changes(){const B=PM.b,W=PM.w,out=[],bm=new Map(B.users.map(u=>[u.id,u]));
+ W.users.forEach(u=>{const o=bm.get(u.id);
+  if(!o)out.push({k:"add",u:u.id,to:ROLES[u.role].en,esc:u.role==="APR"||u.role==="ADM"});
+  else if(o.role!==u.role)out.push({k:"role",u:u.id,from:ROLES[o.role].en,to:ROLES[u.role].en,esc:(u.role==="ADM")||(u.role==="APR"&&(o.role==="EU"||o.role==="ACC"))});
+  const oc=o?o.co:[];u.co.filter(c=>!oc.includes(c)).forEach(c=>out.push({k:"co+",u:u.id,to:c}));oc.filter(c=>!u.co.includes(c)).forEach(c=>out.push({k:"co-",u:u.id,from:c}));
+  const oa=B.maps.filter(m=>m.user===u.id).map(m=>m.acct),na=accOf(W,u.id);
+  na.filter(a=>!oa.includes(a)).forEach(a=>out.push({k:"acct+",u:u.id,to:a}));oa.filter(a=>!na.includes(a)).forEach(a=>out.push({k:"acct-",u:u.id,from:a}))});
+ return out}
+function issues(u,w){w=w||PM.w;const r=[],a=accOf(w,u.id);
+ if(u.role==="EU"&&!a.length)r.push({lv:"warn",t:"ยังไม่ผูก Oracle account · จะไม่เห็นเอกสารใดเลย"});
+ if(u.role==="ACC"||u.role==="APR"){if(!u.co.length)r.push({lv:"err",t:"ยังไม่ได้เลือกบริษัท · จะไม่เห็นเอกสารใดเลย"});if(u.co.includes("?")&&u.role!=="APR")r.push({lv:"err",t:"บริษัท “?” กำหนดให้ได้เฉพาะหัวหน้าฝ่ายบัญชี"})}
+ return r}
+function globalIssues(w){w=w||PM.w;const r=[];
+ if(!w.users.some(u=>u.role==="ADM"))r.push({lv:"err",t:"ต้องมีผู้ดูแลระบบ (IT Admin) อย่างน้อย 1 คน"});
+ const seen={};w.users.forEach(u=>idsOf(u).forEach(e=>{if(seen[e]&&seen[e]!==u.id)r.push({lv:"err",t:"Email "+e+" ซ้ำกับผู้ใช้หลายคน · จับคู่ Login ไม่ได้"});seen[e]=u.id}));
+ CO.forEach(c=>{if(!w.users.some(u=>u.role==="APR"&&u.co.includes(c)))r.push({lv:"warn",t:"บริษัท "+c+" ไม่มีหัวหน้าฝ่ายบัญชี · ส่ง Batch เข้า AP / ตัดสิน Manual Review ไม่ได้"})});return r}
+function allIssues(){const errs=[],warns=[];PM.w.users.forEach(u=>issues(u).forEach(i=>(i.lv==="err"?errs:warns).push({u:u.id,t:u.n+": "+i.t})));globalIssues().forEach(i=>(i.lv==="err"?errs:warns).push({u:null,t:i.t}));return {errs,warns}}
+/* ---------- history / mutations ---------- */
+function guard(){if(ME.role!=="ADM"){toast("เฉพาะผู้ดูแลระบบ (IT Admin) จัดการสิทธิ์ได้",1);return false}return true}
+function push(){PM.hist.push(JSON.stringify(PM.w));if(PM.hist.length>100)PM.hist.shift();PM.redo=[]}
+function mut(fn,flash){if(!guard())return false;push();fn();PM.flash=flash||null;draw();return true}
+function undo(){if(!PM.hist.length)return;PM.redo.push(JSON.stringify(PM.w));PM.w=JSON.parse(PM.hist.pop());draw();toast("เลิกทำแล้ว")}
+function redo(){if(!PM.redo.length)return;PM.hist.push(JSON.stringify(PM.w));PM.w=JSON.parse(PM.redo.pop());draw();toast("ทำซ้ำแล้ว")}
+function togCo(id,c){const u=U(id);if(!u)return;
+ if(u.role==="EU")return toast("Receiver ไม่ต้องเลือกบริษัท · ใช้ Oracle account แทน",1);if(u.role==="ADM")return toast("ผู้ดูแลระบบไม่ใช้ขอบเขตบริษัท",1);
+ if(c==="?"&&u.role!=="APR")return toast("บริษัท “?” กำหนดให้ได้เฉพาะหัวหน้าฝ่ายบัญชี (SRS)",1);
+ mut(()=>{u.co=u.co.includes(c)?u.co.filter(x=>x!==c):[...u.co,c];u.co.sort((a,b)=>CO.indexOf(a)-CO.indexOf(b))},id)}
+function togMap(id,raw){const u=U(id),a=normAcct(raw);if(!u)return;if(u.role!=="EU")return toast("ผูก Oracle account ได้เฉพาะ Receiver · "+ROLES[u.role].en+" ใช้บริษัทแทน",1);
+ if(!validAcct(a))return toast("รูปแบบ RECEIVER ไม่ถูกต้อง · ใช้ตัวอักษรอังกฤษพิมพ์ใหญ่ เช่น SOMSAK JAIDEE",1);
+ mut(()=>{const m=PM.w.maps.find(x=>x.user===id&&x.acct===a);if(m)PM.w.maps=PM.w.maps.filter(x=>x!==m);else{if(!allAccts(PM.w).includes(a))PM.w.extra.push(a);PM.w.maps.push({id:"m"+(++mseq),user:id,acct:a})}},id)}
+function clearScope(id){const u=U(id);if(!u)return;const n=u.role==="EU"?accOf(PM.w,id).length:u.co.length;
+ if(mut(()=>{if(u.role==="EU")PM.w.maps=PM.w.maps.filter(m=>m.user!==id);else u.co=[]},id))undoToast("ถอด "+(u.role==="EU"?"Oracle account ":"บริษัท ")+n+" รายการของ "+u.n)}
+function resetUser(id){const bu=U(id,PM.b);mut(()=>{if(!bu){PM.w.users=PM.w.users.filter(u=>u.id!==id);PM.w.maps=PM.w.maps.filter(m=>m.user!==id)}else{const i=PM.w.users.findIndex(u=>u.id===id);PM.w.users[i]=JSON.parse(JSON.stringify(bu));PM.w.maps=PM.w.maps.filter(m=>m.user!==id).concat(PM.b.maps.filter(m=>m.user===id).map(m=>({...m})))}},id)}
+function discardAll(){if(!PM.cx.length||!guard())return;push();PM.w=JSON.parse(JSON.stringify(PM.b));draw();undoToast("ยกเลิกการเปลี่ยนแปลงทั้งหมดแล้ว")}
+/* ---------- จับคู่ Login ด้วย Email ---------- */
+/* provider: m365 | ldap | sso · input: Email (หรือ Username ถ้า provider = ldap) → ผลลัพธ์ + เชื่อม provider เข้ากับผู้ใช้ (เฉพาะผู้ใช้ที่ "บันทึกแล้ว") */
+function simLogin(p,raw){const input=String(raw||"").trim();if(!input)return {ok:false,code:"empty"};let email=normE(input),via="",from="";
+ if(!input.includes("@")){if(p!=="ldap")return {ok:false,code:"bad",input};const a=AD.find(x=>normE(x.sam)===email);if(!a)return {ok:false,code:"ad-nf",input};from=a.sam;email=normE(a.mail)}
+ const ad=AD.find(a=>[a.mail,a.upn].map(normE).includes(email));if(ad&&!ad.en)return {ok:false,code:"ad-off",email,ad};
+ const hit=USERS.filter(u=>idsOf(u).includes(email));
+ if(hit.length>1)return {ok:false,code:"dup",email};
+ if(!hit.length){const d=PM.w&&PM.w.users.find(u=>idsOf(u).includes(email)&&!USERS.some(x=>x.id===u.id));return {ok:false,code:d?"draft":"nf",email,draft:d||null,inAd:!!ad}}
+ const u=hit[0];via=normE(u.email)===email?"email":normE(u.upn)===email?"upn":"alias";
+ let l=LOGINS.find(x=>x.u===u.id&&x.p===p),first=false;if(!l){l={u:u.id,p,first:stamp(),last:stamp()};LOGINS.push(l);first=true}else l.last=stamp();
+ AUDIT.unshift({dt:TODAY,by:u.n,k:first?"login-link":"login",u:u.id,from:PROV[p].n,to:email,ref:"auto"});
+ return {ok:true,u,p,email,via,first,from,input}}
+
+/* =====================================================================
+   ตารางแบบ Excel + ช่องพิมพ์ autocomplete (Combobox)
+   พิมพ์ → รายการแนะนำ → เลือก → เป็น chip (ถอดทีละอันได้ / ล้างทั้งช่อง) · chip เยอะ = chip ขึ้นบรรทัดใหม่ → แถวสูงขึ้น (ไม่มีแถบเลื่อนแนวนอน)
+   key ของช่อง:  n = ค้นหาผู้ใช้จาก AD (ในหน้าต่างเพิ่ม user) · r:<uid> = บทบาท · s:<uid> = ขอบเขต (Receiver→Oracle account / อื่น ๆ→บริษัท)
+   ===================================================================== */
+const hl=(s,q)=>{s=String(s);q=(q||"").trim();if(!q)return esc(s);const i=s.toLowerCase().indexOf(q.toLowerCase());return i<0?esc(s):esc(s.slice(0,i))+"<mark>"+esc(s.slice(i,i+q.length))+"</mark>"+esc(s.slice(i+q.length))};
+const acctTip=a=>{const i=acctInfo(PM.w,a),o=usersOf(PM.w,a).map(x=>x.u.n);return a+" · "+i.n+" เอกสาร · บริษัท "+(i.cos.join(", ")||"—")+(o.length>1?" · ผูกร่วมกัน "+o.length+" คน":"")};
+function startCb(key,open){const c={key,q:"",hi:0,ci:-1,open:!!open,t:!!open,typed:false};if(key[0]==="r"){const u=U(key.slice(2));if(u)c.hi=RK.indexOf(u.role)}PM.cb=c;return c}
+/* ---------- ข้อกำหนดของแต่ละช่อง ---------- */
+function cbSpec(key){const w=PM.w,t=key[0];
+ if(t==="n")return {kind:"n",title:"ผู้ใช้ใน AD (LDAP)",label:"ค้นหาผู้ใช้จาก AD (LDAP)",empty:"ไม่พบผู้ใช้ใน AD ตามที่พิมพ์",
+  opts(q){const ql=q.trim().toLowerCase();
+   const L=AD.filter(a=>!ql||(a.n+" "+a.sam+" "+a.mail+" "+a.upn+" "+a.emp+" "+a.title+" "+a.dept).toLowerCase().includes(ql)).map(a=>({a,st:adState(a)}))
+    .sort((x,y)=>(x.st?1:0)-(y.st?1:0)||x.a.n.localeCompare(y.a.n,"th"));
+   return L.slice(0,20).map(({a,st})=>({id:a.sam,label:a.n,f:1,sub:a.sam+" · "+a.mail+" · "+a.dept,ic:"user",dis:st?AD_MSG[st]:"",badge:st?AD_BADGE[st]:"",bcls:st==="off"?"o":"g"}))},
+  add:id=>nuSelect(id)};
+ const uid=key.slice(2),u=U(uid);if(!u)return null;const bu=U(uid,PM.b);
+ if(t==="r")return {kind:"r",title:"เลือกบทบาท",label:"บทบาทของ "+u.n,empty:"ไม่พบบทบาทที่ตรงกัน",
+  opts(q){const ql=q.trim().toLowerCase();return RK.filter(r=>!ql||(r+" "+ROLES[r].en+" "+ROLES[r].n).toLowerCase().includes(ql)).map(r=>({id:r,label:roleLabel(r),f:1,sub:ROLES[r].d,badge:u.role===r?"ปัจจุบัน":"",bcls:"g"}))},
+  add:r=>pickRole(uid,r)};
+ if(u.role==="ADM")return {locked:"ไม่ใช้ขอบเขต"};
+ if(u.role==="EU"){const have=accOf(w,uid),base=bu?accOf(PM.b,uid):[],gh=base.filter(a=>!have.includes(a));
+  return {kind:"s",multi:1,title:"ผูก Oracle account (RECEIVER)",label:"Oracle account ของ "+u.n,ph:"พิมพ์ชื่อ RECEIVER…",
+   chips:have.map(a=>({id:a,label:a,cls:base.includes(a)?"":"new",title:acctTip(a)})),ghosts:gh.map(a=>({id:a,label:a})),empty:"ไม่พบ account ที่ตรงกัน · พิมพ์ชื่อ RECEIVER เป็นอังกฤษตัวพิมพ์ใหญ่เพื่อสร้างใหม่",
+   opts(q){const ql=q.trim().toLowerCase(),nq=normAcct(q),all=allAccts(w);
+    const L=all.filter(a=>!have.includes(a)).map(a=>({a,i:acctInfo(w,a),oth:usersOf(w,a).filter(x=>x.u.id!==uid),star:nameMatch(a,u),hay:a+" "+w.users.filter(x=>nameMatch(a,x)).map(x=>x.n+" "+x.email).join(" ")}))
+     .filter(o=>!ql||o.hay.toLowerCase().includes(ql)).sort((x,y)=>(y.star-x.star)||((x.i.bnd?1:0)-(y.i.bnd?1:0))||x.a.localeCompare(y.a))
+     .map(o=>({id:o.a,label:o.a,star:o.star,sub:o.i.n+" เอกสาร · บริษัท "+(o.i.cos.join(", ")||"—")+(o.oth.length?" · ผูกอยู่กับ "+o.oth.map(x=>x.u.n).join(", "):""),badge:!o.i.bnd?"รอผูก":(o.oth.length?"ใช้ร่วม "+o.oth.length+" คน":""),bcls:!o.i.bnd?"o":"g"}));
+    if(ql&&!all.includes(nq)&&validAcct(nq)&&!L.some(o=>o.label.startsWith(nq)))L.push({id:nq,label:nq,create:1,sub:"สร้าง Oracle account ใหม่ (ยังไม่มีเอกสารในระบบ)",badge:"ใหม่",bcls:"s"});return L},
+   add:id=>togMap(uid,id),remove:i=>togMap(uid,have[i]),restore:i=>togMap(uid,gh[i].id)}}
+ const have=u.co,base=bu?bu.co:[],gh=base.filter(c=>!have.includes(c));
+ return {kind:"s",multi:1,title:"เลือกบริษัทที่รับผิดชอบ",label:"บริษัทของ "+u.n,ph:"พิมพ์รหัสหรือชื่อบริษัท…",chips:have.map(c=>({id:c,label:c,cls:"co"+(base.includes(c)?"":" new"),title:COMPANY[c].name})),ghosts:gh.map(c=>({id:c,label:c})),empty:"ไม่พบบริษัทที่ตรงกัน",
+  opts(q){const ql=q.trim().toLowerCase();return CO.filter(c=>!have.includes(c)&&(!ql||(c+" "+COMPANY[c].name).toLowerCase().includes(ql))).map(c=>({id:c,label:c,f:1,sub:COMPANY[c].name+" · "+DC.filter(d=>d[0]===c).length+" เอกสาร",dis:c==="?"&&u.role!=="APR"?"บริษัท “?” กำหนดให้ได้เฉพาะหัวหน้าฝ่ายบัญชี":""}))},
+  add:id=>togCo(uid,id),remove:i=>togCo(uid,have[i]),restore:i=>togCo(uid,gh[i])}}
+function pickRole(uid,r){const u=U(uid);if(!u)return;PM.cb=null;
+ const goScope=()=>{const s=cbSpec("s:"+uid);if(s&&!s.locked)startCb("s:"+uid,true);else PM.cb=null};
+ if(u.role===r){goScope();draw();return}
+ if(uid===ME.id){toast("บัญชีของคุณเอง · เปลี่ยนบทบาทไม่ได้ (กันล็อกตัวเองออกจากระบบ)",1);draw();return}
+ if(!setRoleThen(uid,r,goScope))draw()}
+function setRoleThen(uid,r,after){const u=U(uid);if(!u||!guard())return false;
+ push();const had=accOf(PM.w,uid).length;u.role=r;if(r==="EU"||r==="ADM")u.co=[];if(r!=="APR")u.co=u.co.filter(c=>c!=="?");
+ let note="";if(r!=="EU"&&had){PM.w.maps=PM.w.maps.filter(m=>m.user!==uid);note="ถอด Oracle account "+had+" รายการอัตโนมัติ (บทบาทนี้ใช้บริษัทแทน)"}
+ PM.flash=uid;after();draw();if(note)toast(note);return true}
+/* ---------- แสดงผลช่อง ---------- */
+const curCb=key=>PM.cb&&PM.cb.key===key?PM.cb:null;
+const uidOf=key=>key.slice(2);
+function roleCell(u){const key="r:"+u.id,c=curCb(key),self=u.id===ME.id,val=c&&c.typed?c.q:roleLabel(u.role);
+ return `<input id="cb_${key}" class="rin" type="text" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="${c&&c.open?"true":"false"}" aria-controls="dd" aria-label="บทบาทของ ${escA(u.n)}" value="${escA(val)}" title="${escA(roleLabel(u.role))}" style="color:${ROLES[u.role].c}" ${self?'disabled title="บัญชีของคุณเอง · เปลี่ยนไม่ได้"':""} autocomplete="off" spellcheck="false" onfocus="cbFocus('${key}');this.select()" onclick="cbOpen('${key}')" oninput="cbInput('${key}',this.value)" onkeydown="cbKey(event,'${key}')" onblur="cbBlur('${key}')">`}
+function scopeCell(u){const key="s:"+u.id,s=cbSpec(key);if(s.locked)return `<span class="lkx">${icon("lock","sm")}${esc(s.locked)}</span>`;
+ const c=curCb(key),n=s.chips.length;
+ const chips=s.chips.map((x,i)=>`<span class="tchip ${x.cls||""} ${c&&c.ci===i?"armed":""}" title="${escA(x.title||x.label)}"><span>${esc(x.label)}</span><button type="button" tabindex="-1" aria-label="ถอด ${escA(x.label)}" title="ถอด ${escA(x.label)}" onmousedown="event.preventDefault()" onclick="cbRemove('${key}',${i})">${icon("x","sm")}</button></span>`).join("");
+ const gh=s.ghosts.map((x,i)=>`<span class="tchip gone" title="ถอดแล้ว (ยังไม่บันทึก) · กดเพื่อคืน"><span>${esc(x.label)}</span><button type="button" tabindex="-1" aria-label="คืน ${escA(x.label)}" onmousedown="event.preventDefault()" onclick="cbRestore('${key}',${i})">${icon("undo","sm")}</button></span>`).join("");
+ return `<div class="cw" id="cbw_${key}" onmousedown="cbWrapDown(event,'${key}')">${chips}${gh}<input id="cb_${key}" class="cin" type="text" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="${c&&c.open?"true":"false"}" aria-controls="dd" aria-label="${escA(s.label)}" placeholder="${escA(n?"+ เพิ่ม":s.ph)}" value="${escA(c?c.q:"")}" autocomplete="off" spellcheck="false" onfocus="cbFocus('${key}')" onclick="cbOpen('${key}')" oninput="cbInput('${key}',this.value)" onkeydown="cbKey(event,'${key}')" onblur="cbBlur('${key}')">${n>=2?`<button type="button" class="clr" title="ถอดทั้งหมด (${n})" onmousedown="event.preventDefault()" onclick="clearScope('${uidOf(key)}')">ล้าง ${n}</button>`:""}</div>`}
+function cbWrapDown(e,key){if(e.target.closest("button,input"))return;e.preventDefault();const i=$("cb_"+key);if(i){i.focus();cbOpen(key)}}
+/* ---------- สถานะช่อง ---------- */
+function cbFocus(key){if(!PM.cb||PM.cb.key!==key)startCb(key,false)}
+function cbOpen(key){if(!PM.cb||PM.cb.key!==key)startCb(key,false);const c=PM.cb;if(!c.open){c.open=true;if(key[0]==="r"&&!c.typed)c.t=true}renderDrop()}
+function cbInput(key,v){if(!PM.cb||PM.cb.key!==key)startCb(key,true);const c=PM.cb;c.q=v;c.typed=true;c.open=true;c.hi=0;c.ci=-1;if(key[0]==="s")markArmed();renderDrop()}
+function cbBlur(key){if(PM.redraw)return;setTimeout(()=>{const a=document.activeElement;if(a&&a.classList&&(a.classList.contains("cin")||a.classList.contains("rin")||a.classList.contains("nu-in")))return;
+ if(key[0]==="r"){const i=$("cb_"+key),u=U(key.slice(2));if(i&&u)i.value=roleLabel(u.role)}PM.cb=null;hideDrop()},0)}
+function markArmed(){const c=PM.cb;if(!c)return;const w=$("cbw_"+c.key);if(!w)return;w.querySelectorAll(".tchip:not(.gone)").forEach((e,i)=>e.classList.toggle("armed",i===c.ci))}
+function cbPick(i){const c=PM.cb;if(!c)return;const s=cbSpec(c.key),o=c.list&&c.list[i];if(!s||!o)return;if(o.dis){toast(o.dis,1);return}
+ c.q="";c.typed=false;c.hi=0;c.ci=-1;c.t=false;s.add(o.id,o)}
+function cbHover(i){const c=PM.cb,dd=$("dd");if(!c||c.hi===i&&c.t)return;c.hi=i;c.t=true;dd.querySelectorAll(".dd-i").forEach((e,k)=>e.classList.toggle("on",k===i))}
+function cbRemove(key,i){const s=cbSpec(key);if(!s)return;if(PM.cb&&PM.cb.key===key)PM.cb.ci=-1;s.remove(i)}
+function cbRestore(key,i){const s=cbSpec(key);if(s)s.restore(i)}
+function visRows(){const q=PM.q.trim().toLowerCase();return PM.w.users.filter(u=>!q||(u.n+" "+u.sam+" "+u.email+" "+u.upn+" "+u.emp+" "+ROLES[u.role].en+" "+ROLES[u.role].n+" "+u.co.join(" ")+" "+accOf(PM.w,u.id).join(" ")).toLowerCase().includes(q))}
+function moveV(key,d){const kind=key[0];if(kind==="n")return;const rows=visRows(),i=rows.findIndex(u=>u.id===uidOf(key));
+ for(let k=i+d;k>=0&&k<rows.length;k+=d){const el=$("cb_"+kind+":"+rows[k].id);if(el&&!el.disabled){el.focus();keepVisible(el.closest("td"));return}}}
+function cbKey(e,key){if(!PM.cb||PM.cb.key!==key)startCb(key,false);const c=PM.cb,s=cbSpec(key);if(!s)return;const inp=e.target,L=c.list||[],n=s.chips?s.chips.length:0,kind=key[0];
+ switch(e.key){
+  case "ArrowDown":e.preventDefault();if(!c.open){c.open=true;c.t=true}else if(!c.t)c.t=true;else c.hi=Math.min(L.length-1,c.hi+1);c.ci=-1;markArmed();renderDrop();break;
+  case "ArrowUp":e.preventDefault();if(!c.open){c.open=true;c.t=true}else if(!c.t)c.t=true;else c.hi=Math.max(0,c.hi-1);c.ci=-1;markArmed();renderDrop();break;
+  case "Enter":e.preventDefault();if(c.ci>=0){cbRemove(key,c.ci);break}
+   if(c.open&&L[c.hi]&&(c.t||c.q.trim())){cbPick(c.hi);break}
+   moveV(key,e.shiftKey?-1:1);break;
+  case "Escape":if(c.open||c.typed||inp.value){e.preventDefault();c.open=false;c.q="";c.typed=false;c.t=false;c.ci=-1;inp.value=kind==="r"?roleLabel(U(uidOf(key)).role):"";if(kind==="r")inp.select();markArmed();renderDrop()}else inp.blur();break;
+  case "Backspace":case "Delete":if(kind==="s"&&!inp.value&&n){e.preventDefault();if(c.ci>=0)cbRemove(key,c.ci);else if(e.key==="Backspace"){c.ci=n-1;markArmed()}}break;
+  case "ArrowLeft":if(kind==="s"&&!inp.value&&n){e.preventDefault();c.ci=c.ci<0?n-1:Math.max(0,c.ci-1);markArmed()}break;
+  case "ArrowRight":if(kind==="s"&&c.ci>=0){e.preventDefault();c.ci=c.ci+1>=n?-1:c.ci+1;markArmed()}break;
+  case ",":if(kind==="s"&&inp.value.trim()&&c.open&&L[c.hi]){e.preventDefault();cbPick(c.hi)}break}}
+/* ---------- รายการแนะนำ (dropdown) ---------- */
+function renderDrop(){const dd=$("dd"),c=PM.cb;if(!dd)return;if(!c||!c.open){hideDrop();return}
+ const s=cbSpec(c.key),inp=$("cb_"+c.key);if(!s||!inp||s.locked){hideDrop();return}
+ const L=s.opts(c.q);c.list=L;c.hi=Math.max(0,Math.min(c.hi,L.length-1));const act=c.t||!!c.q.trim();
+ dd.innerHTML=`<div class="dd-h"><b>${esc(s.title)}</b><span class="grow"></span><span>${L.length} รายการ${c.q.trim()?" ที่ตรงกับ “"+esc(c.q.trim())+"”":""}${s.kind==="n"&&L.length>=20?" (แสดง 20 แรก)":""}</span></div>
+  <div class="dd-l" role="listbox" id="ddl">${L.map((o,i)=>`<div class="dd-i ${act&&i===c.hi?"on":""} ${o.dis?"dis":""}" role="option" id="ddo${i}" aria-selected="${act&&i===c.hi}" aria-disabled="${o.dis?"true":"false"}" onmousemove="cbHover(${i})" onclick="cbPick(${i})"><span class="dd-ic">${o.create?icon("plus","sm"):o.star?`<span class="star">${icon("star","sm")}</span>`:o.ic?icon(o.ic,"sm"):""}</span><span class="dd-t"><b class="${o.f?"f":""}">${hl(o.label,c.q)}${o.star?`<span class="star-t">ชื่อตรงกับผู้ใช้</span>`:""}</b><small>${hl(o.sub||"",c.q)}${o.dis?` <span class="dr">— ${esc(o.dis)}</span>`:""}</small></span>${o.badge?`<span class="dd-b ${o.bcls||"g"}">${esc(o.badge)}</span>`:""}</div>`).join("")||`<div class="dd-e">${esc(s.empty||"ไม่พบรายการ")}</div>`}</div>
+  <div class="dd-f"><span><kbd>↑</kbd><kbd>↓</kbd> เลือก</span><span><kbd>Enter</kbd> ${s.kind==="s"?"เพิ่มเป็นชิป":"เลือก"}</span><span><kbd>Esc</kbd> ปิด</span>${s.chips&&s.chips.length?'<span><kbd>⌫</kbd> เลือกชิปล่าสุด · <kbd>⌫</kbd> อีกครั้งเพื่อถอด · <kbd>←</kbd><kbd>→</kbd> ย้ายชิป</span>':""}</div>`;
+ dd.hidden=false;inp.setAttribute("aria-expanded","true");inp.setAttribute("aria-activedescendant",L.length&&act?"ddo"+c.hi:"");positionDrop();const h=dd.querySelector(".dd-i.on");if(h)h.scrollIntoView({block:"nearest"})}
+/* ตำแหน่งคำนวณจากขนาดจริงทุกครั้ง (ใช้ได้กับทุกระดับ zoom): กว้างไม่เกินจอ · เลือกขึ้น/ลงตามที่ว่างมากกว่า · ความสูงรายการปรับตามที่เหลือ */
+function positionDrop(){const dd=$("dd"),c=PM.cb;if(!dd||dd.hidden||!c)return;const inp=$("cb_"+c.key),host=inp&&(inp.closest("td")||inp.closest(".cbhost"));if(!host){hideDrop();return}
+ const vw=document.documentElement.clientWidth||innerWidth,vh=window.innerHeight,M=8,r=host.getBoundingClientRect(),w=Math.max(Math.min(vw-2*M,560),Math.min(vw-2*M,Math.max(300,r.width))),l=dd.querySelector(".dd-l"),hd=dd.querySelector(".dd-h"),ft=dd.querySelector(".dd-f");
+ dd.style.width=Math.min(w,vw-2*M)+"px";dd.style.left=Math.max(M,Math.min(r.left,vw-w-M))+"px";
+ const chrome=(hd?hd.offsetHeight:0)+(ft&&ft.offsetParent?ft.offsetHeight:0)+2,below=vh-r.bottom-M,above=r.top-M,useBelow=below>=chrome+110||below>=above,room=(useBelow?below:above)-chrome-2;
+ l.style.maxHeight=Math.max(40,Math.min(280,room,vh-2*M-chrome))+"px";
+ if(useBelow){dd.style.top=Math.max(M,r.bottom+2)+"px";dd.style.bottom="auto"}else{dd.style.top="auto";dd.style.bottom=Math.max(M,vh-r.top+2)+"px"}
+ const q=dd.getBoundingClientRect();if(q.bottom>vh-M+.5||q.top<M-.5){const h=q.height;dd.style.bottom="auto";dd.style.top=Math.max(M,Math.min(q.top,vh-M-h))+"px"}}
+function hideDrop(){const dd=$("dd");if(dd){dd.hidden=true;dd.innerHTML=""}document.querySelectorAll("[aria-expanded=true]").forEach(i=>i.setAttribute("aria-expanded","false"))}
+/* เลื่อนเฉพาะพื้นที่ตาราง (ไม่ใช้ scrollIntoView เพราะอาจเลื่อนทั้งหน้าตอน zoom แล้ว layout เพี้ยน) */
+function keepVisible(el){const s=document.querySelector(".sheet");if(!s||!el)return;const r=el.getBoundingClientRect(),sr=s.getBoundingClientRect(),th=document.querySelector("table.xl thead"),top=sr.top+(th&&th.offsetParent&&getComputedStyle(th).display!=="none"?th.offsetHeight:0)+2;
+ if(r.top<top)s.scrollTop-=top-r.top;else if(r.bottom>sr.bottom-2)s.scrollTop+=r.bottom-sr.bottom+4}
+/* ---------- คอลัมน์ Login ---------- */
+function loginCell(u){const live=USERS.some(x=>x.id===u.id);
+ if(!live)return `<span class="lp wait" title="ผู้ใช้ใหม่ (ยังไม่บันทึก) · เมื่อบันทึกแล้ว ระบบจะเชื่อม Login ให้อัตโนมัติเมื่อเขา login ครั้งแรกด้วย Email ${escA(u.email)}">รอเชื่อม</span>`;
+ const L=loginsOf(u.id);
+ if(!L.length)return `<span class="lp none" title="ยังไม่เคย login · จะเชื่อมอัตโนมัติเมื่อ login ครั้งแรกด้วย Email ${escA(u.email)} (M365 / AD / SSO)">ยังไม่เคย login</span>`;
+ return `<span class="lps">${L.map(l=>`<span class="lp ${l.p}" title="${escA(PROV[l.p].n+" · เชื่อมครั้งแรก "+l.first+" · login ล่าสุด "+l.last+" · จับคู่ด้วย Email "+u.email)}">${icon("check")}${PROV[l.p].s}</span>`).join("")}</span>`}
+/* ---------- ตาราง ---------- */
+function gridHtml(){const w=PM.w,L=visRows(),cxu=new Set(PM.cx.map(c=>c.u));
+ const rows=L.map((u,idx)=>{const b=U(u.id,PM.b),isNew=!b,self=u.id===ME.id,is=issues(u),errc=is.some(i=>i.lv==="err"),warnc=!errc&&is.some(i=>i.lv==="warn");
+  const roleChg=b&&b.role!==u.role,scopeChg=b&&(b.co.join()!==u.co.join()||accOf(PM.b,u.id).join("|")!==accOf(w,u.id).join("|")),locked=u.role==="ADM",lab=u.role==="EU"?"Oracle account (RECEIVER)":u.role==="ADM"?"ขอบเขต":"บริษัท";
+  return `<tr data-id="${u.id}" class="${isNew?"newr":""} ${cxu.has(u.id)?"dirty":""} ${PM.flash===u.id?"flash":""}">
+   <td class="n">${idx+1}</td>
+   <td class="name" title="${escA(u.n+" · "+u.sam+" · "+u.email+(u.emp?" · รหัส "+u.emp:"")+(u.unit?" · "+u.unit:""))}"><span class="nm">${esc(u.n)}${isNew?'<span class="tag">ใหม่</span>':""}${self?'<span class="tag p">คุณ</span>':""}</span><span class="em2">${esc(u.sam)} · ${esc(u.email)}</span></td>
+   <td class="user" title="${escA(u.sam)}">${esc(u.sam)}</td>
+   <td class="email" title="${escA(u.email+(u.upn&&u.upn!==u.email?" · UPN "+u.upn:""))}">${esc(u.email)}</td>
+   <td class="login" data-l="Login (เชื่อมด้วย Email)">${loginCell(u)}</td>
+   <td class="role ${roleChg?"chg":""}" data-l="บทบาท">${roleCell(u)}</td>
+   <td class="scope ${locked?"lk":""} ${scopeChg||isNew&&(u.co.length||accOf(w,u.id).length)?"chg":""} ${errc?"err":warnc?"warnc":""}" data-l="${lab}" ${is.length?`title="${escA(is.map(i=>i.t).join("\n"))}"`:""}>${scopeCell(u)}</td>
+   <td class="act">${isNew||cxu.has(u.id)?`<button type="button" class="rowbtn" title="${isNew?"ลบแถวใหม่นี้ออกจากร่าง":"คืนค่าแถวนี้เป็นค่าจริง"}" aria-label="${isNew?"ลบแถวใหม่":"รีเซ็ตแถว"}" onclick="resetUser('${u.id}')">${icon(isNew?"trash":"undo","sm")}</button>`:""}</td></tr>`}).join("");
+ return `<table class="xl" aria-label="ตารางสิทธิ์ผู้ใช้"><colgroup><col class="c-n"><col class="c-name"><col class="c-user"><col class="c-email"><col class="c-login"><col class="c-role"><col class="c-scope"><col class="c-act"></colgroup>
+  <thead><tr><th class="n"></th><th class="name">ชื่อ</th><th class="user">Username</th><th class="email">Email</th><th class="login" title="ผู้ใช้ login ด้วย M365 / AD / SSO แล้วถูกจับคู่เข้ากับแถวนี้ด้วย Email">Login (Email)</th><th class="role">บทบาท</th><th class="scope">ขอบเขต: Receiver → Oracle account · Accounting / Acc. Head → บริษัท</th><th class="act"></th></tr></thead><tbody>${rows}</tbody></table>`
+  +(L.length?"":`<div class="nores">${icon("search","lg")}<div>ไม่พบผู้ใช้ตามคำค้น “${esc(PM.q)}”</div></div>`)}
+
+/* =====================================================================
+   toast · หน้าต่างเพิ่ม user (AD LDAP) · จำลอง Login · บันทึก (ตรวจสอบ → อ้างอิงคำขอ → Audit) · หน้าหลัก · แป้นพิมพ์ · zoom
+   ===================================================================== */
+const KL={add:["เพิ่มผู้ใช้","ok"],role:["เปลี่ยนบทบาท","warn"],"co+":["เพิ่มบริษัท","ok"],"co-":["ถอดบริษัท","err"],"acct+":["ผูก account","ok"],"acct-":["ยกเลิกการผูก","err"]};
+function toast(m,e){const t=document.createElement("div");t.className="toast"+(e?" e":"");t.setAttribute("role","status");t.innerHTML=icon(e?"alert":"checkc")+`<span>${m}</span>`;$("toasts").appendChild(t);setTimeout(()=>t.remove(),e?3800:2800)}
+function undoToast(m){document.querySelectorAll(".toast.tu").forEach(x=>x.remove());const t=document.createElement("div");t.className="toast tu";t.innerHTML=icon("checkc")+`<span>${m}</span><button type="button" class="tu-b">เลิกทำ</button>`;t.querySelector("button").onclick=()=>{undo();t.remove()};$("toasts").appendChild(t);setTimeout(()=>t.remove(),7000)}
+const rpill=r=>`<span class="rpill" style="background:${ROLES[r].bg};color:${ROLES[r].c}">${ROLES[r].en}</span>`;
+/* ---------- หน้าต่างทั่วไป ---------- */
+function modal(title,sub,body,okTxt,okFn,o){o=o||{};$("mh").innerHTML=`<span class="mi ${o.cls||""}">${icon(o.ic||"shield","lg")}</span><div><h4 id="mtitle">${title}</h4><p>${sub}</p></div>`;$("mb").innerHTML=body;
+ const b=$("mok");b.className="btn "+(o.okCls||"btn-primary");b.innerHTML=okTxt;b.onclick=okFn;b.disabled=false;
+ const b2=$("mok2");b2.hidden=!o.ok2;if(o.ok2){b2.innerHTML=o.ok2;b2.onclick=o.ok2Fn;b2.disabled=true}
+ $("mcancel").textContent=o.cancel||"ยกเลิก";$("ov").classList.add("on");
+ setTimeout(()=>{const f=$("mb").querySelector("input");(f||b).focus({preventScroll:true})},30)}
+function closeM(){$("ov").classList.remove("on");PM.nu=null;PM.lt=null;if(PM.cb&&PM.cb.key==="n"){PM.cb=null;hideDrop()}}
+/* ---------- เพิ่มผู้ใช้จาก AD (LDAP) ---------- */
+const NU_RD={EU:"ไม่ต้องเลือกบริษัท · ผูก Oracle account",ACC:"เลือกบริษัทที่รับผิดชอบ",APR:"เลือกบริษัท · ตัดสิน Manual Review · ส่ง AP",ADM:"ไม่ใช้ขอบเขต · ไม่เห็นเอกสาร"};
+const AD_FIELDS=[["ชื่อ-นามสกุล","n",0,0],["Username (sAMAccountName)","sam",1,0],["Email (mail)","mail",1,0],["UPN (userPrincipalName)","upn",1,0],["รหัสพนักงาน","emp",1,0],["ตำแหน่ง","title",0,0],["หน่วยงาน","dept",0,0],["OU (distinguishedName)","ou",1,1]];
+function nuOpen(){if(!guard())return;PM.nu={sel:null,role:"EU",loading:false,tk:0};
+ modal("เพิ่มผู้ใช้จาก AD (LDAP)","ค้นหา → เลือก → ข้อมูลถูกดึงมาเติมให้อัตโนมัติ · เพิ่มเป็นแถวร่าง ยังไม่มีผลจนกดบันทึก",'<div id="nuB"></div>',icon("userplus","sm")+"เพิ่มเป็นแถวใหม่",()=>nuCommit(false),{ic:"userplus",cls:"g",okCls:"btn-add",ok2:icon("plus","sm")+"เพิ่ม และเพิ่มคนต่อไป",ok2Fn:()=>nuCommit(true)});
+ nuDraw()}
+function nuSelect(sam){const a=AD.find(x=>x.sam===sam),nu=PM.nu;if(!a||!nu)return;const st=adState(a);if(st){toast(AD_MSG[st],1);return}
+ nu.sel=sam;nu.loading=true;const tk=++nu.tk;PM.cb=null;hideDrop();nuDraw();
+ setTimeout(()=>{if(!PM.nu||PM.nu.tk!==tk)return;PM.nu.loading=false;nuDraw("role")},RM()?0:380)}
+function nuClear(){const nu=PM.nu;if(!nu)return;nu.sel=null;nu.loading=false;nu.tk++;nuDraw("search")}
+function nuRole(r){const nu=PM.nu;if(!nu)return;nu.role=r;nuDraw("role")}
+function nuDraw(f){const nu=PM.nu,box=$("nuB");if(!nu||!box)return;const a=nu.sel?AD.find(x=>x.sam===nu.sel):null,ld=!!(a&&nu.loading),c=curCb("n");
+ const search=`<div class="cbhost">${icon("search","sm")}<input id="cb_n" class="in nu-in" type="text" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="${c&&c.open?"true":"false"}" aria-controls="dd" aria-label="ค้นหาผู้ใช้จาก AD (LDAP)" placeholder="พิมพ์ชื่อ / Username / Email / รหัสพนักงาน…" value="${escA(c?c.q:"")}" autocomplete="off" spellcheck="false" onfocus="cbFocus('n');cbOpen('n')" onclick="cbOpen('n')" oninput="cbInput('n',this.value)" onkeydown="cbKey(event,'n')" onblur="cbBlur('n')"></div>`;
+ const card=a?`<div class="selcard"><span class="av">${esc(a.n.slice(0,1))}</span><div class="t"><b>${esc(a.n)}</b><span>${esc(a.sam)} · ${esc(a.mail)}</span></div><button type="button" class="btn btn-sec" id="nuChg" onclick="nuClear()" title="เลือกคนอื่น">${icon("x","sm")}เปลี่ยนคน</button></div>`:"";
+ const fields=AD_FIELDS.map(([l,k,m,w2])=>`<div class="f ${w2?"w2":""}"><label>${l}<span class="adt">AD</span></label><div class="v ${m?"m":""} ${!a?"empty":ld?"sk":""}">${icon("lock","sm")}<span>${a?esc(a[k]):"— เติมอัตโนมัติ —"}</span></div></div>`).join("");
+ const upnNote=a&&!ld&&normE(a.upn)!==normE(a.mail)?`<div class="fn">${icon("alert","sm")} UPN ต่างจาก Email — ระบบจับคู่ Login ได้ทั้งสองค่า</div>`:"";
+ const roles=RK.map(r=>`<button type="button" class="rc ${nu.role===r?"on":""}" id="nur_${r}" aria-pressed="${nu.role===r}" onclick="nuRole('${r}')"><span class="rk" style="background:${ROLES[r].bg};color:${ROLES[r].c}">${r}</span><span class="tx"><b>${ROLES[r].en} · ${ROLES[r].n}</b><small>${NU_RD[r]}</small></span></button>`).join("");
+ const lk=a&&!ld?`<div class="lnk"><b>${icon("link","sm")} การเชื่อม Login — อัตโนมัติด้วย Email</b>
+   <div class="keyl"><span>คีย์จับคู่:</span><code>${esc(a.mail)}</code>${normE(a.upn)!==normE(a.mail)?`<code>${esc(a.upn)}</code>`:""}</div>
+   <div class="pr">${Object.keys(PROV).map(p=>`<span class="lp ${p}">${icon("check")}${PROV[p].s}</span><span class="d">${esc(PROV[p].n)} — ${esc(p==="ldap"?"ใส่ Username "+a.sam+" → อ่าน mail จาก AD":PROV[p].d)}</span>`).join("")}</div>
+   <div class="ft">ผู้ใช้ไม่ต้องสมัครหรือผูกบัญชีเอง — เมื่อ login ครั้งแรกด้วยช่องทางใดก็ได้ที่ส่ง Email ตรงกับคีย์ข้างต้น ระบบเชื่อมให้ทันที · ถ้า Email ไม่ตรง จะ login ไม่ได้ (ไม่สร้างผู้ใช้ให้เอง)</div></div>`
+  :`<div class="lnk off">${icon("link","sm")} การเชื่อม Login ด้วย Email จะแสดงเมื่อเลือกผู้ใช้</div>`;
+ box.innerHTML=`<label class="lb"><span class="adt" style="font-size:10px">1</span>ค้นหาผู้ใช้จาก AD (LDAP) <span class="req">*</span></label>${a?card:search}
+  <label class="lb" style="margin-top:12px">ข้อมูลที่ดึงจาก AD <span class="muted xs" style="font-weight:400">· แก้ไม่ได้ในที่นี้ (ต้นทางคือ AD)</span></label><div class="af">${fields}</div>${upnNote}
+  <label class="lb"><span class="adt" style="font-size:10px">2</span>บทบาท</label><div class="rcs" role="group" aria-label="บทบาท">${roles}</div>
+  ${nu.role==="APR"||nu.role==="ADM"?`<div class="warn-t">${icon("alert","sm")} บทบาทนี้เป็นการยกระดับสิทธิ์ · ต้องยืนยัน MFA ตอนบันทึก</div>`:""}
+  <label class="lb"><span class="adt" style="font-size:10px">3</span>การเชื่อม Login</label>${lk}
+  <div class="xs muted" style="margin-top:8px">${nu.role==="EU"?"ขั้นถัดไป: ใส่ Oracle account ในตาราง (Receiver ไม่ต้องเลือกบริษัท)":nu.role==="ADM"?"IT Admin ไม่ใช้ขอบเขต":"ขั้นถัดไป: เลือกบริษัทในตาราง (ต้องมีอย่างน้อย 1 บริษัท)"}</div>`;
+ const ok=!!a&&!ld;$("mok").disabled=!ok;$("mok2").disabled=!ok;
+ if(f==="search"){const i=$("cb_n");if(i){i.focus({preventScroll:true});cbOpen("n")}}else if(f==="role"){const b=$("nur_"+nu.role);if(b)b.focus({preventScroll:true})}
+ else if(c&&$("cb_n")){$("cb_n").focus({preventScroll:true})}}
+function nuCommit(cont){const nu=PM.nu;if(!nu||!nu.sel||nu.loading)return;const a=AD.find(x=>x.sam===nu.sel);if(!a||!guard())return;
+ const st=adState(a);if(st){toast(AD_MSG[st],1);return}
+ const id="u"+(Math.max(...PM.w.users.map(u=>+u.id.slice(1)),...USERS.map(u=>+u.id.slice(1)))+1),role=nu.role;
+ const nu_={id,n:a.n,sam:a.sam,email:a.mail,upn:a.upn,alias:[],emp:a.emp,title:a.title,unit:a.dept,role,co:[]};
+ if(cont){PM.cb=null;if(mut(()=>{PM.w.users.push(nu_)},id)){nu.sel=null;nu.role=role;nu.loading=false;nu.tk++;nuDraw("search");toast("เพิ่ม "+a.n+" (แถวใหม่ "+ROLES[role].en+") · เลือกคนต่อไปได้เลย")}return}
+ closeM();const s=role==="ADM"?null:"s:"+id;PM.cb=s?{key:s,q:"",hi:0,ci:-1,open:true,t:true,typed:false}:null;
+ mut(()=>{PM.w.users.push(nu_)},id);
+ toast("เพิ่ม "+a.n+" เป็นแถวใหม่ ("+ROLES[role].en+") · "+(role==="EU"?"ใส่ Oracle account ต่อได้เลย":role==="ADM"?"ไม่ต้องเลือกขอบเขต":"เลือกบริษัทต่อได้เลย"))}
+/* ---------- จำลอง Login ---------- */
+const QK={m365:["somsak.j@aapico.com","wilaiwan.s@aapico.co.th","kamonwan.j@aapico.com","stranger@gmail.com","nattapon.k@aapico.com"],ldap:["somsak.j","wilaiwan.s","kamonwan.j","nobody.x","nattapon.k"]};
+function qkList(p){const L=(QK[p]||QK.m365).slice();const d=PM.w.users.find(u=>!USERS.some(x=>x.id===u.id));if(d)L.splice(3,0,p==="ldap"?d.sam:d.email);return L}
+const QK_NOTE={"wilaiwan.s@aapico.co.th":"UPN ต่างจาก mail","kamonwan.j@aapico.com":"ยังไม่เคย login","stranger@gmail.com":"ไม่มีในพอร์ทัล","nattapon.k@aapico.com":"ปิดใน AD","nobody.x":"ไม่มีใน AD","kamonwan.j":"ยังไม่เคย login","nattapon.k":"ปิดใน AD","wilaiwan.s":"UPN ต่างจาก mail"};
+function ltOpen(){if(!guard())return;PM.lt={p:"m365",q:"",res:null};
+ modal("จำลอง Login — จับคู่ด้วย Email","ทดสอบว่าผู้ใช้ที่ login ด้วย M365 / AD / SSO ถูกเชื่อมเข้ากับแถวในตารางหรือไม่ · ไม่ใช่การแก้สิทธิ์ (ไม่ต้องบันทึก)",'<div id="ltB"></div>',icon("login","sm")+"ทดสอบ Login",ltRun,{ic:"login",cls:"b",cancel:"ปิด"});ltDraw("q")}
+function ltProv(p){PM.lt.p=p;PM.lt.res=null;ltDraw("q")}
+function ltQ(v){PM.lt.q=v;ltRun()}
+function scopeSum(u){if(u.role==="ADM")return "ไม่ใช้ขอบเขต (ไม่เห็นเนื้อหาเอกสาร)";if(u.role==="EU"){const n=MAPS.filter(m=>m.user===u.id).length;return n?n+" Oracle account":"ยังไม่ผูก Oracle account"}return u.co.length?"บริษัท "+u.co.join(", "):"ยังไม่ได้เลือกบริษัท"}
+function ltRes(r){if(!r)return "";const dl=(a)=>`<dl>${a.map(([k,v,m])=>`<dt>${k}</dt><dd class="${m?"m":""}">${v}</dd>`).join("")}</dl>`;
+ if(r.ok){const u=r.u,via={email:"Email หลัก (mail)",upn:"UPN (userPrincipalName)",alias:"Email สำรอง (alias)"}[r.via],noacc=u.role==="EU"&&!MAPS.some(m=>m.user===u.id);
+  return `<div class="res ${noacc?"wn":"ok"}"><h5>${icon("checkc")} Login สำเร็จ · ${r.first?"เชื่อม <b>"+PROV[r.p].n+"</b> เข้ากับบัญชีครั้งแรก":"login ซ้ำ (เชื่อม "+PROV[r.p].s+" ไว้แล้ว)"}</h5>${dl([["Email ที่ใช้จับคู่",esc(r.email)+(r.from?" <span style='font-family:var(--font);opacity:.7'>(จาก Username "+esc(r.from)+")</span>":""),1],["จับคู่กับ",esc(u.n)+" · "+esc(ROLES[u.role].en)],["จับคู่ด้วย",via],["สิทธิ์ที่ได้",esc(scopeSum(u))]])}${noacc?`<div class="warn-t">${icon("alert","sm")} login ได้ แต่จะไม่เห็นเอกสารใดเลยจนกว่าจะผูก Oracle account</div>`:""}</div>`}
+ const M={empty:["bad","กรอก Email หรือ Username ก่อน",""],bad:["bad","รูปแบบไม่ถูกต้อง","ช่องทางนี้ต้องส่งเป็น Email (มี @) — เฉพาะ AD (LDAP) ที่ใส่ Username ได้"],
+  "ad-nf":["bad","ไม่พบ Username “"+esc(r.input||"")+"” ใน AD","ตรวจชื่อผู้ใช้อีกครั้ง"],"ad-off":["bad","บัญชีถูกปิดใช้งานใน AD","ผู้ให้บริการ login ปฏิเสธก่อนถึงพอร์ทัล · ให้ฝ่าย IT เปิดบัญชีใน AD ก่อน"],
+  nf:["bad","เข้าใช้ไม่ได้ · ไม่พบ Email “"+esc(r.email||"")+"” ในพอร์ทัล","ระบบ<b>ไม่สร้างผู้ใช้ให้อัตโนมัติ</b> — ให้ IT Admin เพิ่มผู้ใช้ก่อน"+(r.inAd?" (พบใน AD · เพิ่มได้ด้วยปุ่ม “เพิ่มผู้ใช้”)":"")],
+  draft:["wn","ผู้ใช้นี้ยังอยู่ในร่าง (ยังไม่บันทึก)","พบ “"+esc(r.draft?r.draft.n:"")+"” ในตาราง แต่ยังไม่มีผลกับระบบจริง · กด “ตรวจสอบและบันทึก” ก่อนจึงจะ login ได้"],
+  dup:["bad","Email “"+esc(r.email||"")+"” ตรงกับผู้ใช้มากกว่า 1 คน","จับคู่ไม่ได้ · ให้ IT Admin แก้ข้อมูลซ้ำ"]}[r.code];
+ return `<div class="res ${M[0]}"><h5>${icon(M[0]==="wn"?"alert":"x")} ${M[1]}</h5>${M[2]?`<div>${M[2]}</div>`:""}</div>`}
+function ltDraw(f){const lt=PM.lt,box=$("ltB");if(!lt||!box)return;const p=lt.p;
+ box.innerHTML=`<label class="lb">ช่องทาง Login</label><div class="seg" role="group" aria-label="ช่องทาง Login">${Object.keys(PROV).map(k=>`<button type="button" class="${p===k?"on":""}" aria-pressed="${p===k}" onclick="ltProv('${k}')">${esc(PROV[k].n)}</button>`).join("")}</div><div class="xs muted" style="margin-top:4px">${esc(PROV[p].d)}</div>
+  <label class="lb" for="ltQ">${p==="ldap"?"Username หรือ Email":"Email ที่ได้รับจากผู้ให้บริการ login"}</label><input id="ltQ" class="in" type="text" autocomplete="off" spellcheck="false" value="${escA(lt.q)}" placeholder="${p==="ldap"?"เช่น somsak.j หรือ somsak.j@aapico.com":"เช่น somsak.j@aapico.com"}" oninput="PM.lt.q=this.value" onkeydown="if(event.key==='Enter'){event.preventDefault();ltRun()}">
+  <div class="qk"><span>ลอง:</span>${qkList(p).map(x=>`<button type="button" onclick="ltQ('${jq(x)}')" title="${escA(QK_NOTE[x]||"")}">${esc(x)}</button>`).join("")}</div><div id="ltRes">${ltRes(lt.res)}</div>`;
+ if(f==="q"){const i=$("ltQ");if(i){i.focus({preventScroll:true});try{i.setSelectionRange(i.value.length,i.value.length)}catch(x){}}}}
+function ltRun(){const lt=PM.lt;if(!lt)return;if(!lt.q.trim()){lt.res={ok:false,code:"empty"};ltDraw("q");return}
+ lt.res=simLogin(lt.p,lt.q);ltDraw("q");draw()}
+/* ---------- ตรวจสอบและบันทึก ---------- */
+function diffHtml(){const by={};PM.cx.forEach(c=>(by[c.u]=by[c.u]||[]).push(c));
+ return Object.entries(by).map(([id,L])=>{const u=U(id);return `<div class="diff"><div class="u"><b>${esc(u.n)}</b>${rpill(u.role)}<span class="muted xs mono">${esc(u.sam)} · ${esc(u.email)}</span></div>`
+  +L.map(c=>{const K=KL[c.k],t=c.k==="add"?`เป็น <b>${esc(c.to)}</b> · จาก AD (LDAP) · เชื่อม Login ด้วย Email <span class="mono">${esc(u.email)}</span>`:c.k==="role"?`<s>${esc(c.from)}</s> → <b>${esc(c.to)}</b>`:c.k==="co+"||c.k==="acct+"?`<b>${esc(c.to)}</b>`:`<s>${esc(c.from)}</s>`;
+   return `<div class="df"><span class="dk ${K[1]}">${K[0]}</span><span>${t}</span>${c.esc?'<span class="esc">ยกระดับสิทธิ์</span>':""}</div>`}).join("")+`</div>`}).join("")}
+function applyOpen(){if(!guard()||!PM.cx.length)return;const A=allIssues();if(A.errs.length){toast("แก้ข้อผิดพลาดก่อนบันทึก: "+A.errs[0].t,1);issueJump("e");return}
+ const us=new Set(PM.cx.map(c=>c.u)),mfa=PM.cx.some(c=>c.esc),up=PM.cx.filter(c=>["co+","acct+","add"].includes(c.k)).length,dn=PM.cx.filter(c=>["co-","acct-"].includes(c.k)).length;
+ modal("ยืนยันการเปลี่ยนสิทธิ์",PM.cx.length+" รายการ · "+us.size+" ผู้ใช้ · มีผลทันทีหลังบันทึก",
+  `<div class="sumr"><div><b>${PM.cx.length}</b><span>รายการ</span></div><div><b>${us.size}</b><span>ผู้ใช้</span></div><div><b style="color:var(--ok)">+${up}</b><span>ให้สิทธิ์เพิ่ม</span></div><div><b style="color:var(--err)">−${dn}</b><span>ถอนสิทธิ์</span></div></div>${diffHtml()}
+   ${A.warns.length?`<div class="note">${icon("alert")}<div><b>คำเตือน ${A.warns.length} ข้อ (บันทึกได้)</b>${A.warns.slice(0,4).map(x=>`<div style="margin-top:3px">• ${esc(x.t)}</div>`).join("")}</div></div>`:""}
+   <label class="lb" for="aRef">อ้างอิงคำขอ (ticket / อีเมล) <span class="req">*</span></label><input id="aRef" class="in" placeholder="เช่น INC-1055" autocomplete="off">
+   ${mfa?`<label class="lb" for="aMfa">รหัส MFA <span class="req">* ยกระดับสิทธิ์</span></label><input id="aMfa" class="in" type="password" placeholder="mockup ใช้ 123456" autocomplete="off">`:""}`,icon("save","sm")+"บันทึก "+PM.cx.length+" รายการ",applyDo)}
+function applyDo(){if(!guard()){closeM();return}const ref=($("aRef").value||"").trim();if(!ref){$("aRef").focus();return toast("ระบุอ้างอิงคำขอ (ticket / อีเมล) ก่อนบันทึกทุกครั้ง",1)}
+ if(PM.cx.some(c=>c.esc)&&$("aMfa").value!=="123456"){$("aMfa").focus();return toast("รหัส MFA ไม่ถูกต้อง",1)}
+ const b=$("mok");b.classList.add("is-busy");b.disabled=true;b.innerHTML='<span class="spn"></span>กำลังบันทึก…';setTimeout(()=>commit(ref),RM()?0:450)}
+const snapLive=()=>({users:USERS.map(u=>({id:u.id,role:u.role,co:[...u.co]})),maps:MAPS.map(m=>({...m})),extra:[...EXTRA],logins:LOGINS.length});
+function commit(ref){const cx=PM.cx.slice(),snap=snapLive(),n=cx.length;
+ PM.w.users.forEach(wu=>{let u=USERS.find(x=>x.id===wu.id);if(!u){u={...wu,co:[...wu.co],alias:[...(wu.alias||[])]};USERS.push(u)}u.role=wu.role;u.co=[...wu.co]});
+ MAPS.length=0;PM.w.maps.forEach(m=>MAPS.push({...m}));EXTRA.length=0;PM.w.extra.forEach(a=>EXTRA.push(a));
+ cx.forEach(c=>AUDIT.unshift({dt:TODAY,by:ME.n,k:c.k,u:c.u,from:c.from||"—",to:c.to||"—",ref}));
+ PM.b=clone();PM.w=clone();PM.hist=[];PM.redo=[];PM.applied={snap,n,ref};closeM();fillUserSel();draw();
+ document.querySelectorAll(".toast.tu").forEach(x=>x.remove());const t=document.createElement("div");t.className="toast tu";t.innerHTML=icon("checkc")+`<span>บันทึกแล้ว ${n} รายการ · อ้างอิง ${esc(ref)} · บันทึกใน Audit</span><button type="button" class="tu-b">ย้อนกลับ</button>`;t.querySelector("button").onclick=()=>{undoApplied();t.remove()};$("toasts").appendChild(t);setTimeout(()=>t.remove(),9000)}
+function undoApplied(){const a=PM.applied;if(!a||!guard())return;const S=a.snap,keep=new Set(S.users.map(u=>u.id));
+ S.users.forEach(s=>{const u=USERS.find(x=>x.id===s.id);if(u){u.role=s.role;u.co=[...s.co]}});for(let i=USERS.length-1;i>=0;i--)if(!keep.has(USERS[i].id))USERS.splice(i,1);
+ for(let i=LOGINS.length-1;i>=0;i--)if(!keep.has(LOGINS[i].u))LOGINS.splice(i,1);
+ MAPS.length=0;S.maps.forEach(m=>MAPS.push({...m}));EXTRA.length=0;S.extra.forEach(x=>EXTRA.push(x));
+ AUDIT.unshift({dt:TODAY,by:ME.n,k:"undo",u:"",from:"—",to:"คืนค่าเดิม "+a.n+" รายการ",ref:a.ref});PM.applied=null;PM.b=clone();PM.w=clone();PM.hist=[];PM.redo=[];fillUserSel();draw();toast("ย้อนกลับการบันทึกแล้ว · คืนค่าเดิมทั้งหมด")}
+function issueJump(k){const A=allIssues(),L=k==="e"?A.errs:A.warns,f=L.find(x=>x.u)||L[0];if(!f)return;if(!f.u){toast(f.t,k==="e");return}PM.q="";PM.flash=f.u;draw();
+ const r=document.querySelector(`tr[data-id="${f.u}"]`);if(r)keepVisible(r);toast(f.t,k==="e")}
+/* ---------- หน้าหลัก ---------- */
+function page(){const n=PM.cx.length,us=new Set(PM.cx.map(c=>c.u)).size,A=allIssues();
+ return `<div class="bar"><span class="ttl">${icon("shield","lg")}จัดการสิทธิ์</span>
+   <button type="button" class="btn btn-add" id="btnAdd" onclick="nuOpen()" title="เพิ่มผู้ใช้จาก AD (LDAP) · กด N" aria-label="เพิ่มผู้ใช้">${icon("userplus","sm")}<span>เพิ่มผู้ใช้</span> <kbd>N</kbd></button>
+   <div class="srch">${icon("search","sm")}<input id="q" type="search" placeholder="ค้นหาในตาราง  ( / )" aria-label="ค้นหาในตาราง" value="${escA(PM.q)}" oninput="PM.q=this.value;draw()" autocomplete="off"></div>
+   <button type="button" class="btn btn-sec" onclick="ltOpen()" title="ทดสอบการจับคู่ Login ด้วย Email (M365 / AD / SSO)" aria-label="จำลอง Login">${icon("login","sm")}<span class="lbl">จำลอง Login</span></button>
+   <span class="grow"></span><span class="hint kb">พิมพ์ในช่อง → <kbd>↑</kbd><kbd>↓</kbd> → <kbd>Enter</kbd> · <kbd>⌫</kbd> ถอด chip · <kbd>Enter</kbd> ที่ช่องว่าง = ลงแถวถัดไป</span></div>
+  <div class="sheet" data-sk="sheet">${gridHtml()}</div>
+  <div class="foot ${n?"dirty":""}"><span class="fs">${n?icon("alert","sm")+`<span><b>${n}</b> รายการยังไม่บันทึก<span class="more"> · <b>${us}</b> ผู้ใช้ · ยังไม่มีผลกับระบบจริง</span></span>`:icon("checkc","sm")+"<span>ไม่มีการเปลี่ยนแปลงค้าง<span class=\"more\"> · ตรงกับระบบ</span></span>"}</span>
+   ${A.errs.length?`<button class="fi err" onclick="issueJump('e')" title="${escA(A.errs.map(x=>x.t).join("\n"))}">${icon("x","sm")}${A.errs.length}<span class="lbl"> ข้อผิดพลาด</span></button>`:""}${A.warns.length?`<button class="fi warn" onclick="issueJump('w')" title="${escA(A.warns.map(x=>x.t).join("\n"))}">${icon("alert","sm")}${A.warns.length}<span class="lbl"> คำเตือน</span></button>`:""}
+   <span class="grow"></span><span class="vsep"></span>
+   <button class="btn btn-sec" ${PM.hist.length?"":"disabled"} onclick="undo()" title="เลิกทำ (Ctrl+Z)" aria-label="เลิกทำ">${icon("undo","sm")}<span class="lbl">เลิกทำ</span> <kbd>Ctrl+Z</kbd></button><button class="btn btn-sec" ${PM.redo.length?"":"disabled"} onclick="redo()" title="ทำซ้ำ (Ctrl+Y)" aria-label="ทำซ้ำ">${icon("redo","sm")}<span class="lbl">ทำซ้ำ</span></button>
+   <button class="btn btn-danger" ${n?"":"disabled"} onclick="discardAll()" title="ยกเลิกการเปลี่ยนแปลงทั้งหมด" aria-label="ยกเลิกทั้งหมด">${icon("trash","sm")}<span class="lbl">ยกเลิกทั้งหมด</span></button><button class="btn btn-primary" ${n?"":"disabled"} onclick="applyOpen()" title="ดูสรุปก่อนบันทึก (Ctrl+S)" aria-label="ตรวจสอบและบันทึก">${icon("save","sm")}<span class="full">ตรวจสอบและบันทึก</span><span class="short">บันทึก</span> <kbd>Ctrl+S</kbd></button></div>`}
+const lockedPage=()=>`<div class="lockp">${icon("lock")}<h3 style="margin:10px 0 4px">เฉพาะผู้ดูแลระบบ (IT Admin)</h3><p class="muted">บทบาท ${ROLES[ME.role].en} ไม่มีสิทธิ์จัดการสิทธิ์ · สลับผู้ใช้ที่มุมขวาบนเพื่อกลับไปเป็น อนุชา ไอที</p></div>`;
+function draw(){const app=$("app");if(!app)return;const ae=document.activeElement,fid=ae&&ae.id,fs=ae&&ae.selectionStart,fe=ae&&ae.selectionEnd,sk={};
+ document.querySelectorAll("[data-sk]").forEach(e=>sk[e.dataset.sk]=[e.scrollTop,e.scrollLeft]);
+ PM.cx=changes();PM.redraw=true;app.innerHTML=ME.role!=="ADM"?lockedPage():page();PM.redraw=false;
+ document.querySelectorAll("[data-sk]").forEach(e=>{const s=sk[e.dataset.sk];if(s){e.scrollTop=s[0];e.scrollLeft=s[1]}});
+ if(PM.cb){const i=$("cb_"+PM.cb.key);if(i){if(!$("ov").classList.contains("on")||PM.cb.key==="n")i.focus({preventScroll:true});if(PM.cb.key[0]==="r"&&!PM.cb.typed)i.select();else{try{i.setSelectionRange(i.value.length,i.value.length)}catch(x){}}
+   keepVisible(i.closest("td"));renderDrop()}else{PM.cb=null;hideDrop()}}
+ else{hideDrop();if(fid==="q"&&$("q")){$("q").focus({preventScroll:true});try{$("q").setSelectionRange(fs,fe)}catch(x){}}}
+ const nc=$("navCnt");if(nc){nc.textContent=PM.cx.length;nc.hidden=!PM.cx.length}PM.flash=null}
+function fillUserSel(){const s=$("user");s.innerHTML=USERS.map(u=>`<option value="${u.id}">${esc(u.n)} — ${ROLES[u.role].en}</option>`).join("");s.value=ME.id;const rb=$("rolebadge"),r=ROLES[ME.role];rb.textContent=r.en;rb.style.background=r.bg;rb.style.color=r.c}
+function switchUser(){ME=USERS.find(u=>u.id===$("user").value);fillUserSel();PM.cb=null;draw();toast("สลับเป็น "+ME.n+" · "+ROLES[ME.role].en)}
+document.addEventListener("keydown",e=>{const ov=$("ov").classList.contains("on"),t=e.target,tg=t.tagName||"",isCb=t.classList&&(t.classList.contains("cin")||t.classList.contains("rin")||t.classList.contains("nu-in"));
+ if(e.key==="Escape"){if(e.defaultPrevented)return;if(ov)closeM();return}
+ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="s"){e.preventDefault();if(!ov&&PM.cx.length)applyOpen();return}
+ if(ov)return;
+ const typing=/INPUT|TEXTAREA/.test(tg)&&!(isCb&&(!t.value||(t.classList.contains("rin")&&!(PM.cb&&PM.cb.typed))));
+ /* หมายเหตุ: Ctrl + / Ctrl - / Ctrl 0 (zoom ของเบราว์เซอร์) ไม่ถูกจับ จึงใช้งานได้ปกติ */
+ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"&&!typing){e.preventDefault();e.shiftKey?redo():undo();return}
+ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="y"&&!typing){e.preventDefault();redo();return}
+ if(/INPUT|TEXTAREA|SELECT/.test(tg)||e.ctrlKey||e.metaKey||e.altKey)return;
+ if(e.key==="/"){const q=$("q");if(q){e.preventDefault();q.focus({preventScroll:true})}return}
+ if(e.key.toLowerCase()==="n"){e.preventDefault();nuOpen()}});
+/* zoom / resize / เลื่อน → จัดตำแหน่ง dropdown ใหม่ (zoom ทำให้ resize event ยิงเสมอ) */
+let _rz=0;const relayout=()=>{cancelAnimationFrame(_rz);_rz=requestAnimationFrame(()=>{if(PM.cb&&PM.cb.open)positionDrop();const a=PM.cb&&$("cb_"+PM.cb.key);if(a)keepVisible(a.closest("td"))})};
+addEventListener("resize",relayout);addEventListener("scroll",()=>{if(PM.cb&&PM.cb.open)positionDrop()},true);
+if(window.visualViewport){visualViewport.addEventListener("resize",relayout)}
+if(window.ResizeObserver){new ResizeObserver(relayout).observe(document.documentElement)}
+(function init(){PM.w=clone();PM.b=clone();fillUserSel();draw()})();
+
+</script>
+</body>
+</html>

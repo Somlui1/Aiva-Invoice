@@ -4,9 +4,14 @@ import { PERMISSION_DESCRIPTIONS, ROLES, USERS, acctsOf } from '../../mock/users
 import { COMPANIES, ORG_NAMES } from '../../mock/companies'
 import { Permission } from '../../types/auth'
 
+import { useAuth } from '../../context/AuthContext'
+import { PermissionExcelGrid } from './rbac/PermissionExcelGrid'
+
 export function RbacPage() {
+  const { can } = useAuth()
   const permKeys = Object.keys(PERMISSION_DESCRIPTIONS) as Permission[]
   const roleKeys = Object.keys(ROLES) as Array<keyof typeof ROLES>
+  const canManage = can('MAP')
 
   return (
     <div className="pg">
@@ -18,6 +23,12 @@ export function RbacPage() {
       </div>
 
       <div className="pg-scroll">
+        {/* Interactive Permission Admin Excel Grid (Mockup v3) */}
+        {canManage && (
+          <div className="panel" style={{ marginBottom: 16 }}>
+            <PermissionExcelGrid />
+          </div>
+        )}
         {/* Permission Matrix */}
         <div className="panel">
           <div className="panel-h">
@@ -69,60 +80,62 @@ export function RbacPage() {
           </div>
         </div>
 
-        {/* User Mapping Table */}
-        <div className="panel" style={{ marginTop: 16 }}>
-          <div className="panel-h">
-            <h3>ผู้ใช้งานในระบบและการผูกบัญชี (ตารางที่ 5)</h3>
-          </div>
-          <div className="tbl-wrap">
-            <table className="t">
-              <thead>
-                <tr>
-                  <th>ชื่อ</th>
-                  <th>Entra ID</th>
-                  <th>บทบาท</th>
-                  <th>หน่วยงาน</th>
-                  <th>Oracle account (Receiver)</th>
-                  <th>บริษัทที่รับผิดชอบ</th>
-                </tr>
-              </thead>
-              <tbody>
-                {USERS.map(u => (
-                  <tr key={u.id}>
-                    <td>
-                      <b>{u.n}</b>
-                    </td>
-                    <td className="mono">{u.email}</td>
-                    <td>
-                      <span
-                        className="role-pill"
-                        style={{
-                          background: ROLES[u.role].bg,
-                          color: ROLES[u.role].c
-                        }}
-                      >
-                        {ROLES[u.role].n}
-                      </span>
-                    </td>
-                    <td>{u.unit}</td>
-                    <td className="mono">
-                      {acctsOf(u).join(', ') || (
-                        <span className="nac">—</span>
-                      )}
-                    </td>
-                    <td>
-                      {u.co.map(c => (
-                        <span key={c} className="co" style={{ margin: '0 4px 0 0' }}>
-                          {c}
-                        </span>
-                      ))}
-                    </td>
+        {/* User Mapping Table (Read-only for non-admin) */}
+        {!canManage && (
+          <div className="panel" style={{ marginTop: 16 }}>
+            <div className="panel-h">
+              <h3>ผู้ใช้งานในระบบและการผูกบัญชี (ตารางที่ 5)</h3>
+            </div>
+            <div className="tbl-wrap">
+              <table className="t">
+                <thead>
+                  <tr>
+                    <th>ชื่อ</th>
+                    <th>Entra ID</th>
+                    <th>บทบาท</th>
+                    <th>หน่วยงาน</th>
+                    <th>Oracle account (Receiver)</th>
+                    <th>บริษัทที่รับผิดชอบ</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {USERS.map(u => (
+                    <tr key={u.id}>
+                      <td>
+                        <b>{u.n}</b>
+                      </td>
+                      <td className="mono">{u.email}</td>
+                      <td>
+                        <span
+                          className="role-pill"
+                          style={{
+                            background: ROLES[u.role].bg,
+                            color: ROLES[u.role].c
+                          }}
+                        >
+                          {ROLES[u.role].n}
+                        </span>
+                      </td>
+                      <td>{u.unit}</td>
+                      <td className="mono">
+                        {acctsOf(u).join(', ') || (
+                          <span className="nac">—</span>
+                        )}
+                      </td>
+                      <td>
+                        {u.co.map(c => (
+                          <span key={c} className="co" style={{ margin: '0 4px 0 0' }}>
+                            {c}
+                          </span>
+                        ))}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Company & Org IDs Table */}
         <div className="panel" style={{ marginTop: 16 }}>
