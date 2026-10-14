@@ -90,7 +90,7 @@ interface InvoiceContextType {
     note: string,
     simOutcome?: string,
     uploadFile?: string
-  ) => { ok: boolean; msg: string }
+  ) => Promise<{ ok: boolean; msg: string }>
   precheckPost: (doc: InvoiceDoc) => { ok: boolean; code?: string; why: string }
   batchPost: (docIds: string[]) => { ok: boolean; count: number; msg: string }
   ingestResultToQueue: (payload: any) => void
@@ -280,14 +280,14 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
 
   // Execute workflow action
   const executeAction = useCallback(
-    (
+    async (
       docId: string,
       action: ActionType,
       reason: string,
       note: string,
       simOutcome = 'Auto-pass',
       uploadFile = 'revision.pdf'
-    ): { ok: boolean; msg: string } => {
+    ): Promise<{ ok: boolean; msg: string }> => {
       const doc = docs.find(d => d.doc === docId)
       if (!doc) return { ok: false, msg: 'ไม่พบเอกสาร' }
 
@@ -503,6 +503,30 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
 
       logAudit(ACTION_CONFIG[action].title, doc.doc, `${fromStatus} → ${newStatus} · ${reason}`)
       toast(msg)
+
+      // Persist to server API
+      try {
+        const actionType = action === 'upload' ? 'upload_revision' : action
+        await fetch(`/api/documents/${encodeURIComponent(docId)}/actions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': currentUser.id,
+            'x-user-role': currentUser.role,
+            'x-user-name': encodeURIComponent(currentUser.n),
+          },
+          body: JSON.stringify({
+            action: actionType,
+            reason,
+            note,
+            simOutcome,
+            uploadFile,
+          }),
+        })
+      } catch (err) {
+        console.warn('Action persistence network error:', err)
+      }
+
       return { ok: true, msg }
     },
     [docs, allowedAction, currentUser, hasHighSeverity, logAudit, toast]
