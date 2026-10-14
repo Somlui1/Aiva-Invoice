@@ -1492,3 +1492,241 @@ def test_classify_named_copy_page_drops_even_with_misread_qty():
     assert len(kept) == 2 and len(notes) == 1 and notes[0]["page"] == 3
     kept2, notes2 = vp.drop_duplicate_copies(per_page, types, identity)
     assert len(kept2) == 4 and notes2 == []
+
+
+# ------------------------------------------------------- Task 5B: Pure Numeric Line Pairing & Split-Line Aggregation
+def test_numeric_pairing_ignores_uom_and_description_when_qty_price_amount_match():
+    from decimal import Decimal
+    from system_a.domain.contracts import InvoiceDoc, NField, NLine, ReceiptRow
+    from system_a.domain.matching import resolve
+    from system_a.domain.rules import Ctx, v07_line_match, v08_quantity
+    from system_a.domain.standard import load_standard
+
+    l1 = NLine(
+        line_no=1,
+        element_id="L1",
+        cells={
+            "description": NField("description", "L1-d", "COIL A", "COIL A", 1.0, True),
+            "qty": NField("qty", "L1-q", "701", Decimal("701"), 1.0, True),
+            "unit_price": NField("unit_price", "L1-p", "35.70", Decimal("35.70"), 1.0, True),
+            "amount": NField("amount", "L1-a", "25025.70", Decimal("25025.70"), 1.0, True),
+            "uom": NField("uom", "L1-u", None, None, 1.0, False),
+        },
+        uom_group=None,
+    )
+    r1 = ReceiptRow(
+        org_id=101, receipt_num="R1", receiver="WH", line=1, item="SPC590 STEEL",
+        qty=Decimal("701"), uom="KG", unit_price=Decimal("35.70"), line_amount=Decimal("25025.70"),
+    )
+    doc = InvoiceDoc("D1", {}, (l1,), {}, True)
+    snapshot = type("Snapshot", (), {
+        "found": True,
+        "active": [r1],
+        "rows": [r1],
+        "org_id": 101,
+        "receipt_nums": ["R1"],
+    })()
+    std = load_standard()
+    std.policy.setdefault("ai", {})["v08_mode"] = "logic"
+
+    groups, trace = resolve(doc, (r1,), std, ai=None)
+    assert len(groups) == 1
+    assert groups[0].relation == "1:1"
+    assert groups[0].level == "M1"
+    assert groups[0].invoice_line_nos == (1,)
+    assert groups[0].rcv_line_ids == ("R1-1",)
+
+    c = Ctx(doc=doc, snapshot=snapshot, std=std, groups=groups, match_trace=trace, ai_trace={})
+    res_v07 = v07_line_match(c)
+    assert res_v07.result == "pass", f"V-07 failed: {res_v07.findings}"
+
+    res_v08 = v08_quantity(c)
+    assert res_v08.result == "pass", f"V-08 failed: {res_v08.findings}"
+
+
+
+
+
+
+def test_numeric_pairing_n_to_1_invoice_split_coils():
+    from decimal import Decimal
+    from system_a.domain.contracts import InvoiceDoc, NField, NLine, ReceiptRow
+    from system_a.domain.matching import resolve
+    from system_a.domain.rules import Ctx, v07_line_match, v08_quantity
+    from system_a.domain.standard import load_standard
+
+    l1 = NLine(
+        line_no=1,
+        element_id="L1",
+        cells={
+            "description": NField("description", "L1-d", "COIL 1", "COIL 1", 1.0, True),
+            "qty": NField("qty", "L1-q", "701", Decimal("701"), 1.0, True),
+            "unit_price": NField("unit_price", "L1-p", "35.70", Decimal("35.70"), 1.0, True),
+            "amount": NField("amount", "L1-a", "25025.70", Decimal("25025.70"), 1.0, True),
+            "uom": NField("uom", "L1-u", None, None, 1.0, False),
+        },
+        uom_group=None,
+    )
+    l2 = NLine(
+        line_no=2,
+        element_id="L2",
+        cells={
+            "description": NField("description", "L2-d", "COIL 2", "COIL 2", 1.0, True),
+            "qty": NField("qty", "L2-q", "701", Decimal("701"), 1.0, True),
+            "unit_price": NField("unit_price", "L2-p", "35.70", Decimal("35.70"), 1.0, True),
+            "amount": NField("amount", "L2-a", "25025.70", Decimal("25025.70"), 1.0, True),
+            "uom": NField("uom", "L2-u", None, None, 1.0, False),
+        },
+        uom_group=None,
+    )
+    r1 = ReceiptRow(
+        org_id=101, receipt_num="R1", receiver="WH", line=1, item="SPC590 STEEL",
+        qty=Decimal("1402"), uom="KG", unit_price=Decimal("35.70"), line_amount=Decimal("50051.40"),
+    )
+    doc = InvoiceDoc("D1", {}, (l1, l2), {}, True)
+    snapshot = type("Snapshot", (), {
+        "found": True,
+        "active": [r1],
+        "rows": [r1],
+        "org_id": 101,
+        "receipt_nums": ["R1"],
+    })()
+    std = load_standard()
+    std.policy.setdefault("ai", {})["v08_mode"] = "logic"
+
+    groups, trace = resolve(doc, (r1,), std, ai=None)
+    assert len(groups) == 1
+    assert groups[0].relation == "N:1"
+    assert groups[0].level == "M1"
+    assert set(groups[0].invoice_line_nos) == {1, 2}
+    assert groups[0].rcv_line_ids == ("R1-1",)
+
+    c = Ctx(doc=doc, snapshot=snapshot, std=std, groups=groups, match_trace=trace, ai_trace={})
+    res_v07 = v07_line_match(c)
+    assert res_v07.result == "pass", f"V-07 failed: {res_v07.findings}"
+
+    res_v08 = v08_quantity(c)
+    assert res_v08.result == "pass", f"V-08 failed: {res_v08.findings}"
+
+
+def test_numeric_pairing_1_to_n_receipt_split():
+    from decimal import Decimal
+    from system_a.domain.contracts import InvoiceDoc, NField, NLine, ReceiptRow
+    from system_a.domain.matching import resolve
+    from system_a.domain.rules import Ctx, v07_line_match, v08_quantity
+    from system_a.domain.standard import load_standard
+
+    l1 = NLine(
+        line_no=1,
+        element_id="L1",
+        cells={
+            "description": NField("description", "L1-d", "Widget Consolidate", "Widget Consolidate", 1.0, True),
+            "qty": NField("qty", "L1-q", "1000", Decimal("1000"), 1.0, True),
+            "unit_price": NField("unit_price", "L1-p", "50.00", Decimal("50.00"), 1.0, True),
+            "amount": NField("amount", "L1-a", "50000.00", Decimal("50000.00"), 1.0, True),
+            "uom": NField("uom", "L1-u", "PCS", "PCS", 1.0, True),
+        },
+        uom_group="PCS",
+    )
+    r1 = ReceiptRow(
+        org_id=101, receipt_num="R1", receiver="WH", line=1, item="Widget Lot 1",
+        qty=Decimal("600"), uom="PCS", unit_price=Decimal("50.00"), line_amount=Decimal("30000.00"),
+    )
+    r2 = ReceiptRow(
+        org_id=101, receipt_num="R1", receiver="WH", line=2, item="Widget Lot 2",
+        qty=Decimal("400"), uom="PCS", unit_price=Decimal("50.00"), line_amount=Decimal("20000.00"),
+    )
+    doc = InvoiceDoc("D1", {}, (l1,), {}, True)
+    snapshot = type("Snapshot", (), {
+        "found": True,
+        "active": [r1, r2],
+        "rows": [r1, r2],
+        "org_id": 101,
+        "receipt_nums": ["R1"],
+    })()
+    std = load_standard()
+    std.policy.setdefault("ai", {})["v08_mode"] = "logic"
+
+    groups, trace = resolve(doc, (r1, r2), std, ai=None)
+    assert len(groups) == 1
+    assert groups[0].relation == "1:N"
+    assert groups[0].level == "M1"
+    assert groups[0].invoice_line_nos == (1,)
+    assert set(groups[0].rcv_line_ids) == {"R1-1", "R1-2"}
+
+    c = Ctx(doc=doc, snapshot=snapshot, std=std, groups=groups, match_trace=trace, ai_trace={})
+    res_v07 = v07_line_match(c)
+    assert res_v07.result == "pass", f"V-07 failed: {res_v07.findings}"
+
+    res_v08 = v08_quantity(c)
+    assert res_v08.result == "pass", f"V-08 failed: {res_v08.findings}"
+
+
+def test_numeric_pairing_mixed_multi_group_aggregation():
+    from decimal import Decimal
+    from system_a.domain.contracts import InvoiceDoc, NField, NLine, ReceiptRow
+    from system_a.domain.matching import resolve
+    from system_a.domain.rules import Ctx, v07_line_match, v08_quantity
+    from system_a.domain.standard import load_standard
+
+    def make_line(line_no, qty, price, amt, uom="KG"):
+        return NLine(
+            line_no=line_no,
+            element_id=f"L{line_no}",
+            cells={
+                "description": NField("description", f"L{line_no}-d", f"Item {line_no}", f"Item {line_no}", 1.0, True),
+                "qty": NField("qty", f"L{line_no}-q", str(qty), Decimal(str(qty)), 1.0, True),
+                "unit_price": NField("unit_price", f"L{line_no}-p", str(price), Decimal(str(price)), 1.0, True),
+                "amount": NField("amount", f"L{line_no}-a", str(amt), Decimal(str(amt)), 1.0, True),
+                "uom": NField("uom", f"L{line_no}-u", uom, uom, 1.0, True),
+            },
+            uom_group=uom,
+        )
+
+    l1 = make_line(1, 701, "35.70", "25025.70")
+    l2 = make_line(2, 701, "35.70", "25025.70")
+    l3 = make_line(3, 1000, "50.00", "50000.00", "PCS")
+    l4 = make_line(4, 5, "200.00", "1000.00", "BOX")
+
+    r1 = ReceiptRow(101, "R1", "WH", 1, "Item Coil", Decimal("1402"), "KG", Decimal("35.70"), Decimal("50051.40"))
+    r2 = ReceiptRow(101, "R1", "WH", 2, "Item Widget Pt1", Decimal("600"), "PCS", Decimal("50.00"), Decimal("30000.00"))
+    r3 = ReceiptRow(101, "R1", "WH", 3, "Item Widget Pt2", Decimal("400"), "PCS", Decimal("50.00"), Decimal("20000.00"))
+    r4 = ReceiptRow(101, "R1", "WH", 4, "Item Box", Decimal("5"), "BOX", Decimal("200.00"), Decimal("1000.00"))
+
+    doc = InvoiceDoc("D1", {}, (l1, l2, l3, l4), {}, True)
+    rcv_rows = (r1, r2, r3, r4)
+    snapshot = type("Snapshot", (), {
+        "found": True,
+        "active": list(rcv_rows),
+        "rows": list(rcv_rows),
+        "org_id": 101,
+        "receipt_nums": ["R1"],
+    })()
+    std = load_standard()
+    std.policy.setdefault("ai", {})["v08_mode"] = "logic"
+
+    groups, trace = resolve(doc, rcv_rows, std, ai=None)
+    assert len(groups) == 3
+
+    # Map groups by relation
+    by_rel = {g.relation: g for g in groups}
+    assert "1:1" in by_rel
+    assert by_rel["1:1"].invoice_line_nos == (4,)
+    assert by_rel["1:1"].rcv_line_ids == ("R1-4",)
+
+    assert "N:1" in by_rel
+    assert set(by_rel["N:1"].invoice_line_nos) == {1, 2}
+    assert by_rel["N:1"].rcv_line_ids == ("R1-1",)
+
+    assert "1:N" in by_rel
+    assert by_rel["1:N"].invoice_line_nos == (3,)
+    assert set(by_rel["1:N"].rcv_line_ids) == {"R1-2", "R1-3"}
+
+    c = Ctx(doc=doc, snapshot=snapshot, std=std, groups=groups, match_trace=trace, ai_trace={})
+    res_v07 = v07_line_match(c)
+    assert res_v07.result == "pass", f"V-07 failed: {res_v07.findings}"
+
+    res_v08 = v08_quantity(c)
+    assert res_v08.result == "pass", f"V-08 failed: {res_v08.findings}"
+
+

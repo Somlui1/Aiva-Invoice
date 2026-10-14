@@ -109,5 +109,7 @@
 | Task 3: Resilient Midstream Row Folding for Installments & Fuzzy Match | Pending | Decouple installment folding from subtotal equality and support fuzzy block matching against OCR noise in collapse_repeated_copies |
 | Task 4: Engine Self-Evidence Token Fallback for Dual-Quantity | Pending | Implement self-evidence fallback in corroborate_lines using row OCR tokens without Oracle peeking |
 | Task 5: Business Rule Fast-Paths | Pending | Add V-05 AAPICO Tax ID 100% bypass and V-08 service line amount match |
+| Task 5B: Pure Numeric Line Pairing & Split-Line Aggregation | Done | Deterministic 1:1, N:1, and 1:N numeric aggregation in matching.py and v08.py; 4 new tests pass, 133/133 engine tests pass, 153/153 portal tests pass |
+
 | Task 6: Target Document Verification & Full Regression | Pending | Verify target cases (DMS-109, 112, 113, 86, 153, 40, 28, 33, 62, 89, 101, etc.) and run full regression suites |
 
