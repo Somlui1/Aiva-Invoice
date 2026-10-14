@@ -44,4 +44,11 @@
 | prod-readiness-propose | Propose architecture approaches & roadmap | completed | Approved Option 1 (Modular Pragmatic Evolution) + Portal Batch Staging ready for Oracle team |
 | prod-readiness-design | Present detailed production readiness design | completed | Presented in 4 sections, aligned on Mockup v3 adaptation, email canonical ID, and approved |
 | prod-readiness-doc | Write production readiness design doc | completed | Saved to docs/plans/2026-10-14-production-readiness-core-data-and-state-design.md |
-| prod-readiness-plan | Transition to implementation planning | in-progress | Ready to invoke writing-plans skill |
+| prod-readiness-plan | Transition to implementation planning | completed | Written to docs/plans/2026-10-14-production-readiness-core-data-and-state.md |
+| prod-task-1 | Database Schema Migration & Model Foundations | pending | Extended Document locking, DocumentBBox, AuditLog, ApBatch, and User RBAC models |
+| prod-task-2 | Document State Machine & Action Mutation API | pending | POST /api/documents/[id]/actions with locking check, transitions, and audit trail |
+| prod-task-3 | Frontend State Mutation & Audit Trail Integration | pending | Connect InvoiceContext executeAction with backend API & live AuditPage |
+| prod-task-4 | Directory Search & User Provisioning API | pending | GET /api/ad/search with auto-mapping & POST /api/users persistence |
+| prod-task-5 | Interactive Permission Admin UI (Mockup v3) | pending | Adapt AIVA-Permission-Admin-Excel-Grid-v3.html into RbacPage components |
+| prod-task-6 | Oracle AP Batch Staging & Locking Pipeline | pending | ApBatch creation, document locking (Sent), and result callback |
+| prod-task-7 | Full Verification & End-to-End Regression Pass | pending | Full test suite, TypeScript check, and production build verification |
