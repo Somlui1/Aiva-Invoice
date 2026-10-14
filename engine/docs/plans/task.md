@@ -104,7 +104,7 @@
 
 | Task | Status | Description |
 |---|---|---|
-| Task 1: Prompt Enhancements for Visual Unit Matching & Negative Discounts | Pending | Update single_pass_extract.md and ision_table_rows.md with Visual Unit Matching, header UOM inheritance, and negative discount rules |
+| Task 1: Prompt Enhancements for Visual Unit Matching & Negative Discounts | Done | Added 2D table extraction rules (horizontal gating, visual unit matching, header UOM inheritance, negative discounts) to single_pass_extract.md and vision_table_rows.md; 1 test passes |
 | Task 2: Safe Upstream Duplicate Page Separation | Pending | Implement safe duplicate copy pruning in select_invoice_pages while protecting multi-page continuation sheets |
 | Task 3: Resilient Midstream Row Folding for Installments & Fuzzy Match | Pending | Decouple installment folding from subtotal equality and support fuzzy block matching against OCR noise in collapse_repeated_copies |
 | Task 4: Engine Self-Evidence Token Fallback for Dual-Quantity | Pending | Implement self-evidence fallback in corroborate_lines using row OCR tokens without Oracle peeking |

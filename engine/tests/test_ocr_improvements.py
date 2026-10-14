@@ -1730,3 +1730,13 @@ def test_numeric_pairing_mixed_multi_group_aggregation():
     assert res_v08.result == "pass", f"V-08 failed: {res_v08.findings}"
 
 
+def test_prompts_have_visual_unit_and_discount_rules():
+    from pathlib import Path
+    for fname in ["config/prompts/single_pass_extract.md", "config/prompts/vision_table_rows.md"]:
+        prompt_text = Path(fname).read_text(encoding="utf-8")
+        assert "B / KGS" in prompt_text or "Visual Unit Matching" in prompt_text, f"{fname} missing unit matching rule"
+        assert "ส่วนลด" in prompt_text or "Discount" in prompt_text, f"{fname} missing discount rule"
+        assert "Horizontal Row Gating" in prompt_text, f"{fname} missing horizontal gating rule"
+
+
+
