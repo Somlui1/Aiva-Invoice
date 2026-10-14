@@ -40,4 +40,8 @@
 | task-receipts-2 | Adapter Mapping for Oracle Receipt Lines & Multi-PO Grouping | completed | Task 2: engineToPortalAdapter.ts + backendApi.ts + tests (207/207 pass, commit 153dd55) |
 | task-receipts-3 | Oracle Receipts UI Tab in InvoiceDetailPane | completed | Task 3: InvoiceDetailPane.tsx + queue.css + tests (3/3 pass, commit 905b1cc) |
 | task-receipts-4 | Standalone PDF BBox Viewer Route (/viewer/[id]) | completed | Task 4: StandaloneBBoxViewer.tsx + /viewer/[id]/page.tsx + standaloneViewer.css + 6 tests pass; tsc clean |
-| task-receipts-5 | Link to Standalone Viewer & End-to-End Regression Pass | completed | Task 5: trigger buttons in InvoiceDetailPane & DockControls; 29/29 test files (218/218 tests) pass; tsc clean; next build 18/18 routes clean |
+| prod-readiness-clarify | Clarify production requirements and scope priorities | completed | Clarified core priority (Core Data & State API), Hybrid BBox/Paperless storage, 3-stage AP Post flow, and Hybrid Entra/DB RBAC |
+| prod-readiness-propose | Propose architecture approaches & roadmap | completed | Approved Option 1 (Modular Pragmatic Evolution) + Portal Batch Staging ready for Oracle team |
+| prod-readiness-design | Present detailed production readiness design | completed | Presented in 4 sections, aligned on Mockup v3 adaptation, email canonical ID, and approved |
+| prod-readiness-doc | Write production readiness design doc | completed | Saved to docs/plans/2026-10-14-production-readiness-core-data-and-state-design.md |
+| prod-readiness-plan | Transition to implementation planning | in-progress | Ready to invoke writing-plans skill |
