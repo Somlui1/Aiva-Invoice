@@ -92,6 +92,14 @@ def v01_required(c: Ctx) -> RuleOutcome:
         miss.append("pages_complete(false)")
     if not miss:
         return _ok("V-01")
+
+    # If the only issue is po_number and Oracle EBS confirmed receipt, demote to Low advisory
+    oracle_confirmed = bool(c.snapshot and getattr(c.snapshot, "receipt_lines", None))
+    all_po = all(m.startswith("po_number") for m in miss)
+    if all_po and oracle_confirmed:
+        return _fail("V-01", [_f(c, "E01", "V-01", "ฟิลด์ PO บนเอกสารมีข้อสังเกต แต่ยืนยันได้จากใบรับในระบบ Oracle: " + ", ".join(miss),
+                                 sev="Low", element_ids=tuple(eids))])
+
     return _fail("V-01", [_f(c, "E01", "V-01", "ฟิลด์บังคับอ่านไม่ได้หรือไม่ครบ: " + ", ".join(miss),
                              element_ids=tuple(eids))])
 

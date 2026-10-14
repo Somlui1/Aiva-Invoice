@@ -1978,3 +1978,51 @@ def test_v07_e10_severity_low_when_amount_equal():
     assert e10_finding is not None
     assert e10_finding.severity == "Low"
 
+
+def test_v01_po_missing_corroborated_by_oracle_receipt_is_low():
+    from decimal import Decimal
+    from system_a.domain.contracts import InvoiceDoc, NField, NLine, ReceiptRow
+    from system_a.domain.rules import Ctx, v01_required
+    from system_a.domain.standard import load_standard
+
+    fields = {
+        "invoice_num": NField("invoice_num", "f-inv", "IV-001", "IV-001", 1.0, True),
+        "po_number": NField("po_number", "f-po", None, None, None, False, "NOT_PRESENT"),
+        "customer_name": NField("customer_name", "f-cn", "AAPICO", "AAPICO", 1.0, True),
+        "customer_address": NField("customer_address", "f-ca", "HI-TECH", "HI-TECH", 1.0, True),
+        "customer_tax_id": NField("customer_tax_id", "f-ct", "0145548001557", "0145548001557", 1.0, True),
+        "sub_total": NField("sub_total", "f-sub", "1000.00", Decimal("1000.00"), 1.0, True),
+        "vat": NField("vat", "f-vat", "70.00", Decimal("70.00"), 1.0, True),
+        "grand_total": NField("grand_total", "f-gt", "1070.00", Decimal("1070.00"), 1.0, True),
+    }
+    cells = {
+        "description": NField("description", "L1-d", "ITEM A", "ITEM A", 1.0, True),
+        "qty": NField("qty", "L1-q", "10", Decimal("10"), 1.0, True),
+        "uom": NField("uom", "L1-u", "PCS", "PCS", 1.0, True),
+        "unit_price": NField("unit_price", "L1-p", "100.00", Decimal("100.00"), 1.0, True),
+        "amount": NField("amount", "L1-a", "1000.00", Decimal("1000.00"), 1.0, True),
+    }
+    l1 = NLine(line_no=1, element_id="L1", cells=cells, uom_group="PCS")
+    doc = InvoiceDoc("D1", fields, (l1,), {}, True)
+
+    rcv_row = ReceiptRow(101, "R1", "WH", 1, "ITEM A", Decimal("10"), "Piece", Decimal("100.00"), Decimal("1000.00"), {"rcv_line_id": "R1-1"})
+    snapshot = type("Snapshot", (), {
+        "found": True,
+        "active": [rcv_row],
+        "rows": [rcv_row],
+        "receipt_lines": [rcv_row],
+        "org_id": 101,
+        "receipt_nums": ["R1"],
+        "query_keys": {},
+    })()
+    std = load_standard()
+    c = Ctx(doc=doc, snapshot=snapshot, std=std, groups=[], match_trace={}, ai_trace={})
+
+    res = v01_required(c)
+    assert res.result == "pass"
+    assert len(res.findings) == 1
+    assert res.findings[0].code == "E01"
+    assert res.findings[0].severity == "Low"
+    assert "ยืนยันได้จากใบรับในระบบ Oracle" in res.findings[0].message_th
+
+
