@@ -36,11 +36,23 @@ Expected: FAIL
 
 **Step 3: Update `single_pass_extract.md` and `vision_table_rows.md`**
 
-In `single_pass_extract.md`:
-- Add Visual Unit Matching: Inspect sub-headers under `UNIT PRICE` (e.g. `[B / KGS]`). When price specifies a unit, select the quantity column matching that unit.
-- Add Header UOM inheritance for rows containing bare numbers.
-- Add strict rule: The number chosen for `qty` must be physically printed in that row; never invent an unprinted number.
-- Add negative discount parsing rule: Rows with `ส่วนลด`, `หัก`, `Discount`, `Less` must extract negative amounts.
+In `single_pass_extract.md` and `vision_table_rows.md`, add:
+```markdown
+2D TABLE EXTRACTION RULES (VERTICAL COLUMNS & HORIZONTAL ROWS):
+a) Horizontal Row Gating (Multi-line Descriptions):
+   - A valid "line_item" row MUST have a printed numeric "amount" (or "unit_price") on the right side of the table.
+   - Text-only lines underneath an item (e.g., Coil No., Heat No., Lot No., PO reference, size specs, or remarks with empty qty/price/amount columns) are CONTINUATION lines. Append their text to the parent item's "description" — NEVER output them as separate line_items and NEVER assign a UOM or price to them.
+b) Vertical Header & Price-Unit Alignment (Dual Quantity Columns):
+   - Inspect column headers vertically from top to bottom, including sub-headers under UNIT PRICE (e.g., "[B / KGS]", "THB/KG", "บาท/กก.").
+   - When a row has numbers in multiple quantity/weight columns (e.g., QTY = 1 and KGS = 701), select the column whose header matches the unit in the UNIT PRICE header (KGS) AND satisfies the horizontal check: qty × unit_price ≈ amount (701 × 35.70 = 25,025.70).
+   - The number assigned to qty must be physically printed in that row; never invent an unprinted number.
+c) Conditional UOM Inheritance (No Number, No Header UOM):
+   - Priority 1: If a cell explicitly prints a unit next to the number (e.g., "1 SET", "2 PCS"), use that printed unit.
+   - Priority 2: If a cell contains ONLY a number (e.g., "701" vertically aligned with KGS), inherit the UOM from that specific column's header (e.g., header "KGS" -> uom: "KG").
+   - Priority 3: If the quantity/weight column is blank for that row (e.g., lump-sum service fee or discount line), set qty: null and uom: null — NEVER inherit the column header unit onto a row that has no number in that column.
+d) Negative Discount Parsing:
+   - Rows with "ส่วนลด", "หัก", "Discount", "Less" must extract negative amounts.
+```
 
 **Step 4: Run test to verify it passes**
 
@@ -153,15 +165,21 @@ git commit -m "feat(evidence): resilient midstream row folding for installments 
 
 ---
 
-### Task 4: Engine Self-Evidence Token Fallback for Dual-Quantity
+### Task 4: Ghost Row Auto-Folding Guard & Self-Evidence Token Fallback
 
 **Files:**
 - Modify: `engine/src/system_a/domain/evidence.py`
 - Test: `engine/tests/test_ocr_improvements.py`
 
-**Step 1: Write failing test for self-evidence token fallback without Oracle peeking**
+**Step 1: Write failing tests for ghost row auto-folding and self-evidence fallback**
 
 ```python
+def test_ghost_row_auto_folding_into_preceding_description():
+    # If a line item has qty is None and unit_price is None and amount is None
+    # but has description text (e.g. "COIL NO: A123 / PO: 45001")
+    # Python code must fold text into preceding item's description and remove the empty row
+    ...
+
 def test_corroborate_dual_quantity_from_row_tokens():
     # Row has qty=1, price=35.70, amount=25025.70, and token "701" in description/cells
     # Should promote qty=701 and uom=KG with tag "arith:target_qty_found_in_row_tokens:701"
@@ -171,25 +189,25 @@ def test_corroborate_dual_quantity_from_row_tokens():
 
 **Step 2: Run test to verify failure**
 
-Run: `pytest tests/test_ocr_improvements.py -k test_corroborate_dual_quantity_from_row_tokens -v`
+Run: `pytest tests/test_ocr_improvements.py -k "test_ghost_row or test_corroborate_dual_quantity" -v`
 Expected: FAIL
 
-**Step 3: Implement self-corroboration in `corroborate_lines()`**
+**Step 3: Implement ghost row auto-folding and self-corroboration in `evidence.py`**
 
-- If $qty \times unit\_price \neq amount$, compute $target\_qty = amount / unit\_price$.
-- Inspect raw OCR cells and tokens of that row.
-- If $target\_qty$ is physically present, update `qty = target_qty` with evidence tag `arith:target_qty_found_in_row_tokens`.
+- In row parsing / `corroborate_lines()`:
+  - **Ghost Row Folding**: If any extracted row has `qty is None and unit_price is None and amount is None`, fold its description into the previous row with `desc = f"{prev.desc} {row.desc}"` and drop the empty row.
+  - **Self-Corroboration**: If $qty \times unit\_price \neq amount$, compute $target\_qty = amount / unit\_price$. Inspect raw OCR cells and tokens of that row. If $target\_qty$ is physically present, update `qty = target_qty` with evidence tag `arith:target_qty_found_in_row_tokens:target_qty`.
 
 **Step 4: Run test to verify pass**
 
-Run: `pytest tests/test_ocr_improvements.py -k test_corroborate_dual_quantity_from_row_tokens -v`
+Run: `pytest tests/test_ocr_improvements.py -k "test_ghost_row or test_corroborate_dual_quantity" -v`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
 git add src/system_a/domain/evidence.py tests/test_ocr_improvements.py
-git commit -m "feat(evidence): self-evidence token fallback for dual-quantity billing lines"
+git commit -m "feat(evidence): ghost row auto-folding guard and self-evidence token fallback"
 ```
 
 ---

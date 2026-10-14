@@ -50,25 +50,32 @@ This design implements a **Defense-in-Depth** architecture across prompt design,
 
 ## 3. Detailed Component Design
 
-### 3.1 Dual Quantity & Header UOM Resolution (Prompt & Code)
+### 3.1 Dual Quantity, Header UOM & 2D Table Extraction (Prompt & Code)
 
-#### A. Prompt-Level Visual Unit Matching (`single_pass_extract.md` & `vision_table_rows.md`)
-To avoid prompt conflict with *"Do not compute, correct, round, reformat or guess"*, VLM will NOT be asked to solve free-form math that could cause hallucinations. Instead, it follows strict **Visual Unit Matching**:
-1. **Price Header Unit Correlation**:
-   - Inspect the sub-header label under `UNIT PRICE` (e.g. `[B / KGS]`, `[บาท/กก.]`, `[THB/PCS]`).
-   - If the price specifies a unit (e.g. `B / KGS`), select the column whose header matches that unit (`KGS` / `น้ำหนัก`).
-2. **UOM Header Inheritance**:
-   - When a row contains a bare number (e.g. `701`), inherit the UOM from its column header (`uom: "KG"`). Never leave `uom: null` when the column header specifies the unit.
-3. **Physical Text Strictness**:
-   - *Strict Rule*: The number assigned to `qty` MUST be physically printed in that row. Never fabricate or compute an unprinted number.
+#### A. 2D Table Extraction Rules: Vertical Columns & Horizontal Rows (`single_pass_extract.md` & `vision_table_rows.md`)
+To eliminate description continuation errors, ghost rows, and cross-row unit pollution, extraction follows a 3-step 2D mechanism:
 
-#### B. Engine-Level Self-Evidence Token Fallback (`src/system_a/domain/evidence.py`)
-In `corroborate_lines`:
-- **Integrity Rule**: NEVER peek at `oracle:receipt_qty` to silently overwrite invoice values (preserves 3-way matching audit rigor).
-- **Self-Corroboration**: If $qty \times unit\_price \neq amount$, compute $target\_qty = amount / unit\_price$.
-- If $target\_qty$ (e.g. `701`) **physically exists** in the raw OCR tokens or alternate cells of that invoice row:
-  - Promote $target\_qty$ to `qty` with evidence tag: `arith:target_qty_found_in_row_tokens:701`.
-  - Update `uom` to match the unit header.
+1. **Step 1: Horizontal Row Gating (Multi-line Descriptions)**
+   - A valid `line_item` row MUST have a printed numeric `amount` (or `unit_price`) on the right side of the table.
+   - Text-only lines underneath an item (e.g., Coil No., Heat No., Lot No., PO reference, size specs, or remarks with empty qty/price/amount columns) are **CONTINUATION lines**. Append their text to the parent item's `description` — NEVER output them as separate `line_items` and NEVER assign a UOM or price to them.
+2. **Step 2: Vertical Header & Price-Unit Alignment (Dual Quantity Columns)**
+   - Inspect column headers vertically from top to bottom, including sub-headers under `UNIT PRICE` (e.g., `[B / KGS]`, `THB/KG`, `บาท/กก.`).
+   - When a row has numbers in multiple quantity/weight columns (e.g., `QTY = 1` and `KGS = 701`), select the column whose header matches the unit in the `UNIT PRICE` header (`KGS`) AND satisfies the horizontal check: $qty \times unit\_price \approx amount$ ($701 \times 35.70 = 25,025.70$).
+   - *Physical Text Strictness*: The number assigned to `qty` MUST be physically printed in that row. Never fabricate or compute an unprinted number.
+3. **Step 3: Conditional UOM Inheritance (No Value, No Unit)**
+   - *Priority 1*: If a cell explicitly prints a unit next to the number (e.g., `"1 SET"`, `"2 PCS"`), use that printed unit.
+   - *Priority 2*: If a cell contains ONLY a number (e.g., `"701"` aligned vertically with header `KGS`), inherit the UOM from that specific column's header (`uom: "KG"`).
+   - *Priority 3*: If the quantity/weight column is blank for that row (e.g., lump-sum service fee or discount line), set `qty: null` and `uom: null` — NEVER inherit the column header unit onto a row that has no number in that column.
+
+#### B. Engine-Level Ghost Row Auto-Folding & Self-Evidence Fallback (`evidence.py` & `assembler.py`)
+1. **Ghost Row Auto-Folding Guard**:
+   - In Python post-processing: If an extracted row arrives with `qty is None and unit_price is None and amount is None`, automatically fold its `description` into the preceding row's description and drop the ghost row, preventing zero-number line matching failures.
+2. **Self-Corroboration Token Fallback**:
+   - *Integrity Rule*: NEVER peek at `oracle:receipt_qty` to silently overwrite invoice values (preserves 3-way matching audit rigor).
+   - If $qty \times unit\_price \neq amount$, compute $target\_qty = amount / unit\_price$.
+   - If $target\_qty$ (e.g. `701`) **physically exists** in the raw OCR tokens or alternate cells of that invoice row:
+     - Promote $target\_qty$ to `qty` with evidence tag: `arith:target_qty_found_in_row_tokens:701`.
+     - Update `uom` to match the unit header.
 
 ---
 
