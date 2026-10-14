@@ -1867,3 +1867,74 @@ def test_corroborate_dual_quantity_from_row_tokens():
     assert res_line.v("qty") == Decimal("701")
     assert any("target_qty_found_in_row_tokens:701" in ev for ev in res_line.cells["qty"].evidence)
     assert res_line.uom_group == "KG"
+
+
+def test_v05_aapico_tax_id_fast_path():
+    from system_a.domain.contracts import InvoiceDoc, NField, ReceiptRow
+    from system_a.domain.rules import Ctx, v05_customer
+    from system_a.domain.standard import load_standard
+
+    doc = InvoiceDoc(
+        document_id="D37",
+        fields={
+            "customer_tax_id": NField(name="customer_tax_id", element_id="F1", raw="0107545000179", value="0107545000179", confidence=0.99, ok=True),
+            "customer_name": NField(name="customer_name", element_id="F2", raw="AAPICO HITECH PLC", value="AAPICO HITECH PLC", confidence=0.99, ok=True),
+            "customer_address": NField(name="customer_address", element_id="F3", raw="99 Moo 1 Hitech Industrial Estate", value="99 Moo 1 Hitech Industrial Estate", confidence=0.99, ok=True),
+            "supplier_tax_id": NField(name="supplier_tax_id", element_id="F4", raw="0123456789012", value="0123456789012", confidence=0.99, ok=True),
+        },
+        lines=(),
+        signatures={},
+        pages_complete=True,
+    )
+    snapshot = type("Snapshot", (), {
+        "found": True,
+        "active": [ReceiptRow(org_id=101, receipt_num="R1", receiver="WH", line=1, item="A", qty=Decimal(1), uom="PCS", unit_price=Decimal(10), line_amount=Decimal(10))],
+        "org_id": 101,
+        "receipt_nums": ["R1"],
+    })()
+    ai_mock = type("AIMock", (), {
+        "name_equivalent": lambda self, name, cands: {"equivalent": True, "confidence": 0.70, "matched_candidate": "name_en"},
+        "parse_address": lambda self, addr: {"confidence": 0.60, "house_no": "99", "postal_code": None},
+    })()
+    std = load_standard()
+    c = Ctx(doc=doc, snapshot=snapshot, std=std, entity_ai=ai_mock, ai_trace={})
+    res = v05_customer(c)
+    assert res.result == "pass", f"V-05 should PASS under AAPICO Tax ID fast-path, got {res.result}: {res.detail}"
+    assert res.data.get("name_check") == "advisory"
+
+
+def test_v08_service_line_amount_match():
+    from system_a.domain.contracts import InvoiceDoc, NField, NLine, ReceiptRow
+    from system_a.domain.matching import MatchGroup
+    from system_a.domain.rules import Ctx, v08_quantity
+    from system_a.domain.standard import load_standard
+
+    cells = {
+        "description": NField("description", "L1-d", "CRANE MAINTENANCE SERVICE", "CRANE MAINTENANCE SERVICE", 1.0, True),
+        "qty": NField("qty", "L1-q", None, None, None, False, "NOT_PRESENT"),
+        "uom": NField("uom", "L1-u", "JOB", "JOB", 1.0, True),
+        "unit_price": NField("unit_price", "L1-p", "5000.00", Decimal("5000.00"), 1.0, True),
+        "amount": NField("amount", "L1-a", "5000.00", Decimal("5000.00"), 1.0, True),
+    }
+    l1 = NLine(line_no=1, element_id="L1", cells=cells, uom_group="JOB")
+    doc = InvoiceDoc("D89", {}, (l1,), {}, True)
+
+    rcv_row = ReceiptRow(101, "R1", "WH", 1, "CRANE SERVICE", Decimal("1"), "JOB", Decimal("5000.00"), Decimal("5000.00"))
+    snapshot = type("Snapshot", (), {
+        "found": True,
+        "active": [rcv_row],
+        "rows": [rcv_row],
+        "org_id": 101,
+        "receipt_nums": ["R1"],
+    })()
+    std = load_standard()
+    std.policy.setdefault("ai", {})["v08_mode"] = "logic"
+
+    group = MatchGroup(group_id="G1", relation="1:1", level="M1", confidence=1.0, source="logic", invoice_line_nos=(1,), rcv_line_ids=("R1-1",))
+    c = Ctx(doc=doc, snapshot=snapshot, std=std, groups=[group], match_trace={}, ai_trace={})
+
+    res = v08_quantity(c)
+    assert res.result == "pass", f"V-08 should pass for service line amount match, got {res.result}: {res.findings}"
+    lr = res.data["line_results"][0]
+    assert lr["result"] == "pass"
+    assert "service line amount match" in lr["reason"]

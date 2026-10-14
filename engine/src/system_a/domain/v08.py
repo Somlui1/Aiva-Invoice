@@ -56,19 +56,30 @@ def build_payload(doc: InvoiceDoc, groups, rows: dict[str, ReceiptRow], std: Sta
                         abs(l0.v("amount") - tot_ra) <= std.tol("line_math")):
                     comparable = True
 
+        service_units = {"JOB", "LOT", "เหมา", "งาน", "SERVICE", "ACTIVITY"}
         per = []
         if g.relation == "N:1":
             all_qty = [lines[n].v("qty") for n in g.invoice_line_nos]
             has_none = any(q is None for q in all_qty)
             inv_sum = None if has_none else sum(all_qty, Decimal(0))
             diff = None if inv_sum is None else inv_sum - rsum
+            all_a = [lines[x].v("amount") for x in g.invoice_line_nos]
+            tot_a = None if (None in all_a or not all_a) else sum(all_a, Decimal(0))
+            amt_match = tot_a is not None and len(rcv) == 1 and abs(tot_a - rcv[0].line_amount) <= std.tol("line_math")
+            is_service = has_none or any(lines[x].uom_group in service_units for x in g.invoice_line_nos) or any(std.uom_group(r.uom) in service_units for r in rcv)
             for n in g.invoice_line_nos:
                 per.append({"invoice_line_no": n, "qty_rcv_compared": str(rsum),
                             "qty_diff": None if diff is None else str(diff)})
                 if not comparable:
-                    expected[n] = ("not_evaluated", None) if uom_mode == "delegate" else ("manual_review", None)
+                    if is_service and amt_match:
+                        expected[n] = ("pass", None)
+                    else:
+                        expected[n] = ("not_evaluated", None) if uom_mode == "delegate" else ("manual_review", None)
                 elif diff is None:
-                    expected[n] = ("manual_review", None)
+                    if is_service and amt_match:
+                        expected[n] = ("pass", None)
+                    else:
+                        expected[n] = ("manual_review", None)
                 elif diff == 0:
                     expected[n] = ("pass", None)
                 else:
@@ -80,10 +91,20 @@ def build_payload(doc: InvoiceDoc, groups, rows: dict[str, ReceiptRow], std: Sta
                 diff = None if q is None else q - cmp_
                 per.append({"invoice_line_no": n, "qty_rcv_compared": str(cmp_),
                             "qty_diff": None if diff is None else str(diff)})
+                tot_ra = sum((r.line_amount for r in rcv), Decimal(0))
+                target_rcv_amt = tot_ra if g.relation == "1:N" else (rcv[0].line_amount if rcv else Decimal(0))
+                is_service = (q is None or lines[n].uom_group in service_units or any(std.uom_group(r.uom) in service_units for r in rcv))
+                amt_match = (lines[n].v("amount") is not None and abs(lines[n].v("amount") - target_rcv_amt) <= std.tol("line_math"))
                 if not comparable:
-                    expected[n] = ("not_evaluated", None) if uom_mode == "delegate" else ("manual_review", None)
+                    if is_service and amt_match:
+                        expected[n] = ("pass", None)
+                    else:
+                        expected[n] = ("not_evaluated", None) if uom_mode == "delegate" else ("manual_review", None)
                 elif diff is None:
-                    expected[n] = ("manual_review", None)
+                    if is_service and amt_match:
+                        expected[n] = ("pass", None)
+                    else:
+                        expected[n] = ("manual_review", None)
                 elif diff == 0:
                     expected[n] = ("pass", None)
                 else:
@@ -112,6 +133,8 @@ def decide(payload: dict, expected: dict) -> list[dict]:
             reason = "V-07 ระบุบรรทัดใบรับไม่ได้" if g.get("relation") == "UNMATCHED" else "DELEGATED_TO_V07_E10"
         elif res == "manual_review":
             reason = "หน่วยนับต่างกลุ่มหรือ qty เป็น null"
+        elif line.get("qty_inv") is None:
+            reason = "service line amount match"
         else:
             reason = "ตาม COMPUTED_FACTS"
         out.append({"invoice_line_no": n, "group_id": g.get("group_id"), "relation": g.get("relation"),
