@@ -20,7 +20,7 @@ model Document {
   supplierName    String
   grandTotal      Float
   currency        String   @default("THB")
-  status          String   // Auto-pass, Review, Hold, Manual Review, Confirmed, Posted
+  status          String   // Auto-pass, Review, Hold, Manual Review, Confirmed, Sent, Posted, Rejected, Superseded, Import Failed
   recommendation  String
   maxSeverity     String
   receiverName    String?
@@ -28,10 +28,22 @@ model Document {
   linesMatched    String?
   assignedRole    String   @default("EU")
   apStatus        String   @default("unconfirmed")
+  
+  // Concurrency & Document Locking
+  isLocked        Boolean  @default(false)
+  lockedAt        DateTime?
+  lockedBy        String?
+  
+  // Oracle AP Batch Tracking
+  apBatchId       String?
+  oracleInvoiceId String?
+  importError     String?
+
   payloadJson     String   // Full Portal Document JSON (Structured)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   runs            ValidationRun[]
+  bboxes          DocumentBBox[]
 }
 
 model ValidationRun {
@@ -45,12 +57,84 @@ model ValidationRun {
   document        Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 }
 
+model DocumentBBox {
+  id         String   @id @default(cuid())
+  documentId String
+  pageNum    Int
+  boxType    String   // 'rule_evidence', 'ocr_word', 'table_cell', 'oracle_receipt'
+  targetRef  String?  // e.g. 'V-01', 'item:0', 'receipt:1'
+  boxJson    String   // Serialized JSON of coordinates [ymin, xmin, ymax, xmax] & metadata
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId, pageNum])
+}
+
 model AuditLog {
-  id        String   @id @default(cuid())
-  docId     String
-  who       String
-  role      String
-  act       String
-  detail    String
-  createdAt DateTime @default(now())
+  id         String   @id @default(cuid())
+  docId      String
+  whoId      String?
+  who        String
+  role       String
+  act        String
+  action     String?
+  fromStatus String?
+  toStatus   String?
+  reason     String?
+  note       String?
+  detail     String
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@index([docId])
+  @@index([createdAt])
+}
+
+model ApBatch {
+  id          String    @id // e.g. "AP-20261014-001"
+  status      String    // 'PENDING' | 'SENT' | 'SYNCED' | 'FAILED'
+  totalDocs   Int
+  totalAmount Float
+  companyCode String
+  createdBy   String
+  sentAt      DateTime?
+  payloadJson String    // AP Invoice & Line Interface Data
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  name        String
+  samAccount  String?
+  empId       String?
+  unit        String?
+  role        String   // 'EU' | 'ACC' | 'APR' | 'ADM'
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  companies   UserCompany[]
+  receivers   UserReceiverMap[]
+}
+
+model UserCompany {
+  id          String @id @default(cuid())
+  userId      String
+  companyCode String // 'AH', 'AHT', 'AHP', 'AM'
+  user        User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, companyCode])
+}
+
+model UserReceiverMap {
+  id           String   @id @default(cuid())
+  userId       String
+  receiverName String
+  assignedBy   String
+  ticketRef    String?
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, receiverName])
 }
