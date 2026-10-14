@@ -18,7 +18,7 @@ import numpy as np
 MODEL_FILENAME = "PP-LCNet_x1_0_doc_ori.onnx"
 MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / MODEL_FILENAME
 MODEL_SHA256 = "10453f80f6f50e8149161aef61b265119471e4010263a82682e5695914236f27"
-CONFIDENCE_THRESHOLD = 0.90
+CONFIDENCE_THRESHOLD = 0.75
 LABELS = (0, 90, 180, 270)
 
 _CACHED_NET = None
@@ -112,7 +112,14 @@ def detect_coarse_orientation(img_rgb: np.ndarray,
     conf = float(probs[cls_idx])
     detected_angle = LABELS[cls_idx]
 
-    if conf < threshold:
+    # Margin check against runner-up
+    sorted_probs = sorted(float(p) for p in probs)
+    margin = conf - sorted_probs[-2] if len(sorted_probs) >= 2 else conf
+
+    # Accept if conf >= threshold OR (conf >= 0.70 and margin >= 0.30)
+    is_confident = (conf >= threshold) or (conf >= 0.70 and margin >= 0.30)
+
+    if not is_confident:
         return 0, round(conf, 4), True, runtime
     return detected_angle, round(conf, 4), False, runtime
 

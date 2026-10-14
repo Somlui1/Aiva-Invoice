@@ -124,3 +124,14 @@ def test_determinism_repeated_runs():
     assert res1.skew == res2.skew
     assert res1.total == res2.total
     assert res1.confidence == res2.confidence
+
+
+def test_detect_coarse_orientation_threshold_75_and_margin():
+    from system_a.perception.orientation import detect_coarse_orientation, CONFIDENCE_THRESHOLD
+    assert CONFIDENCE_THRESHOLD == 0.75
+    img_270 = _make_invoice_image(rotate_deg=270)
+    angle, conf, uncertain, runtime = detect_coarse_orientation(img_270)
+    assert angle == 270
+    assert conf >= 0.75
+    assert not uncertain
+
