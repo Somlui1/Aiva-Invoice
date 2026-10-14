@@ -248,14 +248,14 @@ def test_v08_uom_mismatch_delegates_to_v07_e10_without_manual_review():
     })()
     c = Ctx(doc=doc, snapshot=snapshot, std=std, groups=[group], match_trace={}, qty_ai=ai_mock, ai_trace={})
     res_v07 = v07_line_match(c)
-    assert res_v07.result == "fail"
-    assert any(f.code == "E10" and f.severity == "Medium" for f in res_v07.findings)
+    assert res_v07.result == "pass"
+    assert any(f.code == "E10" and f.severity == "Low" for f in res_v07.findings)
 
     res_v08 = v08_quantity(c)
     assert res_v08.result != "manual_review"
 
     rec = recommend([res_v07, res_v08], [])
-    assert rec["value"] == "REVIEW"
+    assert rec["value"] == "AUTO_PASS"
 
 
 

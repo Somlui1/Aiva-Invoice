@@ -117,8 +117,8 @@
 
 | Task | Status | Description |
 |---|---|---|
-| Task 1: Orientation Threshold Optimization & Margin Check in `orientation.py` | Pending | Lower CONFIDENCE_THRESHOLD to 0.75 and add margin rule to rotate DMS-59 upright and fix BBox misalignment |
-| Task 2: UOM Mismatch (E10) Conditional Low Severity when Amount is Equal | Pending | Emit E10 with severity='Low' when amount_equal == True in rules.py & codes.yaml |
-| Task 3: PO Corroboration Relaxation in Rule V-01 | Pending | Demote uncorroborated/missing PO finding in V-01 to Low severity when Oracle EBS receipt confirmed |
-| Task 4: Target Document Verification, Regression Suite & Tracker Update | Pending | Verify DMS-59 BBox alignment, target review cases, full pytest engine & portal suites |
+| Task 1: Orientation Threshold Optimization & Margin Check in `orientation.py` | Done | Lowered CONFIDENCE_THRESHOLD to 0.75 with runner-up margin rule; DMS-59 rotates 270 deg upright; 12/12 tests pass; committed dd5c70e |
+| Task 2: UOM Mismatch (E10) Conditional Low Severity when Amount is Equal | Done | Emitted E10 with severity='Low' when amount_equal == True in rules.py & codes.yaml; 103/103 tests pass; committed 2a90fc8 |
+| Task 3: PO Corroboration Relaxation in Rule V-01 | Done | Demoted PO missing/conflict finding in V-01 to Low severity when Oracle receipt confirmed; 104/104 tests pass; committed e00b46a |
+| Task 4: Target Document Verification, Regression Suite & Tracker Update | Done | Verified DMS-59 orientation (r=270, conf=0.836 upright); 200-doc batch yields AUTO_PASS 145 (+68), REVIEW 42, HOLD 7, MANUAL_REVIEW 6; 145/145 engine tests pass; 153/153 portal tests pass |
 
