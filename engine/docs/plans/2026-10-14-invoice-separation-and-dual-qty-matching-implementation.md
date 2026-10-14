@@ -255,6 +255,65 @@ git commit -m "feat(rules): add v05 aapico tax id fast-path and v08 service line
 
 ---
 
+### Task 5B: Pure Numeric Line Pairing & Split-Line Aggregation (1:1, N:1, 1:N, M:N)
+
+**Files:**
+- Modify: `engine/src/system_a/domain/matching.py`
+- Modify: `engine/src/system_a/domain/v08.py`
+- Modify: `engine/src/system_a/domain/rules.py`
+- Test: `engine/tests/test_ocr_improvements.py`
+
+**Step 1: Write failing tests for UOM-agnostic numeric matching and 1:N / N:1 split lines**
+
+```python
+def test_numeric_pairing_ignores_uom_and_description_when_qty_price_amount_match():
+    # Invoice line: qty=701, uom=None, unit_price=35.70, amount=25025.70, desc="COIL A"
+    # Receipt line: qty=701, uom="KG", unit_price=35.70, amount=25025.70, desc="SPC590 STEEL"
+    # Should PASS V-07 and V-08 without UOM mismatch or AI description check
+    ...
+
+def test_numeric_pairing_n_to_1_invoice_split_coils():
+    # DMS-28 pattern: Invoice has 2 lines of (qty=701, price=35.70, amount=25025.70)
+    # Oracle Receipt has 1 combined line of (qty=1402, price=35.70, amount=50051.40)
+    # Should aggregate N:1 by unit_price and PASS V-07 and V-08
+    ...
+
+def test_numeric_pairing_1_to_n_receipt_split():
+    # Invoice has 1 consolidated line of (qty=1000, price=50.00, amount=50000.00)
+    # Oracle Receipt has 2 split lines of (qty=600, price=50.00, amount=30000.00) and (qty=400, price=50.00, amount=20000.00)
+    # Should aggregate 1:N by unit_price and PASS V-07 and V-08
+    ...
+```
+
+**Step 2: Run tests to verify failure**
+
+Run: `pytest tests/test_ocr_improvements.py -k "test_numeric_pairing" -v`
+Expected: FAIL
+
+**Step 3: Implement pure numeric pairing and aggregation in `matching.py` & `v08.py`**
+
+- In `matching.py`:
+  - Enhance deterministic logic pairing before AI fallback:
+    a) **Pure Numeric 1:1 Match**: When `qty`, `unit_price`, and `amount` match an unallocated receipt line within tolerance, pair as M1 even if `uom` is None or descriptions differ (description is advisory, not gating).
+    b) **N:1 Split-Coil Invoice Aggregation**: When multiple invoice lines share the exact `unit_price` and their sum of `qty` and `amount` matches an unallocated receipt line of that same `unit_price` ($\sum qty_{inv} == qty_{rcv}$ and $\sum amount_{inv} \approx amount_{rcv}$), pair as N:1 deterministic group without delegating to AI.
+    c) **1:N Split-Receipt Aggregation**: When one invoice line has `unit_price` and its `qty` and `amount` equal the sum of unallocated receipt lines with that same `unit_price` ($qty_{inv} == \sum qty_{rcv}$ and $amount_{inv} \approx \sum amount_{rcv}$), pair as 1:N deterministic group without delegating to AI.
+- In `v08.py`:
+  - Ensure UOM is treated as comparable when pure numeric price/qty/amount arithmetic confirms the match.
+
+**Step 4: Run tests to verify pass**
+
+Run: `pytest tests/test_ocr_improvements.py -k "test_numeric_pairing" -v`
+Expected: PASS
+
+**Step 5: Commit**
+
+```bash
+git add src/system_a/domain/matching.py src/system_a/domain/v08.py tests/test_ocr_improvements.py
+git commit -m "feat(matching): pure numeric line pairing and split-line aggregation (1:1, N:1, 1:N)"
+```
+
+---
+
 ### Task 6: Target Document Verification & Full Regression
 
 **Files:**

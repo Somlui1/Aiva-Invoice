@@ -340,14 +340,22 @@ def v05_customer(c: Ctx) -> RuleOutcome:
                 how = "ai_normalized"
                 data.update(address_match=bool(hit), address_matched=hit, address_method=how if hit else None)
                 if not hit:
-                    findings.append(_f(c, "E07", "V-05", f"ที่อยู่ลูกค้า (เลขที่ {inv_key[0]}, รหัสไปรษณีย์ {inv_key[1]}) "
-                                                         f"ไม่ตรงกับที่อยู่ของ ORG_ID {org}", "Medium",
-                                       actual=d.v("customer_address"), element_ids=fid("customer_address")))
+                    if _evidence_flag(c, "customer_name_advisory") and data.get("tax_id_match") is True:
+                        data.update(address_check="advisory",
+                                    address_issue=f"ที่อยู่ลูกค้า (เลขที่ {inv_key[0]}, รหัสไปรษณีย์ {inv_key[1]}) ไม่ตรงกับที่อยู่ของ ORG_ID {org}")
+                    else:
+                        findings.append(_f(c, "E07", "V-05", f"ที่อยู่ลูกค้า (เลขที่ {inv_key[0]}, รหัสไปรษณีย์ {inv_key[1]}) "
+                                                             f"ไม่ตรงกับที่อยู่ของ ORG_ID {org}", "Medium",
+                                           actual=d.v("customer_address"), element_ids=fid("customer_address")))
         elif not hit:
             data.update(address_match=False, address_matched=None, address_method=None)
-            findings.append(_f(c, "E07", "V-05", f"ที่อยู่ลูกค้า (เลขที่ {inv_key[0]}, รหัสไปรษณีย์ {inv_key[1]}) "
-                                                 f"ไม่ตรงกับที่อยู่ของ ORG_ID {org}", "Medium",
-                               actual=d.v("customer_address"), element_ids=fid("customer_address")))
+            if _evidence_flag(c, "customer_name_advisory") and data.get("tax_id_match") is True:
+                data.update(address_check="advisory",
+                            address_issue=f"ที่อยู่ลูกค้า (เลขที่ {inv_key[0]}, รหัสไปรษณีย์ {inv_key[1]}) ไม่ตรงกับที่อยู่ของ ORG_ID {org}")
+            else:
+                findings.append(_f(c, "E07", "V-05", f"ที่อยู่ลูกค้า (เลขที่ {inv_key[0]}, รหัสไปรษณีย์ {inv_key[1]}) "
+                                                     f"ไม่ตรงกับที่อยู่ของ ORG_ID {org}", "Medium",
+                                   actual=d.v("customer_address"), element_ids=fid("customer_address")))
         else:
             data.update(address_match=True, address_matched=hit, address_method="logic")
     if name_issue is not None:
@@ -362,6 +370,8 @@ def v05_customer(c: Ctx) -> RuleOutcome:
     if not d.ok("customer_name") or not d.ok("customer_address"):
         if findings:
             return _fail("V-05", findings, **data)
+        if data.get("tax_id_match") is True and _evidence_flag(c, "customer_name_advisory"):
+            return _ok("V-05", **data)
         return _skip("V-05", "V-01", "ชื่อหรือที่อยู่ลูกค้าอ่านไม่ได้")
     return _fail("V-05", findings, **data) if findings else _ok("V-05", **data)
 

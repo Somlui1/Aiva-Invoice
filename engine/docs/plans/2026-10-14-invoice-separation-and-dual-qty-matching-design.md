@@ -134,6 +134,24 @@ Located in [`src/system_a/domain/evidence.py`](file:///c:/Users/wajeepradit.p/gi
 
 ---
 
+### 3.5 Pure Numeric Line Pairing & Split-Line Aggregation (1:1, N:1, 1:N)
+
+Located in [`src/system_a/domain/matching.py`](file:///c:/Users/wajeepradit.p/git/DMS_Invoice_Auto_mathing/engine/src/system_a/domain/matching.py) and [`src/system_a/domain/v08.py`](file:///c:/Users/wajeepradit.p/git/DMS_Invoice_Auto_mathing/engine/src/system_a/domain/v08.py):
+
+1. **Pure Numeric 1:1 Matching (UOM-Agnostic & Description-Agnostic)**:
+   - When an invoice row's numeric triplet `(qty, unit_price, amount)` matches an unallocated receipt row within tolerance, pair as deterministic M1 logic match immediately.
+   - Do NOT reject or delegate to AI if `uom` is None or descriptions differ (description is advisory; arithmetic truth takes precedence).
+2. **N:1 Split-Coil Invoice Aggregation**:
+   - Pattern (DMS-28): Invoice has multiple lines with identical unit price (e.g. 2 lines of 701 KG @ 35.70 = 25,025.70 each) and Oracle receipt has a single combined line (1,402 KG @ 35.70 = 50,051.40).
+   - Logic: When a group of unallocated invoice lines share the same unit price and their sum of `qty` and sum of `amount` match an unallocated receipt line of that same price ($\sum qty_{inv} == qty_{rcv}$ and $\sum amount_{inv} \approx amount_{rcv}$), pair them as an N:1 deterministic group without calling LLM matcher.
+3. **1:N Split-Receipt Aggregation**:
+   - Pattern: Invoice has 1 consolidated line, while Oracle receipt was received in multiple lots (e.g. 2 receipt lines of 600 and 400 with same price).
+   - Logic: When 1 invoice line equals the sum of unallocated receipt lines of the same unit price ($qty_{inv} == \sum qty_{rcv}$ and $amount_{inv} \approx \sum amount_{rcv}$), pair them as a 1:N deterministic group without calling LLM matcher.
+4. **V-08 Comparable UOM Override**:
+   - In `v08.py`, when a deterministic numeric match (1:1, N:1, 1:N) is established by pure price/amount/qty arithmetic, treat `uom_comparable` as True so it passes without false UOM delegation.
+
+---
+
 ## 4. Test Strategy & Verification Plan
 
 ### Test Corpus & Acceptance Targets

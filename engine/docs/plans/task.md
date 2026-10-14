@@ -111,5 +111,5 @@
 | Task 5: Business Rule Fast-Paths | Done | Add V-05 AAPICO Tax ID 100% bypass and V-08 service line amount match; 2 new tests pass, 142/142 engine tests pass |
 | Task 5B: Pure Numeric Line Pairing & Split-Line Aggregation | Done | Deterministic 1:1, N:1, and 1:N numeric aggregation in matching.py and v08.py; 4 new tests pass, 133/133 engine tests pass, 153/153 portal tests pass |
 
-| Task 6: Target Document Verification & Full Regression | Pending | Verify target cases (DMS-109, 112, 113, 86, 153, 40, 28, 33, 62, 89, 101, etc.) and run full regression suites |
+| Task 6: Target Document Verification & Full Regression | Done | Verified target scorecard cases (DMS-80, 174, 210 -> AUTO_PASS; DMS-86, 153, 40, 39, 37 -> REVIEW; DMS-109, 112, 113 copies folded; DMS-179, 188 continuation preserved); full suites pass: 142/142 engine tests, 153/153 portal tests |
 
