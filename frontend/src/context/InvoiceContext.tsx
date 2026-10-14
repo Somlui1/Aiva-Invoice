@@ -576,9 +576,31 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
 
       logAudit('ส่งเข้า AP Interface', `${count} ฉบับ`, `Batch ${batchId}`)
       toast(`ส่งเข้า AP Interface แล้ว ${count} ฉบับ (${batchId})`)
+
+      // Persist AP batch to server
+      try {
+        fetch('/api/ap/batches', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': currentUser.id,
+            'x-user-role': currentUser.role,
+            'x-user-name': encodeURIComponent(currentUser.n),
+          },
+          body: JSON.stringify({
+            batchId,
+            documentIds: docIds,
+          }),
+        }).catch(err => {
+          console.warn('AP batch persistence error:', err)
+        })
+      } catch (err) {
+        console.warn('AP batch request error:', err)
+      }
+
       return { ok: true, count, msg: `ส่ง ${count} ฉบับสำเร็จ (${batchId})` }
     },
-    [can, precheckPost, currentUser.n, logAudit, toast]
+    [can, precheckPost, currentUser.id, currentUser.role, currentUser.n, logAudit, toast]
   )
 
   const ingestResultToQueue = useCallback(
