@@ -164,15 +164,25 @@ def select_invoice_pages(pages: list[dict]) -> dict:
     seen, kept = set(), []
     for p in ordered:
         marker = parse_marker(p.get("page_marker"))
-        key = (norm_key(p.get("doc_no_hint")), marker) if marker else None
+        doc_k = norm_key(p.get("doc_no_hint"))
+        key = (doc_k, marker) if marker else None
         if key and key in seen:
             info["dropped"].append({"page": p["page_no"], "reason": "reprint_same_number_and_marker",
                                     "doc_no_hint": p.get("doc_no_hint"), "page_marker": p.get("page_marker")})
             continue
+        # Prune duplicate copy sheet when an original sheet with the same doc_no is already kept without markers
+        if marker is None and len(doc_k) >= 3 and p.get("copy_status") == "copy":
+            has_orig = any(norm_key(x.get("doc_no_hint")) == doc_k and x.get("copy_status") != "copy"
+                           for x in target if x["page_no"] in kept)
+            if has_orig:
+                info["dropped"].append({"page": p["page_no"], "reason": "copy_sheet_of_existing_original",
+                                        "doc_no_hint": p.get("doc_no_hint")})
+                continue
         if key:
             seen.add(key)
         kept.append(p["page_no"])
     kept.sort()
+
     markers = [m for m in (parse_marker(p.get("page_marker")) for p in target if p["page_no"] in kept) if m]
     if markers:
         total = max(m[1] for m in markers)

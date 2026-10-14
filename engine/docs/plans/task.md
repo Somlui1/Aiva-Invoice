@@ -105,7 +105,7 @@
 | Task | Status | Description |
 |---|---|---|
 | Task 1: Prompt Enhancements for Visual Unit Matching & Negative Discounts | Done | Added 2D table extraction rules (horizontal gating, visual unit matching, header UOM inheritance, negative discounts) to single_pass_extract.md and vision_table_rows.md; 1 test passes |
-| Task 2: Safe Upstream Duplicate Page Separation | Pending | Implement safe duplicate copy pruning in select_invoice_pages while protecting multi-page continuation sheets |
+| Task 2: Safe Upstream Duplicate Page Separation | Done | Prune copy sheets when original exists for same doc_no without markers while protecting multi-page continuation; 2 new tests pass |
 | Task 3: Resilient Midstream Row Folding for Installments & Fuzzy Match | Pending | Decouple installment folding from subtotal equality and support fuzzy block matching against OCR noise in collapse_repeated_copies |
 | Task 4: Engine Self-Evidence Token Fallback for Dual-Quantity | Pending | Implement self-evidence fallback in corroborate_lines using row OCR tokens without Oracle peeking |
 | Task 5: Business Rule Fast-Paths | Pending | Add V-05 AAPICO Tax ID 100% bypass and V-08 service line amount match |

@@ -194,3 +194,24 @@ def test_orientation_and_rbox_integration(monkeypatch):
     # 4. Region nodes have rbox
     assert len(ext.regions) > 0
     assert all(r.rbox is not None for r in ext.regions if r.bbox)
+
+
+def test_select_invoice_pages_drops_named_copy_with_same_doc_no():
+    pages = [
+        {"page_no": 1, "doc_type": "tax_invoice", "copy_status": "original", "doc_no_hint": "INV-101", "page_marker": None},
+        {"page_no": 2, "doc_type": "tax_invoice", "copy_status": "copy", "doc_no_hint": "INV-101", "page_marker": None},
+    ]
+    res = select_invoice_pages(pages)
+    assert res["selected"] == [1]
+    assert len(res["dropped"]) == 1
+    assert res["dropped"][0]["reason"] == "copy_sheet_of_existing_original"
+
+
+def test_select_invoice_pages_preserves_multipage_continuation():
+    pages = [
+        {"page_no": 1, "doc_type": "tax_invoice", "copy_status": "original", "doc_no_hint": "INV-101", "page_marker": None},
+        {"page_no": 2, "doc_type": "tax_invoice", "copy_status": "original", "doc_no_hint": "INV-101", "page_marker": None},
+    ]
+    res = select_invoice_pages(pages)
+    assert res["selected"] == [1, 2]
+
