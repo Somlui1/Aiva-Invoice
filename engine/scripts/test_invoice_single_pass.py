@@ -1461,7 +1461,9 @@ def main():
             pa = round_a / "ocr" / f"{doc}.json"
             if not pa.exists():
                 per_doc[doc] = {"changed": True, "text": ["new in round B"], "moved": [],
-                                "boxes_added": [], "boxes_removed": []}
+                                "boxes_added": [], "boxes_removed": [], "renumbered": [],
+                                "noise_only": [], "material": ["new in round B"], "cosmetic": [],
+                                "row_moves": []}
                 continue
             dims = {}
             for png in src_dir.glob(f"{doc}_p*.png"):
