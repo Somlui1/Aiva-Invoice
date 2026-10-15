@@ -2307,7 +2307,8 @@ def test_diff_round_payloads_flags_text_change_and_box_move_over_5px():
     m = _load_single_pass_script()
     dims = {1: (1000, 2000)}
     old, new = _round_layout_payload(), _round_layout_payload()
-    empty = {"changed": False, "text": [], "moved": [], "boxes_added": [], "boxes_removed": []}
+    empty = {"changed": False, "text": [], "moved": [], "boxes_added": [], "boxes_removed": [],
+             "renumbered": [], "noise_only": []}
     assert m.diff_round_payloads(old, new, dims) == empty
 
     new["fields"]["grand_total"]["raw"] = "52,660.05"
@@ -2334,3 +2335,69 @@ def test_diff_round_payloads_noise_rule_rows_and_page_selection():
     repaged = _round_layout_payload()
     repaged["selected_invoice_pages"] = [2]
     assert any("selected_pages" in t for t in m.diff_round_payloads(old, repaged, dims)["text"])
+
+
+def test_clean_json_response_skips_reasoning_prose_and_picks_the_balanced_object():
+    m = _load_single_pass_script()
+    prose = 'Let me analyze both pages carefully. The first page {"note": "has a brace in prose"} shows...\n'
+    assert m._clean_json_response(prose + '{"invoice_num": {"raw": "ADV0001"}}') == {"invoice_num": {"raw": "ADV0001"}}
+    assert m._clean_json_response('```json\n{"a": 1}\n```') == {"a": 1}
+    assert m._clean_json_response('{"a": {"b": [1, 2]}, "c": "x"} trailing words') == {"a": {"b": [1, 2]}, "c": "x"}
+    import pytest as _pt
+    with _pt.raises(ValueError):
+        m._clean_json_response('The user wants me to classify 5 pages of accounting documents.')
+
+
+def test_detect_coord_mode_survives_null_boxes_from_the_model():
+    m = _load_single_pass_script()
+    from system_a.perception.coords import detect_coord_mode
+    W, H = 1075, 1521                       # an A4 page at 130 DPI (max side > 1100 -> norm1000 frame)
+    assert detect_coord_mode([[None, None, None, None]], W, H) == "norm1000"   # was float(None) TypeError
+    assert detect_coord_mode([[None, None, None, None], [10, 20, 30, 40]], W, H) == "norm1000"
+    assert detect_coord_mode([[0.1, 0.2, 0.3, 0.4], ["", None, 0.9, 0.5]], W, H) == "norm1"
+
+
+def test_attempt_max_tokens_escalates_only_on_retry():
+    m = _load_single_pass_script()
+    assert m.attempt_max_tokens(8000, 0) == 8000
+    assert m.attempt_max_tokens(8000, 1) == 16000
+    assert m.attempt_max_tokens(8000, 5) == 32768          # capped, never unbounded
+
+
+def test_diff_round_payloads_matches_rows_by_content_and_drops_currency_noise():
+    m = _load_single_pass_script()
+    dims = {1: (1000, 2000)}
+
+    def row(no, desc, amount):
+        return {"line_no": no, "page_no": 1, "line_bbox": [0.05, 0.30, 0.90, 0.03],
+                "description": {"raw": desc, "bbox": [0.06, 0.30, 0.40, 0.02]},
+                "qty": {"raw": "2", "bbox": None},
+                "amount": {"raw": amount, "bbox": [0.84, 0.30, 0.06, 0.02]}}
+
+    old, new = _round_layout_payload(), _round_layout_payload()
+    old["line_items"] = [row(1, "STEEL PLATE 6MM", "12,720.00"), row(5, "BOLT M8", "350.00")]
+    new["line_items"] = [row("A", "STEEL PLATE 6MM", "12,720.00"), row("B", "BOLT M8", "350.00")]
+    d = m.diff_round_payloads(old, new, dims)
+    assert d["changed"] is False, d            # same content, only the row number moved
+    assert len(d["renumbered"]) == 2
+
+    a, b = _round_layout_payload(), _round_layout_payload()
+    a["fields"]["currency"] = {"raw": "THB", "bbox": [0.5, 0.5, 0.05, 0.02], "page_no": 1}
+    b["fields"]["currency"] = {"raw": "USD", "bbox": [0.5, 0.5, 0.05, 0.02], "page_no": 1}
+    d2 = m.diff_round_payloads(a, b, dims)
+    assert d2["changed"] is False              # currency flip-flops in 43% of runs and is not a plan field
+    assert any("currency" in x for x in d2["noise_only"])
+    b["fields"]["vat"] = {"raw": "9,999.00", "bbox": [0.80, 0.70, 0.10, 0.02], "page_no": 1}
+    assert m.diff_round_payloads(a, b, dims)["changed"] is True   # a scored field still trips the rule
+
+
+def test_diff_round_payloads_can_ignore_fields_proven_unstable():
+    m = _load_single_pass_script()
+    dims = {1: (1000, 2000)}
+    a, b = _round_layout_payload(), _round_layout_payload()
+    b["fields"]["supplier_name"]["raw"] = "THAI WORTH CO LTD"
+    b["fields"]["supplier_name"]["bbox"] = [0.72, 0.10, 0.10, 0.02]
+    assert m.diff_round_payloads(a, b, dims)["changed"] is True
+    d = m.diff_round_payloads(a, b, dims, ignore_fields={"supplier_name"})
+    assert d["changed"] is False
+    assert any("supplier_name" in x for x in d["noise_only"])

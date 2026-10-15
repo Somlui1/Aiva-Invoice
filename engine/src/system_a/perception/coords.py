@@ -42,7 +42,17 @@ def detect_coord_mode(boxes: Sequence[Sequence[float]], img_w: int, img_h: int,
     """
     if forced and forced != "auto":
         return forced
-    vals = [float(v) for b in boxes if b and len(b) == 4 for v in b]
+    vals: list[float] = []
+    for b in boxes:
+        if not b or len(b) != 4:
+            continue
+        for v in b:
+            try:
+                f = float(v)
+            except (TypeError, ValueError):
+                continue                      # the model sometimes answers [null, null, null, null]
+            if not (math.isnan(f) or math.isinf(f)):
+                vals.append(f)
     if not vals:
         return "norm1000"
     mx = max(vals)

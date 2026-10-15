@@ -63,6 +63,9 @@ PL_TOKEN = os.getenv("PAPERLESS_API_TOKEN", "")
 CLASSIFY_DPI = int(os.getenv("CLASSIFY_DPI", "80"))
 RENDER_DPI = int(os.getenv("RENDER_DPI", "130"))
 MAX_TOKENS = int(os.getenv("VLM_MAX_TOKENS", "8000"))
+# Step 1 used to be pinned at 4096: a thinking model spends that on its preamble and the JSON never
+# arrives, which is what the round logs reported as "Failed to parse valid JSON from VLM response".
+CLASSIFY_MAX_TOKENS = int(os.getenv("VLM_MAX_TOKENS_CLASSIFY", "8000"))
 
 COLORS = {
     "header": "#d62728",      # Red
@@ -510,22 +513,54 @@ def draw_bboxes(img: Image.Image, items: List[dict], coord_mode: str) -> Image.I
     return out
 
 
+def json_candidates(text: str) -> List[str]:
+    """Every balanced ``{...}`` region in *text*, longest first (a thinking model puts prose around the JSON)."""
+    found: List[str] = []
+    for i, ch in enumerate(text):
+        if ch != "{":
+            continue
+        depth, in_str, esc = 0, False, False
+        for j in range(i, len(text)):
+            c = text[j]
+            if in_str:
+                if esc:
+                    esc = False
+                elif c == "\\":
+                    esc = True
+                elif c == '"':
+                    in_str = False
+                continue
+            if c == '"':
+                in_str = True
+            elif c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    found.append(text[i:j + 1])
+                    break
+    seen: set = set()
+    uniq = [c for c in found if not (c in seen or seen.add(c))]
+    uniq.sort(key=len, reverse=True)
+    return uniq
+
+
+def attempt_max_tokens(base: int, attempt: int) -> int:
+    """A thinking model that spends its budget on the preamble needs a bigger second attempt."""
+    return base if attempt <= 0 else min(base * (2 ** attempt), 32768)
+
+
 def _clean_json_response(raw_text: str) -> dict:
-    raw_text = re.sub(r"<think>.*?</think>", "", raw_text, flags=re.S)
+    raw_text = re.sub(r"<think(?:ing)?>.*?</think(?:ing)?>", "", raw_text, flags=re.S)
     raw_text = re.sub(r"```(?:json)?", "", raw_text)
-    s = raw_text.find("{")
-    e = raw_text.rfind("}")
-    if s != -1 and e > s:
-        try:
-            return json.loads(raw_text[s:e + 1])
-        except json.JSONDecodeError:
-            pass
-    m = re.search(r"\{.*\}", raw_text, re.S)
-    if m:
-        try:
-            return json.loads(m.group(0))
-        except Exception:
-            pass
+    for cand in json_candidates(raw_text):
+        for variant in (cand, re.sub(r",\s*([}\]])", r"\1", cand)):   # tolerate a trailing comma
+            try:
+                obj = json.loads(variant)
+            except Exception:
+                continue
+            if isinstance(obj, dict):
+                return obj
     raise ValueError(f"Failed to parse valid JSON from VLM response: {raw_text[:300]}")
 
 
@@ -555,11 +590,14 @@ def step1_classify_pages(
     for attempt in range(3):
         try:
             t0 = time.time()
+            ask = content + ([{"type": "text",
+                              "text": "Output ONLY the JSON object. No explanation, no preamble."}]
+                             if attempt else [])
             response = client.chat.completions.create(
                 model=model,
                 temperature=0,
-                max_tokens=4096,
-                messages=[{"role": "user", "content": content}]
+                max_tokens=attempt_max_tokens(CLASSIFY_MAX_TOKENS, attempt),
+                messages=[{"role": "user", "content": ask}]
             )
             duration = time.time() - t0
             msg = response.choices[0].message
@@ -594,11 +632,15 @@ def step2_extract_invoice_page(
     for attempt in range(3):
         try:
             t0 = time.time()
+            msgs = messages if not attempt else [{"role": "user", "content":
+                                                  messages[0]["content"]
+                                                  + [{"type": "text",
+                                                     "text": "Output ONLY the JSON object. No explanation."}]}]
             response = client.chat.completions.create(
                 model=model,
                 temperature=0,
-                max_tokens=MAX_TOKENS,
-                messages=messages
+                max_tokens=attempt_max_tokens(MAX_TOKENS, attempt),
+                messages=msgs
             )
             duration = time.time() - t0
             msg = response.choices[0].message
@@ -957,8 +999,26 @@ PLAN_MANDATORY_FIELDS = [
 ROW_CELL_KEYS = ("item_code", "description", "qty", "uom", "unit_price", "amount")
 
 
+NON_SCORING_FIELDS = {"currency"}     # flipped in 21/49 docs between two identical-code runs and is not a plan field
+
+
+def row_signature(item: dict) -> tuple:
+    """Content identity of a row: its cell text, whitespace-collapsed.
+
+    The model renumbers rows differently between runs (DMS-117 emitted 1,5,8,11,14,18 then 1..6), so
+    matching rows by `line_no` invents phantom added/removed rows.
+    """
+    parts = []
+    for key in ROW_CELL_KEYS:
+        cell = item.get(key)
+        raw = cell.get("raw") if isinstance(cell, dict) else cell
+        parts.append(re.sub(r"\s+", " ", str(raw or "").strip()).lower())
+    return tuple(parts)
+
+
 def diff_round_payloads(old: dict, new: dict, page_dims: Optional[Dict[int, Tuple[int, int]]] = None,
-                        move_px: float = 5.0) -> dict:
+                        move_px: float = 5.0,
+                        ignore_fields: Optional[set] = None) -> dict:
     """Compare one document across two rounds.
 
     Plan section 2: a document "changed" when any character of text differs, or a box moved more than
@@ -970,6 +1030,9 @@ def diff_round_payloads(old: dict, new: dict, page_dims: Optional[Dict[int, Tupl
     moved: List[str] = []
     added: List[str] = []
     removed: List[str] = []
+    renumbered: List[str] = []
+    noise_only: List[str] = []
+    gated = set(NON_SCORING_FIELDS) | set(ignore_fields or ())
 
     def px_rect(bbox, page):
         d = dims.get(int(page or 0))
@@ -987,21 +1050,24 @@ def diff_round_payloads(old: dict, new: dict, page_dims: Optional[Dict[int, Tupl
     for name in sorted(set(of) | set(nf)):
         o, n = of.get(name), nf.get(name)
         label = f"field:{name}"
+        is_noise = name in gated
+        sink = noise_only if is_noise else text
+        moved_sink = noise_only if is_noise else moved
         if o is None:
-            added.append(label)
+            (noise_only if is_noise else added).append(label)
             continue
         if n is None:
-            removed.append(label)
+            (noise_only if is_noise else removed).append(label)
             continue
         if str((o or {}).get("raw") or "").strip() != str((n or {}).get("raw") or "").strip():
-            text.append(f"{label}: {(o or {}).get('raw')!r} -> {(n or {}).get('raw')!r}")
+            sink.append(f"{label}: {(o or {}).get('raw')!r} -> {(n or {}).get('raw')!r}")
         ob, nb = (o or {}).get("bbox"), (n or {}).get("bbox")
         if bool(ob) != bool(nb):
-            text.append(f"{label}: grounding {'lost' if not nb else 'gained'}")
+            sink.append(f"{label}: grounding {'lost' if not nb else 'gained'}")
             continue
         d = shift(px_rect(ob, (n or {}).get("page_no")), px_rect(nb, (n or {}).get("page_no")))
         if d is not None and d > move_px:
-            moved.append(f"{label}: {round(d, 1)}px")
+            moved_sink.append(f"{label}: {round(d, 1)}px")
 
     def lines_by_key(d):
         out = {}
@@ -1010,16 +1076,37 @@ def diff_round_payloads(old: dict, new: dict, page_dims: Optional[Dict[int, Tupl
         return out
 
     ol, nl = lines_by_key(old), lines_by_key(new)
-    for key in sorted(set(ol) | set(nl), key=lambda t: (t[0], str(t[1]))):
-        o, n = ol.get(key), nl.get(key)
-        label = f"line@p{key[0]}#{key[1]}"
-        if o is None:
-            added.append(label)
+    # Pair rows by content first, so a renumbered run does not read as rows added + rows removed.
+    new_by_page: Dict[int, List[Any]] = {}
+    for key in sorted(nl, key=lambda t: (t[0], str(t[1]))):
+        new_by_page.setdefault(key[0], []).append(key)
+    used, paired, leftovers_old = set(), [], []
+    for key in sorted(ol, key=lambda t: (t[0], str(t[1]))):
+        sig = row_signature(ol[key])
+        match = None
+        if any(sig):
+            for cand in new_by_page.get(key[0], []):
+                if cand not in used and row_signature(nl[cand]) == sig:
+                    match = cand
+                    break
+        if match is None:
+            leftovers_old.append(key)
             continue
-        if n is None:
-            removed.append(label)
-            continue
-        d = shift(px_rect(o.get("line_bbox"), key[0]), px_rect(n.get("line_bbox"), key[0]))
+        used.add(match)
+        paired.append((key, match))
+    for key in list(leftovers_old):                      # cell-less payloads: fall back to the row number
+        if key in nl and key not in used:
+            used.add(key)
+            paired.append((key, key))
+            leftovers_old.remove(key)
+    leftovers_new = [k for page_keys in new_by_page.values() for k in page_keys if k not in used]
+
+    for old_key, new_key in paired:
+        o, n = ol[old_key], nl[new_key]
+        label = f"line@p{old_key[0]}#{old_key[1]}"
+        if old_key != new_key:
+            renumbered.append(f"{label} -> #{new_key[1]}")
+        d = shift(px_rect(o.get("line_bbox"), old_key[0]), px_rect(n.get("line_bbox"), new_key[0]))
         if d is not None and d > move_px:
             moved.append(f"{label}: {round(d, 1)}px")
         for cell in ROW_CELL_KEYS:
@@ -1027,11 +1114,17 @@ def diff_round_payloads(old: dict, new: dict, page_dims: Optional[Dict[int, Tupl
             if str(co.get("raw") or "").strip() != str(cn.get("raw") or "").strip():
                 text.append(f"{label}.{cell}: {co.get('raw')!r} -> {cn.get('raw')!r}")
 
+    for key in leftovers_old:
+        removed.append(f"line@p{key[0]}#{key[1]}")
+    for key in leftovers_new:
+        added.append(f"line@p{key[0]}#{key[1]}")
+
     if list(old.get("selected_invoice_pages") or []) != list(new.get("selected_invoice_pages") or []):
         text.append(f"selected_pages: {old.get('selected_invoice_pages')} -> {new.get('selected_invoice_pages')}")
 
     return {"changed": bool(text or moved or added or removed), "text": text, "moved": moved,
-            "boxes_added": added, "boxes_removed": removed}
+            "boxes_added": added, "boxes_removed": removed, "renumbered": renumbered,
+            "noise_only": noise_only}
 
 
 def row_bbox(item: dict):
@@ -1220,6 +1313,16 @@ def main():
     parser.add_argument("--crop-out", type=str, help="Output file name inside ROUND_DIR/crops/")
     parser.add_argument("--crop-pad", type=float, default=0.015, help="Normalised padding (default 0.015)")
     parser.add_argument("--round-dir", type=Path, help="round_XX dir used by --crop")
+    parser.add_argument("--stability-report", type=Path,
+                        help="stability_report.json (from --stability): fields proven unstable are excluded "
+                             "from the change verdict of --compare-rounds")
+    parser.add_argument("--stability", type=Path, metavar="ROUND_DIR",
+                        help="Re-run every document of ROUND_DIR --runs times with identical code and report "
+                             "per-field instability, exit")
+    parser.add_argument("--runs", type=int, default=2, help="runs per document for --stability")
+    parser.add_argument("--stability-limit", type=int, help="only the first N documents for --stability")
+    parser.add_argument("--noisy-field-rate", type=float, default=0.20,
+                        help="a field is noisy when it differs in at least this share of documents across identical runs")
     parser.add_argument("--compare-rounds", type=Path, nargs=2, metavar=("ROUND_A", "ROUND_B"),
                         help="Diff every document of ROUND_B against ROUND_A (plan section 2 rules), exit")
 
@@ -1269,7 +1372,7 @@ def main():
         return 0
 
     doc_ids = []
-    if args.audit_round or args.crop or args.compare_rounds:
+    if args.audit_round or args.crop or args.compare_rounds or args.stability:
         doc_ids = []
     elif args.doc_id:
         doc_ids = [args.doc_id]
@@ -1281,13 +1384,16 @@ def main():
         log(f"Fetching document list with tag '{args.tag}' from Paperless...")
         doc_ids = list_paperless_docs(tag=args.tag, limit=args.limit)
 
-    if not doc_ids and not args.audit_round and not args.download_only and not args.crop and not args.compare_rounds:
+    if not doc_ids and not args.audit_round and not args.download_only and not args.crop and not args.compare_rounds and not args.stability:
         log("No documents found. Exiting.")
         return 0
 
     if args.compare_rounds:
         round_a, round_b = args.compare_rounds
         src_dir = args.source_images_dir or (ROOT / "bbox_testing" / "source_images")
+        gated = set(NON_SCORING_FIELDS)
+        if args.stability_report and args.stability_report.exists():
+            gated |= set(json.loads(args.stability_report.read_text(encoding="utf-8")).get("noisy_fields") or [])
         per_doc: Dict[str, Any] = {}
         for pf in sorted((round_b / "ocr").glob("DMS-*.json")):
             doc = pf.stem
@@ -1303,7 +1409,8 @@ def main():
                 except (IndexError, ValueError):
                     continue
             d = diff_round_payloads(json.loads(pa.read_text(encoding="utf-8")),
-                                    json.loads(pf.read_text(encoding="utf-8")), dims)
+                                    json.loads(pf.read_text(encoding="utf-8")), dims,
+                                    ignore_fields=gated)
             d["field_moves"] = [x for x in d["moved"] if x.startswith("field:")]
             d["row_moves"] = [x for x in d["moved"] if x.startswith("line@")]   # expected from the P1 remeasure
             d["moved"] = d["field_moves"] + d["row_moves"]
@@ -1325,6 +1432,7 @@ def main():
             "round_a": round_a.name, "round_b": round_b.name,
             "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
             "rule": "changed = any text character differs, or a box moved more than 5 px",
+            "gated_fields": sorted(gated),
             "docs_compared": len(per_doc), "not_rerun": not_rerun,
             "changed_docs": changed, "unchanged_docs": unchanged,
             "previously_failed": sorted(set(previously_failed)),
@@ -1481,6 +1589,67 @@ def main():
 
     client = OpenAI(base_url=LITELLM_URL, api_key=LITELLM_KEY or "dummy")
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.stability:
+        round_dir = args.stability
+        ids = [int(p.stem.split("-", 1)[1]) for p in sorted((round_dir / "ocr").glob("DMS-*.json"))]
+        if args.stability_limit:
+            ids = ids[:args.stability_limit]
+        src_dir = args.source_images_dir or (ROOT / "bbox_testing" / "source_images")
+        log(f"Stability: {len(ids)} document(s) x {args.runs} identical run(s) - this measures the model, not a change")
+        for run_no in range(1, args.runs + 1):
+            run_dir = round_dir / "stability" / f"run{run_no}"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            with ThreadPoolExecutor(max_workers=args.workers) as executor:
+                futs = [executor.submit(process_single_doc, client, did, run_dir, args.dpi, False,
+                                        model_full, "round") for did in ids]
+                for fut in as_completed(futs):
+                    fut.result()
+            log(f"  run {run_no}/{args.runs} complete -> {run_dir}")
+
+        per_doc: Dict[str, Any] = {}
+        field_hits: Dict[str, int] = {}
+        for did in ids:
+            doc = f"DMS-{did}"
+            pa = round_dir / "stability" / "run1" / "ocr" / f"{doc}.json"
+            pb = round_dir / "stability" / "run2" / "ocr" / f"{doc}.json"
+            if not (pa.exists() and pb.exists()):
+                continue
+            dims = {}
+            for png in src_dir.glob(f"{doc}_p*.png"):
+                try:
+                    dims[int(png.stem.rsplit("_p", 1)[1])] = Image.open(png).size
+                except (IndexError, ValueError):
+                    continue
+            d = diff_round_payloads(json.loads(pa.read_text(encoding="utf-8")),
+                                    json.loads(pb.read_text(encoding="utf-8")), dims,
+                                    ignore_fields=set(NON_SCORING_FIELDS))
+            unstable = set()
+            for entry in d["text"] + d["moved"]:
+                if entry.startswith("field:"):
+                    unstable.add(entry.split(":", 1)[1].split(":")[0])
+            per_doc[doc] = {"unstable_fields": sorted(unstable),
+                            "rows_renumbered": len(d["renumbered"]),
+                            "row_box_moved": bool([x for x in d["moved"] if x.startswith("line@")]),
+                            "rows_added_or_removed": len(d["boxes_added"]) + len(d["boxes_removed"]),
+                            "pages_stable": not any(t.startswith("selected_pages") for t in d["text"])}
+            for f in unstable:
+                field_hits[f] = field_hits.get(f, 0) + 1
+        n_ok = max(len(per_doc), 1)
+        rates = {f: round(c / n_ok, 3) for f, c in sorted(field_hits.items(), key=lambda kv: -kv[1])}
+        noisy = sorted(f for f, r in rates.items() if r >= args.noisy_field_rate)
+        payload = {"round": round_dir.name, "documents_compared": len(per_doc), "runs": args.runs,
+                   "model": model_full, "temperature": 0,
+                   "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                   "rule": f"a field is noisy when it differs in >= {args.noisy_field_rate:.0%} of documents "
+                           f"between two runs of identical code",
+                   "instability_rate_by_field": rates, "noisy_fields": noisy,
+                   "docs": per_doc}
+        out = round_dir / "stability_report.json"
+        out.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+        log(f"Stability over {len(per_doc)} doc(s): noisy fields (>= {args.noisy_field_rate:.0%}) = {noisy} -> {out}")
+        log("rates: " + ", ".join(f"{f} {r:.0%}" for f, r in list(rates.items())[:12]))
+        return 0
 
     results = []
     if args.workers <= 1 or len(doc_ids) == 1:
