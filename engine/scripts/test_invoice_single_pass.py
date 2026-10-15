@@ -945,6 +945,43 @@ PLAN_MANDATORY_FIELDS = [
 ]
 
 
+def crop_rect_norm(img, rect, pad_norm: float = 0.015):
+    """Zoom crop of a normalised [x, y, w, h] box, padded and clipped to the page."""
+    x, y, w, h = (float(v) for v in rect)
+    W, H = img.size
+    x0 = max(0, int(round((x - pad_norm) * W)))
+    y0 = max(0, int(round((y - pad_norm) * H)))
+    x1 = min(W, int(round((x + w + pad_norm) * W)))
+    y1 = min(H, int(round((y + h + pad_norm) * H)))
+    return img.crop((x0, y0, max(x0 + 1, x1), max(y0 + 1, y1)))
+
+
+def find_field_box(payload: dict, name: str):
+    """Locate one box by name: header field, line_<n>, line_<n>.<cell> or region:<label>."""
+    fields = payload.get("fields") or {}
+    if name in fields:
+        f = fields.get(name) or {}
+        return int(f.get("page_no") or 0), (f.get("bbox") or None)
+    if name.startswith("line_"):
+        tail = name.split("_", 1)[1]
+        cell = tail.split(".", 1)[1] if "." in tail else None
+        tail = tail.split(".", 1)[0]
+        for l in payload.get("line_items") or []:
+            if str(l.get("line_no")) != tail:
+                continue
+            pg = int(l.get("page_no") or 0)
+            if cell is None:
+                return pg, (l.get("line_bbox") or None)
+            c = l.get(cell)
+            return pg, (c.get("bbox") if isinstance(c, dict) else None)
+    if name.startswith("region:"):
+        label = name.split(":", 1)[1]
+        for r in payload.get("regions") or []:
+            if str(r.get("label")) == label:
+                return int(r.get("page_no") or 0), (r.get("bbox") or None)
+    return None
+
+
 def audit_doc(payload: dict, page_dims: Optional[Dict[int, Tuple[int, int]]] = None) -> dict:
     """Automated triage of one round payload.
 
@@ -1061,6 +1098,14 @@ def main():
                         help="Triage a finished round dir and write ROUND_DIR/progress.json, exit")
     parser.add_argument("--source-images-dir", type=Path, default=None,
                         help="source_images dir for page pixel sizes (default: bbox_testing/source_images)")
+    parser.add_argument("--crop", type=int, metavar="DOC_ID", help="Write one evidence zoom crop into ROUND_DIR/crops/, exit")
+    parser.add_argument("--crop-field", type=str,
+                        help="Field for --crop (grand_total, line_1, line_1.amount, region:company_stamp)")
+    parser.add_argument("--crop-box", type=str, help="Explicit x,y,w,h normalised, instead of --crop-field")
+    parser.add_argument("--crop-page", type=int, help="Page for --crop (default: page the field lives on)")
+    parser.add_argument("--crop-out", type=str, help="Output file name inside ROUND_DIR/crops/")
+    parser.add_argument("--crop-pad", type=float, default=0.015, help="Normalised padding (default 0.015)")
+    parser.add_argument("--round-dir", type=Path, help="round_XX dir used by --crop")
 
     args = parser.parse_args()
 
@@ -1108,7 +1153,7 @@ def main():
         return 0
 
     doc_ids = []
-    if args.audit_round:
+    if args.audit_round or args.crop:
         doc_ids = []
     elif args.doc_id:
         doc_ids = [args.doc_id]
@@ -1120,8 +1165,55 @@ def main():
         log(f"Fetching document list with tag '{args.tag}' from Paperless...")
         doc_ids = list_paperless_docs(tag=args.tag, limit=args.limit)
 
-    if not doc_ids and not args.audit_round and not args.download_only:
+    if not doc_ids and not args.audit_round and not args.download_only and not args.crop:
         log("No documents found. Exiting.")
+        return 0
+
+    if args.crop:
+        if not args.round_dir:
+            log("--crop requires --round-dir")
+            return 2
+        did = int(args.crop)
+        pf = ocr_payload_path(args.round_dir, did, "round")
+        payload = json.loads(pf.read_text(encoding="utf-8")) if pf.exists() else {}
+        page, rect = args.crop_page, None
+        if args.crop_box:
+            rect = [float(v) for v in args.crop_box.split(",")]
+            pages_sel = payload.get("selected_invoice_pages") or [1]
+            page = page or (int(pages_sel[0]) if pages_sel else 1)
+        elif args.crop_field:
+            found = find_field_box(payload, args.crop_field)
+            if not found:
+                log(f"--crop-field {args.crop_field}: not found in {pf}")
+                return 2
+            page, rect = (page or found[0]), found[1]
+            if rect is None:
+                log(f"--crop-field {args.crop_field}: no bbox stored, use --crop-box x,y,w,h")
+                return 2
+        else:
+            log("--crop needs --crop-field or --crop-box")
+            return 2
+        src_dir = args.source_images_dir or (ROOT / "bbox_testing" / "source_images")
+        src_png = src_dir / f"DMS-{did}_p{page}.png"
+        if not src_png.exists():
+            log(f"missing source image {src_png}")
+            return 2
+        img = Image.open(src_png)
+        rot = 0
+        for p in (payload.get("meta") or {}).get("pages_classification") or []:
+            if int(p.get("page_no") or 0) == int(page):
+                rot = int(p.get("r") or p.get("rotate_degrees") or 0)
+        if rot in (90, 180, 270):
+            img = img.rotate(-rot, expand=True)
+        crop = crop_rect_norm(img, rect, pad_norm=args.crop_pad)
+        if crop.size[0] < 1000:
+            factor = min(4.0, 1000.0 / crop.size[0])
+            crop = crop.resize((int(crop.size[0] * factor), int(crop.size[1] * factor)), Image.LANCZOS)
+        crops_dir = args.round_dir / "crops"
+        crops_dir.mkdir(parents=True, exist_ok=True)
+        out = crops_dir / (args.crop_out or f"DMS-{did}_{args.crop_field or 'evidence'}.png")
+        crop.save(out)
+        log(f"crop {src_png.name} box={[round(float(v), 3) for v in rect]} -> {out} {crop.size}")
         return 0
 
     if args.audit_round:

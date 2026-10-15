@@ -2266,3 +2266,22 @@ def test_audit_doc_clean_payload_has_no_findings():
     res = m.audit_doc(p, {1: (1240, 1754)})
     assert res["findings"] == []
     assert res["selected_pages"] == [1]
+
+
+def test_crop_rect_norm_pads_and_clips_to_the_page():
+    from PIL import Image
+    m = _load_single_pass_script()
+    src = Image.new("RGB", (1000, 2000), "white")
+    assert m.crop_rect_norm(src, [0.5, 0.1, 0.2, 0.05], pad_norm=0.01).size == (220, 140)
+    assert m.crop_rect_norm(src, [0.95, 0.90, 0.20, 0.20], pad_norm=0.02).size == (70, 240)
+
+
+def test_find_field_box_resolves_field_line_and_cell_names():
+    m = _load_single_pass_script()
+    p = _round_layout_payload()
+    p["line_items"][0]["amount"] = {"raw": "81,180.00", "bbox": [0.85, 0.30, 0.08, 0.02]}
+    assert m.find_field_box(p, "invoice_num") == (1, [0.70, 0.10, 0.10, 0.02])
+    assert m.find_field_box(p, "line_1") == (1, [0.05, 0.30, 0.90, 0.03])
+    assert m.find_field_box(p, "line_1.amount") == (1, [0.85, 0.30, 0.08, 0.02])
+    assert m.find_field_box(p, "grand_total") == (1, None)
+    assert m.find_field_box(p, "nope") is None
