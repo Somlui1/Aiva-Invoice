@@ -1,4 +1,4 @@
-export type RoleKey = 'EU' | 'ACC' | 'APR' | 'ADM'
+export type RoleKey = 'EU' | 'ACC' | 'APR' | 'ADM' | 'itsupport'
 
 export type Permission =
   | 'VIEW_OWN'
@@ -23,7 +23,7 @@ export interface Role {
   c: string          // Text color
   bg: string         // Background pill color
   p: Permission[]    // Allowed permissions
-  scope: 'receiver' | 'company' | 'none'
+  scope: 'receiver' | 'company' | 'none' | 'all'
   postMax?: number   // Max AP post threshold
 }
 

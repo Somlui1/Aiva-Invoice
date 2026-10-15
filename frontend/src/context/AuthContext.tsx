@@ -50,6 +50,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (r.scope === 'none') {
       return { ok: false, why: 'บทบาทนี้ไม่เข้าถึงเนื้อหาเอกสาร' }
     }
+    if (r.scope === 'all') {
+      return { ok: true }
+    }
     if (!currentUser.co.includes(doc.company)) {
       return { ok: false, why: `เอกสารอยู่นอกบริษัทที่ได้รับมอบหมาย (${doc.company})` }
     }
