@@ -233,7 +233,7 @@ def normalize(ext: ExtractionResult, std: Standard) -> tuple[InvoiceDoc, dict]:
         for req in std.policy["required_line_cells"]:
             cells.setdefault(req, NField(req, f"{lid}-{req}", None, None, None, False, "NOT_PRESENT"))
         ug = cells["uom"].value if cells["uom"].ok else None
-        lines.append(NLine(ln.line_no, lid, cells, ug, line_po_refs(ln.cells)))
+        lines.append(NLine(ln.line_no, lid, cells, ug, line_po_refs(ln.cells), region=ln.region))
     sigs = dict(ext.signatures)
     stamp = _deliverer_from_stamp(ext, std, sigs)
     if stamp is not None:

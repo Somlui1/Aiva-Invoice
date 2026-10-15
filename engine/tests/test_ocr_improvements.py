@@ -2002,7 +2002,7 @@ def test_v01_po_missing_corroborated_by_oracle_receipt_is_low():
         "unit_price": NField("unit_price", "L1-p", "100.00", Decimal("100.00"), 1.0, True),
         "amount": NField("amount", "L1-a", "1000.00", Decimal("1000.00"), 1.0, True),
     }
-    l1 = NLine(line_no=1, element_id="L1", cells=cells, uom_group="PCS")
+    l1 = NLine(line_no=1, element_id="L1", cells=cells, uom_group="PCS", region=Region(page=1, bbox=(0.05, 0.30, 0.90, 0.03)))
     doc = InvoiceDoc("D1", fields, (l1,), {}, True)
 
     rcv_row = ReceiptRow(101, "R1", "WH", 1, "ITEM A", Decimal("10"), "Piece", Decimal("100.00"), Decimal("1000.00"), {"rcv_line_id": "R1-1"})
@@ -2114,5 +2114,28 @@ def test_skew_aware_cell_union_and_aspect_ratio_sanity():
     assert validate_line_bbox([0.05, 0.30, 0.95, 0.33]) is True
     # Vertical column box: width=0.08, height=0.55 -> aspect ratio 0.145 -> Invalid!
     assert validate_line_bbox([0.44, 0.27, 0.52, 0.82]) is False
+
+
+def test_geometric_grounding_gate_and_row_overlap_collision():
+    from decimal import Decimal
+    from system_a.domain.rules import check_row_geometry_and_overlap
+    from system_a.domain.contracts import NLine, Region
+    
+    # 1. Missing or ungrounded bbox on active line fails gate
+    line1 = NLine(line_no=1, element_id="L1", description="ITEM 1", qty=Decimal("1"), unit_price=Decimal("100"), amount=Decimal("100"),
+                  region=None, cells={})
+    assert check_row_geometry_and_overlap([line1]) == ["L1.bbox(UNGROUNDED_GEOMETRY)"]
+    
+    # 2. Overlapping rows (IoMin_y > 0.50) on same page fail gate
+    # Line A: y from 0.30 to 0.34 (height 0.04)
+    # Line B: y from 0.31 to 0.35 (height 0.04, overlap 0.03 -> ratio 0.75 > 0.50)
+    lineA = NLine(line_no=1, element_id="L1", description="ITEM 1", region=Region(page=1, bbox=(0.05, 0.30, 0.90, 0.04)), cells={})
+    lineB = NLine(line_no=2, element_id="L2", description="ITEM 2", region=Region(page=1, bbox=(0.05, 0.31, 0.90, 0.04)), cells={})
+    assert len(check_row_geometry_and_overlap([lineA, lineB])) > 0
+    
+    # 3. Clean separated rows pass gate
+    lineC = NLine(line_no=1, element_id="L1", description="ITEM 1", region=Region(page=1, bbox=(0.05, 0.30, 0.90, 0.03)), cells={})
+    lineD = NLine(line_no=2, element_id="L2", description="ITEM 2", region=Region(page=1, bbox=(0.05, 0.34, 0.90, 0.03)), cells={})
+    assert check_row_geometry_and_overlap([lineC, lineD]) == []
 
 

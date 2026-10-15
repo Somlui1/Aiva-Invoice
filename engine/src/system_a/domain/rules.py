@@ -7,10 +7,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, Sequence
 
 from . import v08 as v08mod
-from .contracts import Finding, InvoiceDoc, OracleSnapshot, RuleOutcome
+from .contracts import Finding, InvoiceDoc, NLine, OracleSnapshot, RuleOutcome
 from .matching import price_check
 from .evidence import is_covered
 from .normalize import addr_key, norm_name, thai_to_arabic
@@ -74,6 +74,48 @@ def _line_tag(l) -> str:
     return f"บรรทัดที่ {l.line_no} (Invoice: {l.v('description') or '-'})"
 
 
+def check_row_geometry_and_overlap(lines: Sequence[NLine]) -> list[str]:
+    """Check line item bbox grounding and row overlap collisions on the same page."""
+    errs = []
+    page_lines: dict[int, list[NLine]] = {}
+    for l in lines:
+        if l.region is None or l.region.bbox is None or len(l.region.bbox) < 4:
+            errs.append(f"L{l.line_no}.bbox(UNGROUNDED_GEOMETRY)")
+            continue
+        w = float(l.region.bbox[2])
+        h = float(l.region.bbox[3])
+        if h <= 0 or (w / h) < 1.2:
+            errs.append(f"L{l.line_no}.bbox(UNGROUNDED_GEOMETRY)")
+            continue
+        p = getattr(l.region, "page", 1) or 1
+        page_lines.setdefault(p, []).append(l)
+
+    for p, rows in page_lines.items():
+        sorted_rows = sorted(rows, key=lambda r: r.line_no)
+        for idx in range(len(sorted_rows) - 1):
+            cur = sorted_rows[idx]
+            nxt = sorted_rows[idx + 1]
+            y1_c, h_c = float(cur.region.bbox[1]), float(cur.region.bbox[3])
+            y2_c = y1_c + h_c
+            yc_c = y1_c + h_c / 2.0
+
+            y1_n, h_n = float(nxt.region.bbox[1]), float(nxt.region.bbox[3])
+            y2_n = y1_n + h_n
+            yc_n = y1_n + h_n / 2.0
+
+            if yc_n < yc_c - 0.01:
+                errs.append(f"L{nxt.line_no}.order(INVERTED_ROW_SEQUENCE)")
+
+            overlap_y = max(0.0, min(y2_c, y2_n) - max(y1_c, y1_n))
+            min_h = min(h_c, h_n)
+            if min_h > 0:
+                overlap_ratio = overlap_y / min_h
+                if overlap_ratio > 0.50:
+                    errs.append(f"L{nxt.line_no}.overlap(COLLISION_RATIO_{overlap_ratio:.2f})")
+
+    return errs
+
+
 # =============================================================== STEP 1 — document only
 def v01_required(c: Ctx) -> RuleOutcome:
     d, miss, eids = c.doc, [], []
@@ -90,15 +132,27 @@ def v01_required(c: Ctx) -> RuleOutcome:
                 miss.append(f"L{l.line_no}.{k}({cf.null_reason})"), eids.append(cf.element_id)
     if not d.pages_complete:
         miss.append("pages_complete(false)")
+
+    geo_errs = check_row_geometry_and_overlap(d.lines)
+    if geo_errs:
+        miss.extend(geo_errs)
+        for l in d.lines:
+            if l.element_id and l.element_id not in eids:
+                eids.append(l.element_id)
+
     if not miss:
         return _ok("V-01")
 
     # If the only issue is po_number and Oracle EBS confirmed receipt, demote to Low advisory
-    oracle_confirmed = bool(c.snapshot and getattr(c.snapshot, "receipt_lines", None))
+    oracle_confirmed = bool(c.snapshot and (getattr(c.snapshot, "active", None) or getattr(c.snapshot, "receipt_lines", None)))
     all_po = all(m.startswith("po_number") for m in miss)
-    if all_po and oracle_confirmed:
+    if all_po and oracle_confirmed and not geo_errs:
         return _fail("V-01", [_f(c, "E01", "V-01", "ฟิลด์ PO บนเอกสารมีข้อสังเกต แต่ยืนยันได้จากใบรับในระบบ Oracle: " + ", ".join(miss),
                                  sev="Low", element_ids=tuple(eids))])
+
+    if geo_errs and all(m in geo_errs for m in miss):
+        return _fail("V-01", [_f(c, "E01", "V-01", "พิกัดบรรทัดสินค้าบนเอกสารไม่สมบูรณ์หรือไม่สอดคล้องกับโครงสร้างตาราง: " + ", ".join(geo_errs),
+                                 sev="Medium", element_ids=tuple(eids))])
 
     return _fail("V-01", [_f(c, "E01", "V-01", "ฟิลด์บังคับอ่านไม่ได้หรือไม่ครบ: " + ", ".join(miss),
                              element_ids=tuple(eids))])

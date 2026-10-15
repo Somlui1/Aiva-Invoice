@@ -138,10 +138,15 @@ class NLine:
     line_no: int
     element_id: str
     cells: dict                   # name -> NField
-    uom_group: Optional[str]
+    uom_group: Optional[str] = None
     # 8-digit PO numbers printed on this line (description / item code), in printed order.
     # Candidates only: matching uses one when it equals a PO that Oracle returned for this invoice.
     po_refs: tuple = ()
+    region: Optional[Region] = None
+    description: Optional[str] = None
+    qty: Optional[Decimal] = None
+    unit_price: Optional[Decimal] = None
+    amount: Optional[Decimal] = None
 
     def v(self, k):
         f = self.cells.get(k)
