@@ -2463,29 +2463,6 @@ def test_digit_recheck_targets_picks_only_grounded_digit_fields():
     fields = {
         "invoice_num": {"raw": "26/2691", "bbox": [0.7, 0.1, 0.1, 0.02]},
         "supplier_tax_id": {"raw": "0105537063173", "bbox": [0.1, 0.1, 0.2, 0.02]},
-        "po_number": {"raw": "PO A/B", "bbox": [0.1, 0.2, 0.2, 0.02]},          # fewer than 4 digits
-        "supplier_name": {"raw": "0105537063173", "bbox": [0.1, 0.3, 0.2, 0.02]},   # not a digit field
-        "vat": {"raw": "3,445.05", "bbox": None},                                  # nothing to crop
-    }
-    assert m.digit_recheck_targets(fields) == ["invoice_num", "supplier_tax_id"]
-    assert m.crop_zoom(18) == 5 and m.crop_zoom(0) == 1 and m.crop_zoom(400) == 1
-
-
-def test_apply_recheck_records_the_second_opinion_without_overwriting_the_first():
-    m = _load_single_pass_script()
-    fields = {"invoice_num": {"raw": "PI2610-00300", "bbox": [0.7, 0.1, 0.1, 0.02]}}
-    summary = m.apply_recheck(fields, {"invoice_num": {"raw": "PI2610-000300", "model": "second-pass"}})
-    assert fields["invoice_num"]["raw"] == "PI2610-00300"                 # the first read is untouched
-    assert fields["invoice_num"]["recheck"]["agreed"] is False
-    assert summary == {"checked": 1, "disagreed": ["invoice_num"]}
-    assert m.apply_recheck({}, {}) == {"checked": 0, "disagreed": []}
-
-
-def test_digit_recheck_targets_picks_only_grounded_digit_fields():
-    m = _load_single_pass_script()
-    fields = {
-        "invoice_num": {"raw": "26/2691", "bbox": [0.7, 0.1, 0.1, 0.02]},
-        "supplier_tax_id": {"raw": "0105537063173", "bbox": [0.1, 0.1, 0.2, 0.02]},
         "po_number": {"raw": "PO A/B", "bbox": [0.1, 0.2, 0.2, 0.02]},             # fewer than 4 digits
         "supplier_name": {"raw": "0145537063173", "bbox": [0.1, 0.3, 0.2, 0.02]},  # not a digit field
         "vat": {"raw": "3,445.05", "bbox": None},                                   # nothing to crop
