@@ -2479,3 +2479,18 @@ def test_apply_recheck_records_the_second_opinion_without_overwriting_the_first(
     assert fields["invoice_num"]["recheck"]["agreed"] is False
     assert summary == {"checked": 1, "disagreed": ["invoice_num"]}
     assert m.apply_recheck({}, {}) == {"checked": 0, "disagreed": []}
+
+
+def test_audit_doc_reports_recheck_disagreement_as_a_hint_not_a_finding():
+    """Measured: the strip re-check answers with the neighbour's value (PO -> a phone number,
+    supplier_tax_id -> '0.00'), so a disagreement orders the queue but is never a defect by itself."""
+    m = _load_single_pass_script()
+    p = _round_layout_payload()
+    p["fields"]["invoice_num"]["recheck"] = {"raw": "26/269", "agreed": False, "model": "strip-recheck"}
+    res = m.audit_doc(p, {1: (1000, 2000)})
+    assert res["recheck_hints"] == ["invoice_num"]
+    assert not any(f.startswith("RECHECK") for f in res["findings"])
+
+    ok = _round_layout_payload()
+    ok["fields"]["invoice_num"]["recheck"] = {"raw": "26/2691", "agreed": True}
+    assert m.audit_doc(ok, {1: (1000, 2000)})["recheck_hints"] == []

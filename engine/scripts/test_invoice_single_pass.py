@@ -1437,9 +1437,15 @@ def audit_doc(payload: dict, page_dims: Optional[Dict[int, Tuple[int, int]]] = N
         if str(p.get("doc_type", "")).endswith("tax_invoice") and str(p.get("copy_status", "")).lower() == "original":
             findings.add(f"CLASSIFY_SUSPECT:p{pno}_original_invoice_not_selected")
 
+    # The second read is a hint only: measured on 35 fields it disagreed in 26% and when it did, it was
+    # usually the one that was wrong (a phone number answering po_number, "0.00" answering supplier_tax_id).
+    hints = [n for n, f in (payload.get("fields") or {}).items()
+             if isinstance(f, dict) and isinstance(f.get("recheck"), dict) and f["recheck"].get("agreed") is False]
+
     return {
         "findings": sorted(findings),
         "rows_ocr_per_page": rows,
+        "recheck_hints": sorted(hints),
         "selected_pages": selected,
         "total_pages": (payload.get("meta") or {}).get("total_pages"),
         "boxes_total": len(boxes),
