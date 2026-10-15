@@ -52,3 +52,10 @@
 | prod-task-5 | Interactive Permission Admin UI (Mockup v3) | completed | PermissionExcelGrid, AdUserSearchModal, SaveDiffModal mounted in RbacPage for ADM; 10/10 smoke + rbacPageInteractive tests pass |
 | prod-task-6 | Oracle AP Batch Staging & Locking Pipeline | completed | POST/GET /api/ap/batches, /api/ap/batches/[id]/callback, and ApPage live sync; 4/4 apBatch tests pass |
 | prod-task-7 | Full Verification & End-to-End Regression Pass | completed | Full vitest suite 35/35 test files (236/236 tests) pass; tsc --noEmit clean; Next.js 15 production build (19/19 routes) clean |
+| rbac-tabs-brainstorm | Brainstorm RBAC Tabbed Navigation & Reference Tables Layout | completed | Approved 3-tab layout + Oracle MCP company sync; design saved to docs/plans/2026-10-15-rbac-tabbed-navigation-and-oracle-company-sync-design.md |
+| rbac-tab-task-1 | Oracle MCP Company Sync API (/api/oracle/sync-companies) | completed | POST endpoint querying Oracle ORDS MCP sql_run with fallback & audit logging; src/test/oracleCompanySync.test.ts pass |
+| rbac-tab-task-2 | RbacPage 3-Tab Component Structure & Tab State | completed | 3 tabs (Admin Grid, Permission Matrix, Companies & ORG_ID) with badges & ARIA roles; rbacPageInteractive tests pass |
+| rbac-tab-task-3 | Interactive Oracle Sync Button & Feedback in Tab 3 | completed | Sync button with loading spinner, last-sync timestamp & error/success toasts; test passing |
+| rbac-tab-task-4 | Full Verification Pass (Vitest, TSC, Next Build) | completed | 37/37 test files (242/242 tests) pass, tsc clean, Next.js build clean (incl. /api/oracle/sync-companies) |
+| prod-cleanup-brainstorm | Production Readiness & UI Cleanup Brainstorming | in_progress | Exploring requirements: RBAC icons, audit log isolation, login mock cleanup, IT Support role |
+
