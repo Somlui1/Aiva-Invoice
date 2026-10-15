@@ -1361,6 +1361,16 @@ def find_field_box(payload: dict, name: str):
     return None
 
 
+def box_overlap_frac(a, b) -> float:
+    """Shared area over the smaller box (0 = apart, 1 = one inside the other)."""
+    ax0, ay0, aw, ah = (float(v) for v in a)
+    bx0, by0, bw, bh = (float(v) for v in b)
+    ox = max(0.0, min(ax0 + aw, bx0 + bw) - max(ax0, bx0))
+    oy = max(0.0, min(ay0 + ah, by0 + bh) - max(ay0, by0))
+    small = max(min(aw * ah, bw * bh), 1e-9)
+    return (ox * oy) / small
+
+
 def audit_doc(payload: dict, page_dims: Optional[Dict[int, Tuple[int, int]]] = None) -> dict:
     """Automated triage of one round payload.
 
@@ -1414,9 +1424,12 @@ def audit_doc(payload: dict, page_dims: Optional[Dict[int, Tuple[int, int]]] = N
             continue
         if w <= 0 or h <= 0 or x < -0.005 or y < -0.005 or x + w > 1.005 or y + h > 1.005:
             findings.add(f"OOB:{label}")
-        if label in seen.setdefault(pg, set()):
+        prior = seen.setdefault(pg, {}).setdefault(label, [])
+        # Same label twice is only a defect when the two boxes sit on the same spot: a page carrying
+        # three different company stamps is normal paper, and counting labels made that a "defect".
+        if any(box_overlap_frac(prev, [x, y, w, h]) > 0.25 for prev in prior):
             findings.add(f"DUPLICATE:{label}")
-        seen[pg].add(label)
+        prior.append((x, y, w, h))
         if selected and pg not in selected:
             findings.add(f"BBOX_ON_UNSELECTED_PAGE:{pg}")
         if label.startswith("line_") and "." not in label and w > 0 and h > 0:
@@ -1430,6 +1443,8 @@ def audit_doc(payload: dict, page_dims: Optional[Dict[int, Tuple[int, int]]] = N
         if pg not in pages_with_boxes:
             findings.add(f"NO_BBOX_ON_SELECTED_PAGE:{pg}")
 
+    invoice_nums = {re.sub(r"[.\- /]", "", str(((payload.get("fields") or {}).get("invoice_num") or {})
+                                               .get("raw") or "")).lower()} - {""}
     reprint_keys = set()
     for p in ((payload.get("meta") or {}).get("pages_classification") or []):
         if int(p.get("page_no") or 0) in selected and (p.get("doc_no_hint") or "").strip():
@@ -1443,7 +1458,8 @@ def audit_doc(payload: dict, page_dims: Optional[Dict[int, Tuple[int, int]]] = N
             # A re-print of the invoice that was selected is deliberately left out (selection dedups on
             # doc_no_hint + page_marker); flagging it sent reviewers to pages with nothing wrong.
             key = ((p.get("doc_no_hint") or "").strip(), str(p.get("page_marker") or "").strip())
-            if key[0] and key in reprint_keys:
+            norm = re.sub(r"[.\- /]", "", key[0]).lower()
+            if norm and (key in reprint_keys or norm in invoice_nums):
                 continue
             findings.add(f"CLASSIFY_SUSPECT:p{pno}_original_invoice_not_selected")
 

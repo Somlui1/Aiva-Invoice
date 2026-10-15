@@ -2534,3 +2534,46 @@ def test_classify_suspect_also_covers_pages_simply_typed_invoice():
         it["page_no"] = 1
     findings = m.audit_doc(p, {1: (1000, 2000), 2: (1000, 2000)})["findings"]
     assert "CLASSIFY_SUSPECT:p2_original_invoice_not_selected" in findings
+
+
+def test_classify_suspect_ignores_a_reprint_found_under_the_extracted_invoice_number():
+    """DMS-159 pages are filed under Doc No. SLI2610000004 but the invoice prints INVOICE NO.
+    INV-2026-0802; page 6 carries that number as its hint, so it is the same invoice re-printed."""
+    m = _load_single_pass_script()
+    p = _round_layout_payload()
+    p["fields"]["invoice_num"] = {"raw": "INV-2026-0802", "normalized": "INV-2026-0802",
+                                  "bbox": [0.2, 0.3, 0.1, 0.01], "page_no": 1}
+    p["meta"]["pages_classification"] = [
+        {"page_no": 1, "doc_type": "invoice", "copy_status": "original",
+         "doc_no_hint": "SLI2610000004", "page_marker": "1/2"},
+        {"page_no": 2, "doc_type": "invoice", "copy_status": "original",
+         "doc_no_hint": "INV-2026-0802", "page_marker": None},
+    ]
+    p["selected_invoice_pages"] = [1]
+    for b in list(p["fields"].values()) + p["regions"] + p["line_items"]:
+        b["page_no"] = 1
+    findings = m.audit_doc(p, {1: (1000, 2000), 2: (1000, 2000)})["findings"]
+    assert "CLASSIFY_SUSPECT:p2_original_invoice_not_selected" not in findings
+
+
+def test_duplicate_region_needs_two_boxes_on_the_same_spot():
+    """DMS-47 prints three company stamps (solid top-left, watermark mid-page, corner stamp bottom-right).
+    Counting the label three times called that a defect and sent the reviewer to chase a phantom."""
+    m = _load_single_pass_script()
+    p = _round_layout_payload()
+    p["regions"] = [
+        {"label": "company_stamp", "bbox": [0.03, 0.06, 0.15, 0.10], "page_no": 1},
+        {"label": "company_stamp", "bbox": [0.35, 0.44, 0.27, 0.21], "page_no": 1},
+        {"label": "company_stamp", "bbox": [0.72, 0.87, 0.23, 0.08], "page_no": 1},
+        {"label": "company_stamp", "bbox": [0.03, 0.06, 0.15, 0.10], "page_no": 1},   # same spot again
+    ]
+    findings = m.audit_doc(p, {1: (1000, 2000)})["findings"]
+    assert "DUPLICATE:region:company_stamp" in findings     # only the real re-box counts
+    assert sum(1 for f in findings if f.startswith("DUPLICATE")) == 1
+
+
+def test_box_overlap_frac_measures_shared_area():
+    m = _load_single_pass_script()
+    assert m.box_overlap_frac([0, 0, 1, 1], [0, 0, 1, 1]) == 1.0
+    assert m.box_overlap_frac([0, 0, 1, 1], [2, 0, 1, 1]) == 0.0
+    assert abs(m.box_overlap_frac([0, 0, 2, 1], [1, 0, 2, 1]) - 0.5) < 1e-9
