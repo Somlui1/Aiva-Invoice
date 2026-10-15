@@ -38,6 +38,8 @@ describe('LoginPage Component', () => {
     expect(screen.queryByText(/บัญชี Microsoft ทดสอบ/i)).toBeNull()
     expect(container.querySelector('.lg-dev')).toBeNull()
     expect(screen.queryByText(/Mock Prototype/i)).toBeNull()
+    expect(container.querySelector('.nt')).toBeNull()
+    expect(screen.queryByText(/Portal ไม่เก็บ URL ของ DMS/i)).toBeNull()
   })
 
   it('allows Microsoft 365 login in mock mode', async () => {

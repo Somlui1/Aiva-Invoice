@@ -96,10 +96,6 @@ export function FlowScene({ step, onNode }: Props) {
             </div>
           </div>
         </div>
-        <div className="nt">
-          <Icon name="info" size="sm" />
-          <span>{s.note}</span>
-        </div>
       </div>
     </>
   );
