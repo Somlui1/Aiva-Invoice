@@ -26,6 +26,7 @@ import base64
 import hashlib
 import io
 import re
+import statistics
 import time
 from typing import Optional
 
@@ -35,8 +36,8 @@ from ..domain.contracts import (DocumentInfo, ExtractionResult, PageInfo, RawFie
                                 RegionNode, SignatureObs)
 from ..domain.normalize import thai_to_arabic
 from ..domain.standard import load_prompt
-from .coords import choose_coord_mode, rotate_box_back, rotate_image, xyxy_to_xywh
-from .orientation import MODEL_SHA256, OrientationResult, detect_page_orientation
+from .coords import choose_coord_mode, rotate_box_back, rotate_image, sanitize_xyxy, xyxy_to_xywh
+from .orientation import MODEL_SHA256, OrientationResult
 
 ENGINE = "single-pass/1.2.0"
 PROMPTS = ("single_pass_classify", "single_pass_extract")
@@ -90,6 +91,58 @@ def _box(cell) -> Optional[list]:
         except (TypeError, ValueError):
             return None
     return None
+
+
+def compute_row_bbox_from_cells(cells: dict, table_bbox: Optional[list] = None) -> Optional[list[float]]:
+    """Compute horizontal row bounding box from cell union with median outlier filtering."""
+    if not isinstance(cells, dict):
+        return None
+    boxes = []
+    y_centers = []
+    for k, v in cells.items():
+        if k in ("line_bbox", "line_no"):
+            continue
+        b = None
+        if isinstance(v, dict):
+            b = v.get("bbox_2d") or v.get("bbox")
+        elif isinstance(v, (list, tuple)) and len(v) == 4:
+            b = v
+        if b is not None:
+            sb = sanitize_xyxy(b)
+            if sb:
+                boxes.append(sb)
+                y_centers.append((sb[1] + sb[3]) / 2.0)
+    if not boxes:
+        return None
+    med_y = statistics.median(y_centers)
+    kept = [b for b, yc in zip(boxes, y_centers) if abs(yc - med_y) <= 0.05]
+    if not kept:
+        return None
+    min_x = min(b[0] for b in kept)
+    min_y = min(b[1] for b in kept)
+    max_x = max(b[2] for b in kept)
+    max_y = max(b[3] for b in kept)
+    if table_bbox is not None:
+        st = sanitize_xyxy(table_bbox)
+        if st:
+            min_x = min(min_x, st[0])
+            max_x = max(max_x, st[2])
+    return [round(min_x, 4), round(min_y, 4), round(max_x, 4), round(max_y, 4)]
+
+
+def validate_line_bbox(box: Optional[list[float]]) -> bool:
+    """Validate that line_bbox is a plausible horizontal row (aspect ratio >= 1.5, w >= 0.45, h <= 0.25)."""
+    if box is None:
+        return False
+    sb = sanitize_xyxy(box)
+    if not sb:
+        return False
+    w = sb[2] - sb[0]
+    h = sb[3] - sb[1]
+    if h <= 0:
+        return False
+    aspect = w / h
+    return bool(aspect >= 1.5 and w >= 0.45 and h <= 0.25)
 
 
 def parse_marker(m) -> Optional[tuple[int, int]]:
@@ -269,7 +322,8 @@ class PageAnswer:
     def region(self, b) -> Optional[Region]:
         if not b:
             return None
-        bbox, rbox = rotate_box_back(b, self.rot_w, self.rot_h, self.orig_w, self.orig_h, self.M, self.coord)
+        mode = "norm1" if max(float(v) for v in b) <= 1.0 else self.coord
+        bbox, rbox = rotate_box_back(b, self.rot_w, self.rot_h, self.orig_w, self.orig_h, self.M, mode)
         if bbox[2] <= 0 or bbox[3] <= 0:
             return None
         return Region(page=self.page_no, bbox=bbox, rbox=rbox)
@@ -357,8 +411,23 @@ def build_extraction(*, package_id: str, dms_doc_id: str, sha: str, page_infos: 
     for it in items:
         pg, row = reads[it["page"]], it["row"]
         cells = {k: _rf(row.get(k), pg) for k in CELLS if row.get(k) is not None}
-        lines.append(RawLine(line_no=it["line_no"], region=pg.region(_box({"bbox_2d": row.get("line_bbox")})),
-                             cells=cells))
+        raw_box = _box({"bbox_2d": row.get("line_bbox")})
+        effective_box = None
+        if validate_line_bbox(raw_box):
+            effective_box = sanitize_xyxy(raw_box)
+        else:
+            table_bbox = None
+            for r in (pg.answer.get("regions") or []):
+                if isinstance(r, dict) and (r.get("label") == "items_table" or r.get("type") == "table"):
+                    tb = _box(r)
+                    if tb:
+                        table_bbox = tb
+                        break
+            cand = compute_row_bbox_from_cells(row, table_bbox=table_bbox)
+            if validate_line_bbox(cand):
+                effective_box = cand
+        row_region = pg.region(effective_box) if effective_box else None
+        lines.append(RawLine(line_no=it["line_no"], region=row_region, cells=cells))
     for ex in excluded:
         txt = " | ".join(t for t in (_raw(ex["row"].get(k)) for k in CELLS) if t)
         ex["region_id"] = add_region(reads[ex["page"]], "other", f"excluded_row:{ex['status']}", txt,

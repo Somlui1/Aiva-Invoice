@@ -1,4 +1,4 @@
-<!-- prompt_id: single-pass-extract  version: 1.1.0 -->
+<!-- prompt_id: single-pass-extract  version: 1.2.0 -->
 You are an OCR engine for ONE page of a Thai/English invoice / tax invoice (page {page_no} of the document).
 Transcribe what is printed. Do not compute, correct, round, reformat or guess anything.
 
@@ -21,6 +21,7 @@ If a value is not printed on this page or cannot be read: {"raw": null, "bbox_2d
    carry description text. Do not merge two rows that each print their own amount. Do not skip rows.
    {"line_no": 1, "item_code": {...}, "description": {...}, "qty": {...}, "uom": {...},
     "unit_price": {...}, "amount": {...}, "line_bbox": [x1, y1, x2, y2]}
+   - "line_bbox": [x1, y1, x2, y2] MUST BE a horizontal rectangular bounding box encompassing the entire row from the leftmost column (item code / line no) to the rightmost column (amount), with width >> height (e.g. [45, 380, 950, 395]). NEVER return a vertical column slice as a line_bbox.
    If qty and unit are printed in one cell ("2 PCS"), put the whole text in qty and set uom raw null.
    Do not return the table header row or the sub-total / VAT / grand-total lines as rows.
 

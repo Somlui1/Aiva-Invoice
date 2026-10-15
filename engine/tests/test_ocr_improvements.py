@@ -2092,3 +2092,27 @@ def test_coordinate_sanitization_rules():
     assert sanitize_xyxy([0.5, 0.5, 0.5005, 0.5005]) is None
 
 
+def test_skew_aware_cell_union_and_aspect_ratio_sanity():
+    from system_a.perception.single_pass import compute_row_bbox_from_cells, validate_line_bbox
+    
+    # 1. Cell union with vertical outlier filtering (y_center difference > 0.05 excluded)
+    cells = {
+        "item_code": {"bbox_2d": [0.05, 0.30, 0.20, 0.32]},
+        "description": {"bbox_2d": [0.22, 0.30, 0.60, 0.33]},
+        "amount": {"bbox_2d": [0.80, 0.31, 0.95, 0.33]},
+        "outlier": {"bbox_2d": [0.50, 0.85, 0.60, 0.88]}, # Outlier at bottom of page
+    }
+    union_box = compute_row_bbox_from_cells(cells)
+    assert union_box is not None
+    assert union_box[0] == 0.05 # min_x
+    assert union_box[1] == 0.30 # min_y
+    assert union_box[2] == 0.95 # max_x
+    assert union_box[3] == 0.33 # max_y
+    
+    # 2. Geometric sanity check: aspect ratio >= 1.5
+    # Normal horizontal box: width=0.90, height=0.03 -> aspect ratio 30.0 -> Valid
+    assert validate_line_bbox([0.05, 0.30, 0.95, 0.33]) is True
+    # Vertical column box: width=0.08, height=0.55 -> aspect ratio 0.145 -> Invalid!
+    assert validate_line_bbox([0.44, 0.27, 0.52, 0.82]) is False
+
+
