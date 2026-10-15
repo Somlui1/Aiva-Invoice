@@ -2577,3 +2577,16 @@ def test_box_overlap_frac_measures_shared_area():
     assert m.box_overlap_frac([0, 0, 1, 1], [0, 0, 1, 1]) == 1.0
     assert m.box_overlap_frac([0, 0, 1, 1], [2, 0, 1, 1]) == 0.0
     assert abs(m.box_overlap_frac([0, 0, 2, 1], [1, 0, 2, 1]) - 0.5) < 1e-9
+
+
+def test_empty_page_extraction_gets_four_attempts_not_two():
+    """DMS-159 page 1 answered with an empty shell in 6 of 8 measured attempts (temperature 0 included),
+    and every re-run recovered once it was allowed a third or fourth try. Two attempts were not enough."""
+    m = _load_single_pass_script()
+    assert m.extract_empty_attempts() == 4
+    import os
+    os.environ["EXTRACT_EMPTY_ATTEMPTS"] = "2"
+    try:
+        assert m.extract_empty_attempts() == 2
+    finally:
+        del os.environ["EXTRACT_EMPTY_ATTEMPTS"]

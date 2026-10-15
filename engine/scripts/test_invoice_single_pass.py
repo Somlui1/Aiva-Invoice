@@ -814,10 +814,10 @@ def process_single_doc(
             log(f"        Step 2 Extract on Page {p_no} finished in {t_extract:.1f}s")
 
             raw_fields_map = extract_res.get("fields") or extract_res.get("required_fields") or {}
-            for empty_try in range(2):        # a shell answer parses fine but is not an extraction (DMS-183 run 1)
+            for empty_try in range(extract_empty_attempts()):   # a shell answer parses fine but is not an extraction
                 if not is_empty_extraction(raw_fields_map):
                     break
-                log(f"        [RETRY-EMPTY Page {p_no} ({empty_try + 1}/2)]: the answer carried no value at all")
+                log(f"        [RETRY-EMPTY Page {p_no} ({empty_try + 1}/{extract_empty_attempts() - 1})]: the answer carried no value at all")
                 extract_res, t_extract = step2_extract_invoice_page(client, img, p_no, model=model)
                 step2_times.append(t_extract)
                 raw_fields_map = extract_res.get("fields") or extract_res.get("required_fields") or {}
@@ -1132,6 +1132,16 @@ def row_signature(item: dict) -> tuple:
         raw = cell.get("raw") if isinstance(cell, dict) else cell
         parts.append(re.sub(r"\s+", " ", str(raw or "").strip()).lower())
     return tuple(parts)
+
+
+def extract_empty_attempts() -> int:
+    """How many tries an invoice page gets when the model answers with an empty JSON shell.
+
+    Measured on DMS-159 page 1 (a 14-row freight invoice): 6 of 8 attempts came back as an empty shell
+    even at temperature 0, and each re-run recovered on try 3 or 4. The cost lands only on pages that
+    actually fail, which is why the number can be generous.
+    """
+    return max(1, int(os.getenv("EXTRACT_EMPTY_ATTEMPTS", "4")))
 
 
 def is_empty_extraction(fields: dict) -> bool:
