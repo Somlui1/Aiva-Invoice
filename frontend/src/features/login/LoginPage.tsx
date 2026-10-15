@@ -82,19 +82,6 @@ export function LoginPage({ redirectTo, initialError = null, adapter, mock, show
           {showExplainer && <HowItWorks />}
         </div>
       </div>
-      {isMock && (
-        <MockBar
-          value={mockCtl}
-          onChange={(v) => {
-            if (v.sim !== mockCtl.sim) c.resetFailures();
-            setMockCtl(v);
-          }}
-          onSkip={() => {
-            const u = USERS.find((x) => x.id === mockCtl.acct) ?? USERS[0];
-            success(toSessionUser(u), "m365");
-          }}
-        />
-      )}
       <Toasts items={toasts.items} />
     </div>
   );
