@@ -133,3 +133,66 @@
 | Task 5: V-08 Unit-Price Grouping & Subtotal Sum Validation in `v08.py` | Done | Implement validate_unit_price_groups against double-counting and hallucinations; 112/112 tests pass; committed 2bcc7bb |
 | Task 6: Target Document Verification & Full Regression Suite | Done | DMS-25, DMS-26, DMS-22 verified AUTO_PASS with horizontal row bboxes (ar>=14.5) and rotation=0; 153/153 engine tests pass, 153/153 portal tests pass |
 
+## Plan: Autonomous OCR & BBox Refinement Loop (2026-10-15-ocr-bbox-autonomous-improvement-loop.md)
+
+| Task | Status | Description |
+|---|---|---|
+| Task 1: Autonomous Loop Specification & Benchmark Protocol | Done | Created plan & PI Agent prompt for all Paperless invoices, image visual audit, copy separation, and OCR field completeness |
+| Task 2: Batch Invoice Extraction & Image BBox Rendering | Pending | Run scripts/test_invoice_single_pass.py --tag invoice to render overlay images and extract payloads |
+| Task 3: Classification & Separation Audit | Pending | Audit selected pages to ensure original invoices only (filter copies and delivery notes) |
+| Task 4: Visual BBox Alignment & Field Completeness Iteration | Pending | Iteratively patch prompts/coords/single_pass.py until BBoxes align and fields are complete |
+| Task 5: Final Acceptance Gates & Model Limitation Report | Pending | Verify 100% test pass, clean BBoxes across invoices, and log model ceiling cases |
+
+
+### Plan: Autonomous OCR & BBox Loop — Round 0 (prep & tooling)
+
+| Task | Status | Description |
+|---|---|---|
+| R0-1: Baseline verification & plan-vs-reality audit | Done | `pytest tests/` = **153/153 passed** (plan said 19/19); tag `invoice` = **223** docs (plan said ~125); `config/eval_staged_50_ids.json` absent; VLM endpoint live (DMS-20 = 59.8s, 3 pages); 729 pages / 204 cached PDFs |
+| R0-2: Owner rulings on inspection scope | Done | Recorded in `bbox_testing/round_01/INSPECTION_PROTOCOL.md`: selected pages 100% visual mandatory; `source_images/` only on 3 triggers; unselected pages JSON-checked (first unselected page eyeballed in Round 1 + Final); auto-checks triage only; commit on `engine` with per-path `git add` only; legacy `bbox_testing/` dirs kept |
+| R0-3: Corpus snapshot + fixed 50-doc subset | Done | `config/full_corpus_ids.json` (223 IDs, read-only snapshot) + `config/eval_staged_50_ids.json` (seed=42, sorted-pool `random.Random(42).sample`, 50 IDs) via new `--snapshot-corpus` / `--make-eval-subset`; 2 new tests |
+| R0-4: Read-only PDF backfill | Done | `--download-only`: 19 missing of 223 downloaded, **223/223 cached, 0 missing** |
+| R0-5: 130 DPI source images (create-once) | Done | `--emit-source-images`: 176 pages for the 50-doc subset -> `bbox_testing/source_images/` (195 MB, 55s), legacy dirs untouched |
+| R0-6: Round layout artifacts | Done | `--layout round` writes `round_XX/ocr/DMS-<id>.json` (payload + `meta.pages_classification`) and `round_XX/rendered/DMS-<id>_p<page>_bbox.png`; legacy paths + `--skip-existing` regression-tested; 2 new tests |
+| R0-7: Automated triage + resumable progress | Done | `audit_doc()` + `--audit-round` -> `round_XX/progress.json` (inspected / pending_view / triage_order, needs_source_check, first_unselected_page_to_view): row aspect ratio <1.5, duplicate/OOB boxes, mandatory-field gaps, BBox on unselected page, unselected page classified as original tax invoice; 3 new tests; suite **161/161** |
+| R0-8: Round 1 batch run (50 docs) | Done | `--out-dir bbox_testing/round_01 --layout round --dpi 130 --workers 4`: **48/50 succeeded, 2 errors** (DMS-208 `float() None` crash in parsing, DMS-224 VLM answered prose not JSON); log `round_01/run.log` |
+| R0-9: Evidence crop tool | Done | `crop_rect_norm()` + `find_field_box()` + `--crop/--crop-field/--crop-box`: writes `round_XX/crops/DMS-<id>_<field>.png` upscaled for reading, source-page rotation aware; 2 new tests (caught an off-by-one from float truncation); suite **163/163** (baseline 153) |
+| R1-1: Round 1 visual audit (48 rendered + first unselected page each) | In Progress | 1/48 inspected (`review/DMS-25.md`: FAIL — `po_number` box drawn ~20px above the printed digits, verified by crop; 4 rows in image = 4 rows OCR; `invoice_num` genuinely absent from the document); resume queue in `round_01/progress.json` (inspected/pending/triage_order) |
+| R1-2: Round 1 scorecard, fixes & commit | Pending | Fix targets for the observed patterns (coords/prompt), `scorecard.md` with `git diff --cached --stat`, pytest 100%, one per-path-staged commit |
+
+### Plan: Autonomous OCR & BBox Loop — Round 1 findings (partial visual audit)
+
+| Task | Status | Description |
+|---|---|---|
+| R1-3: Crop evidence tool (used by the audit) | Done | `crop_rect_norm`/`find_field_box` + `--crop`; caught an off-by-one (float truncation); +5 tests; suite 163/163; committed `8f09698` |
+| R1-4: Visual audit tranche 1 (11/49 docs, 100% of selected pages + first unselected page each) | Done | 11 FAIL / 0 PASS: BBOX 8, CLASSIFY 2, OCR 1; `review/DMS-25,26,134,223,233,234,47,69,106,117,24.md`; DMS-223 excluded (delivery-order-only) in `excluded_docs.md` |
+| R1-5: Pattern analysis P1-P9 + round-1 scorecard | Done | `round_01/scorecard.md`: row-bbox drawn as full empty table band (AR<1.5 vs cell-union AR≈26), right-column boxes clipped/overlapping, boxes anchored on the label instead of the value, phantom `currency`, duplicated `company_stamp`, copy pages not deduped by `doc_no_hint`, wrong-label number capture, 2 pipeline errors (DMS-208/DMS-224) |
+| R1-6: Remaining visual audit (38 docs) | Pending | resume from `round_01/progress.json` -> `pending_view` / `triage_order` |
+| R1-7: Untagged-invoice spot check (5-10 docs) | Pending | plan §3 case 3, write `round_01/added_docs.md` |
+| R1-9: Fix P1 (row_bbox from cell union) | Done | `row_bbox()` unions the row's `bbox_2d` cells in the VLM xyxy space (first attempt assumed xywh and drew 14 stacked boxes - caught by opening the render), keeps `line_bbox_model`; measured DMS-69 AR 1.3→25.4, DMS-234 AR 1.4→8.1, render inspected; +1 contract test, 164/164 pass; committed `6716b46` |
+| R1-8: Fix P1b, P2-P9 + Round 2 re-run | Pending | prompt/coords/assembler/`select_invoice_pages`; round 2 = re-run all 50 with cache bypass |
+
+### Plan: Autonomous OCR & BBox Loop — Round 2 (vs round_01 baseline)
+
+| Task | Status | Description |
+|---|---|---|
+| R2-1: Round 2 batch (same fixed 50, DPI 130, temp 0) | Done | **49/50 succeeded, 1 error** (DMS-134 classify answered outside JSON; round 1's failures were DMS-208/DMS-224 → parse failure is random per round = P9) |
+| R2-2: Round comparison tooling | Done | `diff_round_payloads()` + `--compare-rounds` → `round_02/round_diff.json` (changed/unchanged/previously_failed/view_queue by plan §2 rules); +2 tests; suite **166/166**; committed `35b93ad` |
+| R2-3: Baseline-vs-round-2 measurement | Done | **49/49 docs "changed"** though only P1 was in the code: text differs in 46, field boxes moved >5px in 46, row boxes 45 (intended remeasure), **page selection stable 0/49**; `currency` unstable in **21/49 = 43%**, `customer_address`/`supplier_name` 29%, `supplier_tax_id` 12% incl. a digit-insertion regression on DMS-107; DMS-117/DMS-89 rows only renumbered |
+| R2-4: Round 2 scorecard | Done | `round_02/scorecard.md` — records that the plan's "any character changed ⇒ view 100%" rule now flags 100% of the corpus every round, with 4 options (stability gate, drop `currency`, row-content hash, fix P9 first) |
+| R2-5: Round 2 visual audit (49 docs) | Pending | blocked on R2-4 option choice: without a stability gate the queue is the whole corpus again |
+
+### Plan: Autonomous OCR & BBox Loop — noise gate + P9 (owner: "ทำทุกข้อ" = options ง/ค/ข/ก)
+
+| Task | Status | Description |
+|---|---|---|
+| R2-6: (ง) pipeline-error root cause | Done | Two causes, both proven: `detect_coord_mode()` did `float(None)` on a `[null,null,null,null]` answer (killed DMS-208) and Step 1 was pinned to `max_tokens=4096`, so a thinking model's preamble ate the budget and no JSON arrived (DMS-224/DMS-134). Fixed in whitelisted files: null-safe coordinate scan + `VLM_MAX_TOKENS_CLASSIFY` (default 8000) with per-attempt escalation + `_clean_json_response()` picks the largest **balanced** `{...}` region instead of first-`{`→last-`}` |
+| R2-7: verify P9 on the documents that really failed | Done | DMS-134, DMS-208, DMS-224 re-run in `bbox_testing/_check_p9`: **3/3 succeeded, 0 errors** (same env, temperature 0) — previously every one of them errored |
+| R2-8: (ค) match rows by content, not `line_no` | Done | `row_signature()` + pairing by signature; `renumbered` reported separately and does not mark a doc changed (kills the DMS-117/DMS-89 phantom rows) |
+| R2-9: (ข) drop `currency` from the verdict | Done | `NON_SCORING_FIELDS = {"currency"}` — flip-flopped in 21/49 docs with identical code and plan §6.2 does not score it; still recorded under `noise_only` |
+| R2-10: (ก) stability gate | In Progress | `--stability ROUND_DIR --runs 2` re-runs every doc with identical code → `stability_report.json` (per-field instability rate, `noisy_fields` at `--noisy-field-rate`); `--compare-rounds --stability-report` then excludes exactly those fields from the verdict. Running on all 49 docs x 2 (`round_02/stability.log`) |
+| R2-11: Tests | Done | +5 tests (prose/truncated JSON, null coordinates, token escalation, row signature + currency, `ignore_fields` gate); suite **171/171** (was 166); committed `65968c2` with per-path staging |
+| R2-12: Stability gate measured | Done | 49 docs × 2 identical runs (`round_02/stability_report.json`): every scoring field differs in ≥20% of docs (`supplier_tax_id` 76%) → excluding unstable fields would delete all signal. Splitting by severity: **digit-level (material) instability is rare** — `po_number` 14% (`PI2610-00300`→`PI2610-000300`), `invoice_date` 6%, everything else 2% and all of that is DMS-183 where run1 returned `None` for the whole document. Cosmetic-only events: 68 (`currency` 19, `supplier_name` 19, `customer_name` 12, `customer_address` 11). Page selection **stable 49/49**; row boxes move >5px in 14/49 |
+| R2-13: Replace the field gate with a severity split | Pending | `diff_round_payloads` gains material (digit set differs) vs cosmetic (digits identical) so a verdict uses material only; retry when an extraction returns an empty page (DMS-183); prompt focus on `po_number` digit fidelity |
+| R2-13: severity split + calibrated box rule + prompt v1.3 | Done | `text_change_is_material()` (digit set หรือค่าโผล่/หาย) ตัดสิน verdict; `cosmetic` = เลขเหมือน; box shift (p90=67.7px noise) แยกไป `moved`/`row_moves` ไม่นับ; `is_empty_extraction()` retry 2 ครั้ง; prompt `single_pass_extract.md` v1.3.0 VALUE FIDELITY. วัดจริง: material 31 / cosmetic-only 13 / changed 34 / unchanged 15 (เดิม 49/49); po_number material flip ใน set ที่แย่สุดลด 7/7→2/7; empty extraction 0/7; suite **174/174**; commit `2fb1cea` |
+| R2-14: MODEL_LIMIT สำหรับรหัสอักษรยาว | Pending | `LN6064481400 0H2`, `EKSD2-25`/`EKSD22-25` model นับตัวอักษรซ้ำผิด — ทดลองแก้ 2 วิธีแล้ว (v1.2 baseline, v1.3 fidelity) เหลือทางเดียวคือเทียบกับ text layer/PDF search ทีละฉบับ |
