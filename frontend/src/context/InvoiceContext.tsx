@@ -47,6 +47,8 @@ interface InvoiceContextType {
   setAllCompanies: () => void
   statusFilter: string
   setStatusFilter: (status: string) => void
+  receiverFilter: string | null
+  setReceiverFilter: (rcv: string | null) => void
   periodFilter: PeriodFilter
   setPeriodFilter: (p: PeriodFilter) => void
   showClosed: boolean
@@ -106,6 +108,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
   const [docs, setDocs] = useState<InvoiceDoc[]>(INITIAL_DOCS)
   const [selectedDocId, setSelectedDocId] = useState<string | null>(INITIAL_DOCS[0]?.doc || null)
   const [companyFilter, setCompanyFilter] = useState<Set<string>>(new Set())
+  const [receiverFilter, setReceiverFilter] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<string>(currentUser.role === 'EU' ? 'mine' : 'all')
   const [periodFilter, setPeriodFilterState] = useState<PeriodFilter>({
     k: currentUser.role === 'EU' ? 'all' : orgSettings.period || 'month'
@@ -207,6 +210,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
 
   const clearFilters = useCallback(() => {
     setCompanyFilter(new Set())
+    setReceiverFilter(null)
     setStatusFilter(currentUser.role === 'EU' ? 'mine' : 'all')
     setSearchQuery('')
     setPeriodFilterState({ k: 'all' })
@@ -236,7 +240,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
 
   // Filtered docs list
   const filteredDocs = useMemo(() => {
-    return filterDocsFor({
+    const list = filterDocsFor({
       docs: visibleDocs,
       statusFilter,
       companyFilter,
@@ -245,7 +249,11 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
       showClosed,
       role: currentUser.role,
     })
-  }, [visibleDocs, statusFilter, companyFilter, periodFilter, searchQuery, showClosed, currentUser.role])
+    if (currentUser.role === 'EU' && receiverFilter) {
+      return list.filter(d => d.receiver === receiverFilter)
+    }
+    return list
+  }, [visibleDocs, statusFilter, companyFilter, periodFilter, searchQuery, showClosed, currentUser.role, receiverFilter])
 
   // Selected doc
   const selectedDoc = useMemo(() => {
@@ -259,8 +267,11 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
 
   // Dynamic KPI counts
   const kpiCounts = useMemo(() => {
+    const docsToCount = currentUser.role === 'EU' && receiverFilter
+      ? visibleDocs.filter(d => d.receiver === receiverFilter)
+      : visibleDocs
     return kpiCountsFor({
-      docs: visibleDocs,
+      docs: docsToCount,
       statusFilter,
       companyFilter,
       periodFilter,
@@ -268,7 +279,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
       showClosed,
       role: currentUser.role,
     })
-  }, [visibleDocs, statusFilter, companyFilter, periodFilter, searchQuery, showClosed, currentUser.role])
+  }, [visibleDocs, statusFilter, companyFilter, periodFilter, searchQuery, showClosed, currentUser.role, receiverFilter])
 
   // Allowed action calculation per SRS v1.1
   const allowedAction = useCallback(
@@ -652,6 +663,8 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
         companyFilter,
         toggleCompanyFilter,
         setAllCompanies,
+        receiverFilter,
+        setReceiverFilter,
         statusFilter,
         setStatusFilter,
         periodFilter,

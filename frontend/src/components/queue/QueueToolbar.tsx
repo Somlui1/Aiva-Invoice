@@ -24,6 +24,8 @@ export function QueueToolbar() {
     companyFilter,
     toggleCompanyFilter,
     setAllCompanies,
+    receiverFilter,
+    setReceiverFilter,
     periodFilter,
     setPeriodFilter,
     showClosed,
@@ -34,10 +36,12 @@ export function QueueToolbar() {
   } = useInvoices()
 
   const isEu = currentUser.role === 'EU'
-  const accounts = acctsOf(currentUser).join(', ') || '— ยังไม่ถูกผูก'
+  const userAccts = acctsOf(currentUser)
+  const accounts = userAccts.join(', ') || '— ยังไม่ถูกผูก'
 
   const hasActiveFilters =
     companyFilter.size > 0 ||
+    Boolean(receiverFilter) ||
     periodFilter.k !== 'all' ||
     (isEu ? false : showClosed)
 
@@ -50,11 +54,34 @@ export function QueueToolbar() {
     <div className="tbar" id="tbar">
       {isEu ? (
         <>
-          <span className="lab">ขอบเขต</span>
-          <span className="scope-note">
-            <Icon name="user" size="sm" />
-            เฉพาะใบรับที่ <b>Oracle account: {accounts}</b>
-          </span>
+          <span className="lab">ขอบเขต Receiver</span>
+          {userAccts.length > 0 ? (
+            <>
+              <FilterChip
+                label="ทุก Receiver ของฉัน"
+                count={visibleDocs.length}
+                active={!receiverFilter}
+                onClick={() => setReceiverFilter(null)}
+              />
+              {userAccts.map(acct => {
+                const count = visibleDocs.filter(d => d.receiver === acct).length
+                return (
+                  <FilterChip
+                    key={acct}
+                    label={acct}
+                    count={count}
+                    active={receiverFilter === acct}
+                    onClick={() => setReceiverFilter(receiverFilter === acct ? null : acct)}
+                  />
+                )
+              })}
+            </>
+          ) : (
+            <span className="scope-note">
+              <Icon name="user" size="sm" />
+              เฉพาะใบรับที่ <b>Oracle account: {accounts}</b>
+            </span>
+          )}
           <span className="chip on" style={{ cursor: 'default' }}>
             {currentUser.co.join(', ')}
           </span>
