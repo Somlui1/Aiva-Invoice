@@ -59,12 +59,12 @@
 | rbac-tab-task-4 | Full Verification Pass (Vitest, TSC, Next Build) | completed | 37/37 test files (242/242 tests) pass, tsc clean, Next.js build clean (incl. /api/oracle/sync-companies) |
 | prod-cleanup-brainstorm | Production Readiness & UI Cleanup Brainstorming | completed | Design approved & written to docs/plans/2026-10-15-production-ui-cleanup-and-rbac-support-design.md |
 | prod-cleanup-plan | Generate Implementation Plan | completed | Written to docs/plans/2026-10-15-production-ui-cleanup-and-rbac-support.md |
-| cleanup-task-1 | Role Definition & Context Integration for itsupport | pending | RoleKey, ROLES, default user u8, scopeCheck 'all' |
-| cleanup-task-2 | Sidebar Navigation Visibility for itsupport | pending | Sidebar all 3 menu sections for itsupport, tests |
-| cleanup-task-3 | Topbar Profile Header & My Profile & Permissions Modal | pending | Remove user-selector, add Profile Pill & MyProfileModal |
-| cleanup-task-4 | RBAC UI Redesign & Emoji Purge | pending | Replace emojis with Icon SVG components in RbacPage |
-| cleanup-task-5 | Audit Log Security Scoping API & AuditPage Integration | pending | Scoped /api/audit-logs by identity & company, AuditPage |
-| cleanup-task-6 | Login Page Production Cleanup | pending | Purge yellow MockBar and demo disclaimers from /login |
-| cleanup-task-7 | Queue Receiver Filtering by Oracle Account | pending | Interactive receiver filter chips for EU role in QueueToolbar |
-| cleanup-task-8 | Full End-to-End Regression & Verification Pass | pending | 39+ vitest files, tsc --noEmit, next build |
+| cleanup-task-1 | Role Definition & Context Integration for itsupport | completed | RoleKey, ROLES, default user itsupport, scopeCheck 'all'; commit 2f09775 |
+| cleanup-task-2 | Sidebar Navigation Visibility for itsupport | completed | Sidebar all 3 menu sections for itsupport, tests pass; commit dee72c8 |
+| cleanup-task-3 | Topbar Profile Header & My Profile & Permissions Modal | completed | Remove user-selector, add Profile Pill & MyProfileModal; commit 28018d4 |
+| cleanup-task-4 | RBAC UI Redesign & Emoji Purge | completed | Replace emojis with Icon SVG components in RbacPage; commit 41a4fe5 |
+| cleanup-task-5 | Audit Log Security Scoping API & AuditPage Integration | completed | Scoped /api/audit-logs by identity & company, AuditPage; commit cfc33ff |
+| cleanup-task-6 | Login Page Production Cleanup | completed | Purge yellow MockBar and demo disclaimers from /login; commit b302e80 |
+| cleanup-task-7 | Queue Receiver Filtering by Oracle Account | completed | Interactive receiver filter chips for EU role in QueueToolbar; commit 44d5d3a |
+| cleanup-task-8 | Full End-to-End Regression & Verification Pass | completed | Full vitest suite 40/40 files (249/249 tests pass exit 0); npx tsc --noEmit clean; Next.js 15 production build 19/19 routes clean; commit 24278ab |
 
