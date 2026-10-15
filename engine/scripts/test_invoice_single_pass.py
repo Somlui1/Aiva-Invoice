@@ -1,0 +1,1253 @@
+#!/usr/bin/env python3
+"""Two-Step Pipeline for Invoice Extraction & BBox Testing.
+
+Architecture:
+Step 1: Fast Multi-Image Classification & Selection (~4-7s)
+   - Sends all pages of the document in one request to classify page types.
+   - Detects is_invoice (including combined Delivery/Tax Invoice, Receipt/Tax Invoice).
+   - Detects is_original vs is_copy (filtering out "สำเนา", "คู่ฉบับ", "COPY", etc.).
+   - Prioritizes ORIGINAL invoice pages and discards copies and non-invoice attachments.
+
+Step 2: Focused Single-Page Extraction on Selected Invoice Pages (~10-15s per invoice page)
+   - Sends ONLY the selected invoice page(s) individually as a single image.
+   - Eliminates multi-image vision spatial compression (BBox Y-axis remains 100% accurate).
+   - Extracts all readable bboxes for visual audit and required fields for validation.
+
+Usage:
+    python scripts/test_invoice_single_pass.py --doc-id 48
+    python scripts/test_invoice_single_pass.py --doc-id 20 --model Qwen3-VL-8B-Instruct
+    python scripts/test_invoice_single_pass.py --tag invoice --skip-existing
+"""
+from __future__ import annotations
+
+import argparse
+import base64
+import io
+import json
+import os
+import random
+import re
+import sys
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+import pymupdf as fitz
+import requests
+from dotenv import load_dotenv
+from openai import OpenAI
+from PIL import Image, ImageDraw, ImageFont
+
+# Ensure stdout uses UTF-8 on Windows
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(ROOT / "src"))
+
+# Load environment
+_env_path = ROOT / ".env"
+load_dotenv(_env_path)
+
+LITELLM_URL = os.getenv("LITELLM_URL", "http://aiva.aapico.com:4000/v1")
+LITELLM_KEY = os.getenv("LITELLM_API_KEY") or os.getenv("LITELLM_KEY", "")
+VLM_MODEL = os.getenv("MODEL_VISION") or os.getenv("VLM_MODEL", "nvidia/Qwen3.8-Flash-Next-NVFP4")
+PL_URL = os.getenv("PAPERLESS_BASE_URL", "http://dms.aapico.com").rstrip("/")
+PL_TOKEN = os.getenv("PAPERLESS_API_TOKEN", "")
+CLASSIFY_DPI = int(os.getenv("CLASSIFY_DPI", "80"))
+RENDER_DPI = int(os.getenv("RENDER_DPI", "130"))
+MAX_TOKENS = int(os.getenv("VLM_MAX_TOKENS", "8000"))
+
+COLORS = {
+    "header": "#d62728",      # Red
+    "supplier": "#ff7f0e",    # Orange
+    "customer": "#9467bd",    # Purple
+    "table": "#7f7f7f",       # Gray
+    "line": "#1f77b4",        # Blue
+    "total": "#2ca02c",       # Green
+    "payment": "#bcbd22",     # Olive
+    "signature": "#e377c2",   # Pink
+    "stamp": "#8c564b",       # Brown
+    "other": "#17becf",       # Cyan
+}
+
+REQUIRED_FIELD_NAMES = [
+    "invoice_num", "invoice_date", "po_number", "supplier_name",
+    "supplier_tax_id", "customer_name", "customer_tax_id",
+    "customer_address", "sub_total", "vat", "grand_total", "currency"
+]
+
+THAI_DIGITS_MAP = str.maketrans("๐๑๒๓๔๕๖๗๘๙", "0123456789")
+
+UOM_MAP = {
+    "pc": "PC", "pcs": "PC", "piece": "PC", "pieces": "PC", "ชิ้น": "PC", "อัน": "PC", "ลูก": "PC",
+    "set": "SET", "sets": "SET", "ชุด": "SET",
+    "kg": "KG", "kgs": "KG", "กิโลกรัม": "KG", "กก": "KG", "กก.": "KG",
+    "box": "BOX", "กล่อง": "BOX", "ลัง": "BOX",
+    "pack": "PACK", "แพ็ค": "PACK", "ห่อ": "PACK",
+    "m": "M", "meter": "M", "เมตร": "M", "ม.": "M",
+    "lot": "LOT", "งาน": "LOT", "งวด": "LOT"
+}
+
+
+def normalize_text(raw: Optional[str]) -> Optional[str]:
+    if not raw:
+        return None
+    s = str(raw).strip()
+    s = re.sub(r"\s+", " ", s)
+    return s if s else None
+
+
+def normalize_tax_id(raw: Optional[str]) -> Optional[str]:
+    if not raw:
+        return None
+    s = str(raw).translate(THAI_DIGITS_MAP)
+    d = re.sub(r"\D", "", s)
+    return d if d else None
+
+
+def normalize_number(raw: Optional[str]) -> Optional[float]:
+    if raw is None:
+        return None
+    s = str(raw).translate(THAI_DIGITS_MAP)
+    s = re.sub(r"[฿THBบาท\s]", "", s, flags=re.I)
+    is_neg = False
+    if s.startswith("(") and s.endswith(")"):
+        is_neg = True
+        s = s[1:-1]
+    s = s.replace(",", "")
+    m = re.search(r"^-?\d+(?:\.\d+)?", s)
+    if m:
+        try:
+            val = float(m.group(0))
+            if is_neg:
+                val = -val
+            return round(val, 2)
+        except ValueError:
+            return None
+    return None
+
+
+MONTH_NAME_MAP = {
+    "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+    "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+    "ม.ค": 1, "ก.พ": 2, "มี.ค": 3, "เม.ย": 4, "พ.ค": 5, "มิ.ย": 6,
+    "ก.ค": 7, "ส.ค": 8, "ก.ย": 9, "ต.ค": 10, "พ.ย": 11, "ธ.ค": 12,
+    "มกราคม": 1, "กุมภาพันธ์": 2, "มีนาคม": 3, "เมษายน": 4, "พฤษภาคม": 5, "มิถุนายน": 6,
+    "กรกฎาคม": 7, "สิงหาคม": 8, "กันยายน": 9, "ตุลาคม": 10, "พฤศจิกายน": 11, "ธันวาคม": 12,
+}
+
+
+def normalize_date(raw: Optional[str]) -> Optional[str]:
+    if not raw:
+        return None
+    s = str(raw).translate(THAI_DIGITS_MAP).strip()
+
+    # Match named month: e.g. "4 Sep 2026", "07-SEP-2026", "4 ก.ย. 2569"
+    m_named = re.match(r"^(\d{1,2})[-/\s]+([a-zA-Zก-๙.]+)[-/\s]+(\d{2,4})$", s)
+    if m_named:
+        d = int(m_named.group(1))
+        mon_str = m_named.group(2).lower().rstrip(".")
+        y = int(m_named.group(3))
+        m = None
+        for k, v in MONTH_NAME_MAP.items():
+            if k.rstrip(".") == mon_str or mon_str.startswith(k[:3]):
+                m = v
+                break
+        if m:
+            if y < 100:
+                y += 2000
+            elif y > 2400:
+                y -= 543
+            return f"{y:04d}-{m:02d}-{d:02d}"
+
+    s_clean = re.sub(r"[/.]", "-", s)
+    m1 = re.match(r"^(\d{1,2})-(\d{1,2})-(\d{2,4})$", s_clean)
+    if m1:
+        d, m, y = int(m1.group(1)), int(m1.group(2)), int(m1.group(3))
+        if y < 100:
+            y += 2000
+        elif y > 2400:
+            y -= 543
+        return f"{y:04d}-{m:02d}-{d:02d}"
+    m2 = re.match(r"^(\d{4})-(\d{1,2})-(\d{1,2})$", s_clean)
+    if m2:
+        y, m, d = int(m2.group(1)), int(m2.group(2)), int(m2.group(3))
+        if y > 2400:
+            y -= 543
+        return f"{y:04d}-{m:02d}-{d:02d}"
+    return s
+
+
+def normalize_uom(raw: Optional[str]) -> Optional[str]:
+    if not raw:
+        return None
+    s = str(raw).strip()
+    s = re.sub(r"^/\s*", "", s).strip()
+    return UOM_MAP.get(s.lower(), s.upper())
+
+
+def normalize_field_value(field_name: str, raw_val: Optional[str]) -> Any:
+    if raw_val is None:
+        return None
+    if field_name in ("sub_total", "vat", "grand_total"):
+        return normalize_number(raw_val)
+    elif field_name in ("supplier_tax_id", "customer_tax_id"):
+        return normalize_tax_id(raw_val)
+    elif field_name == "invoice_date":
+        return normalize_date(raw_val)
+    elif field_name == "currency":
+        c = normalize_text(raw_val)
+        return "THB" if c and c.upper() in ("THB", "฿", "บาท") else (c.upper() if c else "THB")
+    else:
+        return normalize_text(raw_val)
+
+
+# --- Prompt 1: Fast Page Classification (Two-Dimensional) ---
+PROMPT_CLASSIFY = """You are a document classifier for Thai and English accounting documents.
+Review each page image in order (Image 1 = Page 1 ... Image N = Page N) and classify each page:
+1. "page_no": integer (1-indexed page in this PDF)
+2. "doc_type": "tax_invoice" | "invoice" | "delivery" | "po" | "other"
+   - "tax_invoice": has "ใบกำกับภาษี" / "TAX INVOICE" wording (or combined "ใบส่งของ/ใบกำกับภาษี", "ใบเสร็จรับเงิน/ใบกำกับภาษี").
+   - "invoice": has "ใบแจ้งหนี้" / "INVOICE" without tax invoice wording.
+   - "delivery": standalone "ใบส่งของ" / "ใบส่งสินค้า" / "DELIVERY ORDER" without tax invoice wording.
+   - "po": "ใบสั่งซื้อ" / "PURCHASE ORDER".
+   - "other": supporting documents (payment slip, receipt, packing list, etc.).
+3. "copy_status": "original" | "copy" | "unknown"
+   - "copy": contains copy markings ("สำเนา", "คู่ฉบับ", "COPY", "DUPLICATE", stamped "สำเนา", or watermark "สำเนา"). If another page already has "ต้นฉบับ" / "ORIGINAL" for the same document number, mark duplicate pages as "copy".
+   - "original": contains "ต้นฉบับ", "ORIGINAL", or has NO copy marks at all (presumed original).
+4. "doc_no_hint": exact printed document/invoice number if visible on this page (or null).
+5. "page_marker": printed page position if any (e.g. "1/2", "2/2", "1/1", or null).
+6. "rotate_degrees": 0 | 90 | 180 | 270
+   - Clockwise degrees needed to rotate this page so the text reads upright horizontally from left to right (0 if already upright, 90 if rotated 90° CCW / lying on left side, 180 if upside down, 270 if rotated 90° CW / lying on right side).
+
+CRITICAL INSTRUCTION:
+Output ONLY raw JSON starting with '{' and ending with '}'. Do NOT output any reasoning, analysis, chain of thought, or preamble text.
+
+Return ONLY valid JSON:
+{
+  "pages": [
+    {"page_no": 1, "doc_type": "tax_invoice", "copy_status": "original", "doc_no_hint": "IV260904/003", "page_marker": "1/1", "rotate_degrees": 0}
+  ]
+}"""
+
+
+def group_and_select_invoice_pages(
+    pages_classification: List[dict]
+) -> Tuple[List[int], bool, bool, Dict[int, int]]:
+    """
+    Groups pages and selects primary invoice page(s).
+    Returns: (selected_pages, is_original, multi_invoice_detected, page_rotations)
+    """
+    page_rotations = {
+        int(p.get("page_no", i + 1)): int(p.get("rotate_degrees") or 0)
+        for i, p in enumerate(pages_classification)
+    }
+
+    inv_pages = [p for p in pages_classification if p.get("doc_type") in ("tax_invoice", "invoice")]
+    if not inv_pages:
+        return [1], True, False, page_rotations
+
+    hints = set()
+    for p in inv_pages:
+        h = (p.get("doc_no_hint") or "").strip()
+        if h and len(h) >= 3:
+            hints.add(h)
+    multi_invoice_detected = len(hints) > 1
+
+    orig_invoices = [p for p in inv_pages if p.get("copy_status") == "original"]
+    copy_invoices = [p for p in inv_pages if p.get("copy_status") == "copy"]
+
+    if orig_invoices:
+        target_list = orig_invoices
+        is_orig = True
+    elif copy_invoices:
+        target_list = copy_invoices
+        is_orig = False
+    else:
+        target_list = inv_pages
+        is_orig = True
+
+    if multi_invoice_detected:
+        first_hint = (target_list[0].get("doc_no_hint") or "").strip()
+        if first_hint:
+            selected = [p["page_no"] for p in target_list if (p.get("doc_no_hint") or "").strip() == first_hint]
+            if selected:
+                return sorted(selected), is_orig, True, page_rotations
+
+    # Deduplicate re-prints: track (doc_no_hint, page_marker)
+    seen_markers = set()
+    deduped = []
+    for p in target_list:
+        doc_key = (p.get("doc_no_hint") or "").strip()
+        marker = (p.get("page_marker") or "").strip()
+        if doc_key and marker:
+            key = f"{doc_key}::{marker}"
+        elif doc_key:
+            key = f"{doc_key}::default"
+        else:
+            key = None
+
+        if key and key in seen_markers:
+            continue
+        if key:
+            seen_markers.add(key)
+        deduped.append(p["page_no"])
+
+    selected = deduped if deduped else [p["page_no"] for p in target_list]
+    return sorted(selected) if selected else [1], is_orig, multi_invoice_detected, page_rotations
+
+
+# --- Prompt 2: Focused Extraction on One Invoice Page (Compact & Extended Schema) ---
+PROMPT_EXTRACT = """You are an OCR and key information extraction engine for Thai/English invoices.
+This image is ONE INVOICE PAGE (Page {page_no} of the document).
+
+Extract 3 sections from this page:
+1. "fields": Required header fields:
+   - "invoice_num": เลขที่ใบแจ้งหนี้/ใบกำกับภาษี
+   - "invoice_date": วันที่เอกสาร (DD/MM/YYYY or YYYY-MM-DD)
+   - "po_number": เลขที่ใบสั่งซื้อ (PO)
+   - "supplier_name": ชื่อบริษัทผู้ขาย
+   - "supplier_tax_id": เลขประจำตัวผู้เสียภาษี 13 หลักของผู้ขาย
+   - "customer_name": ชื่อลูกค้า (เช่น บริษัท อาปิโก ...)
+   - "customer_tax_id": เลขประจำตัวผู้เสียภาษีลูกค้า
+   - "customer_address": ที่อยู่ลูกค้าที่พิมพ์บนเอกสาร
+   - "sub_total": มูลค่าสินค้าก่อนภาษี (ตัวเลข)
+   - "vat": ภาษีมูลค่าเพิ่ม 7% (ตัวเลข)
+   - "grand_total": จำนวนเงินรวมทั้งสิ้น (ตัวเลข)
+   - "currency": สกุลเงิน (e.g. "THB")
+   For each field, return: {"raw": "exact printed text", "bbox_2d": [x1, y1, x2, y2]} in 0..1000 scale.
+   (If a field is not present on this page, return {"raw": null, "bbox_2d": null}).
+
+2. "line_items": Array of item rows on this page:
+   Each row: {
+     "line_no": 1,
+     "item_code": {"raw": "...", "bbox_2d": [x1,y1,x2,y2]},
+     "description": {"raw": "...", "bbox_2d": [x1,y1,x2,y2]},
+     "qty": {"raw": "...", "bbox_2d": [x1,y1,x2,y2]},
+     "uom": {"raw": "...", "bbox_2d": [x1,y1,x2,y2]},
+     "unit_price": {"raw": "...", "bbox_2d": [x1,y1,x2,y2]},
+     "amount": {"raw": "...", "bbox_2d": [x1,y1,x2,y2]},
+     "line_bbox": [x1, y1, x2, y2]
+   }
+
+3. "regions": Structural and audit visual regions on this page:
+   Array of: {"type": "table"|"stamp"|"signature"|"other", "label": "items_table"|"company_stamp"|"receiver_signature"|"deliverer_signature", "bbox_2d": [x1,y1,x2,y2]}
+
+CRITICAL INSTRUCTION:
+Output ONLY raw JSON starting with '{' and ending with '}'. Do NOT output reasoning or conversational text.
+
+Return ONLY valid JSON:
+{
+  "fields": {
+    "invoice_num": {"raw": "26/2691", "bbox_2d": [722, 138, 852, 152]},
+    "invoice_date": {"raw": "02/09/2569", "bbox_2d": [722, 162, 852, 176]},
+    "po_number": {"raw": "42052405", "bbox_2d": [48, 272, 222, 318]},
+    "supplier_name": {"raw": "บริษัท ไทยเวิร์ธ จำกัด", "bbox_2d": [48, 60, 450, 80]},
+    "supplier_tax_id": {"raw": "0105537063173", "bbox_2d": [48, 88, 352, 102]},
+    "customer_name": {"raw": "บริษัท อาปิโก ไฮเทค พูลทิง จำกัด", "bbox_2d": [48, 180, 450, 200]},
+    "customer_tax_id": {"raw": "0145548001557", "bbox_2d": [48, 205, 350, 220]},
+    "customer_address": {"raw": "99/1 ม.1 นิคมอุตสาหกรรมไฮเทค...", "bbox_2d": [48, 220, 500, 235]},
+    "sub_total": {"raw": "49215.00", "bbox_2d": [752, 662, 998, 676]},
+    "vat": {"raw": "3445.05", "bbox_2d": [602, 722, 998, 736]},
+    "grand_total": {"raw": "52660.05", "bbox_2d": [602, 742, 998, 756]},
+    "currency": {"raw": "THB", "bbox_2d": [752, 662, 780, 676]}
+  },
+  "line_items": [
+    {
+      "line_no": 1,
+      "item_code": {"raw": "509-1200-150", "bbox_2d": [48, 380, 200, 395]},
+      "description": {"raw": "SOLID CARBIDE BN45 BALLNOSE ENDMILL", "bbox_2d": [205, 380, 600, 395]},
+      "qty": {"raw": "3", "bbox_2d": [610, 380, 650, 395]},
+      "uom": {"raw": "PCS", "bbox_2d": [655, 380, 700, 395]},
+      "unit_price": {"raw": "3794.00", "bbox_2d": [710, 380, 800, 395]},
+      "amount": {"raw": "11382.00", "bbox_2d": [810, 380, 990, 395]},
+      "line_bbox": [20, 375, 995, 400]
+    }
+  ],
+  "regions": [
+    {"type": "table", "label": "items_table", "bbox_2d": [20, 350, 995, 650]},
+    {"type": "stamp", "label": "company_stamp", "bbox_2d": [700, 800, 850, 900]},
+    {"type": "signature", "label": "receiver_signature", "bbox_2d": [100, 850, 300, 920]}
+  ]
+}"""
+
+_print_lock = threading.Lock()
+
+
+def log(*args):
+    with _print_lock:
+        print(*args, flush=True)
+
+
+def parse_ids(s: str) -> List[int]:
+    out = []
+    for part in filter(None, (x.strip() for x in s.split(","))):
+        if "-" in part:
+            a, b = part.split("-", 1)
+            out.extend(range(int(a), int(b) + 1))
+        else:
+            out.append(int(part))
+    return out
+
+
+def fetch_pdf(doc_id: int) -> Tuple[bytes, dict]:
+    cache_dir = ROOT / ".cache" / "downloads"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cached_pdf = cache_dir / f"DMS-{doc_id}.pdf"
+    if cached_pdf.exists():
+        return cached_pdf.read_bytes(), {"id": doc_id, "title": f"DMS-{doc_id}"}
+
+    headers = {"Authorization": f"Token {PL_TOKEN}", "Accept": "application/json"}
+    meta_url = f"{PL_URL}/api/documents/{doc_id}/"
+    meta_res = requests.get(meta_url, headers=headers, timeout=30)
+    meta_res.raise_for_status()
+    meta = meta_res.json()
+
+    dl_url = f"{PL_URL}/api/documents/{doc_id}/download/"
+    r = requests.get(dl_url, params={"original": "true"}, headers=headers, timeout=180)
+    r.raise_for_status()
+    pdf_bytes = r.content
+    if not pdf_bytes.startswith(b"%PDF"):
+        r2 = requests.get(dl_url, headers=headers, timeout=180)
+        if r2.ok and r2.content.startswith(b"%PDF"):
+            pdf_bytes = r2.content
+
+    cached_pdf.write_bytes(pdf_bytes)
+    return pdf_bytes, meta
+
+
+def render_pdf_pages(pdf_bytes: bytes, dpi: int = RENDER_DPI) -> List[Tuple[int, Image.Image]]:
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    pages = []
+    for i in range(len(doc)):
+        pix = doc[i].get_pixmap(dpi=dpi)
+        img = Image.open(io.BytesIO(pix.tobytes("png"))).convert("RGB")
+        pages.append((i + 1, img))
+    return pages
+
+
+def detect_coord_mode(boxes: List[List[float]], img_w: int, img_h: int) -> str:
+    vals = [float(v) for b in boxes if b and len(b) == 4 for v in b]
+    if not vals:
+        return "norm1000"
+    mx = max(vals)
+    if mx <= 1.0:
+        return "norm1"
+    if mx > 1000:
+        return "pixel"
+    return "norm1000" if max(img_w, img_h) > 1100 else "pixel"
+
+
+def to_px(b: List[float], img_w: int, img_h: int, mode: str) -> Tuple[float, float, float, float]:
+    x1, y1, x2, y2 = (float(v) for v in b[:4])
+    if mode == "norm1000":
+        x1, x2 = x1 * img_w / 1000.0, x2 * img_w / 1000.0
+        y1, y2 = y1 * img_h / 1000.0, y2 * img_h / 1000.0
+    elif mode == "norm1":
+        x1, x2, y1, y2 = x1 * img_w, x2 * img_w, y1 * img_h, y2 * img_h
+    x1, x2 = sorted((max(0.0, min(float(img_w), x1)), max(0.0, min(float(img_w), x2))))
+    y1, y2 = sorted((max(0.0, min(float(img_h), y1)), max(0.0, min(float(img_h), y2))))
+    return x1, y1, x2, y2
+
+
+def px_to_norm_xywh(rect: Tuple[float, float, float, float], img_w: int, img_h: int) -> List[float]:
+    x1, y1, x2, y2 = rect
+    w, h = max(img_w, 1), max(img_h, 1)
+    x, y = max(0.0, min(1.0, x1 / w)), max(0.0, min(1.0, y1 / h))
+    return [
+        round(x, 4),
+        round(y, 4),
+        round(max(0.0, min(1.0 - x, (x2 - x1) / w)), 4),
+        round(max(0.0, min(1.0 - y, (y2 - y1) / h)), 4)
+    ]
+
+
+def get_font(size: int = 15):
+    for f in ("tahoma.ttf", "C:/Windows/Fonts/tahoma.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"):
+        try:
+            return ImageFont.truetype(f, size)
+        except OSError:
+            pass
+    return ImageFont.load_default()
+
+
+def draw_bboxes(img: Image.Image, items: List[dict], coord_mode: str) -> Image.Image:
+    out = img.copy()
+    draw = ImageDraw.Draw(out, "RGBA")
+    f = get_font()
+    w, h = img.size
+
+    for it in items:
+        box = it.get("bbox_2d")
+        if not box or len(box) != 4:
+            continue
+        try:
+            x1, y1, x2, y2 = to_px(box, w, h, coord_mode)
+        except Exception:
+            continue
+        if x2 - x1 < 3 or y2 - y1 < 3:
+            continue
+
+        c = COLORS.get(it.get("type"), COLORS["other"])
+        draw.rectangle([x1, y1, x2, y2], outline=c, width=3)
+
+        label = str(it.get("label") or it.get("type") or "?")
+        text = str(it.get("text") or "")
+        tag = f"{label}: {text[:20]}" if text else label
+
+        tw = draw.textlength(tag, font=f)
+        ty = y1 - 20 if y1 > 20 else y2 + 2
+        draw.rectangle([x1, ty, x1 + tw + 6, ty + 19], fill=c)
+        draw.text((x1 + 3, ty + 1), tag, fill="white", font=f)
+
+    return out
+
+
+def _clean_json_response(raw_text: str) -> dict:
+    raw_text = re.sub(r"<think>.*?</think>", "", raw_text, flags=re.S)
+    raw_text = re.sub(r"```(?:json)?", "", raw_text)
+    s = raw_text.find("{")
+    e = raw_text.rfind("}")
+    if s != -1 and e > s:
+        try:
+            return json.loads(raw_text[s:e + 1])
+        except json.JSONDecodeError:
+            pass
+    m = re.search(r"\{.*\}", raw_text, re.S)
+    if m:
+        try:
+            return json.loads(m.group(0))
+        except Exception:
+            pass
+    raise ValueError(f"Failed to parse valid JSON from VLM response: {raw_text[:300]}")
+
+
+def step1_classify_pages(
+    client: OpenAI, pdf_bytes: bytes, model: str = VLM_MODEL, dpi: int = CLASSIFY_DPI
+) -> Tuple[dict, float]:
+    """Step 1: Fast multi-image classification to detect invoice pages, original vs copy, and rotation."""
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    content: List[dict] = []
+
+    # Qwen/vLLM layout: ALL image_urls FIRST
+    for i in range(len(doc)):
+        pix = doc[i].get_pixmap(dpi=dpi)
+        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=70)
+        b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+        content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}})
+
+    # Followed by text prompt at the end
+    instruction = (
+        f"{PROMPT_CLASSIFY}\n\nReview the {len(doc)} pages above in order (Image 1 = Page 1 ... Image {len(doc)} = Page {len(doc)})."
+    )
+    content.append({"type": "text", "text": instruction})
+
+    last_err = None
+    for attempt in range(3):
+        try:
+            t0 = time.time()
+            response = client.chat.completions.create(
+                model=model,
+                temperature=0,
+                max_tokens=4096,
+                messages=[{"role": "user", "content": content}]
+            )
+            duration = time.time() - t0
+            msg = response.choices[0].message
+            raw_text = msg.content or getattr(msg, "reasoning_content", None) or ""
+            return _clean_json_response(raw_text), duration
+        except Exception as e:
+            last_err = e
+            if attempt < 2:
+                log(f"        [RETRY Step 1 ({attempt + 1}/3)]: {e}")
+                time.sleep((attempt + 1) * 2)
+    raise last_err
+
+
+def step2_extract_invoice_page(
+    client: OpenAI, page_img: Image.Image, page_no: int, model: str = VLM_MODEL
+) -> Tuple[dict, float]:
+    """Step 2: Deep extraction on a single invoice page (100% accurate spatial coordinates)."""
+    buf = io.BytesIO()
+    page_img.save(buf, format="JPEG", quality=90)
+    b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+
+    prompt = PROMPT_EXTRACT.replace("{page_no}", str(page_no))
+    messages = [{
+        "role": "user",
+        "content": [
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
+            {"type": "text", "text": prompt}
+        ]
+    }]
+
+    last_err = None
+    for attempt in range(3):
+        try:
+            t0 = time.time()
+            response = client.chat.completions.create(
+                model=model,
+                temperature=0,
+                max_tokens=MAX_TOKENS,
+                messages=messages
+            )
+            duration = time.time() - t0
+            msg = response.choices[0].message
+            raw_text = msg.content or getattr(msg, "reasoning_content", None) or ""
+            return _clean_json_response(raw_text), duration
+        except Exception as e:
+            last_err = e
+            if attempt < 2:
+                log(f"        [RETRY Step 2 ({attempt + 1}/3)]: {e}")
+                time.sleep((attempt + 1) * 2)
+    raise last_err
+
+
+def process_single_doc(
+    client: OpenAI,
+    doc_id: int,
+    out_dir: Path,
+    dpi: int = RENDER_DPI,
+    skip_existing: bool = False,
+    model: str = VLM_MODEL,
+    layout: str = "legacy",
+) -> dict:
+    doc_folder = out_dir / f"DMS-{doc_id}"
+    payload_file = ocr_payload_path(out_dir, doc_id, layout)
+
+    if skip_existing and payload_file.exists():
+        log(f"[SKIP] DMS-{doc_id} already processed at {payload_file}")
+        return {"doc_id": doc_id, "status": "skipped"}
+
+    t0 = time.time()
+    log(f"[START] Processing DMS-{doc_id} with {model} (Two-Step Pipeline)...")
+
+    try:
+        pdf_bytes, meta = fetch_pdf(doc_id)
+        pages = render_pdf_pages(pdf_bytes, dpi=dpi)
+        log(f"        Rendered {len(pages)} page(s) for DMS-{doc_id}")
+
+        # === STEP 1: Fast Classification & Grouping ===
+        if len(pages) == 1:
+            selected_pages = [1]
+            is_original = True
+            multi_invoice_detected = False
+            page_rotations = {1: 0}
+            pages_classification = [{"page_no": 1, "doc_type": "tax_invoice", "copy_status": "original", "doc_no_hint": None, "page_marker": "1/1"}]
+            t_classify = 0.0
+            log(f"        Single page doc -> skipping classify step")
+        else:
+            classify_res, t_classify = step1_classify_pages(client, pdf_bytes, model=model)
+            log(f"        Step 1 Classify finished in {t_classify:.1f}s")
+            pages_classification = classify_res.get("pages") or classify_res.get("pages_classification") or []
+            selected_pages, is_original, multi_invoice_detected, page_rotations = group_and_select_invoice_pages(pages_classification)
+
+        log(f"        Selected invoice page(s): {selected_pages} (is_original={is_original}, multi_invoice={multi_invoice_detected})")
+
+        payload_file.parent.mkdir(parents=True, exist_ok=True)
+        if layout == "round":
+            (out_dir / "rendered").mkdir(parents=True, exist_ok=True)
+        else:
+            doc_folder.mkdir(parents=True, exist_ok=True)
+        pages_by_num = {p_no: img for p_no, img in pages}
+
+        # === STEP 2: Deep Extraction per Selected Invoice Page ===
+        rendered_png_paths = []
+        total_bboxes_count = 0
+        all_fields: Dict[str, dict] = {}
+        all_line_items: List[dict] = []
+        all_regions: List[dict] = []
+        step2_times = []
+
+        for p_no in selected_pages:
+            img = pages_by_num.get(p_no)
+            if not img:
+                continue
+            rot = int(page_rotations.get(p_no, 0) or 0)
+            if rot in (90, 180, 270):
+                img = img.rotate(-rot, expand=True)   # fix 2026-10-13: turn the page upright before extract
+
+            extract_res, t_extract = step2_extract_invoice_page(client, img, p_no, model=model)
+            step2_times.append(t_extract)
+            log(f"        Step 2 Extract on Page {p_no} finished in {t_extract:.1f}s")
+
+            raw_fields_map = extract_res.get("fields") or extract_res.get("required_fields") or {}
+            raw_line_items = extract_res.get("line_items") or []
+            raw_regions = extract_res.get("regions") or []
+
+            # Collect all boxes on this page to detect coord mode
+            all_boxes_p = []
+            for f_obj in raw_fields_map.values():
+                if isinstance(f_obj, dict) and f_obj.get("bbox_2d") and len(f_obj["bbox_2d"]) == 4:
+                    all_boxes_p.append(f_obj["bbox_2d"])
+            for l_obj in raw_line_items:
+                if isinstance(l_obj, dict):
+                    if l_obj.get("line_bbox") and len(l_obj["line_bbox"]) == 4:
+                        all_boxes_p.append(l_obj["line_bbox"])
+                    for cell_key in ("item_code", "description", "qty", "uom", "unit_price", "amount"):
+                        c_val = l_obj.get(cell_key)
+                        if isinstance(c_val, dict) and c_val.get("bbox_2d") and len(c_val["bbox_2d"]) == 4:
+                            all_boxes_p.append(c_val["bbox_2d"])
+            for r_obj in raw_regions:
+                if isinstance(r_obj, dict) and r_obj.get("bbox_2d") and len(r_obj["bbox_2d"]) == 4:
+                    all_boxes_p.append(r_obj["bbox_2d"])
+
+            coord_mode = detect_coord_mode(all_boxes_p, img.width, img.height) if all_boxes_p else "norm1000"
+
+            # 1. Build page_items for overlay PNG
+            page_items = []
+            for fn in REQUIRED_FIELD_NAMES:
+                f_val = raw_fields_map.get(fn) or {}
+                b_raw = f_val.get("bbox_2d")
+                raw_str = f_val.get("raw") if f_val.get("raw") is not None else f_val.get("value")
+                if b_raw and len(b_raw) == 4 and raw_str:
+                    c_type = "header" if "num" in fn or "date" in fn else "supplier" if "supplier" in fn else "customer" if "customer" in fn else "total"
+                    page_items.append({
+                        "type": c_type,
+                        "label": fn,
+                        "text": str(raw_str),
+                        "bbox_2d": b_raw
+                    })
+
+            for l in raw_line_items:
+                l_no = l.get("line_no", 1)
+                desc_obj = l.get("description")
+                desc_str = desc_obj.get("raw") if isinstance(desc_obj, dict) else str(desc_obj or "")
+                amt_obj = l.get("amount")
+                amt_str = amt_obj.get("raw") if isinstance(amt_obj, dict) else str(amt_obj or "")
+                l_b = l.get("line_bbox")
+                if l_b and len(l_b) == 4:
+                    page_items.append({
+                        "type": "line",
+                        "label": f"line_{l_no}",
+                        "text": f"{desc_str[:15]} ({amt_str})",
+                        "bbox_2d": l_b
+                    })
+
+            for r in raw_regions:
+                b_raw = r.get("bbox_2d")
+                if b_raw and len(b_raw) == 4:
+                    page_items.append({
+                        "type": r.get("type", "other"),
+                        "label": r.get("label", "region"),
+                        "text": r.get("label", ""),
+                        "bbox_2d": b_raw
+                    })
+
+            total_bboxes_count += len(page_items)
+            drawn_img = draw_bboxes(img, page_items, coord_mode)
+            png_path = rendered_page_path(out_dir, doc_id, p_no, layout)
+            drawn_img.save(png_path, "PNG")
+            rendered_png_paths.append(png_path.name if layout != "round" else f"rendered/{png_path.name}")
+            log(f"        Rendered BBox overlay: {png_path.name} ({len(page_items)} boxes)")
+
+            # 2. Extract & Normalize Header Fields
+            for fn in REQUIRED_FIELD_NAMES:
+                if fn in all_fields and all_fields[fn].get("raw"):
+                    continue
+                f_obj = raw_fields_map.get(fn) or {}
+                raw_val = f_obj.get("raw") if f_obj.get("raw") is not None else f_obj.get("value")
+                b_raw = f_obj.get("bbox_2d")
+                bbox_norm = None
+                if b_raw and len(b_raw) == 4:
+                    px_rect = to_px(b_raw, img.width, img.height, coord_mode)
+                    bbox_norm = px_to_norm_xywh(px_rect, img.width, img.height)
+
+                norm_val = normalize_field_value(fn, raw_val)
+                all_fields[fn] = {
+                    "raw": raw_val,
+                    "normalized": norm_val,
+                    "bbox": bbox_norm,
+                    "page_no": p_no,
+                }
+
+            # 3. Extract & Normalize Line Items
+            for l in raw_line_items:
+                l_no = l.get("line_no", len(all_line_items) + 1)
+                l_box_raw = l.get("line_bbox")
+                line_bbox_norm = None
+                if l_box_raw and len(l_box_raw) == 4:
+                    px_rect = to_px(l_box_raw, img.width, img.height, coord_mode)
+                    line_bbox_norm = px_to_norm_xywh(px_rect, img.width, img.height)
+
+                item_entry: Dict[str, Any] = {
+                    "line_no": l_no,
+                    "page_no": p_no,
+                    "line_bbox": line_bbox_norm,
+                }
+
+                for cell_key in ("item_code", "description", "qty", "uom", "unit_price", "amount"):
+                    cell_data = l.get(cell_key)
+                    if isinstance(cell_data, dict):
+                        raw_c = cell_data.get("raw") if cell_data.get("raw") is not None else cell_data.get("value")
+                        b_c = cell_data.get("bbox_2d")
+                    else:
+                        raw_c = str(cell_data) if cell_data is not None else None
+                        b_c = None
+
+                    c_bbox_norm = None
+                    if b_c and len(b_c) == 4:
+                        px_c = to_px(b_c, img.width, img.height, coord_mode)
+                        c_bbox_norm = px_to_norm_xywh(px_c, img.width, img.height)
+
+                    if cell_key in ("qty", "unit_price", "amount"):
+                        norm_c = normalize_number(raw_c)
+                    elif cell_key == "uom":
+                        norm_c = normalize_uom(raw_c)
+                    else:
+                        norm_c = normalize_text(raw_c)
+
+                    item_entry[cell_key] = {
+                        "raw": raw_c,
+                        "normalized": norm_c,
+                        "bbox": c_bbox_norm,
+                    }
+
+                all_line_items.append(item_entry)
+
+            # 4. Extract Structural Regions
+            for r in raw_regions:
+                b_raw = r.get("bbox_2d")
+                r_bbox_norm = None
+                if b_raw and len(b_raw) == 4:
+                    px_r = to_px(b_raw, img.width, img.height, coord_mode)
+                    r_bbox_norm = px_to_norm_xywh(px_r, img.width, img.height)
+                all_regions.append({
+                    "type": r.get("type", "other"),
+                    "label": r.get("label", "region"),
+                    "page_no": p_no,
+                    "bbox": r_bbox_norm,
+                })
+
+        # Save validation_payload.json with complete new schema
+        validation_payload = {
+            "doc_id": doc_id,
+            "document_title": meta.get("title") or f"DMS-{doc_id}",
+            "is_original": is_original,
+            "selected_invoice_pages": selected_pages,
+            "multi_invoice_detected": multi_invoice_detected,
+            "fields": all_fields,
+            "line_items": all_line_items,
+            "regions": all_regions,
+        }
+        # Timing / run metadata for this document
+        total_duration = round(time.time() - t0, 2)
+        meta_info = {
+            "doc_id": doc_id,
+            "model": model,
+            "pipeline": "two-step",
+            "total_pages": len(pages),
+            "selected_pages": selected_pages,
+            "is_original": is_original,
+            "multi_invoice_detected": multi_invoice_detected,
+            "pages_classification": pages_classification,
+            "step1_classify_seconds": round(t_classify, 2),
+            "step2_extract_seconds": [round(t, 2) for t in step2_times],
+            "total_seconds": total_duration,
+            "total_bboxes_drawn": total_bboxes_count,
+            "rendered_images": rendered_png_paths,
+        }
+        if layout == "round":
+            validation_payload["meta"] = meta_info
+            payload_file.write_text(json.dumps(validation_payload, indent=2, ensure_ascii=False), encoding="utf-8")
+            out_folder = payload_file.parent
+        else:
+            payload_file.write_text(json.dumps(validation_payload, indent=2, ensure_ascii=False), encoding="utf-8")
+            (doc_folder / "meta.json").write_text(json.dumps(meta_info, indent=2, ensure_ascii=False), encoding="utf-8")
+            out_folder = doc_folder
+        doc_folder = out_folder
+
+        log(f"[DONE] DMS-{doc_id} in {total_duration}s (Step1: {t_classify:.1f}s, Step2: {sum(step2_times):.1f}s) -> {doc_folder}")
+        return {"doc_id": doc_id, "status": "ok", "seconds": total_duration, "folder": str(doc_folder)}
+
+    except Exception as e:
+        log(f"[ERROR] DMS-{doc_id} failed: {e}")
+        return {"doc_id": doc_id, "status": "error", "error": str(e)}
+
+
+def resolve_model_name(name: Optional[str]) -> Tuple[str, str]:
+    if not name:
+        raw = VLM_MODEL
+    else:
+        raw = name.strip()
+    if "qwen3-vl-8b" in raw.lower() or raw.lower() in ("8b", "qwen-8b"):
+        return "Qwen/Qwen3-VL-8B-Instruct", "Qwen3-VL-8B-Instruct"
+    if "flash" in raw.lower() or "nvfp4" in raw.lower():
+        return "nvidia/Qwen3.8-Flash-Next-NVFP4", "Qwen3.8-Flash-Next-NVFP4"
+    clean = raw.split("/")[-1]
+    return raw, clean
+
+
+def list_paperless_docs(tag: str = "invoice", limit: Optional[int] = None) -> List[int]:
+    headers = {"Authorization": f"Token {PL_TOKEN}", "Accept": "application/json"}
+    url = f"{PL_URL}/api/documents/"
+    params = {"page_size": 100, "ordering": "id", "tags__name__iexact": tag}
+    ids = []
+    while url:
+        r = requests.get(url, headers=headers, params=params, timeout=60)
+        r.raise_for_status()
+        data = r.json()
+        for doc in data.get("results", []):
+            ids.append(doc["id"])
+            if limit and len(ids) >= limit:
+                return ids
+        url = data.get("next")
+        params = None
+    return ids
+
+
+def load_ids_file(path: Path) -> List[int]:
+    """Document IDs from a JSON file: either [1,2,3] or {"document_ids"/"ids": [...]}"""
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    if isinstance(data, dict):
+        data = data.get("document_ids") or data.get("ids") or []
+    return sorted({int(x) for x in data})
+
+
+def sample_fixed_subset(ids: List[int], k: int = 50, seed: int = 42) -> List[int]:
+    """Deterministic fixed sample. The pool is sorted first, so input order cannot change the result."""
+    pool = sorted({int(i) for i in ids})
+    return sorted(random.Random(int(seed)).sample(pool, min(int(k), len(pool))))
+
+
+def missing_pdf_ids(all_ids: List[int], cache_dir: Optional[Path] = None) -> List[int]:
+    """IDs that still have no PDF in the local download cache."""
+    cache = Path(cache_dir) if cache_dir else (ROOT / ".cache" / "downloads")
+    return [i for i in sorted({int(x) for x in all_ids}) if not (cache / f"DMS-{int(i)}.pdf").exists()]
+
+
+def ocr_payload_path(out_dir: Path, doc_id: int, layout: str = "legacy") -> Path:
+    """OCR + coordinate artifact. round layout: one ocr/DMS-<id>.json per document."""
+    if layout == "round":
+        return Path(out_dir) / "ocr" / f"DMS-{doc_id}.json"
+    return Path(out_dir) / f"DMS-{doc_id}" / "validation_payload.json"
+
+
+def rendered_page_path(out_dir: Path, doc_id: int, page_no: int, layout: str = "legacy") -> Path:
+    """BBox overlay artifact. round layout: rendered/DMS-<id>_p<page>_bbox.png."""
+    if layout == "round":
+        return Path(out_dir) / "rendered" / f"DMS-{doc_id}_p{page_no}_bbox.png"
+    return Path(out_dir) / f"DMS-{doc_id}" / f"invoice_p{page_no}.png"
+
+
+PLAN_MANDATORY_FIELDS = [
+    "invoice_num", "invoice_date", "supplier_name", "supplier_tax_id",
+    "customer_name", "sub_total", "vat", "grand_total",
+]
+
+
+def audit_doc(payload: dict, page_dims: Optional[Dict[int, Tuple[int, int]]] = None) -> dict:
+    """Automated triage of one round payload.
+
+    It only orders the visual queue (plan section 5: automated checks may prioritise, never replace,
+    opening the rendered image). Coordinates in the payload are normalised xywh, so the true row
+    aspect ratio needs the page pixel size.
+    """
+    findings: set = set()
+    selected = [int(p) for p in (payload.get("selected_invoice_pages") or [])]
+    fields = payload.get("fields") or {}
+    lines = payload.get("line_items") or []
+    regions = payload.get("regions") or []
+    dims = {int(k): v for k, v in (page_dims or {}).items()}
+
+    for fn in PLAN_MANDATORY_FIELDS:
+        f = fields.get(fn) or {}
+        if not str(f.get("raw") or "").strip():
+            findings.add(f"MISSING_FIELD:{fn}")
+    if not lines:
+        findings.add("NO_LINE_ITEMS")
+
+    boxes: List[Tuple[str, int, Any]] = []
+    for fn, f in fields.items():
+        if isinstance(f, dict) and f.get("bbox"):
+            boxes.append((fn, int(f.get("page_no") or 0), f["bbox"]))
+    rows: Dict[int, int] = {}
+    for l in lines:
+        pg = int(l.get("page_no") or 0)
+        lbl = f"line_{l.get('line_no')}"
+        if l.get("line_bbox"):
+            boxes.append((lbl, pg, l["line_bbox"]))
+        rows[pg] = rows.get(pg, 0) + 1
+        for cell in ("item_code", "description", "qty", "uom", "unit_price", "amount"):
+            c = l.get(cell)
+            if isinstance(c, dict) and c.get("bbox"):
+                boxes.append((f"{lbl}.{cell}", pg, c["bbox"]))
+    for r in regions:
+        if isinstance(r, dict) and r.get("bbox"):
+            boxes.append((f"region:{r.get('label', 'other')}", int(r.get("page_no") or 0), r["bbox"]))
+
+    seen: Dict[int, set] = {}
+    pages_with_boxes: set = set()
+    for label, pg, bb in boxes:
+        if not (isinstance(bb, (list, tuple)) and len(bb) == 4):
+            continue
+        pages_with_boxes.add(pg)
+        try:
+            x, y, w, h = (float(v) for v in bb)
+        except (TypeError, ValueError):
+            findings.add(f"BAD_BBOX:{label}")
+            continue
+        if w <= 0 or h <= 0 or x < -0.005 or y < -0.005 or x + w > 1.005 or y + h > 1.005:
+            findings.add(f"OOB:{label}")
+        if label in seen.setdefault(pg, set()):
+            findings.add(f"DUPLICATE:{label}")
+        seen[pg].add(label)
+        if selected and pg not in selected:
+            findings.add(f"BBOX_ON_UNSELECTED_PAGE:{pg}")
+        if label.startswith("line_") and "." not in label and w > 0 and h > 0:
+            d = dims.get(pg)
+            if d:
+                ar = (w * d[0]) / (h * d[1])
+                if ar < 1.5:
+                    findings.add(f"LINE_AR:{label}:{round(ar, 2)}")
+
+    for pg in selected:
+        if pg not in pages_with_boxes:
+            findings.add(f"NO_BBOX_ON_SELECTED_PAGE:{pg}")
+
+    for p in ((payload.get("meta") or {}).get("pages_classification") or []):
+        pno = int(p.get("page_no") or 0)
+        if pno in selected:
+            continue
+        if str(p.get("doc_type", "")).endswith("tax_invoice") and str(p.get("copy_status", "")).lower() == "original":
+            findings.add(f"CLASSIFY_SUSPECT:p{pno}_original_invoice_not_selected")
+
+    return {
+        "findings": sorted(findings),
+        "rows_ocr_per_page": rows,
+        "selected_pages": selected,
+        "total_pages": (payload.get("meta") or {}).get("total_pages"),
+        "boxes_total": len(boxes),
+    }
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Two-Step Invoice Extraction & BBox Testing")
+    parser.add_argument("--doc-id", type=int, help="Single DMS document ID (e.g. 20)")
+    parser.add_argument("--doc-ids", type=str, help="Comma-separated DMS document IDs (e.g. 15,19,20)")
+    parser.add_argument("--tag", type=str, default="invoice", help="Paperless tag to query (default: invoice)")
+    parser.add_argument("--limit", type=int, default=None, help="Limit number of documents")
+    parser.add_argument("--model", type=str, default=None,
+                        help="VLM model name (e.g. Qwen3-VL-8B-Instruct or Qwen/Qwen3-VL-8B-Instruct)")
+    parser.add_argument("--out-dir", type=Path, default=None,
+                        help="Output directory (default: bbox_testing/<model> if --model is set, else bbox_testing)")
+    parser.add_argument("--workers", type=int, default=1, help="Concurrency workers (default: 1)")
+    parser.add_argument("--dpi", type=int, default=RENDER_DPI, help=f"Render DPI (default: {RENDER_DPI})")
+    parser.add_argument("--skip-existing", action="store_true", help="Skip already processed documents")
+    parser.add_argument("--ids-file", type=Path, help="JSON file of document IDs (list or {'document_ids': [...]})")
+    parser.add_argument("--snapshot-corpus", type=Path, metavar="OUT_JSON",
+                        help="Fetch tag doc IDs from Paperless (READ-ONLY), write snapshot JSON, exit")
+    parser.add_argument("--make-eval-subset", type=Path, metavar="OUT_JSON",
+                        help="Write deterministic fixed sample of --corpus-file as JSON, exit")
+    parser.add_argument("--corpus-file", type=Path, help="Input JSON for --make-eval-subset")
+    parser.add_argument("--eval-k", type=int, default=50, help="Subset size (default: 50)")
+    parser.add_argument("--eval-seed", type=int, default=42, help="Subset seed (default: 42)")
+    parser.add_argument("--download-only", action="store_true",
+                        help="Download missing PDFs into .cache/downloads (READ-ONLY GET), exit")
+    parser.add_argument("--emit-source-images", type=Path, metavar="DIR",
+                        help="Write DMS-<id>_p<page>.png into DIR, skip existing, exit")
+    parser.add_argument("--layout", choices=["legacy", "round"], default="legacy",
+                        help="round = ocr/DMS-<id>.json + rendered/DMS-<id>_p<page>_bbox.png (plan layout)")
+    parser.add_argument("--audit-round", type=Path, metavar="ROUND_DIR",
+                        help="Triage a finished round dir and write ROUND_DIR/progress.json, exit")
+    parser.add_argument("--source-images-dir", type=Path, default=None,
+                        help="source_images dir for page pixel sizes (default: bbox_testing/source_images)")
+
+    args = parser.parse_args()
+
+    model_full, model_folder = resolve_model_name(args.model)
+    if args.out_dir is not None:
+        out_dir = args.out_dir
+    elif args.model:
+        out_dir = ROOT / "bbox_testing" / model_folder
+    else:
+        out_dir = ROOT / "bbox_testing"
+
+    if args.snapshot_corpus:
+        ids = sorted(list_paperless_docs(tag=args.tag, limit=args.limit))
+        payload = {
+            "description": f"READ-ONLY snapshot of every Paperless document carrying tag '{args.tag}'",
+            "tag": args.tag,
+            "total": len(ids),
+            "paperless_query": f"{PL_URL}/api/documents/?tags__name__iexact={args.tag}",
+            "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            "document_ids": ids,
+        }
+        args.snapshot_corpus.parent.mkdir(parents=True, exist_ok=True)
+        args.snapshot_corpus.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+        log(f"Corpus snapshot: {len(ids)} document(s) with tag '{args.tag}' -> {args.snapshot_corpus}")
+        return 0
+
+    if args.make_eval_subset:
+        if not args.corpus_file:
+            log("--make-eval-subset requires --corpus-file")
+            return 2
+        pool = load_ids_file(args.corpus_file)
+        subset = sample_fixed_subset(pool, k=args.eval_k, seed=args.eval_seed)
+        payload = {
+            "description": f"Fixed {args.eval_k}-document eval subset, sampled with seed={args.eval_seed}",
+            "seed": args.eval_seed,
+            "k": args.eval_k,
+            "pool_total": len(pool),
+            "method": "sorted(unique pool) -> random.Random(seed).sample(pool, k) -> sort result",
+            "corpus_file": str(args.corpus_file),
+            "document_ids": subset,
+        }
+        args.make_eval_subset.parent.mkdir(parents=True, exist_ok=True)
+        args.make_eval_subset.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+        log(f"Eval subset: {len(subset)} of {len(pool)} (seed={args.eval_seed}) -> {args.make_eval_subset}")
+        return 0
+
+    doc_ids = []
+    if args.audit_round:
+        doc_ids = []
+    elif args.doc_id:
+        doc_ids = [args.doc_id]
+    elif args.doc_ids:
+        doc_ids = parse_ids(args.doc_ids)
+    elif args.ids_file:
+        doc_ids = load_ids_file(args.ids_file)
+    else:
+        log(f"Fetching document list with tag '{args.tag}' from Paperless...")
+        doc_ids = list_paperless_docs(tag=args.tag, limit=args.limit)
+
+    if not doc_ids and not args.audit_round and not args.download_only:
+        log("No documents found. Exiting.")
+        return 0
+
+    if args.audit_round:
+        round_dir = args.audit_round
+        src_dir = args.source_images_dir or (ROOT / "bbox_testing" / "source_images")
+        docs: Dict[str, Any] = {}
+        for pf in sorted((round_dir / "ocr").glob("DMS-*.json")):
+            did = int(pf.stem.split("-")[-1])
+            data = json.loads(pf.read_text(encoding="utf-8"))
+            dims: Dict[int, Tuple[int, int]] = {}
+            for png in sorted(src_dir.glob(f"DMS-{did}_p*.png")):
+                try:
+                    pno = int(png.stem.rsplit("_p", 1)[1])
+                except IndexError:
+                    continue
+                with Image.open(png) as im:
+                    dims[pno] = im.size
+            a = audit_doc(data, dims)
+            total = int(a.get("total_pages") or (max(dims) if dims else 0))
+            unselected = [p for p in range(1, total + 1) if p not in a["selected_pages"]]
+            review_md = round_dir / "review" / f"DMS-{did}.md"
+            findings = a["findings"]
+            docs[f"DMS-{did}"] = {
+                "selected_pages": a["selected_pages"],
+                "total_pages": a.get("total_pages"),
+                "rows_ocr_per_page": a["rows_ocr_per_page"],
+                "boxes_total": a["boxes_total"],
+                "findings": findings,
+                "needs_source_check": any(f.split(":")[0] in
+                                          ("MISSING_FIELD", "OOB", "LINE_AR", "DUPLICATE",
+                                           "NO_LINE_ITEMS", "BAD_BBOX") for f in findings),
+                "unselected_pages": unselected,
+                "first_unselected_page_to_view": (unselected[0] if unselected else None),
+                "review_written": bool(review_md.exists() and review_md.read_text(encoding="utf-8").strip()),
+            }
+        pending = [k for k, v in docs.items() if not v["review_written"]]
+        progress = {
+            "round": round_dir.name,
+            "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            "docs_scanned": len(docs),
+            "inspected": sorted(k for k, v in docs.items() if v["review_written"]),
+            "pending_view": pending,
+            "triage_order": sorted(pending, key=lambda k: -len(docs[k]["findings"])),
+            "docs": docs,
+        }
+        out = round_dir / "progress.json"
+        out.write_text(json.dumps(progress, indent=2, ensure_ascii=False), encoding="utf-8")
+        flagged = sum(1 for v in docs.values() if v["findings"])
+        log(f"Audit: {len(docs)} doc(s) | {flagged} with automated findings | {len(pending)} awaiting visual review -> {out}")
+        return 0
+
+    if args.download_only:
+        missing = missing_pdf_ids(doc_ids)
+        log(f"PDF cache: {len(doc_ids) - len(missing)}/{len(doc_ids)} present, {len(missing)} missing")
+        done = 0
+        for did in missing:
+            try:
+                fetch_pdf(did)
+                done += 1
+                log(f"  [DL] DMS-{did} ok ({done}/{len(missing)})")
+            except Exception as exc:
+                log(f"  [DL-FAIL] DMS-{did}: {exc}")
+        still_missing = missing_pdf_ids(doc_ids)
+        log(f"Downloaded {done}/{len(missing)} -> still missing: {len(still_missing)} {still_missing[:20]}")
+        return 0
+
+    if args.emit_source_images:
+        img_dir = args.emit_source_images
+        img_dir.mkdir(parents=True, exist_ok=True)
+        written = skipped = errors = 0
+        for did in doc_ids:
+            try:
+                pdf_bytes, _meta = fetch_pdf(did)
+                pages = render_pdf_pages(pdf_bytes, dpi=args.dpi)
+            except Exception as exc:
+                log(f"  [IMG-FAIL] DMS-{did}: {exc}")
+                errors += 1
+                continue
+            for p_no, img in pages:
+                target = img_dir / f"DMS-{did}_p{p_no}.png"
+                if target.exists():
+                    skipped += 1
+                    continue
+                img.save(target, "PNG")
+                written += 1
+        log(f"source_images: written={written} skipped_existing={skipped} errors={errors} -> {img_dir.resolve()}")
+        return 0
+
+    log(f"=== Starting Two-Step Invoice Extraction Pipeline ===")
+    log(f"Target documents: {len(doc_ids)} ({doc_ids[:10]}{'...' if len(doc_ids) > 10 else ''})")
+    log(f"Output directory: {out_dir.resolve()}")
+    log(f"Vision Model:     {model_full}")
+    log(f"Concurrency:      {args.workers} worker(s)\n")
+
+    client = OpenAI(base_url=LITELLM_URL, api_key=LITELLM_KEY or "dummy")
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    results = []
+    if args.workers <= 1 or len(doc_ids) == 1:
+        for did in doc_ids:
+            res = process_single_doc(
+                client, did, out_dir, dpi=args.dpi, skip_existing=args.skip_existing, model=model_full,
+                layout=args.layout,
+            )
+            results.append(res)
+    else:
+        with ThreadPoolExecutor(max_workers=args.workers) as executor:
+            future_map = {
+                executor.submit(
+                    process_single_doc, client, did, out_dir, args.dpi, args.skip_existing, model_full, args.layout
+                ): did
+                for did in doc_ids
+            }
+            for fut in as_completed(future_map):
+                results.append(fut.result())
+
+    # Summary table
+    ok_count = sum(1 for r in results if r.get("status") == "ok")
+    err_count = sum(1 for r in results if r.get("status") == "error")
+    skip_count = sum(1 for r in results if r.get("status") == "skipped")
+
+    log("\n=== Execution Summary ===")
+    log(f"Total: {len(results)} | Succeeded: {ok_count} | Skipped: {skip_count} | Errors: {err_count}")
+    log(f"Results stored under: {out_dir.resolve()}")
+    return 0 if err_count == 0 else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -2159,3 +2159,110 @@ def test_v08_unit_price_grouping_and_subtotal_sum():
     assert "unit_price:1200.00" in errors[0]
 
 
+
+# ------------------------------------------------------- eval corpus prep (autonomous loop 2026-10-15)
+def _load_single_pass_script():
+    import importlib.util
+    path = ROOT / "scripts" / "test_invoice_single_pass.py"
+    spec = importlib.util.spec_from_file_location("single_pass_script_under_test", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_load_ids_file_accepts_plain_list_and_dict_shapes(tmp_path):
+    m = _load_single_pass_script()
+    list_file = tmp_path / "ids.json"
+    list_file.write_text(json.dumps([3, 1, 2]), encoding="utf-8")
+    assert m.load_ids_file(list_file) == [1, 2, 3]
+
+    dict_file = tmp_path / "corpus.json"
+    dict_file.write_text(json.dumps({"document_ids": [7, 5, 5, 6]}), encoding="utf-8")
+    assert m.load_ids_file(dict_file) == [5, 6, 7]
+
+
+def test_sample_fixed_subset_is_stable_for_seed_42():
+    m = _load_single_pass_script()
+    ids = list(range(15, 238))
+    first = m.sample_fixed_subset(ids, k=50, seed=42)
+    assert len(first) == 50
+    assert first == sorted(first)
+    assert first == m.sample_fixed_subset(list(reversed(ids)), k=50, seed=42)
+    assert set(first) <= set(ids)
+    assert len(m.sample_fixed_subset(ids, k=999, seed=42)) == len(ids)
+
+
+def test_missing_pdf_ids_lists_documents_without_cached_pdf(tmp_path):
+    m = _load_single_pass_script()
+    (tmp_path / "DMS-20.pdf").write_bytes(b"%PDF-1.4")
+    assert m.missing_pdf_ids([20, 21, 22], tmp_path) == [21, 22]
+    assert m.missing_pdf_ids([20], tmp_path) == []
+
+
+def test_round_layout_artifact_paths(tmp_path):
+    m = _load_single_pass_script()
+    assert m.ocr_payload_path(tmp_path, 20, layout="round") == tmp_path / "ocr" / "DMS-20.json"
+    assert m.rendered_page_path(tmp_path, 20, 3, layout="round") == tmp_path / "rendered" / "DMS-20_p3_bbox.png"
+
+
+def test_legacy_layout_artifact_paths_unchanged(tmp_path):
+    m = _load_single_pass_script()
+    assert m.ocr_payload_path(tmp_path, 20, layout="legacy") == tmp_path / "DMS-20" / "validation_payload.json"
+    assert m.rendered_page_path(tmp_path, 20, 3, layout="legacy") == tmp_path / "DMS-20" / "invoice_p3.png"
+
+
+def _round_layout_payload():
+    return {
+        "doc_id": 20,
+        "selected_invoice_pages": [1],
+        "fields": {
+            "invoice_num": {"raw": "26/2691", "bbox": [0.70, 0.10, 0.10, 0.02], "page_no": 1},
+            "invoice_date": {"raw": "02/09/2569", "bbox": [0.70, 0.12, 0.10, 0.02], "page_no": 1},
+            "supplier_name": {"raw": "THAI WORTH", "bbox": [0.30, 0.01, 0.30, 0.03], "page_no": 1},
+            "supplier_tax_id": {"raw": "0105537063173", "bbox": [0.12, 0.10, 0.14, 0.02], "page_no": 1},
+            "customer_name": {"raw": "AAPICO", "bbox": [0.05, 0.16, 0.20, 0.02], "page_no": 1},
+            "sub_total": {"raw": "49,215.00", "bbox": [0.80, 0.66, 0.10, 0.02], "page_no": 1},
+            "vat": {"raw": "3,445.05", "bbox": [0.80, 0.70, 0.10, 0.02], "page_no": 1},
+            "grand_total": {"raw": "", "bbox": None, "page_no": 1},
+        },
+        "line_items": [
+            {"line_no": 1, "page_no": 1, "line_bbox": [0.05, 0.30, 0.90, 0.03]},
+            {"line_no": 2, "page_no": 1, "line_bbox": [0.05, 0.40, 0.02, 0.05]},
+        ],
+        "regions": [],
+        "meta": {"total_pages": 3, "pages_classification": []},
+    }
+
+
+def test_audit_doc_flags_vertical_row_bbox():
+    m = _load_single_pass_script()
+    res = m.audit_doc(_round_layout_payload(), {1: (1240, 1754)})
+    assert any(f.startswith("LINE_AR:line_2") for f in res["findings"])
+    assert not any(f.startswith("LINE_AR:line_1") for f in res["findings"])
+    assert any(f == "MISSING_FIELD:grand_total" for f in res["findings"])
+    assert res["rows_ocr_per_page"] == {1: 2}
+
+
+def test_audit_doc_flags_boxes_on_unselected_page_and_unselected_original_invoice():
+    m = _load_single_pass_script()
+    p = _round_layout_payload()
+    p["fields"]["po_number"] = {"raw": "PO.42052405", "bbox": [0.10, 0.30, 0.20, 0.02], "page_no": 2}
+    p["meta"]["pages_classification"] = [
+        {"page_no": 1, "doc_type": "tax_invoice", "copy_status": "original"},
+        {"page_no": 2, "doc_type": "tax_invoice", "copy_status": "original"},
+        {"page_no": 3, "doc_type": "po", "copy_status": "copy"},
+    ]
+    res = m.audit_doc(p, {1: (1240, 1754), 2: (1240, 1754)})
+    assert any(f == "BBOX_ON_UNSELECTED_PAGE:2" for f in res["findings"])
+    assert any(f == "CLASSIFY_SUSPECT:p2_original_invoice_not_selected" for f in res["findings"])
+    assert not any(f.startswith("CLASSIFY_SUSPECT:p3") for f in res["findings"])
+
+
+def test_audit_doc_clean_payload_has_no_findings():
+    m = _load_single_pass_script()
+    p = _round_layout_payload()
+    p["fields"]["grand_total"] = {"raw": "52,660.05", "bbox": [0.80, 0.74, 0.10, 0.02], "page_no": 1}
+    p["line_items"] = [p["line_items"][0]]
+    res = m.audit_doc(p, {1: (1240, 1754)})
+    assert res["findings"] == []
+    assert res["selected_pages"] == [1]
