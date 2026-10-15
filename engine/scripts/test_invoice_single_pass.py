@@ -957,6 +957,83 @@ PLAN_MANDATORY_FIELDS = [
 ROW_CELL_KEYS = ("item_code", "description", "qty", "uom", "unit_price", "amount")
 
 
+def diff_round_payloads(old: dict, new: dict, page_dims: Optional[Dict[int, Tuple[int, int]]] = None,
+                        move_px: float = 5.0) -> dict:
+    """Compare one document across two rounds.
+
+    Plan section 2: a document "changed" when any character of text differs, or a box moved more than
+    5 px (smaller shifts are treated as run-to-run noise). Coordinates in a round payload are
+    normalised xywh, so the pixel test needs the page size.
+    """
+    dims = {int(k): v for k, v in (page_dims or {}).items()}
+    text: List[str] = []
+    moved: List[str] = []
+    added: List[str] = []
+    removed: List[str] = []
+
+    def px_rect(bbox, page):
+        d = dims.get(int(page or 0))
+        if not d or not bbox or len(bbox) != 4:
+            return None
+        x, y, w, h = (float(v) for v in bbox)
+        return (x * d[0], y * d[1], (x + w) * d[0], (y + h) * d[1])
+
+    def shift(a, b):
+        if not a or not b:
+            return None
+        return max(abs(u - v) for u, v in zip(a, b))
+
+    of, nf = old.get("fields") or {}, new.get("fields") or {}
+    for name in sorted(set(of) | set(nf)):
+        o, n = of.get(name), nf.get(name)
+        label = f"field:{name}"
+        if o is None:
+            added.append(label)
+            continue
+        if n is None:
+            removed.append(label)
+            continue
+        if str((o or {}).get("raw") or "").strip() != str((n or {}).get("raw") or "").strip():
+            text.append(f"{label}: {(o or {}).get('raw')!r} -> {(n or {}).get('raw')!r}")
+        ob, nb = (o or {}).get("bbox"), (n or {}).get("bbox")
+        if bool(ob) != bool(nb):
+            text.append(f"{label}: grounding {'lost' if not nb else 'gained'}")
+            continue
+        d = shift(px_rect(ob, (n or {}).get("page_no")), px_rect(nb, (n or {}).get("page_no")))
+        if d is not None and d > move_px:
+            moved.append(f"{label}: {round(d, 1)}px")
+
+    def lines_by_key(d):
+        out = {}
+        for l in d.get("line_items") or []:
+            out[(int(l.get("page_no") or 0), l.get("line_no"))] = l
+        return out
+
+    ol, nl = lines_by_key(old), lines_by_key(new)
+    for key in sorted(set(ol) | set(nl), key=lambda t: (t[0], str(t[1]))):
+        o, n = ol.get(key), nl.get(key)
+        label = f"line@p{key[0]}#{key[1]}"
+        if o is None:
+            added.append(label)
+            continue
+        if n is None:
+            removed.append(label)
+            continue
+        d = shift(px_rect(o.get("line_bbox"), key[0]), px_rect(n.get("line_bbox"), key[0]))
+        if d is not None and d > move_px:
+            moved.append(f"{label}: {round(d, 1)}px")
+        for cell in ROW_CELL_KEYS:
+            co, cn = o.get(cell) or {}, n.get(cell) or {}
+            if str(co.get("raw") or "").strip() != str(cn.get("raw") or "").strip():
+                text.append(f"{label}.{cell}: {co.get('raw')!r} -> {cn.get('raw')!r}")
+
+    if list(old.get("selected_invoice_pages") or []) != list(new.get("selected_invoice_pages") or []):
+        text.append(f"selected_pages: {old.get('selected_invoice_pages')} -> {new.get('selected_invoice_pages')}")
+
+    return {"changed": bool(text or moved or added or removed), "text": text, "moved": moved,
+            "boxes_added": added, "boxes_removed": removed}
+
+
 def row_bbox(item: dict):
     """Row box as the union of the row's own cell boxes, in the VLM's own [x0, y0, x1, y1] space.
 
@@ -1143,6 +1220,8 @@ def main():
     parser.add_argument("--crop-out", type=str, help="Output file name inside ROUND_DIR/crops/")
     parser.add_argument("--crop-pad", type=float, default=0.015, help="Normalised padding (default 0.015)")
     parser.add_argument("--round-dir", type=Path, help="round_XX dir used by --crop")
+    parser.add_argument("--compare-rounds", type=Path, nargs=2, metavar=("ROUND_A", "ROUND_B"),
+                        help="Diff every document of ROUND_B against ROUND_A (plan section 2 rules), exit")
 
     args = parser.parse_args()
 
@@ -1190,7 +1269,7 @@ def main():
         return 0
 
     doc_ids = []
-    if args.audit_round or args.crop:
+    if args.audit_round or args.crop or args.compare_rounds:
         doc_ids = []
     elif args.doc_id:
         doc_ids = [args.doc_id]
@@ -1202,8 +1281,63 @@ def main():
         log(f"Fetching document list with tag '{args.tag}' from Paperless...")
         doc_ids = list_paperless_docs(tag=args.tag, limit=args.limit)
 
-    if not doc_ids and not args.audit_round and not args.download_only and not args.crop:
+    if not doc_ids and not args.audit_round and not args.download_only and not args.crop and not args.compare_rounds:
         log("No documents found. Exiting.")
+        return 0
+
+    if args.compare_rounds:
+        round_a, round_b = args.compare_rounds
+        src_dir = args.source_images_dir or (ROOT / "bbox_testing" / "source_images")
+        per_doc: Dict[str, Any] = {}
+        for pf in sorted((round_b / "ocr").glob("DMS-*.json")):
+            doc = pf.stem
+            pa = round_a / "ocr" / f"{doc}.json"
+            if not pa.exists():
+                per_doc[doc] = {"changed": True, "text": ["new in round B"], "moved": [],
+                                "boxes_added": [], "boxes_removed": []}
+                continue
+            dims = {}
+            for png in src_dir.glob(f"{doc}_p*.png"):
+                try:
+                    dims[int(png.stem.rsplit("_p", 1)[1])] = Image.open(png).size
+                except (IndexError, ValueError):
+                    continue
+            d = diff_round_payloads(json.loads(pa.read_text(encoding="utf-8")),
+                                    json.loads(pf.read_text(encoding="utf-8")), dims)
+            d["field_moves"] = [x for x in d["moved"] if x.startswith("field:")]
+            d["row_moves"] = [x for x in d["moved"] if x.startswith("line@")]   # expected from the P1 remeasure
+            d["moved"] = d["field_moves"] + d["row_moves"]
+            per_doc[doc] = d
+        previously_failed = []
+        for rf in sorted((round_a / "review").glob("DMS-*.md")):
+            body = rf.read_text(encoding="utf-8")
+            for line in body.splitlines():
+                if line.startswith("ผลสรุป:") and "FAIL" in line:
+                    previously_failed.append(rf.stem)
+        changed = sorted(k for k, v in per_doc.items() if v["changed"])
+        unchanged = sorted(k for k, v in per_doc.items() if not v["changed"])
+        not_rerun = sorted({pf.stem for pf in (round_a / "ocr").glob("DMS-*.json")}
+                          - {pf.stem for pf in (round_b / "ocr").glob("DMS-*.json")})
+        pool = sorted(set(changed) | set(previously_failed))
+        k_sample = max(10, -(-len(unchanged) // 5)) if unchanged else 0
+        sample = sorted(random.Random(42).sample(unchanged, min(k_sample, len(unchanged)))) if unchanged else []
+        payload = {
+            "round_a": round_a.name, "round_b": round_b.name,
+            "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            "rule": "changed = any text character differs, or a box moved more than 5 px",
+            "docs_compared": len(per_doc), "not_rerun": not_rerun,
+            "changed_docs": changed, "unchanged_docs": unchanged,
+            "previously_failed": sorted(set(previously_failed)),
+            "must_view": pool,
+            "sample_of_unchanged": sample,
+            "view_queue": sorted(set(pool) | set(sample)),
+            "docs": per_doc,
+        }
+        out = round_b / "round_diff.json"
+        out.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+        log(f"Compare {round_a.name} -> {round_b.name}: {len(per_doc)} doc(s) | changed {len(changed)} | "
+            f"unchanged {len(unchanged)} | previously failed {len(set(previously_failed))} | "
+            f"not rerun {len(not_rerun)} | view queue {len(payload['view_queue'])} -> {out}")
         return 0
 
     if args.crop:

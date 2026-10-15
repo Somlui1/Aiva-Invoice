@@ -2301,3 +2301,36 @@ def test_row_bbox_unions_the_row_cells_in_the_vlm_xyxy_space():
     assert m.row_bbox(item) == [52, 315, 878, 337]
     assert m.row_bbox({"line_no": 2, "line_bbox": [10, 20, 500, 40]}) is None
     assert m.row_bbox({}) is None
+
+
+def test_diff_round_payloads_flags_text_change_and_box_move_over_5px():
+    m = _load_single_pass_script()
+    dims = {1: (1000, 2000)}
+    old, new = _round_layout_payload(), _round_layout_payload()
+    empty = {"changed": False, "text": [], "moved": [], "boxes_added": [], "boxes_removed": []}
+    assert m.diff_round_payloads(old, new, dims) == empty
+
+    new["fields"]["grand_total"]["raw"] = "52,660.05"
+    new["fields"]["invoice_num"]["bbox"] = [0.72, 0.10, 0.10, 0.02]      # 20 px right on a 1000 px page
+    d = m.diff_round_payloads(old, new, dims)
+    assert d["changed"] is True
+    assert any("grand_total" in t for t in d["text"])
+    assert any(t.startswith("field:invoice_num") for t in d["moved"])
+    assert not any(t.startswith("field:invoice_date") for t in d["moved"])
+
+
+def test_diff_round_payloads_noise_rule_rows_and_page_selection():
+    m = _load_single_pass_script()
+    dims = {1: (1000, 2000)}
+    old, new = _round_layout_payload(), _round_layout_payload()
+    new["fields"]["invoice_num"]["bbox"] = [0.703, 0.10, 0.10, 0.02]     # 3 px = inside the noise rule
+    assert m.diff_round_payloads(old, new, dims)["changed"] is False
+
+    fewer = _round_layout_payload()
+    fewer["line_items"] = fewer["line_items"][:1]
+    d = m.diff_round_payloads(old, fewer, dims)
+    assert any("line@p1#2" in x for x in d["boxes_removed"])
+
+    repaged = _round_layout_payload()
+    repaged["selected_invoice_pages"] = [2]
+    assert any("selected_pages" in t for t in m.diff_round_payloads(old, repaged, dims)["text"])
