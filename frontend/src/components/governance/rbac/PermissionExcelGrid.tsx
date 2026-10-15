@@ -293,7 +293,7 @@ export function PermissionExcelGrid() {
                           value={u.role}
                           onChange={e => handleRoleChange(u.id, e.target.value as RoleKey)}
                         >
-                          {(['EU', 'ACC', 'APR', 'ADM'] as RoleKey[]).map(rk => (
+                          {(['EU', 'ACC', 'APR', 'ADM', 'itsupport'] as RoleKey[]).map(rk => (
                             <option key={rk} value={rk}>
                               {rk} — {ROLES[rk].n}
                             </option>
