@@ -7,10 +7,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, Sequence
 
 from . import v08 as v08mod
-from .contracts import Finding, InvoiceDoc, OracleSnapshot, RuleOutcome
+from .contracts import Finding, InvoiceDoc, NLine, OracleSnapshot, RuleOutcome
 from .matching import price_check
 from .evidence import is_covered
 from .normalize import addr_key, norm_name, thai_to_arabic
@@ -60,6 +60,11 @@ def _evidence_flag(c: Ctx, name: str) -> bool:
     return bool((c.std.policy.get("evidence") or {}).get(name, False))
 
 
+def _uom_cfg(c: Ctx, name: str) -> bool:
+    """policy.validation.uom_mismatch.<name> (v5, 2026-10-12) - default False = previous behaviour."""
+    return bool(((c.std.policy.get("validation") or {}).get("uom_mismatch") or {}).get(name, False))
+
+
 def _tax_lookup(s) -> bool:
     """True when the snapshot came from the Tax ID + Invoice lookup (not RCV-V01/RCV-V02)."""
     return "supplier_tax_id_source" in (s.query_keys or {})
@@ -67,6 +72,48 @@ def _tax_lookup(s) -> bool:
 
 def _line_tag(l) -> str:
     return f"บรรทัดที่ {l.line_no} (Invoice: {l.v('description') or '-'})"
+
+
+def check_row_geometry_and_overlap(lines: Sequence[NLine]) -> list[str]:
+    """Check line item bbox grounding and row overlap collisions on the same page."""
+    errs = []
+    page_lines: dict[int, list[NLine]] = {}
+    for l in lines:
+        if l.region is None or l.region.bbox is None or len(l.region.bbox) < 4:
+            errs.append(f"L{l.line_no}.bbox(UNGROUNDED_GEOMETRY)")
+            continue
+        w = float(l.region.bbox[2])
+        h = float(l.region.bbox[3])
+        if h <= 0 or (w / h) < 1.2:
+            errs.append(f"L{l.line_no}.bbox(UNGROUNDED_GEOMETRY)")
+            continue
+        p = getattr(l.region, "page", 1) or 1
+        page_lines.setdefault(p, []).append(l)
+
+    for p, rows in page_lines.items():
+        sorted_rows = sorted(rows, key=lambda r: r.line_no)
+        for idx in range(len(sorted_rows) - 1):
+            cur = sorted_rows[idx]
+            nxt = sorted_rows[idx + 1]
+            y1_c, h_c = float(cur.region.bbox[1]), float(cur.region.bbox[3])
+            y2_c = y1_c + h_c
+            yc_c = y1_c + h_c / 2.0
+
+            y1_n, h_n = float(nxt.region.bbox[1]), float(nxt.region.bbox[3])
+            y2_n = y1_n + h_n
+            yc_n = y1_n + h_n / 2.0
+
+            if yc_n < yc_c - 0.01:
+                errs.append(f"L{nxt.line_no}.order(INVERTED_ROW_SEQUENCE)")
+
+            overlap_y = max(0.0, min(y2_c, y2_n) - max(y1_c, y1_n))
+            min_h = min(h_c, h_n)
+            if min_h > 0:
+                overlap_ratio = overlap_y / min_h
+                if overlap_ratio > 0.50:
+                    errs.append(f"L{nxt.line_no}.overlap(COLLISION_RATIO_{overlap_ratio:.2f})")
+
+    return errs
 
 
 # =============================================================== STEP 1 — document only
@@ -85,8 +132,28 @@ def v01_required(c: Ctx) -> RuleOutcome:
                 miss.append(f"L{l.line_no}.{k}({cf.null_reason})"), eids.append(cf.element_id)
     if not d.pages_complete:
         miss.append("pages_complete(false)")
+
+    geo_errs = check_row_geometry_and_overlap(d.lines)
+    if geo_errs:
+        miss.extend(geo_errs)
+        for l in d.lines:
+            if l.element_id and l.element_id not in eids:
+                eids.append(l.element_id)
+
     if not miss:
         return _ok("V-01")
+
+    # If the only issue is po_number and Oracle EBS confirmed receipt, demote to Low advisory
+    oracle_confirmed = bool(c.snapshot and (getattr(c.snapshot, "active", None) or getattr(c.snapshot, "receipt_lines", None)))
+    all_po = all(m.startswith("po_number") for m in miss)
+    if all_po and oracle_confirmed and not geo_errs:
+        return _fail("V-01", [_f(c, "E01", "V-01", "ฟิลด์ PO บนเอกสารมีข้อสังเกต แต่ยืนยันได้จากใบรับในระบบ Oracle: " + ", ".join(miss),
+                                 sev="Low", element_ids=tuple(eids))])
+
+    if geo_errs and all(m in geo_errs for m in miss):
+        return _fail("V-01", [_f(c, "E01", "V-01", "พิกัดบรรทัดสินค้าบนเอกสารไม่สมบูรณ์หรือไม่สอดคล้องกับโครงสร้างตาราง: " + ", ".join(geo_errs),
+                                 sev="Medium", element_ids=tuple(eids))])
+
     return _fail("V-01", [_f(c, "E01", "V-01", "ฟิลด์บังคับอ่านไม่ได้หรือไม่ครบ: " + ", ".join(miss),
                              element_ids=tuple(eids))])
 
@@ -149,8 +216,13 @@ def v06_signatures(c: Ctx) -> RuleOutcome:
         return _fail("V-06", out, unsure_slots=unsure)
     if unsure:
         has_receipt = bool(getattr(c.snapshot, "active", None) or getattr(c.snapshot, "found", False))
-        if has_receipt and unsure == ["deliverer"]:
-            return _ok("V-06", detail="ยืนยันการรับของจากใบรับสินค้าใน Oracle EBS (waive deliverer)", data={"waived_slots": ["deliverer"]})
+        if has_receipt and set(unsure) <= {"deliverer", "receiver"}:
+            # an Oracle receipt is itself the receiving record (named receiver, goods booked):
+            # a faint signature on either slot cannot threaten invoice matching - EBS already
+            # confirmed the goods arrived (waiving the deliverer alone left DMS-20 stuck in manual
+            # review while its own receipt proved receiving)
+            return _ok("V-06", detail="ยืนยันการรับของจากใบรับสินค้าใน Oracle EBS (waive signature)",
+                       waived_slots=sorted(unsure))
         return RuleOutcome("V-06", "manual_review", detail=f"ความมั่นใจต่ำ: {unsure}", data={"unsure_slots": unsure})
     return _ok("V-06")
 
@@ -316,7 +388,9 @@ def v05_customer(c: Ctx) -> RuleOutcome:
             c.ai_trace.setdefault("v05", []).append({"task": "address", **r})
             if float(r.get("confidence", 0)) < th:
                 data.update(address_match=None, address_method="ai_unconfident")
-                if data.get("tax_id_match") is True:
+                if data.get("tax_id_match") is True and _evidence_flag(c, "customer_name_advisory"):
+                    data.update(address_check="advisory", address_issue="AI ไม่มั่นใจเรื่องที่อยู่ลูกค้า")
+                elif data.get("tax_id_match") is True:
                     findings.append(_f(c, "E07", "V-05", "AI ไม่มั่นใจเรื่องที่อยู่ลูกค้า", "Medium",
                                        actual=d.v("customer_address"), element_ids=fid("customer_address")))
                 else:
@@ -328,19 +402,27 @@ def v05_customer(c: Ctx) -> RuleOutcome:
                 how = "ai_normalized"
                 data.update(address_match=bool(hit), address_matched=hit, address_method=how if hit else None)
                 if not hit:
-                    findings.append(_f(c, "E07", "V-05", f"ที่อยู่ลูกค้า (เลขที่ {inv_key[0]}, รหัสไปรษณีย์ {inv_key[1]}) "
-                                                         f"ไม่ตรงกับที่อยู่ของ ORG_ID {org}", "Medium",
-                                       actual=d.v("customer_address"), element_ids=fid("customer_address")))
+                    if _evidence_flag(c, "customer_name_advisory") and data.get("tax_id_match") is True:
+                        data.update(address_check="advisory",
+                                    address_issue=f"ที่อยู่ลูกค้า (เลขที่ {inv_key[0]}, รหัสไปรษณีย์ {inv_key[1]}) ไม่ตรงกับที่อยู่ของ ORG_ID {org}")
+                    else:
+                        findings.append(_f(c, "E07", "V-05", f"ที่อยู่ลูกค้า (เลขที่ {inv_key[0]}, รหัสไปรษณีย์ {inv_key[1]}) "
+                                                             f"ไม่ตรงกับที่อยู่ของ ORG_ID {org}", "Medium",
+                                           actual=d.v("customer_address"), element_ids=fid("customer_address")))
         elif not hit:
             data.update(address_match=False, address_matched=None, address_method=None)
-            findings.append(_f(c, "E07", "V-05", f"ที่อยู่ลูกค้า (เลขที่ {inv_key[0]}, รหัสไปรษณีย์ {inv_key[1]}) "
-                                                 f"ไม่ตรงกับที่อยู่ของ ORG_ID {org}", "Medium",
-                               actual=d.v("customer_address"), element_ids=fid("customer_address")))
+            if _evidence_flag(c, "customer_name_advisory") and data.get("tax_id_match") is True:
+                data.update(address_check="advisory",
+                            address_issue=f"ที่อยู่ลูกค้า (เลขที่ {inv_key[0]}, รหัสไปรษณีย์ {inv_key[1]}) ไม่ตรงกับที่อยู่ของ ORG_ID {org}")
+            else:
+                findings.append(_f(c, "E07", "V-05", f"ที่อยู่ลูกค้า (เลขที่ {inv_key[0]}, รหัสไปรษณีย์ {inv_key[1]}) "
+                                                     f"ไม่ตรงกับที่อยู่ของ ORG_ID {org}", "Medium",
+                                   actual=d.v("customer_address"), element_ids=fid("customer_address")))
         else:
             data.update(address_match=True, address_matched=hit, address_method="logic")
     if name_issue is not None:
-        address_ok = data.get("address_match") is True or data.get("address_check") == "covered_by_customer_tax_id"
-        if address_ok:
+        address_ok = data.get("address_match") is True or data.get("address_check") in ("covered_by_customer_tax_id", "advisory")
+        if address_ok or (_evidence_flag(c, "customer_name_advisory") and data.get("tax_id_match") is True):
             data.update(name_check="advisory", name_issue=name_issue[1] if isinstance(name_issue, tuple)
                         else name_issue.message_th)
         elif isinstance(name_issue, tuple):
@@ -350,6 +432,8 @@ def v05_customer(c: Ctx) -> RuleOutcome:
     if not d.ok("customer_name") or not d.ok("customer_address"):
         if findings:
             return _fail("V-05", findings, **data)
+        if data.get("tax_id_match") is True and _evidence_flag(c, "customer_name_advisory"):
+            return _ok("V-05", **data)
         return _skip("V-05", "V-01", "ชื่อหรือที่อยู่ลูกค้าอ่านไม่ได้")
     return _fail("V-05", findings, **data) if findings else _ok("V-05", **data)
 
@@ -377,13 +461,36 @@ def v07_line_match(c: Ctx) -> RuleOutcome:
         for n in g.invoice_line_nos:
             l = lines[n]
             eids = (l.element_id, l.cells["unit_price"].element_id)
-            if l.uom_group not in rcv_groups or len(rcv_groups) > 1:
+            known_rcv = {g_ for g_ in rcv_groups if g_}
+            if _uom_cfg(c, "unknown_unit_uses_price") and (l.uom_group is None or not known_rcv):
+                mismatch = False                  # v5: a unit missing on either side -> the price decides
+            else:
+                mismatch = l.uom_group not in rcv_groups or len(rcv_groups) > 1
+            if mismatch:
+
                 inv_raw = l.cells["uom"].raw
                 rcv_txt = ", ".join(sorted({f"{r.uom}→{c.std.uom_group(r.uom)}" for r in rcv}))
+                ra = sum((r.line_amount for r in rcv), D0)
+                a = l.v("amount")
+                amount_equal = a is not None and abs(a - ra) <= c.std.tol("line_math")
+                tail = ""
+                if _uom_cfg(c, "amount_check"):
+                    tail = (f" · ยอดบรรทัดเท่ากัน {a:,} = {ra:,}" if amount_equal
+                            else f" · ยอดบรรทัดไม่ตรง (Inv: {a if a is not None else '-'}, Rcv: {ra})")
+                e10_sev = "Low" if amount_equal else "Medium"
                 out.append(_f(c, "E10", "V-07", f"{_line_tag(l)}: หน่วยนับต่างกลุ่มหลังแปลง "
-                                                 f"(Inv: {inv_raw}→{l.uom_group}, Rcv: {rcv_txt})",
-                              actual=str(l.uom_group), expected=",".join(sorted(rcv_groups)),
-                              element_ids=(l.element_id, l.cells["uom"].element_id), oracle_refs=refs))
+                                                 f"(Inv: {inv_raw}→{l.uom_group}, Rcv: {rcv_txt}){tail}",
+                              sev=e10_sev,
+                              actual=str(l.uom_group), expected=",".join(sorted(str(x) for x in rcv_groups)),
+                              element_ids=(l.element_id, l.cells["uom"].element_id, l.cells["amount"].element_id),
+                              oracle_refs=refs))
+                if _uom_cfg(c, "amount_check") and not amount_equal:
+                    # v5: different unit AND different money -> a money difference (HOLD).  Line level on
+                    # purpose: two lines that cancel each other out still pass V-09.
+                    out.append(_f(c, "E09", "V-07", f"{_line_tag(l)}: หน่วยต่างกลุ่มและยอดบรรทัดไม่ตรงใบรับ "
+                                                     f"(Inv: {a if a is not None else '-'}, Rcv: {ra})",
+                                  actual=None if a is None else str(a), expected=str(ra),
+                                  element_ids=(l.element_id, l.cells["amount"].element_id), oracle_refs=refs))
                 continue
             inst = _installment(c, l, rcv, g)
             if inst is not None:
@@ -447,7 +554,11 @@ def _installment(c: Ctx, l, rcv, g) -> Optional[dict]:
         return None
     r = rcv[0]
     q, p, a = l.v("qty"), l.v("unit_price"), l.v("amount")
-    if None in (q, p, a) or r.qty <= 0 or not (r.qty < q):
+    if None in (q, p, a) or r.qty <= 0:
+        return None
+    # v5 (2026-10-12): "price differs, line amount equal" is one case whatever the quantity direction.
+    # installment_requires_lower_qty: true restores the v4 milestone-only reading (receipt qty < invoice qty).
+    if bool((c.std.policy.get("validation") or {}).get("installment_requires_lower_qty", False)) and not (r.qty < q):
         return None
     tol = c.std.tol("line_math")
     if abs(a - r.line_amount) > tol or abs((q * p).quantize(Q2) - a) > tol or abs(p - r.unit_price) <= tol:
@@ -469,11 +580,17 @@ def _values_confirm(c: Ctx, l, rcv, g, pc) -> bool:
 def v08_quantity(c: Ctx) -> RuleOutcome:
     rows = {r.rcv_line_id: r for r in c.snapshot.active}
     payload, expected = v08mod.build_payload(c.doc, c.groups, rows, c.std)
-    if c.qty_ai is None:
-        return RuleOutcome("V-08", "manual_review", detail="ไม่มี AI สำหรับ V-08")
-    n = int(c.std.policy["ai"]["v08_votes"])
-    merged, majority = v08mod.vote([c.qty_ai.judge(payload) for _ in range(n)])
-    results, dis = v08mod.guard(merged, expected, c.std.policy["ai"]["v08_consistency_guard"])
+    v08_mode = str(c.std.policy["ai"].get("v08_mode") or "ai")
+    if v08_mode == "logic":
+        # v5: the code already computes every verdict (COMPUTED_FACTS); the AI only repeated it, and a
+        # disagreement could only turn a decided line into manual_review.  Same verdicts, no LLM call.
+        results, n, majority, dis = v08mod.decide(payload, expected), 0, True, []
+    else:
+        if c.qty_ai is None:
+            return RuleOutcome("V-08", "manual_review", detail="ไม่มี AI สำหรับ V-08")
+        n = int(c.std.policy["ai"]["v08_votes"])
+        merged, majority = v08mod.vote([c.qty_ai.judge(payload) for _ in range(n)])
+        results, dis = v08mod.guard(merged, expected, c.std.policy["ai"]["v08_consistency_guard"])
     inst = set(c.match_trace.get("installment_lines") or ())
     inst_mode = c.match_trace.get("installment_mode") or str((c.std.policy.get("validation") or {}).get("milestone_installment") or "off")
     if inst:                                      # v4: V-07 found a milestone split -> quantity is not E14/E15
@@ -489,7 +606,7 @@ def v08_quantity(c: Ctx) -> RuleOutcome:
             results = [{**lr, "result": "manual_review", "code": None, "severity": None, "message": None,
                         "reason": "INSTALLMENT (ดู V-07)"} if lr.get("invoice_line_no") in inst else lr
                        for lr in results]
-    c.ai_trace["v08"] = {"votes": n, "majority": majority, "disagreements": dis}
+    c.ai_trace["v08"] = {"mode": v08_mode, "votes": n, "majority": majority, "disagreements": dis}
     lines = {l.line_no: l for l in c.doc.lines}
     gid_of = {x: g for g in c.groups for x in g.invoice_line_nos}
     out = []
@@ -500,8 +617,18 @@ def v08_quantity(c: Ctx) -> RuleOutcome:
                           actual=str(l.v("qty")), expected=lr.get("qty_rcv_compared"),
                           element_ids=(l.element_id, l.cells["qty"].element_id),
                           oracle_refs=tuple(f"RCV:{i}" for i in g.rcv_line_ids)))
+    if not out and not inst and c.snapshot and c.snapshot.active:
+        matched_ids = {i for g in c.groups if g.relation != "UNMATCHED" for i in g.rcv_line_ids}
+        active_rcv = [r for r in c.snapshot.active if (not matched_ids or r.rcv_line_id in matched_ids)]
+        grp_errs = v08mod.validate_unit_price_groups(c.doc.lines, active_rcv, c.std.tol("line_math"))
+        if grp_errs:
+            for ge in grp_errs:
+                out.append(_f(c, "E14", "V-08", f"ยอดรวมกลุ่มราคาต่อหน่วยไม่ตรงกับใบรับ: {ge}",
+                              actual=ge, expected="equal", element_ids=tuple(l.element_id for l in c.doc.lines)))
+
     res = [lr["result"] for lr in results]
-    data = {"line_results": results, "prompt": c.std.rules["V-08"].get("prompt")}
+    data = {"line_results": results, "engine": v08_mode,
+            "prompt": c.std.rules["V-08"].get("prompt") if v08_mode != "logic" else None}
     if out:
         return _fail("V-08", out, **data)
     if "manual_review" in res:

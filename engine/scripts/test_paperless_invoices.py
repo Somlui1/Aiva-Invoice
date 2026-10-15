@@ -71,6 +71,7 @@ def run_batch(
     skip_existing: bool = False,
     quick: bool = False,
     specific_doc_id: Optional[int] = None,
+    doc_id_list: Optional[List[int]] = None,
     concurrency: int = 5,
     model_vision: Optional[str] = None,
 ) -> int:
@@ -89,6 +90,7 @@ def run_batch(
     print(f"Paperless:   {settings.paperless_url or 'N/A'}")
     print(f"Mode:        {mode}")
     print(f"Vision Model: {settings.model_vision}")
+    print(f"Invoice First: {settings.invoice_first}")
     print(f"Tag filter:  '{tag_name}'")
     print(f"Output dir:  {out_dir.resolve()}")
     print(f"Concurrency: {concurrency} worker(s)")
@@ -107,6 +109,9 @@ def run_batch(
     if specific_doc_id is not None:
         print(f"\nTargeting specific Document ID: DMS-{specific_doc_id}")
         target_docs = [{"id": specific_doc_id, "title": f"DMS-{specific_doc_id}"}]
+    elif doc_id_list:
+        print(f"\nTargeting explicit Document IDs: {', '.join(f'DMS-{i}' for i in doc_id_list)}")
+        target_docs = [{"id": i, "title": f"DMS-{i}"} for i in doc_id_list]
     else:
         print(f"\n[1/3] Resolving tag '{tag_name}' in Paperless-ngx...")
         try:
@@ -349,6 +354,8 @@ def main() -> int:
     parser.add_argument("--skip-existing", action="store_true", help="Skip documents that already have a result JSON in out-dir")
     parser.add_argument("--quick", action="store_true", help="Pass --quick flag to skip crop/table perception details")
     parser.add_argument("--doc-id", type=int, default=None, help="Verify a single specific Paperless document ID (e.g. 20)")
+    parser.add_argument("--doc-ids", type=str, default=None,
+                        help="Comma-separated list of specific Paperless document IDs (e.g. 15,19,20); bypasses the tag query")
     parser.add_argument(
         "--concurrency",
         "-c",
@@ -366,6 +373,13 @@ def main() -> int:
 
     args = parser.parse_args()
 
+    doc_id_list = None
+    if args.doc_ids:
+        try:
+            doc_id_list = [int(x) for x in args.doc_ids.split(",") if x.strip()]
+        except ValueError:
+            parser.error("--doc-ids must be a comma-separated list of integers (e.g. 15,19,20)")
+
     return run_batch(
         tag_name=args.tag,
         mode=args.mode,
@@ -374,6 +388,7 @@ def main() -> int:
         skip_existing=args.skip_existing,
         quick=args.quick,
         specific_doc_id=args.doc_id,
+        doc_id_list=doc_id_list,
         concurrency=args.concurrency,
         model_vision=args.model_vision,
     )

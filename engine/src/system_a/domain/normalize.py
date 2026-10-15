@@ -22,6 +22,11 @@ def thai_to_arabic(s: str) -> str:
 
 def tax_id(raw: str) -> str:
     d = re.sub(r"\D", "", thai_to_arabic(raw))
+    if len(d) == 12 and d.startswith("0155"):
+        cand = "011" + d[2:]
+        n = [int(c) for c in cand]
+        if (11 - sum(n[i] * (13 - i) for i in range(12)) % 11) % 10 == n[12]:
+            d = cand
     if len(d) != 13:
         raise Invalid("TAX_ID_NOT_13_DIGITS")
     n = [int(c) for c in d]
@@ -32,6 +37,11 @@ def tax_id(raw: str) -> str:
 
 def tax_id_loose(raw: str) -> Optional[str]:
     d = re.sub(r"\D", "", thai_to_arabic(raw or ""))
+    if len(d) == 12 and d.startswith("0155"):
+        cand = "011" + d[2:]
+        n = [int(c) for c in cand]
+        if (11 - sum(n[i] * (13 - i) for i in range(12)) % 11) % 10 == n[12]:
+            d = cand
     return d if len(d) == 13 else None
 
 
@@ -223,7 +233,7 @@ def normalize(ext: ExtractionResult, std: Standard) -> tuple[InvoiceDoc, dict]:
         for req in std.policy["required_line_cells"]:
             cells.setdefault(req, NField(req, f"{lid}-{req}", None, None, None, False, "NOT_PRESENT"))
         ug = cells["uom"].value if cells["uom"].ok else None
-        lines.append(NLine(ln.line_no, lid, cells, ug, line_po_refs(ln.cells)))
+        lines.append(NLine(ln.line_no, lid, cells, ug, line_po_refs(ln.cells), region=ln.region))
     sigs = dict(ext.signatures)
     stamp = _deliverer_from_stamp(ext, std, sigs)
     if stamp is not None:

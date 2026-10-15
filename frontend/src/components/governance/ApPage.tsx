@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Icon } from '../common/Icon'
 import { useAuth } from '../../context/AuthContext'
 import { useInvoices, inPerOf } from '../../context/InvoiceContext'
@@ -31,9 +31,34 @@ export function ApPage() {
 
   const [apTab, setApTab] = useState<'pending' | 'sent' | 'done' | 'failed'>('pending')
   const [apSel, setApSel] = useState<Set<string>>(new Set())
-  const [batches] = useState<BatchItem[]>(INITIAL_BATCHES)
+  const [batches, setBatches] = useState<BatchItem[]>(INITIAL_BATCHES)
   const [coFilter] = useState<string>('')
   const [byFilter] = useState<string>('')
+
+  useEffect(() => {
+    let active = true
+    async function loadBatches() {
+      try {
+        const res = await fetch('/api/ap/batches')
+        if (res.ok) {
+          const data = await res.json()
+          if (active && data.ok && Array.isArray(data.batches) && data.batches.length > 0) {
+            const mapped: BatchItem[] = data.batches.map((b: any) => ({
+              id: b.id,
+              at: b.sentAt ? new Date(b.sentAt).toLocaleString('th-TH') : b.createdAt,
+              by: b.createdBy,
+              docs: new Array(b.totalDocs).fill(''),
+            }))
+            setBatches(mapped)
+          }
+        }
+      } catch {}
+    }
+    loadBatches()
+    return () => {
+      active = false
+    }
+  }, [])
 
 
   if (!can('VIEW_AP')) {

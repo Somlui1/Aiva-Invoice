@@ -41,109 +41,90 @@ export function Sidebar({ currentPage, onNavigate, onToggleNav }: SidebarProps) 
   const unboundCount = 0 // IT admin unbound indicator
 
   const isAdm = currentUser.role === 'ADM'
+  const isSupport = currentUser.role === 'itsupport'
+
+  const workSection = {
+    title: 'งานหลัก',
+    items: [
+      {
+        key: 'queue' as PageKey,
+        label: currentUser.role === 'EU' ? 'งานของฉัน' : 'คิวตรวจสอบ',
+        icon: 'inbox' as IconName,
+        isAllowed: true,
+        count: qn
+      },
+      {
+        key: 'ap' as PageKey,
+        label: 'ส่งเข้า AP Interface',
+        icon: 'send' as IconName,
+        isAllowed: can('VIEW_AP'),
+        count: can('VIEW_AP') ? apCount : undefined
+      }
+    ]
+  }
+
+  const govSection = {
+    title: 'การกำกับดูแล',
+    items: [
+      {
+        key: 'rbac' as PageKey,
+        label: 'สิทธิ์และการเชื่อมบัญชี',
+        icon: 'shield' as IconName,
+        isAllowed: true
+      },
+      {
+        key: 'audit' as PageKey,
+        label: 'บันทึกการเข้าถึง',
+        icon: 'log' as IconName,
+        isAllowed: can('AUDIT')
+      },
+      {
+        key: 'settings' as PageKey,
+        label: 'ตั้งค่า',
+        icon: 'sliders' as IconName,
+        isAllowed: true,
+        count: unboundCount ? unboundCount : undefined
+      }
+    ]
+  }
+
+  const devSection = {
+    title: 'เครื่องมือทดสอบและพัฒนา',
+    isSpecial: true,
+    items: [
+      {
+        key: 'cases' as PageKey,
+        label: 'ชุดเอกสารทดสอบ',
+        icon: 'layers' as IconName,
+        isAllowed: true,
+        count: docs.length
+      },
+      {
+        key: 'std' as PageKey,
+        label: 'มาตรฐาน Payload',
+        icon: 'code' as IconName,
+        isAllowed: true,
+        tag: 'API'
+      },
+      {
+        key: 'sim' as PageKey,
+        label: 'Document Simulation',
+        icon: 'flask' as IconName,
+        isAllowed: true,
+        tag: 'SIM'
+      }
+    ]
+  }
 
   const sections: Array<{
     title: string
     isSpecial?: boolean
     items: NavItemConfig[]
-  }> = isAdm
-    ? [
-        {
-          title: 'การกำกับดูแล',
-          items: [
-            {
-              key: 'rbac',
-              label: 'สิทธิ์และการเชื่อมบัญชี',
-              icon: 'shield',
-              isAllowed: true
-            },
-            {
-              key: 'audit',
-              label: 'บันทึกการเข้าถึง',
-              icon: 'log',
-              isAllowed: can('AUDIT')
-            },
-            {
-              key: 'settings',
-              label: 'ตั้งค่า',
-              icon: 'sliders',
-              isAllowed: true,
-              count: unboundCount ? unboundCount : undefined
-            }
-          ]
-        },
-        {
-          title: 'เครื่องมือทดสอบและพัฒนา',
-          isSpecial: true,
-          items: [
-            {
-              key: 'cases',
-              label: 'ชุดเอกสารทดสอบ',
-              icon: 'layers',
-              isAllowed: true,
-              count: docs.length
-            },
-            {
-              key: 'std',
-              label: 'มาตรฐาน Payload',
-              icon: 'code',
-              isAllowed: true,
-              tag: 'API'
-            },
-            {
-              key: 'sim',
-              label: 'Document Simulation',
-              icon: 'flask',
-              isAllowed: true,
-              tag: 'SIM'
-            }
-          ]
-        }
-      ]
-    : [
-        {
-          title: 'งานหลัก',
-          items: [
-            {
-              key: 'queue',
-              label: currentUser.role === 'EU' ? 'งานของฉัน' : 'คิวตรวจสอบ',
-              icon: 'inbox',
-              isAllowed: true,
-              count: qn
-            },
-            {
-              key: 'ap',
-              label: 'ส่งเข้า AP Interface',
-              icon: 'send',
-              isAllowed: can('VIEW_AP'),
-              count: can('VIEW_AP') ? apCount : undefined
-            }
-          ]
-        },
-        {
-          title: 'การกำกับดูแล',
-          items: [
-            {
-              key: 'rbac',
-              label: 'สิทธิ์และการเชื่อมบัญชี',
-              icon: 'shield',
-              isAllowed: true
-            },
-            {
-              key: 'audit',
-              label: 'บันทึกการเข้าถึง',
-              icon: 'log',
-              isAllowed: can('AUDIT')
-            },
-            {
-              key: 'settings',
-              label: 'ตั้งค่า',
-              icon: 'sliders',
-              isAllowed: true
-            }
-          ]
-        }
-      ]
+  }> = isSupport
+    ? [workSection, govSection, devSection]
+    : isAdm
+    ? [govSection, devSection]
+    : [workSection, govSection]
 
   const handleClick = (item: NavItemConfig) => {
     if (!item.isAllowed) {

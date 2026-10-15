@@ -7,3 +7,7 @@ Pillow>=10.0
 # System A is used as a library: its own dependencies must be importable too
 PyYAML>=6.0
 PyMuPDF>=1.23
+numpy>=1.26
+opencv-python-headless>=4.8
+onnxruntime>=1.16
+

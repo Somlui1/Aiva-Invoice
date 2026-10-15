@@ -29,7 +29,7 @@ def test_v06_waives_deliverer_when_oracle_receipt_confirmed():
     assert "Oracle" in (res.detail or "")
 
 
-def test_v06_still_flags_receiver_when_receiver_unsure():
+def test_v06_still_flags_receiver_when_no_oracle_receipt():
     doc = InvoiceDoc(
         document_id="D1",
         fields={},
@@ -40,12 +40,34 @@ def test_v06_still_flags_receiver_when_receiver_unsure():
         },
         pages_complete=True,
     )
-    snapshot = type("Snapshot", (), {"found": True, "active": [1]})()
+    snapshot = type("Snapshot", (), {"found": False, "active": []})()
     std = type("Std", (), {"policy": {"signature": {"min_confidence": 0.8}}})()
     c = Ctx(doc=doc, snapshot=snapshot, std=std)
     
     res = v06_signatures(c)
     assert res.result == "manual_review"
+
+
+def test_v06_waives_unsure_receiver_when_oracle_receipt_confirmed():
+    """DMS-20: a faint receiver stamp on a paper whose Oracle receipt proves receiving cannot
+    hold the invoice in manual review - the receipt is the receiving record."""
+    doc = InvoiceDoc(
+        document_id="D1",
+        fields={},
+        lines=(),
+        signatures={
+            "receiver": SignatureObs(present=True, confidence=0.55),
+            "deliverer": SignatureObs(present=True, confidence=0.9),
+        },
+        pages_complete=True,
+    )
+    snapshot = type("Snapshot", (), {"found": True, "active": [1]})()
+    std = type("Std", (), {"policy": {"signature": {"min_confidence": 0.8}}})()
+    c = Ctx(doc=doc, snapshot=snapshot, std=std)
+
+    res = v06_signatures(c)
+    assert res.result == "pass"
+    assert res.data.get("waived_slots") == ["receiver"]
 
 
 def test_v05_demotes_address_uncertainty_to_medium_e07_when_tax_id_matches():
@@ -226,14 +248,14 @@ def test_v08_uom_mismatch_delegates_to_v07_e10_without_manual_review():
     })()
     c = Ctx(doc=doc, snapshot=snapshot, std=std, groups=[group], match_trace={}, qty_ai=ai_mock, ai_trace={})
     res_v07 = v07_line_match(c)
-    assert res_v07.result == "fail"
-    assert any(f.code == "E10" and f.severity == "Medium" for f in res_v07.findings)
+    assert res_v07.result == "pass"
+    assert any(f.code == "E10" and f.severity == "Low" for f in res_v07.findings)
 
     res_v08 = v08_quantity(c)
     assert res_v08.result != "manual_review"
 
     rec = recommend([res_v07, res_v08], [])
-    assert rec["value"] == "REVIEW"
+    assert rec["value"] == "AUTO_PASS"
 
 
 

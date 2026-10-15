@@ -31,6 +31,7 @@ export interface ProgressState {
 interface Options {
   adapter: AuthAdapter;
   onSuccess: (user: SessionUser, method: LoginMethod) => void;
+  defaultMethod?: LoginMethod;
   /** ข้อผิดพลาดจากการ redirect กลับมา (เช่น /login?error=noaccess) */
   initialError?: AuthFailKind | null;
   onSupport: () => void;
@@ -49,8 +50,8 @@ const b = (n: ReactNode) => createElement("strong", null, n);
  * ตัวควบคุมหน้า Login (state machine)
  * idle → busy → (สำเร็จ → exiting → onSuccess) | (ไม่สำเร็จ → idle + alert) | (ผิดครบ maxFail → locked)
  */
-export function useLogin({ adapter, onSuccess, initialError, onSupport, toast }: Options) {
-  const [method, setMethod] = useState<LoginMethod>("m365");
+export function useLogin({ adapter, onSuccess, defaultMethod = "m365", initialError, onSupport, toast }: Options) {
+  const [method, setMethod] = useState<LoginMethod>(defaultMethod);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [keep, setKeep] = useState(false);

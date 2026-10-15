@@ -29,23 +29,15 @@ describe('LoginPage Component', () => {
     expect(screen.getByText(/ระบบทำงานอย่างไร/i)).toBeTruthy()
   })
 
-  it('shows MOCK bar with bypass button and triggers onSuccess when clicked', async () => {
-    const onSuccess = vi.fn()
-    render(<LoginPage mock={true} onSuccess={onSuccess} />)
+  it('does NOT render yellow MOCK bar or bypass button in production', () => {
+    const { container } = render(<LoginPage mock={false} />)
 
-    const skipButton = screen.getByRole('button', { name: /ข้ามหน้า login/i })
-    expect(skipButton).toBeTruthy()
-
-    await act(async () => {
-      fireEvent.click(skipButton)
-    })
-
-    expect(onSuccess).toHaveBeenCalledTimes(1)
-    const [user, method] = onSuccess.mock.calls[0]
-    expect(user).toHaveProperty('id')
-    expect(user).toHaveProperty('email')
-    expect(method).toBe('m365')
-    expect(localStorage.getItem('aiva.auth.user')).toBe(user.id)
+    // Ensure yellow mock bar and skip button are completely purged
+    expect(screen.queryByRole('button', { name: /ข้ามหน้า login/i })).toBeNull()
+    expect(screen.queryByText(/ผลจำลอง/i)).toBeNull()
+    expect(screen.queryByText(/บัญชี Microsoft ทดสอบ/i)).toBeNull()
+    expect(container.querySelector('.lg-dev')).toBeNull()
+    expect(screen.queryByText(/Mock Prototype/i)).toBeNull()
   })
 
   it('allows Microsoft 365 login in mock mode', async () => {

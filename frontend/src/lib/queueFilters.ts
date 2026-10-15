@@ -62,6 +62,7 @@ export function scopeCheckFor(
   accounts: string[] = acctsOf(user),
 ): { ok: boolean; why?: string } {
   if (role.scope === 'none') return { ok: false, why: 'บทบาทนี้ไม่เข้าถึงเนื้อหาเอกสาร' }
+  if (role.scope === 'all') return { ok: true }
   if (!user.co.includes(doc.company)) {
     return { ok: false, why: `เอกสารอยู่นอกบริษัทที่ได้รับมอบหมาย (${doc.company})` }
   }

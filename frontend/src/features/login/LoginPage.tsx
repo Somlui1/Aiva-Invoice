@@ -64,7 +64,14 @@ export function LoginPage({ redirectTo, initialError = null, adapter, mock, show
     else toasts.push("เปิดแบบฟอร์มแจ้ง IT Support");
   }, [toasts]);
 
-  const c = useLogin({ adapter: auth, onSuccess: success, initialError, onSupport: support, toast: toasts.push });
+  const c = useLogin({
+    adapter: auth,
+    defaultMethod: isMock ? "m365" : "ldap",
+    onSuccess: success,
+    initialError,
+    onSupport: support,
+    toast: toasts.push,
+  });
 
   return (
     <div className="aiva-login" role="main" aria-label="เข้าสู่ระบบ AIVA Portal" data-busy={c.busy ? "1" : "0"} data-exiting={c.exiting ? "1" : "0"}>
@@ -75,19 +82,6 @@ export function LoginPage({ redirectTo, initialError = null, adapter, mock, show
           {showExplainer && <HowItWorks />}
         </div>
       </div>
-      {isMock && (
-        <MockBar
-          value={mockCtl}
-          onChange={(v) => {
-            if (v.sim !== mockCtl.sim) c.resetFailures();
-            setMockCtl(v);
-          }}
-          onSkip={() => {
-            const u = USERS.find((x) => x.id === mockCtl.acct) ?? USERS[0];
-            success(toSessionUser(u), "m365");
-          }}
-        />
-      )}
       <Toasts items={toasts.items} />
     </div>
   );

@@ -48,12 +48,27 @@ def safe_round(name: str) -> str:
 
 def _write_json(f: Path, data, indent: Optional[int] = None) -> None:
     """Write the whole file, then move it into place: a reader never sees a half-written result."""
+    import threading, time
     f.parent.mkdir(parents=True, exist_ok=True)
-    tmp = f.with_name(f.name + ".tmp")
+    tmp = f.with_name(f"{f.name}.{os.getpid()}_{threading.get_ident()}_{time.time_ns()}.tmp")
     text = (json.dumps(data, ensure_ascii=False, indent=indent) if indent
             else json.dumps(data, ensure_ascii=False, separators=(",", ":")))
     tmp.write_text(text, encoding="utf-8")
-    os.replace(tmp, f)
+    for attempt in range(10):
+        try:
+            os.replace(tmp, f)
+            break
+        except OSError:
+            time.sleep(0.02)
+    else:
+        try:
+            os.replace(tmp, f)
+        finally:
+            if tmp.exists():
+                try:
+                    tmp.unlink(missing_ok=True)
+                except OSError:
+                    pass
 
 
 def _read_json(f: Path) -> Optional[dict]:

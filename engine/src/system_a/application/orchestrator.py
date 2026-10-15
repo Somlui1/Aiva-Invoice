@@ -62,6 +62,7 @@ def validate(ext: ExtractionResult, svc: Services, *, request: dict, std: Option
     errors: list[dict] = []
 
     doc, meta = normalize(ext, std)
+    doc = ev.collapse_ghost_rows(doc)
     doc, copies_note = ev.collapse_repeated_copies(doc, std)          # original + copy pages
     doc = ev.corroborate_arithmetic(doc, std)                         # evidence B
     # keys whose read was confirmed before Oracle evidence (tax mode binds the invoice only)

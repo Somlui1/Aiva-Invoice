@@ -129,6 +129,21 @@ export const USERS: DemoUser[] = [
       "AM"
     ],
     "unit": "หัวหน้าคลัง (ดูแลหลาย account)"
+  },
+  {
+    "id": "itsupport",
+    "n": "IT Support",
+    "email": "itsupport@aapico.com",
+    "role": "ADM",
+    "emp": 99999,
+    "co": [
+      "AH",
+      "AHA",
+      "AHT",
+      "AHP",
+      "AM"
+    ],
+    "unit": "IT Support"
   }
 ];
 

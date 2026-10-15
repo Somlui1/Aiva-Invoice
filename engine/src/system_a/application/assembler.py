@@ -34,12 +34,17 @@ def build_elements(ext: ExtractionResult, doc: InvoiceDoc) -> dict[str, dict]:
     src = {"package_id": ext.package_id, "dms_doc_id": ext.dms_doc_id, "file_sha256": ext.file_sha256,
            "extractors": ext.extractor}
 
-    def add(eid, etype, page, bbox, field_name=None, raw=None, norm=None, conf=None, parent=None, extra=None):
+    def add(eid, etype, page, bbox, field_name=None, raw=None, norm=None, conf=None, parent=None,
+            extra=None, rbox=None):
         valid_b = list(bbox) if _is_valid_bbox(bbox) else None
-        els[eid] = {"element_id": eid, "document_id": did, "document_type": dtype, "page_no": page,
-                    "element_type": etype, "parent_id": parent, "field_name": field_name, "raw_value": raw,
-                    "normalized_value": _s(norm), "confidence": conf, "bbox": valid_b,
-                    "source_reference": {**src, **(extra or {})}}
+        valid_rb = list(rbox) if (rbox and len(rbox) == 5) else None
+        el = {"element_id": eid, "document_id": did, "document_type": dtype, "page_no": page,
+              "element_type": etype, "parent_id": parent, "field_name": field_name, "raw_value": raw,
+              "normalized_value": _s(norm), "confidence": conf, "bbox": valid_b,
+              "source_reference": {**src, **(extra or {})}}
+        if valid_rb is not None:
+            el["rbox"] = valid_rb
+        els[eid] = el
 
     for p in ext.pages:
         doc_of = next((d for d in ext.documents if p.page_no in d.pages), None)
@@ -52,18 +57,21 @@ def build_elements(ext: ExtractionResult, doc: InvoiceDoc) -> dict[str, dict]:
         nf = doc.fields[name]
         add(nf.element_id, "field", rf.region.page if rf.region else None, rf.region.bbox if rf.region else None,
             name, rf.raw, nf.value, rf.confidence, extra={"word_ids": list(rf.word_ids), "null_reason": nf.null_reason,
-                                                         "agreement": rf.agreement, "source": rf.source})
+                                                         "agreement": rf.agreement, "source": rf.source},
+            rbox=rf.region.rbox if rf.region else None)
     for rl, nl in zip(ext.lines, doc.lines):
         add(nl.element_id, "row", rl.region.page if rl.region else None, rl.region.bbox if rl.region else None,
-            f"lines[{rl.line_no}]")
+            f"lines[{rl.line_no}]", rbox=rl.region.rbox if rl.region else None)
         for k, rf in rl.cells.items():
             nf = nl.cells[k]
             add(nf.element_id, "cell", rf.region.page if rf.region else (rl.region.page if rl.region else None),
                 rf.region.bbox if rf.region else None, f"lines[{rl.line_no}].{k}", rf.raw, nf.value, rf.confidence,
-                parent=nl.element_id, extra={"null_reason": nf.null_reason, "agreement": rf.agreement})
+                parent=nl.element_id, extra={"null_reason": nf.null_reason, "agreement": rf.agreement},
+                rbox=rf.region.rbox if rf.region else None)
     for slot, s in ext.signatures.items():
         add(f"{did}-sig-{slot}", "signature", s.region.page if s.region else None, s.region.bbox if s.region else None,
-            f"signatures.{slot}", None, s.present, s.confidence, extra={"kind": s.kind})
+            f"signatures.{slot}", None, s.present, s.confidence, extra={"kind": s.kind},
+            rbox=s.region.rbox if s.region else None)
     for w in ext.words:
         add(w.word_id, "word", w.page, w.bbox, None, w.text, w.text, w.confidence)
 
@@ -72,15 +80,20 @@ def build_elements(ext: ExtractionResult, doc: InvoiceDoc) -> dict[str, dict]:
     for rg in getattr(ext, "regions", ()) or ():
         owner = next((d for d in ext.documents if rg.page in d.pages), None)
         valid_b = list(rg.bbox) if _is_valid_bbox(rg.bbox) else None
-        els[rg.region_id] = {"element_id": rg.region_id,
-                             "document_id": owner.document_id if owner else did,
-                             "document_type": owner.document_type if owner else dtype,
-                             "page_no": rg.page, "element_type": _kind_map.get(rg.kind, "section"),
-                             "parent_id": rg.parent_id or f"P{rg.page}", "field_name": rg.label,
-                             "raw_value": rg.text, "normalized_value": None, "confidence": rg.confidence,
-                             "bbox": valid_b,
-                             "source_reference": {**src, "region_kind": rg.kind}}
+        valid_rb = list(rg.rbox) if (getattr(rg, "rbox", None) and len(rg.rbox) == 5) else None
+        el = {"element_id": rg.region_id,
+              "document_id": owner.document_id if owner else did,
+              "document_type": owner.document_type if owner else dtype,
+              "page_no": rg.page, "element_type": _kind_map.get(rg.kind, "section"),
+              "parent_id": rg.parent_id or f"P{rg.page}", "field_name": rg.label,
+              "raw_value": rg.text, "normalized_value": None, "confidence": rg.confidence,
+              "bbox": valid_b,
+              "source_reference": {**src, "region_kind": rg.kind}}
+        if valid_rb is not None:
+            el["rbox"] = valid_rb
+        els[rg.region_id] = el
     return els
+
 
 
 

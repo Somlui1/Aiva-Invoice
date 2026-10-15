@@ -18,7 +18,7 @@ describe('Domain Models & Master Data Integrity', () => {
   })
 
   it('contains valid mock users with assigned roles and initial mappings', () => {
-    expect(USERS).toHaveLength(8)
+    expect(USERS).toHaveLength(9)
     const u1 = USERS.find(u => u.id === 'u1')
     expect(u1?.n).toBe('สมศักดิ์ ใจดี')
     expect(u1?.role).toBe('EU')
@@ -29,6 +29,18 @@ describe('Domain Models & Master Data Integrity', () => {
 
     expect(ROLES.EU.p).toContain('VIEW_OWN')
     expect(ROLES.APR.p).toContain('POST')
+    expect(ROLES.itsupport).toBeDefined()
+    expect(ROLES.itsupport.scope).toBe('all')
+    expect(ROLES.itsupport.p).toContain('MAP')
+    expect(ROLES.itsupport.p).toContain('VIEW_AP')
+    expect(ROLES.itsupport.p).toContain('AUDIT')
+
+    const supportUser = USERS.find(u => u.role === 'itsupport')
+    expect(supportUser).toBeDefined()
+    expect(supportUser?.id).toBe('itsupport')
+    expect(supportUser?.n).toContain('กิตติศักดิ์ ซัพพอร์ต')
+    expect(supportUser?.co).toContain('AH')
+
     expect(INITIAL_MAPS.length).toBeGreaterThanOrEqual(6)
   })
 

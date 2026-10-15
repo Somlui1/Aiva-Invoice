@@ -17,7 +17,9 @@
                    "normalized_value","confidence","bbox","source_reference"],
       "properties": {"element_type": {"enum": ["page","section","table","row","cell","field","word","signature","stamp"]},
                      "bbox": {"anyOf": [{"type": "null"}, {"type": "array", "minItems": 4, "maxItems": 4,
-                                                           "items": {"type": "number", "minimum": 0, "maximum": 1}}]}}}}}},
+                                                           "items": {"type": "number", "minimum": 0, "maximum": 1}}]},
+                     "rbox": {"anyOf": [{"type": "null"}, {"type": "array", "minItems": 5, "maxItems": 5,
+                                                           "items": {"type": "number"}}]}}}}}},
     "rule_results": {"type": "array", "minItems": 9, "maxItems": 9, "items": {
       "type": "object", "required": ["rule_id","rule_version","result","halted_by","evidence_ids"],
       "properties": {"rule_id": {"enum": ["V-01","V-02","V-03","V-04","V-05","V-06","V-07","V-08","V-09"]},

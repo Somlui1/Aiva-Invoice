@@ -22,6 +22,45 @@ def cache_key(*, file_sha256: str, model: str, prompt_version: str, options: dic
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def is_cacheable(ext: ExtractionResult) -> bool:
+    """Determine whether an ExtractionResult is healthy enough to be cached.
+
+    Rejects results that:
+    1. Are incomplete (pages_complete is False).
+    2. Contain transport/network errors in page_errors or calls (e.g. ConnectError, getaddrinfo failed).
+    3. Have pages, but zero extracted fields or lines with valid values.
+    """
+    if not getattr(ext, "pages_complete", False):
+        return False
+
+    extra = getattr(ext, "extra", None) or {}
+    page_errors = extra.get("page_errors") or {}
+    fatal_keywords = ("connecterror", "getaddrinfo", "aitransporterror", "timeouterror", "timed out")
+    for err in page_errors.values():
+        err_lower = str(err).lower()
+        if any(kw in err_lower for kw in fatal_keywords):
+            return False
+
+    calls = extra.get("calls") or []
+    for call in calls:
+        if not call.get("ok"):
+            call_err = str(call.get("error") or "").lower()
+            if any(kw in call_err for kw in fatal_keywords):
+                return False
+
+    if ext.pages and len(ext.pages) > 0:
+        fields = getattr(ext, "fields", None) or {}
+        has_any_field = any(
+            (getattr(f, "raw", None) is not None and str(getattr(f, "raw", "")).strip() != "")
+            or (getattr(f, "raw_value", None) is not None and str(getattr(f, "raw_value", "")).strip() != "")
+            for f in fields.values()
+        )
+        if not has_any_field and len(getattr(ext, "lines", []) or []) == 0:
+            return False
+
+    return True
+
+
 class PerceptionCache:
     def __init__(self, root: str | Path | None):
         self.root = Path(root) if root else None
@@ -47,9 +86,13 @@ class PerceptionCache:
             self.rejected += 1
             self.misses += 1
             return None
-        if ext.file_sha256 != expect_sha:
+        if ext.file_sha256 != expect_sha or not is_cacheable(ext):
             self.rejected += 1
             self.misses += 1
+            try:
+                p.unlink(missing_ok=True)
+            except Exception:
+                pass
             return None
         self.hits += 1
         return ext
@@ -57,6 +100,8 @@ class PerceptionCache:
     def save(self, key: str, ext: ExtractionResult) -> Optional[Path]:
         p = self.path_for(key)
         if p is None:
+            return None
+        if not is_cacheable(ext):
             return None
         p.parent.mkdir(parents=True, exist_ok=True)
         tmp = p.with_suffix(".tmp")

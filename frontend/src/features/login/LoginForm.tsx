@@ -169,7 +169,6 @@ export function LoginForm({ c, mock, onSupport }: Props) {
       <div className="lg-foot">
         <span>© 2026 AAPICO</span>
         <span>{LOGIN_CONFIG.versionLabel}</span>
-        {mock && <span>Mock Prototype · ข้อมูลทั้งหมดเป็นค่าสมมติ</span>}
         <button type="button" className="lg-link" onClick={onSupport}>
           ติดต่อ IT Support
         </button>

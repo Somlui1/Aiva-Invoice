@@ -44,7 +44,7 @@ async function renderSidebarFor(userId: string) {
   )
   if (userId === 'u7') {
     await screen.findByText('เครื่องมือทดสอบและพัฒนา')
-  } else if (userId === 'u6') {
+  } else if (userId === 'u6' || userId === 'itsupport') {
     await screen.findByText('คิวตรวจสอบ')
   } else {
     await screen.findByText('งานของฉัน')
@@ -92,5 +92,25 @@ describe('Sidebar Role-Based Menu Visibility', () => {
     expect(screen.getByText('มาตรฐาน Payload')).not.toBeNull()
     expect(screen.getByText('Document Simulation')).not.toBeNull()
     expect(screen.getByText('เครื่องมือทดสอบและพัฒนา')).not.toBeNull()
+  })
+
+  it('shows ALL menu sections (Work, Governance, Dev/Testing) for Support Admin (itsupport)', async () => {
+    // itsupport user
+    await renderSidebarFor('itsupport')
+
+    // Work items must exist
+    expect(screen.getByText('คิวตรวจสอบ')).not.toBeNull()
+    expect(screen.getByText('ส่งเข้า AP Interface')).not.toBeNull()
+
+    // Governance items must exist
+    expect(screen.getByText('สิทธิ์และการเชื่อมบัญชี')).not.toBeNull()
+    expect(screen.getByText('บันทึกการเข้าถึง')).not.toBeNull()
+    expect(screen.getByText('ตั้งค่า')).not.toBeNull()
+
+    // Dev/Testing tools must ALSO exist
+    expect(screen.getByText('เครื่องมือทดสอบและพัฒนา')).not.toBeNull()
+    expect(screen.getByText('ชุดเอกสารทดสอบ')).not.toBeNull()
+    expect(screen.getByText('มาตรฐาน Payload')).not.toBeNull()
+    expect(screen.getByText('Document Simulation')).not.toBeNull()
   })
 })

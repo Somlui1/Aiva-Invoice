@@ -43,6 +43,30 @@ export const ROLES: Record<RoleKey, Role> = {
     bg: '#F2E9F8',
     p: ['MAP', 'AUDIT'],
     scope: 'none'
+  },
+  itsupport: {
+    n: 'ฝ่ายสนับสนุนไอที (IT Support)',
+    c: '#0D9488',
+    bg: '#CCFBF1',
+    p: [
+      'VIEW_CO',
+      'VIEW_OWN',
+      'DMS',
+      'UPLOAD_NEW',
+      'CONFIRM',
+      'REVIEW',
+      'HOLD',
+      'REJECT',
+      'MANUAL_REVIEW',
+      'DUP_OVERRIDE',
+      'UNCONFIRM',
+      'POST',
+      'RETURN_FAILED',
+      'VIEW_AP',
+      'MAP',
+      'AUDIT'
+    ],
+    scope: 'all'
   }
 }
 
@@ -73,7 +97,8 @@ export const USERS: User[] = [
   { id: 'u5', n: 'กมลวรรณ ใจงาม', email: 'kamonwan.j@aapico.com', role: 'ACC', rcvName: '—', emp: 31005, co: ['AM', 'AHP'], unit: 'ฝ่ายบัญชี AM/AHP' },
   { id: 'u6', n: 'สมชาย วงศ์ทอง', email: 'somchai.w@aapico.com', role: 'APR', rcvName: '—', emp: 11001, co: ['AH', 'AHA', 'AHT', 'AHP', 'AM', '?'], unit: 'หัวหน้าฝ่ายบัญชี' },
   { id: 'u7', n: 'อนุชา ไอที', email: 'anucha.i@aapico.com', role: 'ADM', rcvName: '—', emp: null, co: [], unit: 'IT' },
-  { id: 'u8', n: 'กิตติ สมบูรณ์', email: 'kitti.s@aapico.com', role: 'EU', rcvName: '—', emp: null, co: ['AH', 'AHT', 'AM'], unit: 'หัวหน้าคลัง (ดูแลหลาย account)' }
+  { id: 'u8', n: 'กิตติ สมบูรณ์', email: 'kitti.s@aapico.com', role: 'EU', rcvName: '—', emp: null, co: ['AH', 'AHT', 'AM'], unit: 'หัวหน้าคลัง (ดูแลหลาย account)' },
+  { id: 'itsupport', n: 'กิตติศักดิ์ ซัพพอร์ต (IT Support)', email: 'itsupport@aapico.com', role: 'itsupport', rcvName: '—', emp: 99999, co: ['AH', 'AHA', 'AHT', 'AHP', 'AM'], unit: 'IT Support' }
 ]
 
 export const INITIAL_MAPS: AccountMapping[] = [

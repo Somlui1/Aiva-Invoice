@@ -33,13 +33,13 @@ export function ActionModalDialog({ doc, action, onClose }: ActionModalsProps) {
     (action === 'confirm' && (high || doc.status === 'Duplicate')) ||
     ['review', 'hold', 'reject', 'unconfirm', 'returnf'].includes(action)
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (isNoteRequired && !note.trim()) {
       toast('กรุณาระบุหมายเหตุ', true)
       return
     }
 
-    const res = executeAction(
+    const res = await executeAction(
       doc.doc,
       action,
       reason,

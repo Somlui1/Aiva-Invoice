@@ -47,6 +47,8 @@ interface InvoiceContextType {
   setAllCompanies: () => void
   statusFilter: string
   setStatusFilter: (status: string) => void
+  receiverFilter: string | null
+  setReceiverFilter: (rcv: string | null) => void
   periodFilter: PeriodFilter
   setPeriodFilter: (p: PeriodFilter) => void
   showClosed: boolean
@@ -90,7 +92,7 @@ interface InvoiceContextType {
     note: string,
     simOutcome?: string,
     uploadFile?: string
-  ) => { ok: boolean; msg: string }
+  ) => Promise<{ ok: boolean; msg: string }>
   precheckPost: (doc: InvoiceDoc) => { ok: boolean; code?: string; why: string }
   batchPost: (docIds: string[]) => { ok: boolean; count: number; msg: string }
   ingestResultToQueue: (payload: any) => void
@@ -106,6 +108,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
   const [docs, setDocs] = useState<InvoiceDoc[]>(INITIAL_DOCS)
   const [selectedDocId, setSelectedDocId] = useState<string | null>(INITIAL_DOCS[0]?.doc || null)
   const [companyFilter, setCompanyFilter] = useState<Set<string>>(new Set())
+  const [receiverFilter, setReceiverFilter] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<string>(currentUser.role === 'EU' ? 'mine' : 'all')
   const [periodFilter, setPeriodFilterState] = useState<PeriodFilter>({
     k: currentUser.role === 'EU' ? 'all' : orgSettings.period || 'month'
@@ -207,6 +210,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
 
   const clearFilters = useCallback(() => {
     setCompanyFilter(new Set())
+    setReceiverFilter(null)
     setStatusFilter(currentUser.role === 'EU' ? 'mine' : 'all')
     setSearchQuery('')
     setPeriodFilterState({ k: 'all' })
@@ -236,7 +240,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
 
   // Filtered docs list
   const filteredDocs = useMemo(() => {
-    return filterDocsFor({
+    const list = filterDocsFor({
       docs: visibleDocs,
       statusFilter,
       companyFilter,
@@ -245,7 +249,11 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
       showClosed,
       role: currentUser.role,
     })
-  }, [visibleDocs, statusFilter, companyFilter, periodFilter, searchQuery, showClosed, currentUser.role])
+    if (currentUser.role === 'EU' && receiverFilter) {
+      return list.filter(d => d.receiver === receiverFilter)
+    }
+    return list
+  }, [visibleDocs, statusFilter, companyFilter, periodFilter, searchQuery, showClosed, currentUser.role, receiverFilter])
 
   // Selected doc
   const selectedDoc = useMemo(() => {
@@ -259,8 +267,11 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
 
   // Dynamic KPI counts
   const kpiCounts = useMemo(() => {
+    const docsToCount = currentUser.role === 'EU' && receiverFilter
+      ? visibleDocs.filter(d => d.receiver === receiverFilter)
+      : visibleDocs
     return kpiCountsFor({
-      docs: visibleDocs,
+      docs: docsToCount,
       statusFilter,
       companyFilter,
       periodFilter,
@@ -268,7 +279,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
       showClosed,
       role: currentUser.role,
     })
-  }, [visibleDocs, statusFilter, companyFilter, periodFilter, searchQuery, showClosed, currentUser.role])
+  }, [visibleDocs, statusFilter, companyFilter, periodFilter, searchQuery, showClosed, currentUser.role, receiverFilter])
 
   // Allowed action calculation per SRS v1.1
   const allowedAction = useCallback(
@@ -280,14 +291,14 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
 
   // Execute workflow action
   const executeAction = useCallback(
-    (
+    async (
       docId: string,
       action: ActionType,
       reason: string,
       note: string,
       simOutcome = 'Auto-pass',
       uploadFile = 'revision.pdf'
-    ): { ok: boolean; msg: string } => {
+    ): Promise<{ ok: boolean; msg: string }> => {
       const doc = docs.find(d => d.doc === docId)
       if (!doc) return { ok: false, msg: 'ไม่พบเอกสาร' }
 
@@ -448,6 +459,28 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
         setSelectedDocId(n.doc)
         logAudit('อัปโหลดเอกสารใหม่', n.doc, rule)
         toast(`อัปโหลดแล้ว · ${rule}`)
+
+        // Persist upload revision to server API
+        try {
+          fetch(`/api/documents/${encodeURIComponent(doc.doc)}/actions`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-user-id': currentUser.id,
+              'x-user-role': currentUser.role,
+              'x-user-name': encodeURIComponent(currentUser.n),
+            },
+            body: JSON.stringify({
+              action: 'upload_revision',
+              reason: rule,
+              simOutcome,
+              uploadFile,
+            }),
+          }).catch(err => console.warn('Upload revision persistence error:', err))
+        } catch (err) {
+          console.warn('Upload revision request error:', err)
+        }
+
         return { ok: true, msg: `อัปโหลดแล้ว · ${rule}` }
       }
 
@@ -503,6 +536,30 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
 
       logAudit(ACTION_CONFIG[action].title, doc.doc, `${fromStatus} → ${newStatus} · ${reason}`)
       toast(msg)
+
+      // Persist to server API
+      try {
+        const actionType = action
+        await fetch(`/api/documents/${encodeURIComponent(docId)}/actions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': currentUser.id,
+            'x-user-role': currentUser.role,
+            'x-user-name': encodeURIComponent(currentUser.n),
+          },
+          body: JSON.stringify({
+            action: actionType,
+            reason,
+            note,
+            simOutcome,
+            uploadFile,
+          }),
+        })
+      } catch (err) {
+        console.warn('Action persistence network error:', err)
+      }
+
       return { ok: true, msg }
     },
     [docs, allowedAction, currentUser, hasHighSeverity, logAudit, toast]
@@ -552,9 +609,31 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
 
       logAudit('ส่งเข้า AP Interface', `${count} ฉบับ`, `Batch ${batchId}`)
       toast(`ส่งเข้า AP Interface แล้ว ${count} ฉบับ (${batchId})`)
+
+      // Persist AP batch to server
+      try {
+        fetch('/api/ap/batches', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': currentUser.id,
+            'x-user-role': currentUser.role,
+            'x-user-name': encodeURIComponent(currentUser.n),
+          },
+          body: JSON.stringify({
+            batchId,
+            documentIds: docIds,
+          }),
+        }).catch(err => {
+          console.warn('AP batch persistence error:', err)
+        })
+      } catch (err) {
+        console.warn('AP batch request error:', err)
+      }
+
       return { ok: true, count, msg: `ส่ง ${count} ฉบับสำเร็จ (${batchId})` }
     },
-    [can, precheckPost, currentUser.n, logAudit, toast]
+    [can, precheckPost, currentUser.id, currentUser.role, currentUser.n, logAudit, toast]
   )
 
   const ingestResultToQueue = useCallback(
@@ -584,6 +663,8 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
         companyFilter,
         toggleCompanyFilter,
         setAllCompanies,
+        receiverFilter,
+        setReceiverFilter,
         statusFilter,
         setStatusFilter,
         periodFilter,
