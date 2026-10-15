@@ -203,3 +203,4 @@
 | R3-5: Round 3 visual audit | Pending | queue 41 (material 30 + sample) — ต้องได้ 100% ของ set ที่เลือกตามแผนก่อนปิดรอบ |
 | R3-6: Digit re-check (--recheck-digits) | Done → MODEL_LIMIT | วัดจริง 2 วิธี: crop แคบ 8/29 disagree (ตัดเลขท้ายหาย), แถบกว้าง 9/35 disagree (อ่านค่าคอลัมน์ข้างเคียง เช่น `po_number`→เบอร์โทร, `supplier_tax_id`→`0.00`) → ยืนยันเลขไม่ได้ จึงปิดเป็น hint จัดคิว (`audit_doc.recheck_hints`, ไม่เข้า findings) และ default ปิด; commits `00ccbcc` `dca8a2b` + hint commit นี้; suite **177/177** |
 | R3-5: Round 3 visual audit (queue 41) | Pending | ทางเดียวที่เหลือสำหรับเลขกลุ่ม material คือเปิด `source_images` เทียบด้วยตาทีละฟิลด์ |
+| R3-7: Resume runbook (cross-session) | Done | `docs/plans/2026-10-15-ocr-bbox-loop-runbook.md` — state file map, commands, whitelist, git rules, closed decisions, MODEL_LIMIT evidence, next queue; start a fresh session with the one-line prompt at the top of that file |
