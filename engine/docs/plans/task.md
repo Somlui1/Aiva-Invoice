@@ -122,3 +122,14 @@
 | Task 3: PO Corroboration Relaxation in Rule V-01 | Done | Demoted PO missing/conflict finding in V-01 to Low severity when Oracle receipt confirmed; 104/104 tests pass; committed e00b46a |
 | Task 4: Target Document Verification, Regression Suite & Tracker Update | Done | Verified DMS-59 orientation (r=270, conf=0.836 upright); 200-doc batch yields AUTO_PASS 145 (+68), REVIEW 42, HOLD 7, MANUAL_REVIEW 6; 145/145 engine tests pass; 153/153 portal tests pass |
 
+## Plan: LLM-Driven Orientation, Line BBox Sanitization & AUTO_PASS Integrity (2026-10-15-llm-orientation-and-line-bbox-sanitization-implementation.md)
+
+| Task | Status | Description |
+|---|---|---|
+| Task 1: Prompt Update for Orientation `r` in Classify & Removal of PP-LCNet in `single_pass.py` | Done | Update single_pass_classify.md prompt for 'r'; parse 'r' in normalize_classify; render 80 DPI unrotated and rotate on demand; 11/11 tests pass; committed 5bebeea |
+| Task 2: Coordinate Sanitization, Clamping & Swapping in `coords.py` | Done | Implement sanitize_xyxy with auto-rescaling, point swapping, out-of-bounds rejection, and clamping; 109/109 tests pass; committed 0c493d3 |
+| Task 3: Skew-Tolerant Cell Union & Geometric Sanity Check in `single_pass.py` | Done | Implement compute_row_bbox_from_cells and validate_line_bbox with aspect ratio >= 1.5; update extract prompt; 110/110 tests pass; committed 175441b |
+| Task 4: Grounding Gate & Row Overlap Collision Check in `rules.py` (V-01 / V-07) | Done | Enforce line bbox grounding and row overlap collision detection in V-01; 111/111 tests pass; committed 3d10ed9 |
+| Task 5: V-08 Unit-Price Grouping & Subtotal Sum Validation in `v08.py` | Done | Implement validate_unit_price_groups against double-counting and hallucinations; 112/112 tests pass; committed 2bcc7bb |
+| Task 6: Target Document Verification & Full Regression Suite | Done | DMS-25, DMS-26, DMS-22 verified AUTO_PASS with horizontal row bboxes (ar>=14.5) and rotation=0; 153/153 engine tests pass, 153/153 portal tests pass |
+
