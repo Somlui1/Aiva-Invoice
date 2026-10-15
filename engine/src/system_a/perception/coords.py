@@ -54,6 +54,46 @@ def detect_coord_mode(boxes: Sequence[Sequence[float]], img_w: int, img_h: int,
     return "pixel"
 
 
+def sanitize_xyxy(box: Sequence[float], tol: float = 0.10) -> Optional[list[float]]:
+    """Sanitize normalized or millinorm bounding box [x1, y1, x2, y2].
+
+    Rules:
+      1. Length 4 numeric conversion.
+      2. Auto-rescale 0..1000 to 0.0..1.0 if any coordinate > 1.5.
+      3. Coordinate swapping if x1 > x2 or y1 > y2.
+      4. Severe out-of-bounds rejection (< -tol or > 1.0 + tol).
+      5. Clamping small tolerance [-tol, 1.0 + tol] -> [0.0, 1.0].
+      6. Zero-area rejection (width <= 0.001 or height <= 0.001).
+    """
+    if box is None or len(box) != 4:
+        return None
+    try:
+        x1, y1, x2, y2 = float(box[0]), float(box[1]), float(box[2]), float(box[3])
+    except (TypeError, ValueError):
+        return None
+    if any(math.isnan(v) or math.isinf(v) for v in (x1, y1, x2, y2)):
+        return None
+
+    if any(v > 1.5 for v in (x1, y1, x2, y2)):
+        x1, y1, x2, y2 = x1 / 1000.0, y1 / 1000.0, x2 / 1000.0, y2 / 1000.0
+
+    x1, x2 = min(x1, x2), max(x1, x2)
+    y1, y2 = min(y1, y2), max(y1, y2)
+
+    if x1 < -tol or y1 < -tol or x2 > 1.0 + tol or y2 > 1.0 + tol:
+        return None
+
+    x1 = max(0.0, x1)
+    y1 = max(0.0, y1)
+    x2 = min(1.0, x2)
+    y2 = min(1.0, y2)
+
+    if (x2 - x1) <= 0.001 or (y2 - y1) <= 0.001:
+        return None
+
+    return [round(x1, 4), round(y1, 4), round(x2, 4), round(y2, 4)]
+
+
 def xyxy_px(box: Sequence[float], img_w: int, img_h: int, mode: str) -> tuple[float, float, float, float]:
     """Corner box -> pixel rectangle, sorted and clipped to the image."""
     x1, y1, x2, y2 = (float(v) for v in box[:4])

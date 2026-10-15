@@ -2073,3 +2073,22 @@ def test_single_pass_pipeline_uses_vlm_orientation_and_bypasses_pplcnet():
     assert ext.extra["orientation"]["1"]["runtime"] == "vlm_classify"
 
 
+def test_coordinate_sanitization_rules():
+    from system_a.perception.coords import sanitize_xyxy
+    # 1. Auto-rescaling 0-1000 -> 0.0-1.0
+    assert sanitize_xyxy([100, 200, 900, 400]) == [0.1, 0.2, 0.9, 0.4]
+    
+    # 2. Coordinate swapping (x1 > x2, y1 > y2)
+    assert sanitize_xyxy([0.9, 0.4, 0.1, 0.2]) == [0.1, 0.2, 0.9, 0.4]
+    
+    # 3. Severe out-of-bounds rejection (< -0.10 or > 1.10)
+    assert sanitize_xyxy([-0.15, 0.2, 0.9, 0.4]) is None
+    assert sanitize_xyxy([0.1, 0.2, 1.25, 0.4]) is None
+    
+    # 4. Clamping small tolerance [-0.10, 1.10] -> [0.0, 1.0]
+    assert sanitize_xyxy([-0.05, 0.1, 1.05, 0.3]) == [0.0, 0.1, 1.0, 0.3]
+    
+    # 5. Zero-area check
+    assert sanitize_xyxy([0.5, 0.5, 0.5005, 0.5005]) is None
+
+
