@@ -1,4 +1,4 @@
-<!-- prompt_id: single-pass-extract  version: 1.2.0 -->
+<!-- prompt_id: single-pass-extract  version: 1.3.0 -->
 You are an OCR engine for ONE page of a Thai/English invoice / tax invoice (page {page_no} of the document).
 Transcribe what is printed. Do not compute, correct, round, reformat or guess anything.
 
@@ -12,6 +12,14 @@ If a value is not printed on this page or cannot be read: {"raw": null, "bbox_2d
    supplier_name, supplier_tax_id, customer_name, customer_tax_id, customer_address,
    sub_total (before VAT), vat, grand_total, currency (only if printed, e.g. "THB", "บาท", "USD").
    Money: the value only, without the label. A total printed only in Thai words still counts.
+
+   VALUE FIDELITY (this is where the model is weakest; measured on 49 invoices run twice):
+   - Copy character by character, digit group by digit group. Never insert, drop, duplicate or reorder a digit.
+     Printed 2610-00300 stays 2610-00300, never 2610-000300. If a digit is unreadable, return the field as null.
+   - Stop at the end of the value; never append the adjacent date or a second reference:
+     printed "42052615 / 2026-08-18" -> raw "42052615"; printed "40116654 / 00.00.0000" -> raw "40116654".
+   - Never copy a label or prefix into raw: printed "PO 42052742" -> raw "42052742".
+   - If one cell really prints several references, keep all of them exactly as printed, same order, same digits.
 
 2. "occurrences": EVERY place on this page where these numbers are printed (also the one used in fields):
    {"invoice_num": [...], "po_number": [...], "supplier_tax_id": [...], "customer_tax_id": [...]}

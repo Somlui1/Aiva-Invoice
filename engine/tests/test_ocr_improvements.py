@@ -2308,7 +2308,7 @@ def test_diff_round_payloads_flags_text_change_and_box_move_over_5px():
     dims = {1: (1000, 2000)}
     old, new = _round_layout_payload(), _round_layout_payload()
     empty = {"changed": False, "text": [], "moved": [], "boxes_added": [], "boxes_removed": [],
-             "renumbered": [], "noise_only": []}
+             "renumbered": [], "noise_only": [], "material": [], "cosmetic": [], "row_moves": []}
     assert m.diff_round_payloads(old, new, dims) == empty
 
     new["fields"]["grand_total"]["raw"] = "52,660.05"
@@ -2395,9 +2395,64 @@ def test_diff_round_payloads_can_ignore_fields_proven_unstable():
     m = _load_single_pass_script()
     dims = {1: (1000, 2000)}
     a, b = _round_layout_payload(), _round_layout_payload()
-    b["fields"]["supplier_name"]["raw"] = "THAI WORTH CO LTD"
+    b["fields"]["supplier_name"]["raw"] = "THAI WORTH 63173 LTD"      # digits moved => material
     b["fields"]["supplier_name"]["bbox"] = [0.72, 0.10, 0.10, 0.02]
-    assert m.diff_round_payloads(a, b, dims)["changed"] is True
+    d0 = m.diff_round_payloads(a, b, dims)
+    assert d0["changed"] is True
+    assert any(x.startswith("field:supplier_name") for x in d0["moved"])   # reported, but not why it changed
     d = m.diff_round_payloads(a, b, dims, ignore_fields={"supplier_name"})
     assert d["changed"] is False
     assert any("supplier_name" in x for x in d["noise_only"])
+
+
+def test_diff_round_payloads_splits_material_from_cosmetic_changes():
+    """Stability measurement: a name losing a word and a PO gaining a zero are not the same event."""
+    m = _load_single_pass_script()
+    dims = {1: (1000, 2000)}
+    a, b = _round_layout_payload(), _round_layout_payload()
+    b["fields"]["po_number"] = {"raw": "PO 446012539-1 PI2610-000300", "bbox": [0.1, 0.2, 0.3, 0.02], "page_no": 1}
+    b["fields"]["supplier_name"] = {"raw": "THAI WORTH CO LTD STEEL PUBLIC COMPANY LIMITED",
+                                    "bbox": [0.30, 0.01, 0.30, 0.03], "page_no": 1}
+    d = m.diff_round_payloads(a, b, dims)
+    assert d["changed"] is True
+    assert any("po_number" in x for x in d["material"]), d["material"]
+    assert not any("supplier_name" in x for x in d["material"])
+    assert any("supplier_name" in x for x in d["cosmetic"])
+
+    c, e = _round_layout_payload(), _round_layout_payload()
+    e["fields"]["supplier_name"]["raw"] = "THAI  WORTH   PUBLIC"       # same digits (none), wording differs
+    d2 = m.diff_round_payloads(c, e, dims)
+    assert d2["changed"] is False and len(d2["cosmetic"]) == 1
+
+    f, g = _round_layout_payload(), _round_layout_payload()
+    g["fields"]["invoice_num"]["raw"] = None                            # a value that disappears is material
+    assert any("invoice_num" in x for x in m.diff_round_payloads(f, g, dims)["material"])
+
+
+def test_is_empty_extraction_flags_a_page_that_returned_nothing():
+    m = _load_single_pass_script()
+    assert m.is_empty_extraction({}) is True
+    assert m.is_empty_extraction({"invoice_num": {"raw": None}, "vat": {"raw": "  "}}) is True
+    assert m.is_empty_extraction({"invoice_num": {"raw": "IV6910-026"}}) is False
+    assert m.is_empty_extraction({"regions_are_fine": {"raw": None}, "sub_total": {"raw": "1,867.59"}}) is False
+
+
+def test_row_box_moves_are_reported_but_do_not_by_themselves_mark_a_document_changed():
+    """Row boxes were deliberately re-measured (P1) and still shift in 29% of identical re-runs."""
+    m = _load_single_pass_script()
+    dims = {1: (1000, 2000)}
+    a, b = _round_layout_payload(), _round_layout_payload()
+    b["line_items"][0]["line_bbox"] = [0.05, 0.35, 0.90, 0.03]
+    d = m.diff_round_payloads(a, b, dims)
+    assert d["row_moves"] and d["row_moves"][0].startswith("line@p1#1")
+    assert d["changed"] is False
+    # Calibrated on 531 field boxes measured across identical-code runs: p50 3.2 px, p90 67.7 px,
+    # p99 491 px, and 47/49 documents had at least one box shift > 5 px. No threshold makes a box shift
+    # attributable to a code change, so shifts are reported and never counted as a verdict.
+    b["fields"]["invoice_num"]["bbox"] = [0.75, 0.10, 0.10, 0.02]
+    d2 = m.diff_round_payloads(a, b, dims)
+    assert any(x.startswith("field:invoice_num") for x in d2["moved"])
+    assert d2["changed"] is False
+    del b["fields"]["invoice_num"]["bbox"]                 # losing its box entirely IS a finding
+    d3 = m.diff_round_payloads(a, b, dims)
+    assert d3["changed"] is True and any("invoice_num" in x for x in d3["material"])
