@@ -2494,3 +2494,43 @@ def test_audit_doc_reports_recheck_disagreement_as_a_hint_not_a_finding():
     ok = _round_layout_payload()
     ok["fields"]["invoice_num"]["recheck"] = {"raw": "26/2691", "agreed": True}
     assert m.audit_doc(ok, {1: (1000, 2000)})["recheck_hints"] == []
+
+
+def test_classify_suspect_ignores_reprints_of_the_selected_invoice():
+    """DMS-134: pages 1-3 are three re-prints of invoice 2213664477; selecting one of them is correct,
+    so flagging p2/p3 as suspects sent the reviewer to look at a page that had nothing wrong."""
+    m = _load_single_pass_script()
+    p = _round_layout_payload()
+    p["meta"]["pages_classification"] = [
+        {"page_no": 1, "doc_type": "tax_invoice", "copy_status": "original",
+         "doc_no_hint": "2213664477", "page_marker": "1/2"},
+        {"page_no": 2, "doc_type": "tax_invoice", "copy_status": "original",
+         "doc_no_hint": "2213664477", "page_marker": "1/2"},          # same re-print -> not a suspect
+        {"page_no": 3, "doc_type": "tax_invoice", "copy_status": "original",
+         "doc_no_hint": "9988776655", "page_marker": "1/1"},          # a different invoice -> still suspect
+    ]
+    findings = m.audit_doc(p, {1: (1000, 2000)})["findings"]
+    assert "CLASSIFY_SUSPECT:p2_original_invoice_not_selected" not in findings
+    assert "CLASSIFY_SUSPECT:p3_original_invoice_not_selected" in findings
+
+
+def test_classify_suspect_also_covers_pages_simply_typed_invoice():
+    """The rule only matched 'tax_invoice', so a second invoice typed plain 'invoice' (DMS-159 p6) was
+    invisible to triage even though the number extracted for page 2 was that page's number."""
+    m = _load_single_pass_script()
+    p = _round_layout_payload()
+    p["meta"]["pages_classification"] = [
+        {"page_no": 1, "doc_type": "invoice", "copy_status": "original",
+         "doc_no_hint": "SLI2610000004", "page_marker": "1/1"},
+        {"page_no": 2, "doc_type": "invoice", "copy_status": "original",
+         "doc_no_hint": "INV-2026-0802", "page_marker": None},
+    ]
+    p["selected_invoice_pages"] = [1]
+    for b in (p["fields"].values()):
+        b["page_no"] = 1
+    for r in p["regions"]:
+        r["page_no"] = 1
+    for it in p["line_items"]:
+        it["page_no"] = 1
+    findings = m.audit_doc(p, {1: (1000, 2000), 2: (1000, 2000)})["findings"]
+    assert "CLASSIFY_SUSPECT:p2_original_invoice_not_selected" in findings

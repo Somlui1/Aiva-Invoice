@@ -1430,11 +1430,21 @@ def audit_doc(payload: dict, page_dims: Optional[Dict[int, Tuple[int, int]]] = N
         if pg not in pages_with_boxes:
             findings.add(f"NO_BBOX_ON_SELECTED_PAGE:{pg}")
 
+    reprint_keys = set()
+    for p in ((payload.get("meta") or {}).get("pages_classification") or []):
+        if int(p.get("page_no") or 0) in selected and (p.get("doc_no_hint") or "").strip():
+            reprint_keys.add(((p.get("doc_no_hint") or "").strip(), str(p.get("page_marker") or "").strip()))
+
     for p in ((payload.get("meta") or {}).get("pages_classification") or []):
         pno = int(p.get("page_no") or 0)
         if pno in selected:
             continue
-        if str(p.get("doc_type", "")).endswith("tax_invoice") and str(p.get("copy_status", "")).lower() == "original":
+        if str(p.get("doc_type", "")).endswith("invoice") and str(p.get("copy_status", "")).lower() == "original":
+            # A re-print of the invoice that was selected is deliberately left out (selection dedups on
+            # doc_no_hint + page_marker); flagging it sent reviewers to pages with nothing wrong.
+            key = ((p.get("doc_no_hint") or "").strip(), str(p.get("page_marker") or "").strip())
+            if key[0] and key in reprint_keys:
+                continue
             findings.add(f"CLASSIFY_SUSPECT:p{pno}_original_invoice_not_selected")
 
     # The second read is a hint only: measured on 35 fields it disagreed in 26% and when it did, it was
