@@ -684,6 +684,13 @@ def process_single_doc(
             raw_line_items = extract_res.get("line_items") or []
             raw_regions = extract_res.get("regions") or []
 
+            for _l in raw_line_items:            # measure rows from their own cells (see row_bbox)
+                if isinstance(_l, dict):
+                    _union = row_bbox(_l)
+                    if _union:
+                        _l["line_bbox_model"] = _l.get("line_bbox")
+                        _l["line_bbox"] = _union
+
             # Collect all boxes on this page to detect coord mode
             all_boxes_p = []
             for f_obj in raw_fields_map.values():
@@ -784,6 +791,8 @@ def process_single_doc(
                     "page_no": p_no,
                     "line_bbox": line_bbox_norm,
                 }
+                if l.get("line_bbox_model"):
+                    item_entry["line_bbox_model"] = l.get("line_bbox_model")
 
                 for cell_key in ("item_code", "description", "qty", "uom", "unit_price", "amount"):
                     cell_data = l.get(cell_key)
@@ -943,6 +952,34 @@ PLAN_MANDATORY_FIELDS = [
     "invoice_num", "invoice_date", "supplier_name", "supplier_tax_id",
     "customer_name", "sub_total", "vat", "grand_total",
 ]
+
+
+ROW_CELL_KEYS = ("item_code", "description", "qty", "uom", "unit_price", "amount")
+
+
+def row_bbox(item: dict):
+    """Row box as the union of the row's own cell boxes, in the VLM's own [x0, y0, x1, y1] space.
+
+    The VLM returns line_bbox as a band that runs from the row down through the empty table body
+    (h up to 0.46 of the page), which fails the horizontal-row rule for rows that are really one text
+    line. Production grounds the row on its cells (`compute_row_bbox_from_cells`), so the harness must
+    measure the same geometry. Returns None when no cell carries a box -> caller keeps the model band.
+    """
+    rects = []
+    for key in ROW_CELL_KEYS:
+        cell = item.get(key)
+        if not isinstance(cell, dict):
+            continue
+        box = cell.get("bbox_2d")
+        if box and len(box) == 4:
+            rects.append([float(v) for v in box])
+    if not rects:
+        return None
+    x0 = min(r[0] for r in rects)
+    y0 = min(r[1] for r in rects)
+    x1 = max(r[2] for r in rects)
+    y1 = max(r[3] for r in rects)
+    return [round(x0, 6), round(y0, 6), round(x1, 6), round(y1, 6)]
 
 
 def crop_rect_norm(img, rect, pad_norm: float = 0.015):

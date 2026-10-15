@@ -2285,3 +2285,19 @@ def test_find_field_box_resolves_field_line_and_cell_names():
     assert m.find_field_box(p, "line_1.amount") == (1, [0.85, 0.30, 0.08, 0.02])
     assert m.find_field_box(p, "grand_total") == (1, None)
     assert m.find_field_box(p, "nope") is None
+
+
+def test_row_bbox_unions_the_row_cells_in_the_vlm_xyxy_space():
+    """The VLM emits bbox_2d as [x0, y0, x1, y1]; a row box must stay in that space and stay flat."""
+    m = _load_single_pass_script()
+    item = {
+        "line_no": 1,
+        "line_bbox": [20, 345, 955, 775],                # model band: runs down through the empty table body
+        "description": {"raw": "MATERIAL STEEL", "bbox_2d": [52, 315, 410, 330]},
+        "qty": {"raw": "2", "bbox_2d": [592, 322, 602, 333]},
+        "uom": {"raw": None, "bbox_2d": None},
+        "amount": {"raw": "756.00", "bbox_2d": [832, 326, 878, 337]},
+    }
+    assert m.row_bbox(item) == [52, 315, 878, 337]
+    assert m.row_bbox({"line_no": 2, "line_bbox": [10, 20, 500, 40]}) is None
+    assert m.row_bbox({}) is None
