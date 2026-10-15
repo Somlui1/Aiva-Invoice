@@ -137,11 +137,8 @@ def test_end_to_end_auto_pass():
     assert res["recommendation"]["value"] == "AUTO_PASS", res["recommendation"]
 
 
-def test_single_page_is_classified_and_rotated(monkeypatch):
-    from system_a.perception.orientation import OrientationResult
-    monkeypatch.setattr("system_a.perception.single_pass.detect_page_orientation",
-                        lambda img: OrientationResult(90, 0.95, False, 0.0, 90.0, "cv2.dnn"))
-    one = {"pages": [{"p": 1, "t": "tax_invoice", "c": "original", "n": INV, "m": None, "h": []}]}
+def test_single_page_is_classified_and_rotated():
+    one = {"pages": [{"p": 1, "t": "tax_invoice", "c": "original", "n": INV, "m": None, "h": [], "r": 90}]}
     client = FakeClient(classify=one)
     ext = SinglePassPipeline(client, "fake-vl").extract(_pdf(1, landscape_first=True), package_id="P", dms_doc_id="D")
     assert [a[:2] for a in client.asked] == [("classify", 1), ("extract", 1)]
@@ -162,12 +159,8 @@ def test_classify_failure_reads_nothing_and_never_passes():
     assert res["recommendation"]["value"] != "AUTO_PASS"
 
 
-def test_orientation_and_rbox_integration(monkeypatch):
-    from system_a.perception.orientation import OrientationResult
-    # Mock orientation to 90 degrees rotation
-    monkeypatch.setattr("system_a.perception.single_pass.detect_page_orientation",
-                        lambda img: OrientationResult(90, 0.98, False, 0.0, 90.0, "cv2.dnn"))
-    one = {"pages": [{"p": 1, "t": "tax_invoice", "c": "original", "n": INV, "m": "1/1", "h": []}]}
+def test_orientation_and_rbox_integration():
+    one = {"pages": [{"p": 1, "t": "tax_invoice", "c": "original", "n": INV, "m": "1/1", "h": [], "r": 90}]}
     client = FakeClient(classify=one)
     ext = SinglePassPipeline(client, "fake-vl").extract(_pdf(1), package_id="P", dms_doc_id="D")
     
@@ -175,7 +168,7 @@ def test_orientation_and_rbox_integration(monkeypatch):
     ori_meta = ext.extra["orientation"]["1"]
     assert ori_meta["r"] == 90
     assert ori_meta["total"] == 90.0
-    assert ori_meta["runtime"] == "cv2.dnn"
+    assert ori_meta["runtime"] == "vlm_classify"
     assert ori_meta["uncertain"] is False
 
     # 2. Field regions have valid bbox and rbox

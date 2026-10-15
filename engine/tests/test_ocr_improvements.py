@@ -2044,3 +2044,32 @@ def test_fine_skew_deadband_ignores_small_tilt():
     assert measure_skew(img) == 0.0
 
 
+def test_single_pass_classify_orientation_prompt_parsing():
+    from system_a.perception.single_pass import normalize_classify
+    # Test that normalize_classify captures 'r' orientation from LLM
+    raw_response = {
+        "pages": [
+            {"p": 1, "t": "tax_invoice", "c": "original", "n": "TLP-001", "m": "1/1", "r": 0},
+            {"p": 2, "t": "tax_invoice", "c": "original", "n": "TLP-001", "m": "2/2", "r": 270}
+        ]
+    }
+    classified = normalize_classify(raw_response, 2)
+    assert len(classified) == 2
+    assert classified[0]["rotate_degrees"] == 0
+    assert classified[1]["rotate_degrees"] == 270
+
+
+def test_single_pass_pipeline_uses_vlm_orientation_and_bypasses_pplcnet():
+    from system_a.perception.single_pass import SinglePassPipeline
+    from tests.test_single_pass import FakeClient, _pdf, INV
+    
+    # Classify returns r=270 for page 1
+    one = {"pages": [{"p": 1, "t": "tax_invoice", "c": "original", "n": INV, "m": "1/1", "h": [], "r": 270}]}
+    client = FakeClient(classify=one)
+    ext = SinglePassPipeline(client, "fake-vl").extract(_pdf(1), package_id="P", dms_doc_id="D")
+    
+    assert ext.pages[0].rotation == 270
+    assert ext.extra["orientation"]["1"]["r"] == 270
+    assert ext.extra["orientation"]["1"]["runtime"] == "vlm_classify"
+
+

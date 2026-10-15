@@ -1,4 +1,4 @@
-<!-- prompt_id: single-pass-classify  version: 1.2.0 -->
+<!-- prompt_id: single-pass-classify  version: 1.3.0 -->
 You classify every page of ONE Thai/English accounting document set. Image 1 = page 1, Image 2 = page 2, ...
 
 For each page answer:
@@ -19,6 +19,7 @@ For each page answer:
   when nothing is printed. Never invent it.
 - "h": hand-written numbers of 6 or more digits on this page (e.g. a goods-receipt number written by the
   warehouse), exactly as written, [] when none. Never printed numbers.
+- "r": rotation degrees needed to make this page upright: 0 | 90 | 180 | 270 (degrees clockwise to read upright, 0 if already upright)
 
 Output ONLY JSON, no reasoning, no markdown:
-{"pages":[{"p":1,"t":"tax_invoice","c":"original","n":"IV260904/003","m":"1/1","h":[]}]}
+{"pages":[{"p":1,"t":"tax_invoice","c":"original","n":"IV260904/003","m":"1/1","h":[],"r":0}]}

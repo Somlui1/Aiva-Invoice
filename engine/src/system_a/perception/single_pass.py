@@ -491,25 +491,18 @@ class SinglePassPipeline:
         page_errors: dict = {}
         with fitz.open(stream=pdf, filetype="pdf") as doc:
             n = min(len(doc), self.max_pages)
-            # ---------------- step 1: code-based orientation measurement & classify
+            # ---------------- step 1: render unrotated 80 DPI pages & classify
             t0 = time.time()
-            page_orientations: dict[int, OrientationResult] = {}
-            upright_80_urls = []
+            img_80_urls = []
             for i in range(n):
                 pg = doc[i]
                 img_80 = self._render(pg, self.classify_dpi)
-                try:
-                    ori = detect_page_orientation(np.array(img_80))
-                except Exception:
-                    ori = OrientationResult(0, 0.0, True, 0.0, 0.0, "unknown")
-                page_orientations[i + 1] = ori
-                rot_80, _ = rotate_image(img_80, ori.total)
-                upright_80_urls.append(self._data_url(rot_80, quality=70))
+                img_80_urls.append(self._data_url(img_80, quality=70))
 
             text = self.prompts["single_pass_classify"] + \
                 f"\n\nThere are {n} images: Image 1 = page 1 ... Image {n} = page {n}."
             try:
-                classified = normalize_classify(self._ask("classify", None, text, upright_80_urls, 160 * n + 400), n)
+                classified = normalize_classify(self._ask("classify", None, text, img_80_urls, 160 * n + 400), n)
                 selection = select_invoice_pages(classified)
             except Exception as e:             # never guess which pages are the invoice
                 page_errors["classify"] = f"{type(e).__name__}: {str(e)[:200]}"
@@ -520,6 +513,13 @@ class SinglePassPipeline:
                              "classify_failed": page_errors["classify"],
                              "dropped": [], "multi_invoice": False, "doc_numbers": [], "no_invoice_page": True,
                              "marker_gaps": None, "invoice_pages_seen": []}
+            page_orientations: dict[int, OrientationResult] = {}
+            for c_entry in classified:
+                p_no = c_entry["page_no"]
+                r_val = int(c_entry.get("rotate_degrees") or 0)
+                page_orientations[p_no] = OrientationResult(
+                    r=r_val, confidence=1.0, uncertain=False, skew=0.0, total=float(r_val), runtime="vlm_classify"
+                )
             timings["classify_ms"] = round((time.time() - t0) * 1000)
             if len(doc) > self.max_pages:
                 selection.update(pages_complete=False, truncated_at=self.max_pages)
@@ -527,10 +527,13 @@ class SinglePassPipeline:
             reads: dict[int, PageAnswer] = {}
             t0 = time.time()
             for p in selection["selected"]:
-                ori = page_orientations.get(p) or OrientationResult(0, 1.0, False, 0.0, 0.0, "code")
+                ori = page_orientations.get(p) or OrientationResult(0, 1.0, False, 0.0, 0.0, "vlm_classify")
                 orig_img = self._render(doc[p - 1], self.dpi)
                 orig_w, orig_h = orig_img.width, orig_img.height
-                rot_img, M = rotate_image(orig_img, ori.total)
+                if ori.total != 0:
+                    rot_img, M = rotate_image(orig_img, ori.total)
+                else:
+                    rot_img, M = orig_img, None
                 rot_w, rot_h = rot_img.width, rot_img.height
                 text = self.prompts["single_pass_extract"].replace("{page_no}", str(p))
                 try:
