@@ -57,5 +57,14 @@
 | rbac-tab-task-2 | RbacPage 3-Tab Component Structure & Tab State | completed | 3 tabs (Admin Grid, Permission Matrix, Companies & ORG_ID) with badges & ARIA roles; rbacPageInteractive tests pass |
 | rbac-tab-task-3 | Interactive Oracle Sync Button & Feedback in Tab 3 | completed | Sync button with loading spinner, last-sync timestamp & error/success toasts; test passing |
 | rbac-tab-task-4 | Full Verification Pass (Vitest, TSC, Next Build) | completed | 37/37 test files (242/242 tests) pass, tsc clean, Next.js build clean (incl. /api/oracle/sync-companies) |
-| prod-cleanup-brainstorm | Production Readiness & UI Cleanup Brainstorming | in_progress | Exploring requirements: RBAC icons, audit log isolation, login mock cleanup, IT Support role |
+| prod-cleanup-brainstorm | Production Readiness & UI Cleanup Brainstorming | completed | Design approved & written to docs/plans/2026-10-15-production-ui-cleanup-and-rbac-support-design.md |
+| prod-cleanup-plan | Generate Implementation Plan | completed | Written to docs/plans/2026-10-15-production-ui-cleanup-and-rbac-support.md |
+| cleanup-task-1 | Role Definition & Context Integration for itsupport | pending | RoleKey, ROLES, default user u8, scopeCheck 'all' |
+| cleanup-task-2 | Sidebar Navigation Visibility for itsupport | pending | Sidebar all 3 menu sections for itsupport, tests |
+| cleanup-task-3 | Topbar Profile Header & My Profile & Permissions Modal | pending | Remove user-selector, add Profile Pill & MyProfileModal |
+| cleanup-task-4 | RBAC UI Redesign & Emoji Purge | pending | Replace emojis with Icon SVG components in RbacPage |
+| cleanup-task-5 | Audit Log Security Scoping API & AuditPage Integration | pending | Scoped /api/audit-logs by identity & company, AuditPage |
+| cleanup-task-6 | Login Page Production Cleanup | pending | Purge yellow MockBar and demo disclaimers from /login |
+| cleanup-task-7 | Queue Receiver Filtering by Oracle Account | pending | Interactive receiver filter chips for EU role in QueueToolbar |
+| cleanup-task-8 | Full End-to-End Regression & Verification Pass | pending | 39+ vitest files, tsc --noEmit, next build |
 
