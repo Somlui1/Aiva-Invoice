@@ -654,6 +654,96 @@ def step2_extract_invoice_page(
     raise last_err
 
 
+DIGIT_CRITICAL_FIELDS = ["invoice_num", "supplier_tax_id", "customer_tax_id", "po_number",
+                         "sub_total", "vat", "grand_total"]
+RECHECK_MIN_DIGITS = 4
+RECHECK_TARGET_H = 90      # a crop this tall is where the model starts reading digits one by one
+
+PROMPT_RECHECK = (
+    "You are OCR-ing ONE tight crop taken from a Thai invoice.\n"
+    "Read the value printed inside the crop and copy it character by character, digit group by digit "
+    "group. Never insert, drop, duplicate or reorder a digit. Keep commas, slashes and hyphens.\n"
+    'Answer with ONLY this JSON object: {"raw": "value exactly as printed"}\n'
+    'If it cannot be read: {"raw": null}'
+)
+
+
+def crop_zoom(box_h_px: int, target_h: int = RECHECK_TARGET_H) -> int:
+    """Integer zoom that lifts a cropped text line to a readable height (never shrink, never past 8x)."""
+    if box_h_px <= 0:
+        return 1
+    return max(1, min(8, target_h // box_h_px))
+
+
+def digit_recheck_targets(fields: dict) -> List[str]:
+    """Fields whose read rests on a long digit string and that have a box to crop."""
+    out = []
+    for name in DIGIT_CRITICAL_FIELDS:
+        field = fields.get(name) or {}
+        raw = str(field.get("raw") or "")
+        if field.get("bbox") and re.search(r"\d{%d,}" % RECHECK_MIN_DIGITS, raw):
+            out.append(name)
+    return out
+
+
+def field_crop(img, bbox_norm, pad_frac: float = 0.012):
+    """Crop one field out of the rendered page and zoom it - the same crop path the audit uses."""
+    x, y, w, h = (float(v) for v in bbox_norm)
+    W, H = img.size
+    box = (max(0, int((x - pad_frac) * W)), max(0, int((y - pad_frac * 2) * H)),
+           min(W, int((x + w + pad_frac) * W)), min(H, int((y + h + pad_frac * 2) * H)))
+    crop = img.crop(box)
+    z = crop_zoom(crop.height)
+    return crop.resize((max(1, crop.width * z), max(1, crop.height * z)), Image.LANCZOS) if z > 1 else crop
+
+
+def recheck_digit_field(client: OpenAI, crop_img: Image.Image, name: str, model: str = VLM_MODEL) -> dict:
+    buf = io.BytesIO()
+    crop_img.convert("RGB").save(buf, "JPEG", quality=92)
+    b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+    messages = [{"role": "user", "content": [
+        {"type": "text", "text": f"Field being read: {name}"},
+        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
+        {"type": "text", "text": PROMPT_RECHECK}]}]
+    last_err = None
+    for attempt in range(3):        # same trap as step 1/2: a thinking preamble eats a small token budget
+        try:
+            if attempt:
+                messages[0]["content"].append({"type": "text",
+                                               "text": "Output ONLY the JSON object. No explanation."})
+            resp = client.chat.completions.create(model=model, temperature=0,
+                                                 max_tokens=attempt_max_tokens(1500, attempt),
+                                                 messages=messages)
+            msg = resp.choices[0].message
+            return _clean_json_response(msg.content or getattr(msg, "reasoning_content", None) or "")
+        except Exception as exc:
+            last_err = exc
+            if attempt < 2:
+                time.sleep(1 + attempt)
+    raise last_err
+
+
+def apply_recheck(all_fields: dict, results: dict) -> dict:
+    """Attach the second opinion without overwriting the first read.
+
+    Which of the two matches the paper is only known by looking at the paper, and that is the visual
+    audit's job; overwriting silently would hide the very disagreement this feature exists to find.
+    """
+    summary = {"checked": 0, "disagreed": []}
+    for name, res in (results or {}).items():
+        field = (all_fields or {}).get(name)
+        if not field:
+            continue
+        a = re.sub(r"\D", "", str(field.get("raw") or ""))
+        b = re.sub(r"\D", "", str((res or {}).get("raw") or ""))
+        agreed = a == b
+        field["recheck"] = {"raw": (res or {}).get("raw"), "agreed": agreed, "model": (res or {}).get("model")}
+        summary["checked"] += 1
+        if not agreed:
+            summary["disagreed"].append(name)
+    return summary
+
+
 def process_single_doc(
     client: OpenAI,
     doc_id: int,
@@ -662,6 +752,7 @@ def process_single_doc(
     skip_existing: bool = False,
     model: str = VLM_MODEL,
     layout: str = "legacy",
+    recheck_digits: bool = False,
 ) -> dict:
     doc_folder = out_dir / f"DMS-{doc_id}"
     payload_file = ocr_payload_path(out_dir, doc_id, layout)
@@ -886,6 +977,25 @@ def process_single_doc(
                     "bbox": r_bbox_norm,
                 })
 
+        # Optional second opinion on the fields whose whole value is a long digit string.
+        recheck_summary = {"checked": 0, "disagreed": []}
+        if recheck_digits and all_fields:
+            targets = digit_recheck_targets(all_fields)
+            results = {}
+            for name in targets:
+                page_no = (all_fields[name] or {}).get("page_no")
+                img = pages_by_num.get(int(page_no or 0))
+                if img is None:
+                    continue
+                try:
+                    got = recheck_digit_field(client, field_crop(img, all_fields[name]["bbox"]), name, model=model)
+                    results[name] = {"raw": got.get("raw"), "model": "crop-recheck"}
+                except Exception as exc:
+                    log(f"        [RECHECK {name} on p{page_no} failed]: {exc}")
+            recheck_summary = apply_recheck(all_fields, results)
+            if recheck_summary["disagreed"]:
+                log(f"        Digit re-check disagreed on: {recheck_summary['disagreed']}")
+
         # Save validation_payload.json with complete new schema
         validation_payload = {
             "doc_id": doc_id,
@@ -903,6 +1013,7 @@ def process_single_doc(
             "doc_id": doc_id,
             "model": model,
             "pipeline": "two-step",
+            "digit_recheck": recheck_summary,
             "total_pages": len(pages),
             "selected_pages": selected_pages,
             "is_original": is_original,
@@ -1380,6 +1491,9 @@ def main():
     parser.add_argument("--stability", type=Path, metavar="ROUND_DIR",
                         help="Re-run every document of ROUND_DIR --runs times with identical code and report "
                              "per-field instability, exit")
+    parser.add_argument("--recheck-digits", action="store_true",
+                        help="second VLM pass on a zoomed crop of every long-digit field (invoice_num, tax ids, "
+                             "po_number, totals); records fields.<name>.recheck and never overwrites raw")
     parser.add_argument("--runs", type=int, default=2, help="runs per document for --stability")
     parser.add_argument("--stability-limit", type=int, help="only the first N documents for --stability")
     parser.add_argument("--noisy-field-rate", type=float, default=0.20,
@@ -1673,7 +1787,7 @@ def main():
             run_dir.mkdir(parents=True, exist_ok=True)
             with ThreadPoolExecutor(max_workers=args.workers) as executor:
                 futs = [executor.submit(process_single_doc, client, did, run_dir, args.dpi, False,
-                                        model_full, "round") for did in ids]
+                                        model_full, "round", args.recheck_digits) for did in ids]
                 for fut in as_completed(futs):
                     fut.result()
             log(f"  run {run_no}/{args.runs} complete -> {run_dir}")
@@ -1727,14 +1841,15 @@ def main():
         for did in doc_ids:
             res = process_single_doc(
                 client, did, out_dir, dpi=args.dpi, skip_existing=args.skip_existing, model=model_full,
-                layout=args.layout,
+                layout=args.layout, recheck_digits=args.recheck_digits,
             )
             results.append(res)
     else:
         with ThreadPoolExecutor(max_workers=args.workers) as executor:
             future_map = {
                 executor.submit(
-                    process_single_doc, client, did, out_dir, args.dpi, args.skip_existing, model_full, args.layout
+                    process_single_doc, client, did, out_dir, args.dpi, args.skip_existing, model_full,
+                    args.layout, args.recheck_digits
                 ): did
                 for did in doc_ids
             }
