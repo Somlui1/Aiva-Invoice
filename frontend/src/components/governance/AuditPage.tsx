@@ -6,17 +6,22 @@ import { useAuth } from '../../context/AuthContext'
 import { AuditEntry } from '../../types/audit'
 
 export function AuditPage() {
-  const { auditLogs: fallbackLogs, can } = useAuth()
+  const { currentUser, auditLogs: fallbackLogs, can } = useAuth()
   const [liveLogs, setLiveLogs] = useState<AuditEntry[]>([])
 
   useEffect(() => {
     let active = true
     async function fetchLogs() {
       try {
-        const res = await fetch('/api/audit-logs')
+        const params = new URLSearchParams({
+          whoId: currentUser.id,
+          role: currentUser.role,
+          companies: currentUser.co.join(','),
+        })
+        const res = await fetch(`/api/audit-logs?${params.toString()}`)
         if (res.ok) {
           const data = await res.json()
-          if (active && data.ok && Array.isArray(data.logs) && data.logs.length > 0) {
+          if (active && data.ok && Array.isArray(data.logs)) {
             setLiveLogs(data.logs)
           }
         }
@@ -28,7 +33,7 @@ export function AuditPage() {
     return () => {
       active = false
     }
-  }, [])
+  }, [currentUser.id, currentUser.role, currentUser.co])
 
   if (!can('AUDIT')) {
     return (
@@ -43,7 +48,14 @@ export function AuditPage() {
     )
   }
 
-  const logs = liveLogs.length > 0 ? liveLogs : fallbackLogs
+  // Filter fallback logs if endpoint was unavailable
+  const filteredFallback = currentUser.role === 'ADM' || currentUser.role === 'itsupport'
+    ? fallbackLogs
+    : currentUser.role === 'APR'
+    ? fallbackLogs.filter(l => currentUser.co.some(c => l.detail.includes(c)) || l.who === currentUser.n)
+    : fallbackLogs.filter(l => l.who === currentUser.n)
+
+  const logs = liveLogs.length > 0 ? liveLogs : filteredFallback
 
   return (
     <div className="pg">
