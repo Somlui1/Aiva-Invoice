@@ -182,15 +182,15 @@ class InvoiceDoc:
 # --------------------------------------------------------------------------- 3. oracle
 @dataclass(frozen=True)
 class ReceiptRow:
-    org_id: Optional[int]
-    receipt_num: str
-    receiver: Optional[str]
-    line: int
-    item: str
-    qty: Decimal
-    uom: str
-    unit_price: Decimal
-    line_amount: Decimal
+    org_id: Optional[int] = None
+    receipt_num: str = ""
+    receiver: Optional[str] = None
+    line: int = 1
+    item: str = ""
+    qty: Decimal = Decimal(0)
+    uom: str = ""
+    unit_price: Decimal = Decimal(0)
+    line_amount: Decimal = Decimal(0)
     extra: dict = field(default_factory=dict)   # informational columns (PO_NUM, SHIPMENT_NUM, ...)
     # --- AIVA-SYSA-ORA-01: columns the Tax ID + Invoice query adds.  Every one of them defaults to
     # "no data", so a snapshot built by the legacy RCV-V01/RCV-V02 queries serialises exactly as
@@ -208,10 +208,47 @@ class ReceiptRow:
     shipment_num: Optional[str] = None
     packing_slip: Optional[str] = None
     waybill_num: Optional[str] = None
+    rcv_line_id_override: Optional[str] = None
+
+    def __init__(self, org_id: Optional[int] = None, receipt_num: str = "", receiver: Optional[str] = None,
+                 line: int = 1, item: str = "", qty: Decimal = Decimal(0), uom: str = "",
+                 unit_price: Decimal = Decimal(0), line_amount: Decimal = Decimal(0),
+                 extra: Optional[dict] = None, po_number: Optional[str] = None,
+                 item_code: Optional[str] = None, qty_billed: Decimal = Decimal(0),
+                 po_line_status: Optional[str] = None, line_status: Optional[str] = None,
+                 supplier_tax_id: Optional[str] = None, supplier_name: Optional[str] = None,
+                 customer_tax_id: Optional[str] = None, ou_org_id: Optional[int] = None,
+                 ou_name: Optional[str] = None, shipment_num: Optional[str] = None,
+                 packing_slip: Optional[str] = None, waybill_num: Optional[str] = None,
+                 rcv_line_id: Optional[str] = None, **kwargs):
+        object.__setattr__(self, "org_id", org_id)
+        object.__setattr__(self, "receipt_num", receipt_num)
+        object.__setattr__(self, "receiver", receiver)
+        object.__setattr__(self, "line", line)
+        object.__setattr__(self, "item", item)
+        object.__setattr__(self, "qty", Decimal(str(qty)) if qty is not None else Decimal(0))
+        object.__setattr__(self, "uom", uom)
+        object.__setattr__(self, "unit_price", Decimal(str(unit_price)) if unit_price is not None else Decimal(0))
+        object.__setattr__(self, "line_amount", Decimal(str(line_amount)) if line_amount is not None else Decimal(0))
+        object.__setattr__(self, "extra", extra or {})
+        object.__setattr__(self, "po_number", po_number)
+        object.__setattr__(self, "item_code", item_code)
+        object.__setattr__(self, "qty_billed", qty_billed)
+        object.__setattr__(self, "po_line_status", po_line_status)
+        object.__setattr__(self, "line_status", line_status)
+        object.__setattr__(self, "supplier_tax_id", supplier_tax_id)
+        object.__setattr__(self, "supplier_name", supplier_name)
+        object.__setattr__(self, "customer_tax_id", customer_tax_id)
+        object.__setattr__(self, "ou_org_id", ou_org_id)
+        object.__setattr__(self, "ou_name", ou_name)
+        object.__setattr__(self, "shipment_num", shipment_num)
+        object.__setattr__(self, "packing_slip", packing_slip)
+        object.__setattr__(self, "waybill_num", waybill_num)
+        object.__setattr__(self, "rcv_line_id_override", rcv_line_id)
 
     @property
     def rcv_line_id(self) -> str:
-        return f"{self.receipt_num}-{self.line}"
+        return self.rcv_line_id_override or f"{self.receipt_num}-{self.line}"
 
 
 # New optional fields and their "no data" default: omitted from a serialised row while untouched.
@@ -219,7 +256,7 @@ _ROW_OPTIONAL_DEFAULTS: dict = {"po_number": None, "item_code": None, "qty_bille
                                 "po_line_status": None, "line_status": None, "supplier_tax_id": None,
                                 "supplier_name": None, "customer_tax_id": None, "ou_org_id": None,
                                 "ou_name": None, "shipment_num": None, "packing_slip": None,
-                                "waybill_num": None}
+                                "waybill_num": None, "rcv_line_id_override": None}
 
 
 def row_payload(r: ReceiptRow) -> dict:

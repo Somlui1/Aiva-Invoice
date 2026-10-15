@@ -617,6 +617,15 @@ def v08_quantity(c: Ctx) -> RuleOutcome:
                           actual=str(l.v("qty")), expected=lr.get("qty_rcv_compared"),
                           element_ids=(l.element_id, l.cells["qty"].element_id),
                           oracle_refs=tuple(f"RCV:{i}" for i in g.rcv_line_ids)))
+    if not out and not inst and c.snapshot and c.snapshot.active:
+        matched_ids = {i for g in c.groups if g.relation != "UNMATCHED" for i in g.rcv_line_ids}
+        active_rcv = [r for r in c.snapshot.active if (not matched_ids or r.rcv_line_id in matched_ids)]
+        grp_errs = v08mod.validate_unit_price_groups(c.doc.lines, active_rcv, c.std.tol("line_math"))
+        if grp_errs:
+            for ge in grp_errs:
+                out.append(_f(c, "E14", "V-08", f"ยอดรวมกลุ่มราคาต่อหน่วยไม่ตรงกับใบรับ: {ge}",
+                              actual=ge, expected="equal", element_ids=tuple(l.element_id for l in c.doc.lines)))
+
     res = [lr["result"] for lr in results]
     data = {"line_results": results, "engine": v08_mode,
             "prompt": c.std.rules["V-08"].get("prompt") if v08_mode != "logic" else None}

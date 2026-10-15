@@ -7,8 +7,9 @@ from __future__ import annotations
 
 from collections import Counter
 from decimal import Decimal
+from typing import Sequence
 
-from .contracts import InvoiceDoc, ReceiptRow
+from .contracts import InvoiceDoc, NLine, ReceiptRow
 from .standard import Standard
 
 
@@ -186,3 +187,72 @@ def guard(ai: dict, expected: dict, enabled: bool = True) -> tuple[list[dict], l
             lr = {**lr, "result": "manual_review", "code": None, "severity": None, "reason": "AI_FACTS_DISAGREE"}
         out.append(lr)
     return out, dis
+
+
+def validate_unit_price_groups(lines: Sequence[NLine], rcv_rows: Sequence[ReceiptRow], tol: Decimal = Decimal("0.02")) -> list[str]:
+    """Group invoice lines and Oracle receipt rows by unit price and validate sum_qty and sum_amount."""
+    inv_groups: dict[Decimal, dict] = {}
+    for l in lines:
+        p = getattr(l, "unit_price", None)
+        if p is None and hasattr(l, "v"):
+            p = l.v("unit_price")
+        q = getattr(l, "qty", None)
+        if q is None and hasattr(l, "v"):
+            q = l.v("qty")
+        a = getattr(l, "amount", None)
+        if a is None and hasattr(l, "v"):
+            a = l.v("amount")
+        if p is None:
+            continue
+        try:
+            dp = Decimal(str(p)).quantize(Decimal("0.01"))
+        except Exception:
+            continue
+        if dp <= 0:
+            continue
+        entry = inv_groups.setdefault(dp, {"qty": Decimal(0), "amount": Decimal(0), "lines": [], "has_qty": False})
+        if q is not None:
+            try:
+                dq = Decimal(str(q))
+                if dq > 0:
+                    entry["qty"] += dq
+                    entry["has_qty"] = True
+            except Exception:
+                pass
+        try:
+            entry["amount"] += Decimal(str(a or 0))
+        except Exception:
+            pass
+        entry["lines"].append(getattr(l, "line_no", None))
+
+    orc_groups: dict[Decimal, dict] = {}
+    for r in rcv_rows:
+        if r.qty <= 0:
+            continue
+        p = r.unit_price
+        if p is None:
+            continue
+        try:
+            dp = Decimal(str(p)).quantize(Decimal("0.01"))
+        except Exception:
+            continue
+        entry = orc_groups.setdefault(dp, {"qty": Decimal(0), "amount": Decimal(0), "rcv_ids": []})
+        entry["qty"] += Decimal(str(r.qty or 0))
+        amt = r.line_amount if r.line_amount is not None else (r.qty * r.unit_price)
+        entry["amount"] += Decimal(str(amt or 0))
+        entry["rcv_ids"].append(r.rcv_line_id)
+
+    errors = []
+    for dp, inv in sorted(inv_groups.items()):
+        orc = orc_groups.get(dp, {"qty": Decimal(0), "amount": Decimal(0)})
+        q_diff = abs(inv["qty"] - orc["qty"])
+        a_diff = abs(inv["amount"] - orc["amount"])
+        is_mismatch = (q_diff > tol or a_diff > tol) if inv["has_qty"] else (a_diff > tol)
+        if is_mismatch:
+            errors.append(f"unit_price:{dp:.2f}(qty_inv={inv['qty']},qty_orc={orc['qty']},amt_inv={inv['amount']},amt_orc={orc['amount']})")
+
+    return errors
+
+
+def evaluate_v08_lines(lines: Sequence[NLine], rcv_rows: Sequence[ReceiptRow], tol: Decimal = Decimal("0.02")) -> list[str]:
+    return validate_unit_price_groups(lines, rcv_rows, tol)

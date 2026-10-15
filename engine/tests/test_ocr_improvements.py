@@ -2139,3 +2139,23 @@ def test_geometric_grounding_gate_and_row_overlap_collision():
     assert check_row_geometry_and_overlap([lineC, lineD]) == []
 
 
+def test_v08_unit_price_grouping_and_subtotal_sum():
+    from system_a.domain.v08 import validate_unit_price_groups
+    from system_a.domain.contracts import ReceiptRow, NLine
+    from decimal import Decimal
+    
+    # 2 invoice lines with unit_price 1,200 (Line 1: qty 1, Line 2: qty 1 -> sum_qty 2, sum_amt 2400)
+    # Oracle has only 1 receipt row with qty 1, amount 1200
+    inv_lines = [
+        NLine(line_no=1, element_id="L1", qty=Decimal("1"), unit_price=Decimal("1200"), amount=Decimal("1200"), cells={}),
+        NLine(line_no=2, element_id="L2", qty=Decimal("1"), unit_price=Decimal("1200"), amount=Decimal("1200"), cells={})
+    ]
+    orc_rows = [
+        ReceiptRow(rcv_line_id="1-1", line=1, qty=Decimal("1"), unit_price=Decimal("1200"), line_amount=Decimal("1200"))
+    ]
+    # Should detect quantity mismatch for unit price group 1,200
+    errors = validate_unit_price_groups(inv_lines, orc_rows)
+    assert len(errors) > 0
+    assert "unit_price:1200.00" in errors[0]
+
+
