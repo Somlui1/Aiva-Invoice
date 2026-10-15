@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Icon } from '../common/Icon'
 import { useAuth } from '../../context/AuthContext'
 import { checkBackendHealth, BackendHealth } from '../../lib/backendApi'
+import { MyProfileModal } from './MyProfileModal'
 
 interface TopbarProps {
   isNavCollapsed: boolean
@@ -11,9 +12,10 @@ interface TopbarProps {
 }
 
 export function Topbar({ onToggleNav }: TopbarProps) {
-  const { currentUser, currentRole, users, switchUser, logout } = useAuth()
+  const { currentUser, currentRole, logout } = useAuth()
   const [backendStatus, setBackendStatus] = useState<BackendHealth | null>(null)
   const [checking, setChecking] = useState<boolean>(false)
+  const [isProfileOpen, setIsProfileOpen] = useState(false)
 
   const verifyBackend = async () => {
     setChecking(true)
@@ -79,29 +81,34 @@ export function Topbar({ onToggleNav }: TopbarProps) {
       </button>
 
       <div className="who">
-        <span
-          className="role-pill"
-          id="rolebadge"
-          style={{ background: currentRole.bg, color: currentRole.c }}
+        <button
+          type="button"
+          className="user-profile-btn"
+          aria-label="โปรไฟล์และสิทธิ์"
+          onClick={() => setIsProfileOpen(true)}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            background: 'transparent',
+            border: '1px solid rgba(0, 0, 0, 0.08)',
+            borderRadius: 999,
+            padding: '4px 12px',
+            cursor: 'pointer'
+          }}
+          title="คลิกเพื่อดูข้อมูลผู้ใช้และสิทธิ์การใช้งานของฉัน"
         >
-          {currentRole.n}
-        </span>
-        <label className="sr" htmlFor="user-selector">
-          สลับผู้ใช้
-        </label>
-        <select
-          id="user-selector"
-          className="user-sel"
-          value={currentUser.id}
-          onChange={e => switchUser(e.target.value)}
-          aria-label="สลับผู้ใช้"
-        >
-          {users.map(u => (
-            <option key={u.id} value={u.id}>
-              {u.n} — {u.unit || u.role}
-            </option>
-          ))}
-        </select>
+          <span className="user-name" style={{ fontWeight: 600, fontSize: 13, color: 'var(--s-800, #1E293B)' }}>
+            {currentUser.n}
+          </span>
+          <span
+            className="role-pill"
+            id="rolebadge"
+            style={{ background: currentRole.bg, color: currentRole.c, margin: 0 }}
+          >
+            {currentRole.n}
+          </span>
+        </button>
         <button
           type="button"
           className="ibtn"
@@ -113,6 +120,8 @@ export function Topbar({ onToggleNav }: TopbarProps) {
           <Icon name="logout" size="md" />
         </button>
       </div>
+
+      <MyProfileModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
     </header>
   )
 }
