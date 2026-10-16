@@ -413,3 +413,25 @@ test ครอบคลุม: เปลี่ยนข้อความ prompt
 ผลต่อเนื่อง: เมื่อตก checksum field เป็น `ok=False` → **V-05 ไม่ถูกประเมินในเอกสารกลุ่มนั้น** (`_skip`)
 ของที่ต้องตามคือ **เอกสารเหล่านี้โผล่เป็น REVIEW จริงหรือไม่** — วัดด้วยการรัน validate เทียบ outcome
 ผมยังไม่ได้รัน และจะไม่สรุปเองว่าเป็นหรือไม่ใช่
+
+
+---
+
+# R6-12 · Class 5 closed with evidence — and it is NOT MODEL_LIMIT
+
+Full evidence: `r69_class5_evidence.md` · measurement: `class5_probe.py` / `class5_probe.json`
+
+- All 7 pages print the issuer's own tax id **legibly at 130 DPI** — no stamp overprint, no faded ink. My
+  "MODEL_LIMIT (หมึกจาง/ตัวกลืน)" guess was **refuted by looking**.
+- **attempt 1** = shipped `single-pass-extract@1.5.0` @150 DPI → **correct 10/14, missing 0, wrong 4**
+  (DMS-31 drops a digit, DMS-96 inserts one; both caught by the new `format_warnings`).
+- **attempt 2** = 300 DPI only (same code/prompt) → **14/14 correct, 0 wrong, 0 missing.**
+- So: 5 docs = **OCR read-instability, PASS under 1.5.0**; 2 docs = **OCR limited by 150 DPI render**,
+  **not MODEL_LIMIT** (attempt 2 fixed it — the plan's definition requires the fault to survive ≥2 attempts).
+- Bonus finding nobody asked for: **the "field disappears" behaviour is gone** — 0/14 reads lost the field under
+  1.5.0, on documents where it had vanished in one of two runs. Option A fixed a class it was never A/B'd on.
+- Instrument lesson recorded in the file: I first mis-read DMS-96 as 14 digits from a *downscaled* montage;
+  the 5x crop showed 13. Ground truth is checked at the resolution I plan to rely on.
+- Owner trade-off left open: raise extract DPI 150→300 (≈4× pixels/page on ~224 pages), or the cheaper
+  unmeasured option — **re-read at 300 DPI only the pages whose tax id fails the format/checksum rule**
+  (18 + 23 rejections out of 836 delivered values). Not my call, and I'll measure before proposing.
