@@ -37,6 +37,7 @@ import ink_check as IC                                        # noqa: E402
 from system_a.envfile import load_env                         # noqa: E402
 
 load_env()
+import system_a.perception.coords as COORDS                   # noqa: E402
 from system_a.perception.coords import snap_box_to_ink, strip_rules   # noqa: E402
 
 PAYLOADS = ROOT / "bbox_testing" / "round_04" / "ocr"
@@ -80,20 +81,38 @@ def rots_of(payload: dict) -> dict:
             for c in ((payload.get("meta") or {}).get("pages_classification") or [])}
 
 
-def move_box(box, clean, raw):
+def move_box(box, clean, raw, floor=True):
     """One normalised box through the shipped ``move`` knob; (new_box_norm, note, moved?).
 
-    The engine's geometry on the furniture-stripped map, which is what ``_rf`` hands it since R4-11.  A box the
-    correction does not act on is returned as the same object it came in - not requantised - because R4-9
-    measured that re-emitting an untouched box through float->px->float drifts it by a pixel and flips verdicts
-    in the ruler.
+    The engine's geometry on the furniture-stripped map, which is what ``_rf`` hands it since R4-11.
+
+    ``floor=False`` turns off the line-height floor - not a production setting, but the constant is read from
+    the module exactly once per band scan, so a measurement can ask "what did the code do before this rule"
+    without keeping the old code path alive in the engine.
     """
     H, W = clean.shape[:2]
     px = [box[0] * W, box[1] * H, (box[0] + box[2]) * W, (box[1] + box[3]) * H]
-    new, note = snap_box_to_ink(px, clean, move=True, grow=False)
+    if floor:
+        new, note = snap_box_to_ink(px, clean, move=True, grow=False)
+    else:
+        saved = COORDS.MIN_LINE_HEIGHT_PX, COORDS.MIN_LINE_HEIGHT_RATIO
+        COORDS.MIN_LINE_HEIGHT_PX = COORDS.MIN_LINE_HEIGHT_RATIO = 0.0
+        try:                                            # the shipped code reads these globals per band scan
+            new, note = snap_box_to_ink(px, clean, move=True, grow=False)
+        finally:
+            COORDS.MIN_LINE_HEIGHT_PX, COORDS.MIN_LINE_HEIGHT_RATIO = saved
     if note == "unchanged":
         return list(box), note, False
     return [new[0] / W, new[1] / H, (new[2] - new[0]) / W, (new[3] - new[1]) / H], note, True
+
+
+def band_height(clean, box):
+    """Height (px) of the ink band a moved box landed on - a band too short is a scratch, not a line."""
+    H, W = clean.shape[:2]
+    x1, x2 = int(box[0] * W), int((box[0] + box[2]) * W)
+    y1, y2 = int(box[1] * H), int((box[1] + box[3]) * H)
+    band = next((b for b in COORDS._ink_bands(clean, x1, x2) if b[0] < y2 and b[1] > y1), None)
+    return (band[1] - band[0]) if band else -1
 
 
 def scan(doc: int, masks: dict):
@@ -101,7 +120,8 @@ def scan(doc: int, masks: dict):
     payload = json.loads((PAYLOADS / f"DMS-{doc}.json").read_text(encoding="utf-8"))
     rots = rots_of(payload)
     raw, clean = {}, {}
-    stats, notes = dict(boxes=0, moved=0, fixed=0, broke=0, empty_before=0, empty_after=0), []
+    stats, notes = dict(boxes=0, moved=0, fixed=0, broke=0, empty_before=0, empty_after=0,
+                        moved_before=0, thin_landing=0, dropped=0, dropped_fixed=0), []
     for page, name, box in boxes_of(payload):
         if page not in raw:
             m = IC.render(doc, page, rots.get(page, 0))
@@ -112,6 +132,14 @@ def scan(doc: int, masks: dict):
         before = has_ink(raw[page], box)
         stats["empty_before"] += 0 if before else 1
         new, note, moved = move_box(box, clean[page], raw[page])
+        old, _oldnote, moved_old = move_box(box, clean[page], raw[page], floor=False)
+        if moved_old:
+            stats["moved_before"] += 1
+            if not moved:                             # what the height floor now refuses to do
+                stats["dropped"] += 1
+                stats["dropped_fixed"] += int(not before and has_ink(raw[page], old))
+                h = band_height(clean[page], old)
+                stats["thin_landing"] += int(0 <= h < COORDS.MIN_LINE_HEIGHT_PX)
         if not moved:
             stats["empty_after"] += 0 if before else 1
             continue
@@ -234,9 +262,10 @@ def main() -> int:
         int(p.stem.split("-")[1]) for p in PAYLOADS.glob("DMS-*"))
     print(f"replaying the shipped `move` knob over {len(docs)} round_04 payloads "
           f"({PAYLOADS.relative_to(ROOT)}), audit frame, furniture stripped\n")
-    print(f"{'doc':>7} | {'boxes':>5} {'moved':>5} {'%':>5} | {'fixed':>5} {'broke':>5} | "
-          f"{'empty before -> after':>22}")
-    tot = dict(boxes=0, moved=0, fixed=0, broke=0, empty_before=0, empty_after=0)
+    print(f"{'doc':>7} | {'boxes':>5} {'moved':>5} {'was':>4} {'refused':>7} {'on scratch':>10} | "
+          f"{'fixed':>5} {'broke':>5} | {'empty before -> after':>22}")
+    tot = dict(boxes=0, moved=0, fixed=0, broke=0, empty_before=0, empty_after=0,
+               moved_before=0, thin_landing=0, dropped=0, dropped_fixed=0)
     rows, skipped = [], []
     for doc in docs:
         got = scan(doc, {})
@@ -249,12 +278,17 @@ def main() -> int:
         rows.append((s["moved"], doc, s, notes))
     for moved, doc, s, notes in sorted(rows, reverse=True):
         pct = 100.0 * s["moved"] / s["boxes"] if s["boxes"] else 0.0
-        print(f"DMS-{doc:>3} | {s['boxes']:>5} {s['moved']:>5} {pct:>4.0f}% | {s['fixed']:>5} {s['broke']:>5} | "
+        print(f"DMS-{doc:>3} | {s['boxes']:>5} {s['moved']:>5} {s['moved_before']:>4} {s['dropped']:>7} "
+              f"{s['thin_landing']:>10} | {s['fixed']:>5} {s['broke']:>5} | "
               f"{s['empty_before']:>9} -> {s['empty_after']:<9}"
               + ("   " + ", ".join(f"{n}({d:+d}px)" for n, _x, d, _b, _a in notes[:6]) if notes else ""))
-    print(f"{'total':>7} | {tot['boxes']:>5} {tot['moved']:>5} "
-          f"{100.0 * tot['moved'] / max(1, tot['boxes']):>4.0f}% | {tot['fixed']:>5} {tot['broke']:>5} | "
+    print(f"{'total':>7} | {tot['boxes']:>5} {tot['moved']:>5} {tot['moved_before']:>4} {tot['dropped']:>7} "
+          f"{tot['thin_landing']:>10} | {tot['fixed']:>5} {tot['broke']:>5} | "
           f"{tot['empty_before']:>9} -> {tot['empty_after']:<9}")
+    print(f"\n`moved` = what ships; `was` = the same boxes with the line-height floor off; `refused` = moves the "
+          f"floor stops\n(`refused` boxes the old code moved onto ink, {tot['dropped_fixed']} of which were "
+          f"empty boxes the old code counted as rescued; {tot['thin_landing']} landed on a band shorter than a "
+          f"line of print)")
     working = [doc for moved, doc, _s, _n in rows if moved]
     print(f"\n{len(working)} of {len(rows)} documents have any work for `move`: {working}")
     print(f"the other {len(rows) - len(working)} would be measured noise: an A/B over them compares two runs of "
