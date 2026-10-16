@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Icon } from '../common/Icon'
 import { useAuth } from '../../context/AuthContext'
 import { checkBackendHealth, BackendHealth } from '../../lib/backendApi'
+import { isSoundMuted, toggleSoundMuted } from '../../lib/soundEffects'
 import { MyProfileModal } from './MyProfileModal'
 
 interface TopbarProps {
@@ -16,6 +17,7 @@ export function Topbar({ onToggleNav }: TopbarProps) {
   const [backendStatus, setBackendStatus] = useState<BackendHealth | null>(null)
   const [checking, setChecking] = useState<boolean>(false)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
+  const [soundMuted, setSoundMutedState] = useState<boolean>(() => isSoundMuted())
 
   const verifyBackend = async () => {
     setChecking(true)
@@ -53,6 +55,21 @@ export function Topbar({ onToggleNav }: TopbarProps) {
       </div>
 
       <span className="grow" />
+
+      {/* Sound Mute / Unmute Toggle */}
+      <button
+        type="button"
+        className="ibtn sound-toggle-btn"
+        onClick={() => {
+          const next = toggleSoundMuted()
+          setSoundMutedState(next)
+        }}
+        title={soundMuted ? 'เปิดเสียงแจ้งเตือนเอกสารใหม่' : 'ปิดเสียงแจ้งเตือนเอกสารใหม่'}
+        aria-label={soundMuted ? 'เปิดเสียงแจ้งเตือน' : 'ปิดเสียงแจ้งเตือน'}
+        style={{ marginRight: 4 }}
+      >
+        <span style={{ fontSize: 16 }}>{soundMuted ? '🔇' : '🔔'}</span>
+      </button>
 
       {/* Backend Engine Status Indicator */}
       <button
