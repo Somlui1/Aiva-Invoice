@@ -94,3 +94,77 @@ PAIR_RUN=2 python bbox_testing/round_05/paired_snap.py   # วัดแบบ pa
 `run_arms.sh` (รัน 4 ฝั่ง), `ab_measure.py` (แปลง payload + วัด 2 ไม้บรรทัด + เทียบ rate/noise),
 `paired_snap.py` (paired replay), `ink_check.py` (แก้ให้ชี้ `ENGINE_DIR`/`AUDIT_DIR` ได้อิสระ),
 `align/<arm>_run<n>/` (payload ที่แปลงแล้วให้ align วัด), `align/snap_off_run<n>_snapped/` (ฝั่ง replay)
+
+
+---
+
+# R4-9 (ต่อจากรอบเช้า): แยกสองปุ่มของ snap แล้ววัดทีละปุ่ม (16 ต.ค. รอบเย็น)
+
+ปมของ R4-3c คือ snap หนึ่งตัวทำสองอย่างพร้อมกัน — **MOVE** กล่องที่อยู่บนกระดาษว่าง ให้ไปอยู่บรรทัดที่พิมพ์จริง
+กับ **GROW** กล่องที่อยู่ถูกบรรทัดแล้วให้กว้างคลุมตัวเลขทั้งพวง — คะแนนรวมจึงเถียงไม่ได้ว่าใครดีใครร้าย
+รอบนี้เลยแยกปุ่ม แล้ววัดใหม่ทั้งหมดด้วย `paired_snap.py` (คำตอบ model ชุดเดิม, ไม้บรรทัดเดิม, ไม่มี noise ของ model)
+
+## โค้ดที่แก้ (TDD ทุกขั้น, แดงก่อนเขียวจริง)
+
+1. `snap_box_to_ink(..., move=, grow=)` + `PERCEPTION_INK_SNAP=both|move|grow|off` และ payload บันทึก
+   `extra["ink_snap_mode"]` ไว้ด้วย (arm ไหนก็พิสูจน์ย้อนหลังได้)
+2. **กล่องที่ snap ไม่ได้แตะ ต้องไม่ถูก "วัดใหม่"** — เดิมกล่องทุกกล่องที่วิ่งผ่าน snap ถูกตัดเลขพิกัดเป็นจำนวนเต็ม
+   (เลื่อนได้สูงสุด 1 px) ซึ่งเพียงพอให้ verdict ของ align พลิก: control arm (mode `off` ที่ replay ผ่านโค้ดเดิม
+   ทั้งหมด) วัดก่อนแก้ = **fixed 2 / broke 2 ทั้งที่ไม่มีการแก้กล่องเลยแม้แต่กล่องเดียว** หลังแก้ = **0 / 0**
+   (test `test_a_box_the_snap_leaves_alone_is_delivered_exactly_as_the_model_drew_it`)
+   ⇒ตัวเลขเก่าทุกตัวของ R4-3c มี artifact ตัวนี้ปนอยู่ในฝั่งที่เปิด snap ฝั่งเดียว
+3. **กรอบแถวต้องตาม cell ของมัน** — `PageAnswer.region(row, contains=cells)` ขยายกรอบแถวเป็น hull ของ cell
+   ที่ model วางไว้ในแถวนั้นจริง (cell ที่ model ไม่ได้วางในแถวนี้ ไม่ถูกดึงเข้ามา = ไม่เป่ากรอบให้บวม — มี test กันไว้)
+
+## ผล: ใครคืออะไร (baseline = arm `off` เพราะทุก arm ผ่าน hull เหมือนกัน)
+
+| arm | run1: moved / defect / fix-break / empty | run2: moved / defect / fix-break / empty |
+|---|---|---|
+| raw (payload เดิม) | 8.1%, 0/0, 0.0% | 13.6%, 0/**10**, 2.4% |
+| **off (control)** | 8.1% → 8.1% (0/0) | 9.3% (0/0) |
+| **move** | 0/211 · 8.1% → 8.1% (0/0) | 5/211 · 9.3% → **8.1% (−1.3 pp)**, 3 fix / **0 broke**, empty **2.4% → 0.0%** |
+| **grow** | 96/211 · 8.1% → **9.7% (+1.7 pp)**, 2 fix / **6 broke** | 90/211 · 9.3% → **11.0% (+1.7 pp)**, 3 fix / **7 broke** |
+| both (= R4-3a ที่ ship ไว้) | 96/211 · 8.1% → 9.7% (+1.7 pp), 2/6 | 95/211 · 9.3% → 9.7% (+0.4 pp), 6/7, empty 0.0% |
+
+- **`grow` = ปิด**: แย่ลง **+1.7 pp เท่ากันทั้งสองรัน** (แก้ 5 ทำพัง 13) และ **ไม่ช่วยลดกล่องว่างแม้แต่กล่องเดียว**
+- **`move` = เปิด**: รันแรกไม่มีงานให้ทำเลย (0 กล่อง) รันสอง **−1.3 pp, ทำพัง 0** และเก็บกวาดกล่องว่างเกลี้ยง (0.0%)
+- **default ใหม่ = `move`** (`INK_SNAP_DEFAULT`): `=both` คืนพฤติกรรม R4-3a, `=0` ปิดทั้งหมด, พิมพ์ผิด = default
+  (ห้าม silently ปิดของที่ดีเพราะ typo) — R4-3a shipped ทั้งคู่โดยไม่มีใครวัด อันนี้คือสิ่งที่ตัวเลขสนับสนุน
+
+## "กรอบแถวตาม cell" ชนะจริงหรือแค่ถูกหลักการ? — วัดแยกบน 50 ฉบับ ไม่ใช้ VLM ไม่ใช้ ink
+
+`bbox_testing/round_05/row_hull_check.py` บน `round_04` ทั้ง 50 ฉบับ (117 แถว):
+
+- **115 จาก 117 กรอบแถวถูกสร้างใหม่** (hull ของ cell 632 cell) แต่ **verdict เปลี่ยน 0**: defect **19.2% → 19.2%**
+  แถวที่ถูก flag **5 → 5**
+- ส่วน −4.2 pp ที่โผล่ใน snap_off/run2 คือ **DMS-159 ฉบับเดียว 10 แถว** (payload ของรันนั้นมี line_bbox เพี้ยน)
+- 5 แถวที่ยังถูก flag หลัง hull (DMS-134 `line_1`, DMS-159 `line_1`–`line_4`) มีสาเหตุอื่น ไม่ใช่การไม่คลุม cell
+
+⇒ บันทึกไว้ตรง ๆ: กฎนี้คือ **หลักประกัน invariant ให้เป็นจริง by construction** (วันที่ payload เพี้ยนแบบ DMS-159
+มันกัน defect ให้ทั้งแถว) ไม่ใช่ "ชัยชนะ 4 pp" อย่างที่ตัวเลขรอบแรกทำให้ดูเหมือนนั้น
+
+## ตรวจ end-to-end ด้วย default ใหม่ (รันจริง 6 ฉบับ)
+
+6/6 ok, payload ทุกตัว `ink_snap=True, ink_snap_mode="move"`, `page_errors` ว่างหมด, `empty rate 0.0%`
+defect run เดียว = 8.9% เทียบ snap_off run1 = 8.1% (+0.8 pp) — **n=1 สรุปอะไรไม่ได้** (floor ที่วัดจริงคือ 5.5 pp ที่ n=2)
+และโปรดระวัง: `ab_measure.py` ที่ `AB_RUNS=1,1` จะพิมพ์ "noise floor 0.0 pp ⇒ DIFFERENCE LARGER THAN NOISE"
+ซึ่งเป็น **artifact ของการชี้อาร์มสองครั้งไปที่ run เดียวกัน** ไม่ใช่หลักฐาน — อ่านเฉพาะค่า rate ของแต่ละรัน
+
+pytest **222 passed** (เดิม 210) — +12: แยกปุ่มระดับ coords 3, ผ่าน pipeline 6, quantization 1, invariant แถว 2
+(ไม่มี assert เดิมถูกทำให้อ่อนลง มีแต่ assert ใหม่ที่เข้มขึ้น)
+
+## คิวที่ค้าง (จดไว้ไม่ให้รอบหน้าเดา)
+- `move` ยัง "แทบไม่ทำงาน" บนฟอร์มแน่น เพราะ ink mask นับ **เส้นตาราง/เส้นประ** เป็น ink → box ที่หลุดบรรทัดมักมี
+  "band ของตัวเอง" ปลอม ๆ ทำให้ `own` ไม่เป็น None เลย ต้องแก้ mask ก่อน (R4-11) ไม่อย่างนั้นกติกา "เลื่อนไปหา ink"
+  จะไม่มีวันเกิดบนฟอร์มแน่น และตัววัด empty-box ก็จะบอดต่อไปด้วย
+- `grow` ยังเปิดได้ผ่าน env ถ้าใครอยากใช้ ต้องแก้ให้ลามเข้าคอลัมน์ข้างเคียงไม่ได้ก่อน (วัดแล้ว −1.7 pp)
+- จะวัด `move` รอบหน้า: **นับจำนวน `moved` ก่อน** แล้วเลือก doc ที่มันมีงานจริง (run1 = 0 กล่อง = ได้ null อย่างที่เห็น)
+
+## คำสั่งทำซ้ำ
+```bash
+python bbox_testing/round_05/paired_snap.py                     # run1, arms: off,move,grow,both
+PAIR_RUN=2 python bbox_testing/round_05/paired_snap.py          # run2
+python bbox_testing/round_05/row_hull_check.py                  # 50 ฉบับ, hull อย่างเดียว
+python scripts/run_single_pass.py --doc-ids 127,171,170,159,107,117 --workers 2     --out-dir bbox_testing/round_05/default_move/run1           # default ใหม่ (ไม่ต้องตั้ง env)
+AB_ARMS=default_move,snap_off AB_RUNS=1,1 python bbox_testing/round_05/ab_measure.py
+```

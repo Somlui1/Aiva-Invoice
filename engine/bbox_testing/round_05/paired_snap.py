@@ -39,6 +39,9 @@ from system_a.perception.coords import ink_mask, rotate_px_box_back, snap_box_to
 
 SRC_ARM = os.environ.get("PAIR_ARM", "snap_off")            # raw model boxes = the off arm's payload
 SRC_RUN = int(os.environ.get("PAIR_RUN", "1"))               # which run of that arm to pair on
+MODES = os.environ.get("PAIR_MODES", "off,move,grow,both").split(",")  # R4-9: price each knob, plus a control
+#   off  = control arm: the replay machinery runs, nothing is corrected. Any verdict flip here is the
+#          instrument, not the correction - it is the paired measurement's own noise floor.
 ALIGN = ROOT / "bbox_testing" / "round_03" / "align.py"
 CELLS = A.CELLS
 
@@ -51,36 +54,58 @@ def page_mask(fitz_doc, page_no: int, dpi: int) -> np.ndarray:
     return ink_mask(img)
 
 
-def snap_box(box, mask):
-    """One normalised xywh box through the engine's correction; (new_box, moved_px)."""
+def snap_box(box, mask, mode: str = "both"):
+    """One normalised xywh box through the engine's correction; (new_box, moved_px).
+
+    ``mode`` is the R4-9 knob setting (both / move / grow): the same code the pipeline runs, with the same
+    flags it would pass, so an arm measured here is an arm the engine can actually be configured to run.
+    """
     H, W = mask.shape[:2]
     x, y, w, h = box
     px = [x * W, y * H, (x + w) * W, (y + h) * H]
-    new, note = snap_box_to_ink(px, mask)
+    new, note = snap_box_to_ink(px, mask, move=mode in ("both", "move"), grow=mode in ("both", "grow"))
+    if note == "unchanged":
+        return list(box), 0        # same rule as the engine: nothing acted on is not re-measured
     bbox, _rbox = rotate_px_box_back(new, W, H, W, H, None)
     moved = max(abs(a - b) for a, b in zip(px, [new[0], new[1], new[2], new[3]]))
     return list(bbox), (0 if note == "unchanged" else moved)
 
 
-def build_snapped(payload: dict, masks: dict) -> tuple[dict, int, int]:
-    """Same payload, every field/cell box corrected; row boxes untouched (that is what ``_rf`` does)."""
+def _union(row, cell):
+    return (min(row[0], cell[0]), min(row[1], cell[1]),
+            max(row[0] + row[2], cell[0] + cell[2]), max(row[1] + row[3], cell[1] + cell[3]))
+
+
+def build_snapped(payload: dict, masks: dict, mode: str = "both") -> tuple[dict, int, int]:
+    """Same payload, every field/cell box corrected; the row box then follows the cells it was drawn around.
+
+    That second half is what the engine does since R4-9 (``PageAnswer.region(..., contains=cells)``): only
+    cells are corrected against ink, so a row that does not follow its own cells reports as broken.
+    """
     moved = total = 0
     out = json.loads(json.dumps(payload))
     for f in (out.get("fields") or {}).values():
         total += 1
-        box, mv = snap_box(f["bbox"], masks[int(f.get("page_no") or 1)])
+        box, mv = snap_box(f["bbox"], masks[int(f.get("page_no") or 1)], mode)
         f["bbox"] = box
         moved += 1 if mv else 0
     for item in out.get("line_items") or []:
         page = int(item.get("page_no") or 1)
+        row_box = item.get("line_bbox")
+        grown = list(row_box) if row_box else None
         for cell in CELLS:
             v = item.get(cell)
             if not isinstance(v, dict) or not v.get("bbox"):
                 continue
             total += 1
-            box, mv = snap_box(v["bbox"], masks[page])
+            drawn = v["bbox"]
+            box, mv = snap_box(drawn, masks[page], mode)
             v["bbox"] = box
             moved += 1 if mv else 0
+            if grown and drawn[1] < row_box[1] + row_box[3] and drawn[1] + drawn[3] > row_box[1]:
+                grown = _union(grown, box)          # the model put this cell inside this row
+        if grown and row_box:
+            item["line_bbox"] = [grown[0], grown[1], grown[2] - grown[0], grown[3] - grown[1]]
     return out, moved, total
 
 
@@ -127,64 +152,80 @@ def align_states(dest: Path, docs) -> dict:
 
 
 def main() -> int:
+    """Score the same boxes once per knob setting, and let the numbers say which knob to keep."""
     docs = [int(v) for v in sys.argv[1:]] or sorted(
         int(p.name.split("-")[1]) for p in (HERE / SRC_ARM / f"run{SRC_RUN}").glob("DMS-*"))
-    src_dir = HERE / "align" / f"{SRC_ARM}_run{SRC_RUN}"
-    dst_dir = HERE / "align" / f"{SRC_ARM}_run{SRC_RUN}_snapped"
+    base_dir = HERE / "align" / f"{SRC_ARM}_run{SRC_RUN}"
     settings = Settings()
     paperless = build_paperless(settings)
     print(f"paired on the {SRC_ARM}/run{SRC_RUN} payloads ({len(docs)} docs), "
-          f"engine frame at {settings.extract_dpi} DPI\n")
+          f"engine frame at {settings.extract_dpi} DPI; arms: raw + {', '.join(MODES)}")
 
     import fitz
-    header = (f"{'doc':>8} | {'boxes':>5} {'moved':>5} | {'defect raw':>14} {'defect snapped':>15} "
-              f"| {'empty raw':>12} {'empty snapped':>13} | fixed broke")
-    print(header)
-    tot = dict(boxes=0, moved=0, b_before=0, f_before=0, b_after=0, f_after=0,
-               e_before=0, t_before=0, e_after=0, t_after=0, fixed=0, broke=0,
-               fixed_rows=0, broke_rows=0)
+    payloads, masks_by_doc = {}, {}
     for doc in docs:
-        src = json.loads((src_dir / "ocr" / f"DMS-{doc}.json").read_text(encoding="utf-8"))
-        pdf = paperless.download(doc)
-        with fitz.open(stream=pdf, filetype="pdf") as fdoc:
+        src = json.loads((base_dir / "ocr" / f"DMS-{doc}.json").read_text(encoding="utf-8"))
+        payloads[doc] = src
+        with fitz.open(stream=paperless.download(doc), filetype="pdf") as fdoc:
             pages = {int(f.get("page_no") or 1) for f in (src.get("fields") or {}).values()}
             pages |= {int(i.get("page_no") or 1) for i in src.get("line_items") or []}
-            masks = {p: page_mask(fdoc, p, settings.extract_dpi) for p in sorted(pages)}
-        snapped, moved, total = build_snapped(src, masks)
-        (dst_dir / "ocr").mkdir(parents=True, exist_ok=True)
-        (dst_dir / "ocr" / f"DMS-{doc}.json").write_text(json.dumps(snapped, ensure_ascii=False), encoding="utf-8")
+            masks_by_doc[doc] = {p: page_mask(fdoc, p, settings.extract_dpi) for p in sorted(pages)}
 
-        before, after = align_states(src_dir, [doc]).get(doc, {}), align_states(dst_dir, [doc]).get(doc, {})
-        fixed = sorted(n for n in before if before.get(n) and not after.get(n, False))
-        broke = sorted(n for n in after if after.get(n) and not before.get(n, False))
-        bb, fb = len(before), sum(before.values())
-        ba, fa = len(after), sum(after.values())
-        er, tr = empty_of(src, doc)
-        es, ts = empty_of(snapped, doc)
-        print(f"DMS-{doc:>4} | {total:>5} {moved:>5} | {fb:>5}/{bb:<3} {fb / max(1, bb) * 100:>5.1f}% "
-              f"{fa:>5}/{ba:<3} {fa / max(1, ba) * 100:>5.1f}% | "
-              f"{er:>5}/{tr:<3} {er / max(1, tr) * 100:>5.1f}% {es:>5}/{ts:<3} {es / max(1, ts) * 100:>5.1f}% "
-              f"| {len(fixed):>2} {len(broke):>2}")
-        if fixed or broke:
-            print(f"           fixed: {', '.join(fixed) or '-'}   broke: {', '.join(broke) or '-'}")
-        for k, v in (("boxes", total), ("moved", moved), ("b_before", bb), ("f_before", fb),
-                     ("b_after", ba), ("f_after", fa), ("e_before", er), ("t_before", tr),
-                     ("e_after", es), ("t_after", ts), ("fixed", len(fixed)), ("broke", len(broke)),
-                     ("fixed_rows", sum(n.startswith("line_") for n in fixed)),
-                     ("broke_rows", sum(n.startswith("line_") for n in broke))):
-            tot[k] += v
-    print(f"\nALL      | {tot['boxes']:>5} {tot['moved']:>5} | {tot['f_before']:>5}/{tot['b_before']:<3} "
-          f"{A.rate(tot['f_before'], tot['b_before']):>5.1f}% {tot['f_after']:>5}/{tot['b_after']:<3} "
-          f"{A.rate(tot['f_after'], tot['b_after']):>5.1f}% | {tot['e_before']:>5}/{tot['t_before']:<3} "
-          f"{A.rate(tot['e_before'], tot['t_before']):>5.1f}% {tot['e_after']:>5}/{tot['t_after']:<3} "
-          f"{A.rate(tot['e_after'], tot['t_after']):>5.1f}% | {tot['fixed']:>2} {tot['broke']:>2}")
-    print(f"\ndefect rate {A.rate(tot['f_before'], tot['b_before']):.1f}% -> "
-          f"{A.rate(tot['f_after'], tot['b_after']):.1f}% on identical answers "
-          f"({tot['moved']}/{tot['boxes']} boxes actually moved: {tot['fixed']} fixed, {tot['broke']} broken)")
-    print(f"of the changed verdicts, {tot['broke_rows']} are `line_N` row boxes that stopped containing their "
-          f"own cells (arithmetic, not pixels: only cells are snapped) and {tot['fixed_rows']} row boxes started")
-    print(f"empty  rate {A.rate(tot['e_before'], tot['t_before']):.1f}% -> "
-          f"{A.rate(tot['e_after'], tot['t_after']):.1f}%")
+    raw_states = {d: align_states(base_dir, [d]).get(d, {}) for d in docs}
+    raw_empty = {d: empty_of(payloads[d], d) for d in docs}
+    rows = [("raw", None, None, raw_states, raw_empty)]
+
+    for mode in MODES:
+        dest = HERE / "align" / f"{SRC_ARM}_run{SRC_RUN}_{mode}"
+        (dest / "ocr").mkdir(parents=True, exist_ok=True)
+        snapped, moved, total = {}, 0, 0
+        for doc in docs:
+            pay, mv, tt = build_snapped(payloads[doc], masks_by_doc[doc], mode)
+            snapped[doc] = pay
+            moved += mv
+            total += tt
+            (dest / "ocr" / f"DMS-{doc}.json").write_text(json.dumps(pay, ensure_ascii=False), encoding="utf-8")
+        states = {d: align_states(dest, [d]).get(d, {}) for d in docs}
+        rows.append((mode, moved, total, states, {d: empty_of(snapped[d], d) for d in docs}))
+
+    # An arm is judged against the "off" row, not against "raw".  The replay rebuilds every row box as the
+    # hull of its own cells - which the engine now does in every arm, correction or not - so raw carries a
+    # second, unrelated difference (how row boxes are derived).  raw -> off is reported on its own line.
+    base = next(r for r in rows if r[0] == "off")
+    base_states, base_empty = base[3], base[4]
+    print(f"{'arm':>6} | {'moved':>9} | {'defect rate vs baseline':>31} | {'fixed':>5} {'broke':>5} "
+          f"{'row broke':>9} | {'empty rate':>18}")
+    for mode, moved, total, states, empty in rows:
+        b = sum(len(base_states[d]) for d in docs)
+        f0 = sum(sum(base_states[d].values()) for d in docs)
+        a = sum(len(states[d]) for d in docs)
+        f1 = sum(sum(states[d].values()) for d in docs)
+        fixed = {d: sorted(n for n in base_states[d] if base_states[d].get(n) and not states[d].get(n, False))
+                 for d in docs}
+        broke = {d: sorted(n for n in states[d] if states[d].get(n) and not base_states[d].get(n, False))
+                 for d in docs}
+        nfix, nbrok = sum(len(v) for v in fixed.values()), sum(len(v) for v in broke.values())
+        rbrok = sum(sum(n.startswith("line_") for n in v) for v in broke.values())
+        e0 = sum(v[0] for v in base_empty.values()); t0 = sum(v[1] for v in base_empty.values())
+        e1 = sum(v[0] for v in empty.values()); t1 = sum(v[1] for v in empty.values())
+        moved_txt = "    -    " if moved is None else f"{moved:>4}/{total:<4}"
+        print(f"{mode:>6} | {moved_txt} | {f0:>6}/{b:<4} {A.rate(f0, b):>5.1f}% -> {f1:>4}/{a:<4} "
+              f"{A.rate(f1, a):>5.1f}% ({A.rate(f1, a) - A.rate(f0, b):+.1f} pp) | {nfix:>5} {nbrok:>5} "
+              f"{rbrok:>9} | {e0:>5}/{t0:<4} {A.rate(e0, t0):>5.1f}% -> {e1:>4}/{t1:<4} "
+              f"{A.rate(e1, t1):>5.1f}%")
+        if mode not in ("raw", "off"):
+            for d in docs:
+                if fixed[d] or broke[d]:
+                    fx = ", ".join(fixed[d]) or "-"
+                    br = ", ".join(broke[d]) or "-"
+                    print(f"       DMS-{d}: fixed [{fx}]  broke [{br}]")
+
+    raw_def = 100 * sum(sum(raw_states[d].values()) for d in docs) / max(1, sum(len(raw_states[d]) for d in docs))
+    off_def = 100 * sum(sum(base_states[d].values()) for d in docs) / max(1, sum(len(base_states[d]) for d in docs))
+    print("\nraw payload " + f"{raw_def:.1f}% vs off-arm {off_def:.1f}% ({off_def - raw_def:+.1f} pp): "
+          "that gap is the row boxes rebuilt as the hull of their own cells - a derivation change, applied "
+          "in every arm, not the ink correction")
+    print("rate is what decides, never the count (R4-7): same answers, same rulers, only the knobs differ.")
     return 0
 
 

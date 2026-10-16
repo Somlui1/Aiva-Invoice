@@ -34,8 +34,10 @@ sys.path.insert(0, str(HERE))
 
 import ink_check as IC                                            # noqa: E402
 
-ARMS = ("snap_on", "snap_off")
-RUNS = (1, 2)
+# The two arms of R4-3c; overridable so the same ruler can compare the arm that ships now ("move") against
+# the arm that shipped before it, without editing the measurement.
+ARMS = tuple(os.environ.get("AB_ARMS", "snap_on,snap_off").split(","))
+RUNS = tuple(int(v) for v in os.environ.get("AB_RUNS", "1,2").split(","))
 ALIGN = ROOT / "bbox_testing" / "round_03" / "align.py"
 CELLS = ("item_code", "description", "qty", "uom", "unit_price", "amount")
 
