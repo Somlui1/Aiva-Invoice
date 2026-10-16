@@ -96,6 +96,8 @@ export interface UsePdfViewerResult {
   pageSize: SizeBox
   /** Re-fetch the document (used by the dock's retry affordance). */
   reload: () => void
+  /** The opened PDFDocumentProxy for multi-page continuous rendering. */
+  pdfDoc?: PDFDocumentProxy | null
 }
 
 export function generateRefCode(id: string | null): string {
@@ -292,5 +294,5 @@ export function usePdfViewer({
       renderRef.current = null
     }
   }, [status.state, status.source, page, rotation, zoom, containerWidth, devicePixelRatio, fallBack])
-  return { status, canvasRef, pageSize, reload }
+  return { status, canvasRef, pageSize, reload, pdfDoc: pdfRef.current }
 }

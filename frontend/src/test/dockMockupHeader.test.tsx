@@ -237,6 +237,12 @@ describe('PDF Dock Mockup-Faithful 3-Tier Header & Controls', () => {
     expect(container.querySelector('#dock')).not.toBeNull()
     expect(container.querySelector('.dock-h')).not.toBeNull()
     expect(container.querySelector('.dock-tb')).not.toBeNull()
+
+    // Clean PDF first by default; clicking "หลักฐาน" reveals Tier 3 (.evbar)
+    const evidenceBtn = container.querySelector('.dock-tb .seg button:last-child') as HTMLButtonElement
+    act(() => {
+      evidenceBtn?.click()
+    })
     expect(container.querySelector('.evbar')).not.toBeNull()
     expect(container.querySelector('#dockFoot')).not.toBeNull()
     expect(container.querySelector('#dockFoot')?.textContent).toContain('ลิงก์ชั่วคราว 10 นาที')
