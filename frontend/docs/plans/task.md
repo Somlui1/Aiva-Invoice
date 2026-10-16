@@ -86,7 +86,7 @@
 | audit-company-brainstorm | Complete Brainstorming & Architecture Design | completed | Approved by user; saved to docs/plans/2026-10-16-unified-audit-logs-and-oracle-company-master-design.md; commit 5e02391 |
 | audit-company-plan | Generate Detailed Implementation Plan | completed | Written to docs/plans/2026-10-16-unified-audit-logs-and-oracle-company-master.md |
 | task-db-company-foundation | Database Foundation (`Company` model, `AuditLog` category) & 26-Company Seed | completed | Tested & verified: AuditLog category/metadataJson, Company model in SQLite, 26 real AAPICO entities auto-seeded (src/test/companyModel.test.ts 4/4 pass) |
-| task-company-mcp-sync | Company Search API (`/api/companies`) & Live Oracle MCP Sync | pending | GET search endpoint & live APPS.HR_OPERATING_UNITS query in /api/oracle/sync-companies |
+| task-company-mcp-sync | Company Search API (`/api/companies`) & Live Oracle MCP Sync | completed | Tested & verified: GET /api/companies with search & live MCP upsert in /api/oracle/sync-companies (src/test/companyApiSync.test.ts 3/3 pass, oracleCompanySync.test.ts 1/1 pass) |
 | task-rbac-diff-logging | User Provisioning & Permission Change Diff Audit Logging (`/api/users`) | pending | Calculate before/after diffs for role, companies, receivers in metadataJson |
 | task-audit-multitype-api | Multi-Type Scoped Audit Logs API (`/api/audit-logs`) | pending | Support category and search query params with strict RBAC security scoping |
 | task-unified-audit-ui | Unified Audit Logs UI with Search & Category Dropdown (`AuditPage.tsx`) | pending | Render unified table, text search input, category dropdown, and change badges |
