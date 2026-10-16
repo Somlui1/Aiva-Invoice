@@ -83,3 +83,12 @@
 | task-pdf-scroll | PDF Default Evidence State & Continuous Multi-Page Vertical Scroll | completed | Tested & verified: defaults to clean document without evidence; multi-page continuous vertical scroll; commit 01942b3 |
 | task-docker-decouple | Decoupled Microservice Docker Configurations & Healthcheck | completed | Tested & verified: standalone docker-compose.frontend.yml, engine.yml, and compose profiles; commit e7d2c72 |
 | task-full-verify | Full Regression Verification & Live Integration Pass | completed | Full vitest suite 47/47 files (270/270 tests) passed; tsc --noEmit passed clean (0 errors); Next.js 15 standalone production build (19/19 routes) clean |
+| audit-company-brainstorm | Complete Brainstorming & Architecture Design | completed | Approved by user; saved to docs/plans/2026-10-16-unified-audit-logs-and-oracle-company-master-design.md; commit 5e02391 |
+| audit-company-plan | Generate Detailed Implementation Plan | completed | Written to docs/plans/2026-10-16-unified-audit-logs-and-oracle-company-master.md |
+| task-db-company-foundation | Database Foundation (`Company` model, `AuditLog` category) & 26-Company Seed | pending | Extend schema.prisma, run prisma db push, seed 26 AAPICO companies |
+| task-company-mcp-sync | Company Search API (`/api/companies`) & Live Oracle MCP Sync | pending | GET search endpoint & live APPS.HR_OPERATING_UNITS query in /api/oracle/sync-companies |
+| task-rbac-diff-logging | User Provisioning & Permission Change Diff Audit Logging (`/api/users`) | pending | Calculate before/after diffs for role, companies, receivers in metadataJson |
+| task-audit-multitype-api | Multi-Type Scoped Audit Logs API (`/api/audit-logs`) | pending | Support category and search query params with strict RBAC security scoping |
+| task-unified-audit-ui | Unified Audit Logs UI with Search & Category Dropdown (`AuditPage.tsx`) | pending | Render unified table, text search input, category dropdown, and change badges |
+| task-rbac-company-search-ui | RbacPage Tab 3 Instant Search & Live MCP Sync UI | pending | Instant search filter across 26 companies with live sync button feedback |
+| task-audit-company-full-verify | Full Regression Verification & Integration Pass | pending | Run full test suite, tsc typecheck, and next build |
