@@ -66,5 +66,11 @@
 | cleanup-task-5 | Audit Log Security Scoping API & AuditPage Integration | completed | Scoped /api/audit-logs by identity & company, AuditPage; commit cfc33ff |
 | cleanup-task-6 | Login Page Production Cleanup | completed | Purge yellow MockBar and demo disclaimers from /login; commit b302e80 |
 | cleanup-task-7 | Queue Receiver Filtering by Oracle Account | completed | Interactive receiver filter chips for EU role in QueueToolbar; commit 44d5d3a |
-| cleanup-task-8 | Full End-to-End Regression & Verification Pass | completed | Full vitest suite 40/40 files (249/249 tests pass exit 0); npx tsc --noEmit clean; Next.js 15 production build 19/19 routes clean; commit 24278ab |
+| prod-v5-task-1 | Super Admin (SA) Role Refactoring & RBAC Matrix Update | completed | Refactored role itsupport to SA, updated Matrix column and Admin Grid dropdown (14/14 tests pass); commit 4d3e87a |
+| prod-v5-task-2 | Purge Fake Oracle Accounts from Seed & Initial Maps | completed | Clean slate for INITIAL_MAPS and EU receiver accounts, tests pass; commit 4d729ea |
+| prod-v5-task-3 | Login Page Polish, Explainer Animation Speedup & Play Bugfix | completed | Purged DMS note, fixed play button hover freeze, doubled animation speed (5/5 tests pass); commit 97c2982 |
+| prod-v5-task-4 | Strict Authentication Guard & No Default IT Support | completed | Strict route guard to /login when unauthenticated, ANONYMOUS_USER, tests pass; commit ba83127 |
+| prod-v5-task-5 | Ingest Real Dataset (paperless_invoices_v5) into Portal Database & Default State | completed | 125 real documents ingested into dev.db & initialDocs.ts; matches summary.json (51/23/12/39); 58/58 tests pass, tsc clean; commit pending |
+| prod-v5-task-6 | Complete Production Docker Compose & Dockerfiles | in_progress | Create Dockerfile.frontend, Dockerfile.engine, docker-compose.prod.yml with volumes |
+| prod-v5-task-7 | Full Verification & Integration Regression | pending | Run test suite, typecheck, Next.js standalone build, and Docker dry-run |
 
