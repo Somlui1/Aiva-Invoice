@@ -347,11 +347,57 @@ def _present(v) -> Optional[bool]:
     return None
 
 
+def drop_reprint_pages(reads: dict, selected: list[int]) -> tuple[list[int], list[dict]]:
+    """Drop pages that repeat another page's rows and totals - the same sheet printed again.
+
+    :func:`select_invoice_pages` keeps every page whose printed marker differs, because a stamped
+    continuation sheet has to survive that decision; the price of that safety is a document handed over as
+    four identical sheets (DMS-134, round 4: one ``ENERGIZER … 231.00`` row read three times under a single
+    231.00 subtotal).  Comparing what was actually extracted is the check selection could not make - it
+    only becomes possible after the pages have been read.
+
+    A page that came back with no rows is never dropped: that may be the sheet carrying the stamp and the
+    signatures, and its evidence is worth more than the duplicate rows it cannot have.
+    """
+    kept: list[int] = []
+    seen: dict[tuple, int] = {}
+    reprints: list[dict] = []
+    for p in selected:
+        answer = getattr(reads.get(p), "answer", None) or {}
+        head, rows = _page_signature(answer)
+        if not rows:
+            kept.append(p)
+            continue
+        key = (head, rows)
+        if key in seen:
+            reprints.append({"page": p, "same_as_page": seen[key], "rows": len(rows),
+                             "invoice_num": _raw((answer.get("fields") or {}).get("invoice_num"))})
+            continue
+        seen[key] = p
+        kept.append(p)
+    return kept, reprints
+
+
+def _page_signature(answer: dict) -> tuple:
+    """The two things that say "this is the same sheet": the header totals and the row cells."""
+    f = (answer or {}).get("fields") or {}
+    head = tuple(norm_key(_raw(f.get(k))) for k in ("invoice_num", "sub_total", "vat", "grand_total"))
+    rows: list[tuple] = []
+    for row in (answer or {}).get("line_items") or []:
+        if not isinstance(row, dict):
+            continue
+        cells = tuple(norm_key(_raw(row.get(k))) for k in CELLS)
+        if any(cells):
+            rows.append(cells)
+    return head, tuple(rows)
+
+
 def build_extraction(*, package_id: str, dms_doc_id: str, sha: str, page_infos: list[PageInfo],
                      classified: list[dict], selection: dict, reads: dict[int, PageAnswer],
                      page_errors: dict, calls: list, model: str, prompt_version: str,
                      timings: dict, page_orientations: Optional[dict] = None) -> ExtractionResult:
     selected = [p for p in selection["selected"] if p in reads]
+    selected, reprint_pages = drop_reprint_pages(reads, selected)
     # ---------------------------------------------------------------- fields
     fields: dict[str, RawField] = {}
     field_page: dict[str, int] = {}
@@ -486,6 +532,7 @@ def build_extraction(*, package_id: str, dms_doc_id: str, sha: str, page_infos: 
                            for it in items],
             "folded_rows": [{k: v for k, v in f.items()} for f in folded],
             "excluded_rows": [{k: v for k, v in e.items()} for e in excluded],
+            "reprint_pages": reprint_pages,
             "coord_mode_by_page": {str(p): reads[p].coord for p in reads},
             "orientation": {str(p): {"r": o.r, "confidence": o.confidence, "uncertain": o.uncertain,
                                      "skew": o.skew, "total": o.total, "runtime": o.runtime}

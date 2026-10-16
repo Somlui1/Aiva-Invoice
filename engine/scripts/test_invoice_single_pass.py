@@ -30,6 +30,7 @@ import re
 import sys
 import threading
 import time
+from types import SimpleNamespace
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -51,7 +52,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))
 
-from system_a.perception.single_pass import select_invoice_pages   # ONE page-selection rule: the engine's
+from system_a.perception.single_pass import drop_reprint_pages, select_invoice_pages   # ONE rule per decision
 
 # Load environment
 _env_path = ROOT / ".env"
@@ -813,6 +814,7 @@ def process_single_doc(
         all_regions: List[dict] = []
         step2_times: List[float] = []
         pages_debug: List[dict] = []
+        answers_by_page: Dict[int, dict] = {}
 
         for p_no in selected_pages:
             img = pages_by_num.get(p_no)
@@ -835,6 +837,7 @@ def process_single_doc(
                 step2_times.append(t_extract)
                 raw_fields_map = extract_res.get("fields") or extract_res.get("required_fields") or {}
             raw_line_items = extract_res.get("line_items") or []
+            answers_by_page[p_no] = extract_res
             raw_regions = extract_res.get("regions") or []
 
             for _l in raw_line_items:            # measure rows from their own cells (see row_bbox)
@@ -1012,6 +1015,16 @@ def process_single_doc(
                 log(f"        Digit re-check disagreed on: {recheck_summary['disagreed']}")
 
         # Save validation_payload.json with complete new schema
+        # The same sheet printed twice must not add its rows a second time (DMS-134: one 231.00 row read
+        # three times under one subtotal).  The engine's own rule decides - it is not re-implemented here.
+        _kept, reprint_pages = drop_reprint_pages({p: SimpleNamespace(answer=a) for p, a in answers_by_page.items()},
+                                                  sorted(answers_by_page))
+        if reprint_pages:
+            _dropped = {r["page"] for r in reprint_pages}
+            all_line_items = [r for r in all_line_items if r.get("page_no") not in _dropped]
+            log(f"        Re-print sheet(s) not counted as extra rows: "
+                f"{[(r['page'], r['same_as_page']) for r in reprint_pages]}")
+
         validation_payload = {
             "doc_id": doc_id,
             "document_title": meta.get("title") or f"DMS-{doc_id}",
@@ -1037,6 +1050,7 @@ def process_single_doc(
             "classify_empty": not pages_classification,
             "selection": selection_info,
             "pages_debug": pages_debug,
+            "reprint_pages": reprint_pages,
             "step1_classify_seconds": round(t_classify, 2),
             "step2_extract_seconds": [round(t, 2) for t in step2_times],
             "total_seconds": total_duration,

@@ -2704,3 +2704,72 @@ def test_page_debug_survives_the_null_boxes_the_model_answers():
                               coord_mode="norm1000", answer=answer)
     assert dbg["fields"] == {"vat": [900.0, 800.0, 950.0, 812.0]}
     assert dbg["lines"][0] == {"line_no": 1}
+
+
+# ---------------------------------------------------------------- Round 4: re-print sheets must not multiply rows
+def _sheet(num="IV-1", total="231.00", rows=None):
+    return {"fields": {"invoice_num": {"raw": num}, "sub_total": {"raw": total}, "grand_total": {"raw": total}},
+            "line_items": rows if rows is not None else [_cell_row("ENERGIZER MAX 12V", "1", "231.00", "231.00")]}
+
+
+def _cell_row(desc, qty, price, amount):
+    return {"item_code": {"raw": ""}, "description": {"raw": desc}, "qty": {"raw": qty},
+            "uom": {"raw": "PCS"}, "unit_price": {"raw": price}, "amount": {"raw": amount}}
+
+
+def _pages(**by_page):
+    """``_pages(p1=..., p2=...)`` -> ``{1: page, 2: page}`` with just enough of a ``PageAnswer``."""
+    from types import SimpleNamespace
+    return {int(k.lstrip("p")): SimpleNamespace(answer=v) for k, v in by_page.items()}
+
+
+def test_a_second_sheet_with_the_same_rows_is_a_reprint_not_more_rows():
+    """Same document number, same totals, same rows on the next page = the same sheet printed again.
+
+    Measured on DMS-134 (round 4): pages 1-4 all came back as invoice pages, each repeating the single
+    ``ENERGIZER … 231.00`` row, so the extraction carried that row three times under one ``sub_total`` of
+    231.00.  A row read twice is money that was never spent.
+    """
+    from system_a.perception.single_pass import drop_reprint_pages
+    reads = _pages(p1=_sheet(), p2=_sheet(), p3=_sheet())
+    kept, reprints = drop_reprint_pages(reads, [1, 2, 3])
+    assert kept == [1], f"a re-print adds no page to the reading list, got {kept}"
+    assert [r["page"] for r in reprints] == [2, 3]
+
+
+def test_a_continuation_sheet_with_other_rows_is_never_dropped():
+    """The opposite rule: a second sheet carrying different rows is the rest of the invoice."""
+    from system_a.perception.single_pass import drop_reprint_pages
+    reads = _pages(p1=_sheet(rows=[_cell_row("A", "1", "10.00", "10.00")]),
+                   p2=_sheet(rows=[_cell_row("B", "2", "20.00", "40.00")]))
+    kept, reprints = drop_reprint_pages(reads, [1, 2])
+    assert kept == [1, 2] and reprints == []
+
+
+def test_two_identical_rows_on_the_same_page_are_both_kept():
+    """Bought the same part twice on one sheet - collapsing inside a page would silently delete money."""
+    from system_a.perception.single_pass import drop_reprint_pages
+    dup = [_cell_row("A", "1", "10.00", "10.00"), _cell_row("A", "1", "10.00", "10.00")]
+    reads = _pages(p1=_sheet(rows=dup), p2=_sheet(rows=dup))
+    kept, reprints = drop_reprint_pages(reads, [1, 2])
+    assert kept == [1] and [r["page"] for r in reprints] == [2]
+    assert len(reads[1].answer["line_items"]) == 2, "nothing inside a kept page may be touched"
+
+
+def test_a_row_less_page_is_kept_even_when_the_totals_match():
+    """A signature/stamp sheet carries no rows; dropping it would erase the signature evidence."""
+    from system_a.perception.single_pass import drop_reprint_pages
+    reads = _pages(p1=_sheet(),
+                   p2={"fields": {"invoice_num": {"raw": "IV-1"}, "grand_total": {"raw": "231.00"}},
+                       "line_items": [], "regions": [{"label": "company_stamp"}]})
+    kept, reprints = drop_reprint_pages(reads, [1, 2])
+    assert kept == [1, 2] and reprints == []
+
+
+def test_the_audit_uses_the_engines_reprint_rule_too():
+    """One rule per decision, again: the audit used to keep its own copy of the page-selection rules and it
+    drifted silently, so the re-print decision is imported from the engine, not re-typed here.
+    """
+    from system_a.perception.single_pass import drop_reprint_pages
+    mod = _audit_script()
+    assert mod.drop_reprint_pages is drop_reprint_pages
