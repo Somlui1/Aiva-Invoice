@@ -1,0 +1,423 @@
+{
+    "$comment": "AIVA Web Portal Data Contract Specification (Engine v3.0 / Portal v4.18). Required Engine fields: oracle_snapshot.receipt_lines (with po_number per line to support multi-PO invoices), ocr.elements (with 10 element_type categories), normalized_fields, rule_results (V-01..V-09), evidence, exceptions, recommendation. Portal-owned fields (workflow state, assigned user, duplicate override, history) are managed internally by the portal.",
+    "contract": "aiva.system_a.result/3.0",
+    "request": {
+        "validation_id": "VAL-DMS100-001",
+        "dms_doc_id": "DMS-2026-000100",
+        "content_kind": "pdf",
+        "uploaded_by": "SOMSAK.J",
+        "uploaded_at": "2026-10-07T08:00:00+07:00",
+        "completed_at": "2026-10-07T08:00:06+07:00"
+    },
+    "package": {
+        "package_id": "PKG-000100",
+        "dms_doc_id": "DMS-2026-000100",
+        "file_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "page_count": 1,
+        "coordinate_system": "norm1000"
+    },
+    "identity": {
+        "status": "RESOLVED",
+        "reason": "FOUND",
+        "receive_id": "530336710",
+        "lookup_path": "TAX-INV",
+        "missing_keys": []
+    },
+    "normalized_fields": {
+        "invoice_num": "INV-2026-001",
+        "invoice_date": "2026-10-05",
+        "supplier_tax_id": "0105546011116",
+        "supplier_name": "DELTA TRADING CO., LTD.",
+        "customer_tax_id": "0107545000179",
+        "customer_name": "บริษัท อาปิโก ไฮเทค จำกัด (มหาชน)",
+        "po_number": "43026973",
+        "sub_total": 194116.4,
+        "vat": 13588.15,
+        "grand_total": 207704.55,
+        "items": [
+            {
+                "line_no": 1,
+                "description": "PLATE ASSY-FLUIDE G",
+                "qty": 240,
+                "uom": "PCS",
+                "unit_price": 789.6,
+                "amount": 189504.0,
+                "page_no": 1,
+                "element_id": "el-item-1",
+                "match": {
+                    "level": "M1",
+                    "rcv_line_ids": [
+                        "530336710-1"
+                    ],
+                    "receipt": [
+                        {
+                            "qty": 240,
+                            "unit_price": 789.6
+                        }
+                    ]
+                },
+                "qty_check": {
+                    "result": "pass"
+                },
+                "line_math": {
+                    "ok": true
+                }
+            },
+            {
+                "line_no": 2,
+                "description": "HOOK ASSY-RR TOWING",
+                "qty": 248,
+                "uom": "PCS",
+                "unit_price": 16.15,
+                "amount": 4005.2,
+                "page_no": 1,
+                "element_id": "el-item-2",
+                "match": {
+                    "level": "M1",
+                    "rcv_line_ids": [
+                        "530336710-2"
+                    ],
+                    "receipt": [
+                        {
+                            "qty": 248,
+                            "unit_price": 16.15
+                        }
+                    ]
+                },
+                "qty_check": {
+                    "result": "pass"
+                },
+                "line_math": {
+                    "ok": true
+                }
+            },
+            {
+                "line_no": 3,
+                "description": "BRKT ASSY-FR UNDER",
+                "qty": 80,
+                "uom": "PCS",
+                "unit_price": 7.59,
+                "amount": 607.2,
+                "page_no": 1,
+                "element_id": "el-item-3",
+                "match": {
+                    "level": "M1",
+                    "rcv_line_ids": [
+                        "530336710-3"
+                    ],
+                    "receipt": [
+                        {
+                            "qty": 80,
+                            "unit_price": 7.59
+                        }
+                    ]
+                },
+                "qty_check": {
+                    "result": "pass"
+                },
+                "line_math": {
+                    "ok": true
+                }
+            }
+        ]
+    },
+    "oracle_snapshot": {
+        "org_id": 195,
+        "ou_name": "Aapico Hitech Tooling Legal",
+        "receiver": "AHT Die Making 03, K.Vinitda Jitpilai",
+        "receipt_nums": [
+            "530336710"
+        ],
+        "po_numbers": [
+            "43026973",
+            "43041729",
+            "43043027"
+        ],
+        "receipt_lines": [
+            {
+                "po_number": "43026973",
+                "receipt_num": "530336710",
+                "line": 1,
+                "rcv_line_id": "530336710-1",
+                "item_code": "507A04JJ0A",
+                "item": "507A04JJ0A PLATE ASSY-FLUIDE G",
+                "qty": 240,
+                "uom": "PCS",
+                "unit_price": 789.6,
+                "line_amount": 189504.0,
+                "qty_billed": 0,
+                "line_status": "FULLY RECEIVED",
+                "po_line_status": "CLOSED",
+                "receiver": "AHT Die Making 03, K.Vinitda Jitpilai",
+                "extra": {
+                    "PO_NUM": "43026973",
+                    "SHIPMENT_NUM": "INV-2026-001",
+                    "PACKING_SLIP": "INV-2026-001"
+                }
+            },
+            {
+                "po_number": "43041729",
+                "receipt_num": "530336710",
+                "line": 2,
+                "rcv_line_id": "530336710-2",
+                "item_code": "511305KA0A",
+                "item": "511305KA0A HOOK ASSY-RR TOWING",
+                "qty": 248,
+                "uom": "PCS",
+                "unit_price": 16.15,
+                "line_amount": 4005.2,
+                "qty_billed": 0,
+                "line_status": "FULLY RECEIVED",
+                "po_line_status": "CLOSED",
+                "receiver": "AHT Die Making 03, K.Vinitda Jitpilai",
+                "extra": {
+                    "PO_NUM": "43041729",
+                    "SHIPMENT_NUM": "INV-2026-001"
+                }
+            },
+            {
+                "po_number": "43043027",
+                "receipt_num": "530336710",
+                "line": 3,
+                "rcv_line_id": "530336710-3",
+                "item_code": "509908AM0B",
+                "item": "509908AM0B BRKT ASSY-FR UNDER",
+                "qty": 80,
+                "uom": "PCS",
+                "unit_price": 7.59,
+                "line_amount": 607.2,
+                "qty_billed": 0,
+                "line_status": "FULLY RECEIVED",
+                "po_line_status": "CLOSED",
+                "receiver": "AHT Die Making 03, K.Vinitda Jitpilai",
+                "extra": {
+                    "PO_NUM": "43043027",
+                    "SHIPMENT_NUM": "INV-2026-001"
+                }
+            }
+        ]
+    },
+    "pages": [
+        {
+            "page_no": 1,
+            "width_pt": 595.28,
+            "height_pt": 841.89,
+            "rotation": 0,
+            "page_type": "TAX_INVOICE"
+        }
+    ],
+    "ocr": {
+        "elements": [
+            {
+                "element_id": "el-hdr-doc-title",
+                "document_id": "D0",
+                "page_no": 1,
+                "bbox": [0.45, 0.02, 0.50, 0.04],
+                "element_type": "header",
+                "field_name": "doc_title",
+                "raw_value": "ต้นฉบับใบกำกับภาษี / ORIGINAL TAX INVOICE",
+                "confidence": 0.98
+            },
+            {
+                "element_id": "el-sup-name",
+                "document_id": "D0",
+                "page_no": 1,
+                "bbox": [0.10, 0.02, 0.32, 0.04],
+                "element_type": "supplier",
+                "field_name": "supplier_name",
+                "raw_value": "DELTA TRADING CO., LTD.",
+                "confidence": 0.99
+            },
+            {
+                "element_id": "el-cus-name",
+                "document_id": "D0",
+                "page_no": 1,
+                "bbox": [0.02, 0.19, 0.35, 0.03],
+                "element_type": "customer",
+                "field_name": "customer_name",
+                "raw_value": "บริษัท อาปิโก ไฮเทค จำกัด (มหาชน)",
+                "confidence": 0.97
+            },
+            {
+                "element_id": "el-tbl-header",
+                "document_id": "D0",
+                "page_no": 1,
+                "bbox": [0.02, 0.31, 0.93, 0.03],
+                "element_type": "table",
+                "field_name": "table_header",
+                "raw_value": "ลำดับ รายการ จำนวน หน่วย ราคา จำนวนเงิน",
+                "confidence": 0.95
+            },
+            {
+                "element_id": "el-line-1",
+                "document_id": "D0",
+                "page_no": 1,
+                "bbox": [0.02, 0.34, 0.93, 0.02],
+                "element_type": "line",
+                "field_name": "line_1",
+                "raw_value": "1 PLATE ASSY-FLUIDE G 240 PCS 789.60 189,504.00",
+                "confidence": 0.96
+            },
+            {
+                "element_id": "el-tot-subtotal",
+                "document_id": "D0",
+                "page_no": 1,
+                "bbox": [0.54, 0.67, 0.41, 0.03],
+                "element_type": "total",
+                "field_name": "sub_total",
+                "raw_value": "รวมเงิน 194,116.40",
+                "confidence": 0.98
+            },
+            {
+                "element_id": "el-pay-term",
+                "document_id": "D0",
+                "page_no": 1,
+                "bbox": [0.59, 0.25, 0.30, 0.02],
+                "element_type": "payment",
+                "field_name": "credit_term",
+                "raw_value": "กำหนดชำระเงิน 60 วัน",
+                "confidence": 0.93
+            },
+            {
+                "element_id": "el-sig-rcv",
+                "document_id": "D0",
+                "page_no": 1,
+                "bbox": [0.15, 0.85, 0.25, 0.08],
+                "element_type": "signature",
+                "field_name": "signatures.receiver",
+                "raw_value": "signed",
+                "confidence": 0.95
+            },
+            {
+                "element_id": "el-stamp-co",
+                "document_id": "D0",
+                "page_no": 1,
+                "bbox": [0.24, 0.54, 0.21, 0.08],
+                "element_type": "stamp",
+                "field_name": "company_stamp",
+                "raw_value": "DIE ENGINEER MANAGER",
+                "confidence": 0.91
+            },
+            {
+                "element_id": "el-oth-note",
+                "document_id": "D0",
+                "page_no": 1,
+                "bbox": [0.02, 0.71, 0.23, 0.02],
+                "element_type": "other",
+                "field_name": "remark",
+                "raw_value": "หมายเหตุ : งานด่วน",
+                "confidence": 0.90
+            }
+        ]
+    },
+    "rule_results": [
+        {
+            "rule_id": "V-01",
+            "rule_version": "6.10",
+            "result": "pass",
+            "evidence_ids": []
+        },
+        {
+            "rule_id": "V-02",
+            "rule_version": "6.10",
+            "result": "pass",
+            "evidence_ids": []
+        },
+        {
+            "rule_id": "V-03",
+            "rule_version": "6.10",
+            "result": "pass",
+            "evidence_ids": []
+        },
+        {
+            "rule_id": "V-04",
+            "rule_version": "6.10",
+            "result": "pass",
+            "evidence_ids": []
+        },
+        {
+            "rule_id": "V-05",
+            "rule_version": "6.10",
+            "result": "pass",
+            "evidence_ids": []
+        },
+        {
+            "rule_id": "V-06",
+            "rule_version": "6.10",
+            "result": "fail",
+            "evidence_ids": [
+                "EV-06-01"
+            ]
+        },
+        {
+            "rule_id": "V-07",
+            "rule_version": "6.10",
+            "result": "pass",
+            "evidence_ids": []
+        },
+        {
+            "rule_id": "V-08",
+            "rule_version": "6.10",
+            "result": "pass",
+            "evidence_ids": []
+        },
+        {
+            "rule_id": "V-09",
+            "rule_version": "6.10",
+            "result": "pass",
+            "evidence_ids": []
+        }
+    ],
+    "exceptions": [
+        {
+            "exception_id": "EX-001",
+            "code": "E08",
+            "name": "Signature Missing",
+            "severity": "High",
+            "rule_id": "V-06",
+            "evidence_ids": [
+                "EV-06-01"
+            ]
+        }
+    ],
+    "evidence": [
+        {
+            "evidence_id": "EV-06-01",
+            "rule_id": "V-06",
+            "exception_code": "E08",
+            "severity": "High",
+            "message_th": "ไม่พบลายเซ็นหรือตราในช่องผู้รับของ",
+            "actual_value": null,
+            "expected_value": "ลายเซ็นผู้รับของ",
+            "evaluated_at": "2026-10-07T08:00:05+07:00",
+            "bboxes": [
+                {
+                    "element_id": "el-sig-rcv",
+                    "page_no": 1,
+                    "bbox": [
+                        0.15,
+                        0.85,
+                        0.25,
+                        0.08
+                    ]
+                }
+            ]
+        }
+    ],
+    "recommendation": {
+        "value": "HOLD",
+        "max_severity": "High",
+        "exception_codes": [
+            "E08"
+        ]
+    },
+    "summary": {
+        "invoice": {
+            "currency": "THB"
+        },
+        "items_summary": {
+            "line_count": 3,
+            "lines_matched": 3
+        }
+    }
+}
