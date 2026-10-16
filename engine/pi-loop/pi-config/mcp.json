@@ -1,0 +1,10 @@
+{
+  "settings": { "toolPrefix": "mcp", "idleTimeout": 10 },
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/workspace"],
+      "lifecycle": "lazy"
+    }
+  }
+}

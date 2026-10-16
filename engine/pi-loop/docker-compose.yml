@@ -1,0 +1,26 @@
+services:
+  pi:
+    build: .
+    image: pi-agent-loop:latest
+    container_name: pi-agent-loop
+    privileged: true            # full privileges
+    user: root
+    network_mode: host          # reach 10.10.x.x LLM servers and host's 127.0.0.1:11434
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    restart: "no"
+    env_file:
+      - ../.env
+    environment:
+      TASK_FILE: /workspace/docs/plans/2026-10-15-ocr-bbox-autonomous-improvement-loop.md
+      DONE_FILE: /workspace/.pi_done
+      VERIFY_CMD: ${VERIFY_CMD:-}      # e.g. "pytest -q" (empty = use .pi_done marker)
+      MAX_ITER: ${MAX_ITER:-8}         # Max 8 rounds matching the plan
+      PYTHONPATH: /workspace/src
+      RENDER_DPI: 130
+      OPENAI_BASE_URL: ${LITELLM_URL:-http://10.10.3.112:4000/v1}
+      OPENAI_API_KEY: ${LITELLM_API_KEY:-}
+    volumes:
+      - ..:/workspace                  # mount engine/ directory directly to /workspace
+      - ./pi-config:/root/.pi/agent    # models.json, settings.json, mcp.json, sessions
