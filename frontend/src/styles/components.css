@@ -1090,4 +1090,74 @@ kbd {
   100% { background-position: 0% 50%; }
 }
 
+/* Unified Audit Log Category Badges & Toolbar */
+.audit-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.audit-search-input {
+  padding: 6px 12px;
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 6px;
+  font-size: 13px;
+  background: var(--bg-card, #ffffff);
+  color: var(--text-primary, #111827);
+  min-width: 280px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.audit-search-input:focus {
+  outline: none;
+  border-color: #0d9488;
+  box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.2);
+}
+
+.audit-cat-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.audit-cat-ingest {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.audit-cat-doc {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+
+.audit-cat-ap {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.audit-cat-user {
+  background: #d1fae5;
+  color: #047857;
+}
+
+.audit-cat-perm {
+  background: #f3e8ff;
+  color: #7e22ce;
+}
+
+.audit-cat-auth {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.audit-cat-sync {
+  background: #ccfbf1;
+  color: #0f766e;
+}
+
 

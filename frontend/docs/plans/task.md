@@ -89,6 +89,6 @@
 | task-company-mcp-sync | Company Search API (`/api/companies`) & Live Oracle MCP Sync | completed | Tested & verified: GET /api/companies with search & live MCP upsert in /api/oracle/sync-companies (src/test/companyApiSync.test.ts 3/3 pass, oracleCompanySync.test.ts 1/1 pass) |
 | task-rbac-diff-logging | User Provisioning & Permission Change Diff Audit Logging (`/api/users`) | completed | Tested & verified: RBAC_USER on create, RBAC_PERMISSION on update with diff metadataJson (src/test/userDiffAudit.test.ts 2/2 pass) |
 | task-audit-multitype-api | Multi-Type Scoped Audit Logs API (`/api/audit-logs`) | completed | Tested & verified: category and search query params, non-admin RBAC scoping, metadataJson included (src/test/auditLogMultiType.test.ts 4/4 pass, auditLogScoping.test.ts 3/3 pass) |
-| task-unified-audit-ui | Unified Audit Logs UI with Search & Category Dropdown (`AuditPage.tsx`) | pending | Render unified table, text search input, category dropdown, and change badges |
+| task-unified-audit-ui | Unified Audit Logs UI with Search & Category Dropdown (`AuditPage.tsx`) | completed | Tested & verified: text search, category dropdown, role-based categories, and category badges (src/test/unifiedAuditPage.test.tsx 3/3 pass) |
 | task-rbac-company-search-ui | RbacPage Tab 3 Instant Search & Live MCP Sync UI | pending | Instant search filter across 26 companies with live sync button feedback |
 | task-audit-company-full-verify | Full Regression Verification & Integration Pass | pending | Run full test suite, tsc typecheck, and next build |
