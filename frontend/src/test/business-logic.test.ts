@@ -9,22 +9,22 @@ describe('Business Logic & Access Control Tests', () => {
     const accUser = USERS.find(u => u.id === 'u4')! // panida in AH, AHT
     const admUser = USERS.find(u => u.id === 'u7')! // IT Admin (scope: none)
 
-    // Document for Somsak Jaidee in AH
-    const doc1 = INITIAL_DOCS.find(d => d.receiver === 'SOMSAK JAIDEE' && d.company === 'AH')!
+    // Document for receiver in AH
+    const doc1 = INITIAL_DOCS.find(d => Boolean(d.receiver) && d.company === 'AH')!
     expect(doc1).toBeDefined()
 
     // EU can see their own doc in their company when mapped
     const sampleMaps = [
-      { id: 'm1', user: 'u1', acct: 'SOMSAK JAIDEE', by: 'admin', at: '2026-10-01', req: 'ticket-101' }
+      { id: 'm1', user: 'u1', acct: doc1.receiver!, by: 'admin', at: '2026-10-01', req: 'ticket-101' }
     ]
     const euAccounts = acctsOf(euUser, sampleMaps)
-    expect(euAccounts).toContain('SOMSAK JAIDEE')
+    expect(euAccounts).toContain(doc1.receiver!)
     expect(euUser.co).toContain(doc1.company)
 
-    // Document for Wilaiwan in AHT
-    const doc2 = INITIAL_DOCS.find(d => d.receiver === 'WILAIWAN SRISUK')!
+    // Document for another receiver
+    const doc2 = INITIAL_DOCS.find(d => Boolean(d.receiver) && d.receiver !== doc1.receiver)!
     expect(doc2).toBeDefined()
-    // Somsak cannot see Wilaiwan's doc
+    // Somsak cannot see another receiver's doc
     expect(euAccounts).not.toContain(doc2.receiver)
 
     // ACC can see docs in AH and AHT
@@ -39,7 +39,7 @@ describe('Business Logic & Access Control Tests', () => {
     const sampleMaps = [
       { id: 'm1', user: 'u1', acct: 'SOMSAK JAIDEE', by: 'admin', at: '2026-10-01', req: 'ticket-101' }
     ]
-    // Somsak Jaidee is bound when mapped
+    // Mapped account is bound
     expect(bound('SOMSAK JAIDEE', sampleMaps)).toBe(true)
     // Non-existent receiver account is not bound
     expect(bound('UNBOUND_UNKNOWN_USER', sampleMaps)).toBe(false)

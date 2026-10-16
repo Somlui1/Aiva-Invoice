@@ -6,11 +6,12 @@ import { describe, it, expect } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { AuthProvider } from '../context/AuthContext'
 import { Topbar } from '../components/layout/Topbar'
+import { USERS } from '../mock/users'
 
 describe('Topbar Production Profile & MyProfileModal', () => {
   it('does NOT render demo user-selector dropdown', () => {
     render(
-      <AuthProvider>
+      <AuthProvider initialUser={USERS[0]}>
         <Topbar isNavCollapsed={false} onToggleNav={() => {}} />
       </AuthProvider>
     )
@@ -22,7 +23,7 @@ describe('Topbar Production Profile & MyProfileModal', () => {
 
   it('renders current user name, role badge, and opens MyProfileModal when clicked', async () => {
     render(
-      <AuthProvider>
+      <AuthProvider initialUser={USERS[0]}>
         <Topbar isNavCollapsed={false} onToggleNav={() => {}} />
       </AuthProvider>
     )

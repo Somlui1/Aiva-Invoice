@@ -57,7 +57,7 @@ export function AuthProvider({
         }
       } catch {}
       if (process.env.NODE_ENV === 'test') {
-        return USERS[0]
+        return USERS.find(u => u.role === 'ACC') || USERS[0]
       }
     }
     return ANONYMOUS_USER
