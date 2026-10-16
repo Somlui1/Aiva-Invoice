@@ -689,20 +689,8 @@ _DENIALS = tuple(_fold_wording(w) for w in
 _DENIAL_WINDOW = 10
 
 
-def invoice_wording(text: str) -> str:
-    """Which invoice wording a page actually PRINTS: ``"tax_invoice"`` | ``"invoice"`` | ``""``.
-
-    This gates the reopening of a page-type decision, so it is written to be hard to satisfy:
-
-    * only the printed name of the document counts. A table of items, a VAT column and totals appear on
-      delivery notes and purchase orders too, and the round's forced-extract arm proved a model will read
-      an invoice number off such a page;
-    * a title the page denies is not a title: ``ไม่ใช่ใบกำกับภาษี`` carries the same characters as
-      ``ใบกำกับภาษี`` and must resolve to "not an invoice" (measured on DMS-93/123/124/180/205/206/207);
-    * when both names appear, ``tax_invoice`` wins - what the classify prompt already asks for on combined
-      titles like ``ต้นฉบับใบกำกับภาษี/ใบส่งของ``.
-    """
-    folded = _fold_wording(text)
+def _wording_in(folded: str) -> str:
+    """Which invoice name appears in already-folded text, ignoring occurrences that text denies."""
     found: list[str] = []
     for kind, needles in (("tax_invoice", (_TAX_INVOICE_WORD, _TAX_INVOICE_EN)),
                           ("invoice", (_INVOICE_WORD, _INVOICE_EN))):
@@ -714,6 +702,27 @@ def invoice_wording(text: str) -> str:
                     found.append(kind)
                 at = folded.find(needle, at + 1)
     return "tax_invoice" if "tax_invoice" in found else ("invoice" if "invoice" in found else "")
+
+
+def invoice_wording(text: str, kind_word: str = "") -> str:
+    """Which invoice wording a page prints **as its own document name**: ``tax_invoice`` | ``invoice`` | ``""``.
+
+    This gates the reopening of a page-type decision, so it is written to be hard to satisfy:
+
+    * the name the page gives itself (``kind_word``, from ``kind_word_seen``) is what counts. The wording
+      appearing somewhere else on the page is a different fact: measured on DMS-93/123/205/206/207, whose
+      purchase-order page prints "TAX INVOICE" / "เลขที่ใบกำกับภาษี" while naming itself
+      "PURCHASE ORDER", accepting on wording-found-anywhere reopened five documents that contain no invoice
+      at all - which is inventing an invoice, worse than discarding the document;
+    * only when the page names itself nothing are the quoted lines searched, because a title lands in the
+      first quote when there is one;
+    * a title the page denies is not a title: ``ไม่ใช่ใบกำกับภาษี`` carries the same characters as
+      ``ใบกำกับภาษี`` and must resolve to "not an invoice" (measured on DMS-93/123/124/180/205/206/207);
+    * when both names appear, ``tax_invoice`` wins - what the classify prompt already asks for on combined
+      titles like ``ต้นฉบับใบกำกับภาษี/ใบส่งของ``.
+    """
+    named = _fold_wording(kind_word)
+    return _wording_in(named) if named else _wording_in(_fold_wording(text))
 
 
 def adjudicate_from_env() -> bool:
@@ -812,9 +821,12 @@ class SinglePassPipeline:
                 page_errors["adjudicate"] = f"{type(e).__name__}: {str(e)[:200]}"
                 break
             quote = " | ".join(str(q).strip() for q in ((ans or {}).get("quotes") or []) if str(q).strip())
-            kind = invoice_wording(quote)               # the printed word, not the model's opinion, decides
+            named = str((ans or {}).get("kind_word_seen") or "").strip()
+            # the name the page gives itself decides; tax-invoice wording in someone else's column does not
+            kind = invoice_wording(quote, kind_word=named)
             log.append({"page_no": p, "was": entry["doc_type"], "accepted": kind or False,
-                        "quote": quote[:400], "said_tax_invoice": bool((ans or {}).get("serves_as_tax_invoice")),
+                        "named_as": named[:80], "quote": quote[:400],
+                        "said_tax_invoice": bool((ans or {}).get("serves_as_tax_invoice")),
                         "dpi": self.adjudicate_dpi})
             if kind and entry["doc_type"] not in ("tax_invoice", "invoice"):
                 entry["doc_type"] = kind

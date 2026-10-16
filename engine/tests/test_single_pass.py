@@ -109,13 +109,43 @@ class FakeClient:
 ALL_DELIVERY = {"pages": [{"p": 1, "t": "delivery", "c": "original", "n": "DO-9", "m": "1/1", "r": 0, "h": []},
                          {"p": 2, "t": "po", "c": "original", "n": "PO-9", "m": None, "r": 0, "h": []}]}
 ADJ_COMBINED = {"quotes": ["ต้นฉบับใบกำกับภาษี/ใบส่งของ", "ภาษีมูลค่าเพิ่ม 1,086.75"],
+                "kind_word_seen": "ต้นฉบับใบกำกับภาษี/ใบส่งของ",
                 "serves_as_tax_invoice": True, "serves_as_delivery_note": True}
 ADJ_SELF_EXCLUDED = {"quotes": ["ใบส่งสินค้า", "D/O", "ไม่ใช่ใบกำกับภาษี"],
+                     "kind_word_seen": "ใบส่งสินค้า D/O",
                      "serves_as_tax_invoice": True, "serves_as_delivery_note": True}
 ADJ_PLAIN_DELIVERY = {"quotes": ["ใบส่งสินค้า", "D/O", "รวมเงินทั้งสิ้น 3,200.00"],
+                      "kind_word_seen": "ใบส่งสินค้า",
                       "serves_as_tax_invoice": False, "serves_as_delivery_note": True}
 ADJ_PURCHASE_ORDER = {"quotes": ["ใบสั่งซื้อ", "PURCHASE ORDER", "กำหนดส่งของ"],
+                      "kind_word_seen": "ใบสั่งซื้อ",
                       "serves_as_tax_invoice": False, "serves_as_delivery_note": False}
+#: measured on DMS-93/123/205/206/207: their purchase-order page prints the tax-invoice wording while
+#: naming itself a purchase order (a PO listing the invoices it is claiming against). Words anywhere on the
+#: page reopened all five - which is inventing an invoice, so the name the page gives itself must decide.
+ADJ_PO_CITING_INVOICES = {"quotes": ["ใบสั่งซื้อ", "PURCHASE ORDER", "เลขที่ใบกำกับภาษี",
+                                     "TAX INVOICE", "ภาษีมูลค่าเพิ่ม"],
+                          "kind_word_seen": "PURCHASE ORDER",
+                          "serves_as_tax_invoice": True, "serves_as_delivery_note": False}
+
+
+def test_a_page_that_mentions_an_invoice_is_not_one():
+    """The measured failure mode: a PO page quoting tax-invoice wording reopened five dead documents.
+
+    ``ใบกำกับภาษี`` appearing in a column heading or a cross-reference is not the page's name for itself.
+    Only the wording the page prints AS ITS OWN DOCUMENT NAME (``kind_word_seen``) may reopen the gate; a
+    page that gives no name at all falls back to its first quoted line, which is where a title lands when
+    there is one.
+    """
+    assert invoice_wording("PURCHASE ORDER", kind_word="PURCHASE ORDER") == ""
+    assert invoice_wording("ใบสั่งซื้อ | ใบกำกับภาษี", kind_word="ใบสั่งซื้อ") == ""
+    assert invoice_wording("", kind_word="ต้นฉบับใบกำกับภาษี/ใบส่งของ") == "tax_invoice"
+    assert invoice_wording("", kind_word="") == ""                    # no name, no quotes: no reopening
+    ext = SinglePassPipeline(FakeClient(classify=ALL_DELIVERY, adjudicate=[ADJ_PO_CITING_INVOICES] * 2),
+                             "fake-vl").extract(_pdf(2), package_id="P", dms_doc_id="D")
+    assert ext.extra["invoice_pages"] == []
+    assert ext.fields == {}, "a purchase order must not be delivered as an invoice"
+    assert all(a["accepted"] is False for a in ext.extra["adjudication"])
 
 
 def test_the_wording_on_the_page_decides_a_rescue_not_the_models_opinion():
@@ -184,6 +214,23 @@ def test_a_failed_second_look_leaves_the_original_decision_intact():
     assert ext.extra["invoice_pages"] == []
     assert "adjudicate" in ext.extra["page_errors"]
     assert ext.extra["selection"]["no_invoice_page"] is True
+
+
+def test_the_second_look_changes_evidence_but_the_gate_still_decides():
+    """Reopening a page type must not smuggle a page past the rules that keep a document honest.
+
+    Both pages print a tax-invoice title here, and page 2 carries the same document number and the same
+    printed position as page 1 - the definition of a reprint in ``select_invoice_pages``.  If the second look
+    simply pushed accepted pages into the selection, both would be read and the totals would be double
+    counted; going through the gate keeps exactly one of them.
+    """
+    both = {"pages": [{"p": 1, "t": "delivery", "c": "original", "n": INV, "m": "1/1", "r": 0, "h": []},
+                     {"p": 2, "t": "delivery", "c": "original", "n": INV, "m": "1/1", "r": 0, "h": []}]}
+    ext = SinglePassPipeline(FakeClient(classify=both, adjudicate=[ADJ_COMBINED, ADJ_COMBINED]), "fake-vl").extract(
+        _pdf(2), package_id="P", dms_doc_id="D")
+    assert ext.extra["invoice_pages"] == [1], ext.extra["selection"]
+    dropped = [d.get("page") for d in ext.extra["selection"]["dropped"]]
+    assert 2 in dropped, "page 2 must be dropped as a reprint, not read as a second invoice"
 
 
 def _oracle():
