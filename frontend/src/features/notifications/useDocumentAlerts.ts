@@ -24,7 +24,7 @@ export function useDocumentAlerts() {
   }, [])
 
   useEffect(() => {
-    if (!currentUser || currentUser.role === 'ANONYMOUS') {
+    if (!currentUser || !currentUser.id) {
       return
     }
 
@@ -38,8 +38,8 @@ export function useDocumentAlerts() {
           role: currentUser.role,
         })
 
-        if (currentUser.companies && currentUser.companies.length > 0) {
-          params.set('companies', currentUser.companies.join(','))
+        if (currentUser.co && currentUser.co.length > 0) {
+          params.set('companies', currentUser.co.join(','))
         }
 
         const res = await fetch(`/api/notifications/poll?${params.toString()}`)

@@ -77,9 +77,9 @@
 | prod-ad-auth-scope-fix | Support Dynamic AD Identity, HTTP Cookie & Default Company Scope | completed | Fixed login bounce for all AD accounts; updated AuthContext with rich profile recovery & dynamic AD user fallback; created GET /api/auth/me; dynamic isHttps cookie; default company scope ['AH','AHA','AHT','AHP','AM'] in DB and scopeCheck; 42/42 vitest files (256/256 tests) pass; Next.js build clean |
 | enhancement-brainstorm | Complete Brainstorming & Architecture Design | completed | Approved by user; saved to docs/plans/2026-10-16-production-enhancements-alert-pdf-clean-engine-design.md; commit 4b0f3d7 |
 | enhancement-plan | Generate Detailed Implementation Plan | completed | Written to docs/plans/2026-10-16-production-enhancements-alert-pdf-clean-engine.md; commit 4b8f174 |
-| task-db-clean | Database Clear Scripts (`scripts/clear-database.ts` & `package.json`) & Auto-Seed Guard | pending | Pending execution via execute-plan workflow |
-| task-rbac-alerts | Ingestion Audit Log Creation & Scoped Notification Polling API | pending | Pending execution via execute-plan workflow |
-| task-alert-ui | Real-Time Alert UI (Glassmorphism Toast, Web Audio Chime, Pulse Badge) | pending | Pending execution via execute-plan workflow |
-| task-pdf-scroll | PDF Default Evidence State & Continuous Multi-Page Vertical Scroll | pending | Pending execution via execute-plan workflow |
-| task-docker-decouple | Decoupled Microservice Docker Configurations & Healthcheck | pending | Pending execution via execute-plan workflow |
-| task-full-verify | Full Regression Verification & Live Integration Pass | pending | Pending execution via execute-plan workflow |
+| task-db-clean | Database Clear Scripts (`scripts/clear-database.ts` & `package.json`) & Auto-Seed Guard | completed | Tested & verified: clears logs & transactions in transaction, preserves User & RBAC mappings; commit 00b89a6 |
+| task-rbac-alerts | Ingestion Audit Log Creation & Scoped Notification Polling API | completed | Tested & verified: creates INGEST audit log and polls new docs scoped by role/companies; commit e5a2f5a |
+| task-alert-ui | Real-Time Alert UI (Glassmorphism Toast, Web Audio Chime, Pulse Badge) | completed | Tested & verified: Glassmorphism Toast, Web Audio Chime, Mute toggle, and Topbar integration; commit 58f6072 |
+| task-pdf-scroll | PDF Default Evidence State & Continuous Multi-Page Vertical Scroll | completed | Tested & verified: defaults to clean document without evidence; multi-page continuous vertical scroll; commit 01942b3 |
+| task-docker-decouple | Decoupled Microservice Docker Configurations & Healthcheck | completed | Tested & verified: standalone docker-compose.frontend.yml, engine.yml, and compose profiles; commit e7d2c72 |
+| task-full-verify | Full Regression Verification & Live Integration Pass | completed | Full vitest suite 47/47 files (270/270 tests) passed; tsc --noEmit passed clean (0 errors); Next.js 15 standalone production build (19/19 routes) clean |
