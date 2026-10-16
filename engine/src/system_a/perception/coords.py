@@ -278,7 +278,8 @@ def _ink_bands(mask: np.ndarray, x0: int, x1: int) -> list[tuple[int, int]]:
 
 
 def snap_box_to_ink(box: Sequence[float], mask: np.ndarray,
-                    max_move: Optional[float] = None) -> tuple[tuple[int, int, int, int], str]:
+                    max_move: Optional[float] = None, *,
+                    move: bool = True, grow: bool = True) -> tuple[tuple[int, int, int, int], str]:
     """Put a pixel box onto the printed line it was meant to cover, and over the whole value.
 
     Round 3 measured the two ways a box misses: 90 boxes sat on blank paper (drawn from the label, the value
@@ -286,6 +287,13 @@ def snap_box_to_ink(box: Sequence[float], mask: np.ndarray,
     the ink itself.  The box may travel at most ``INK_MOVE_RATIO`` of the page height, and may stretch at
     most ``INK_GROW_RATIO`` times its own width, so a box with nothing under it is reported untouched rather
     than moved somewhere plausible.
+
+    ``move`` and ``grow`` are separate knobs because R4-3c could only measure them together, and that is how
+    a net-negative action ended up shipped inside a useful one: measured apart (R4-9, paired on two
+    replications) moving a box off blank paper fixed 3 boxes and broke none, widening a box over the run
+    fixed 5 and broke 13.  With ``grow=False`` a box keeps exactly the width the model drew; with
+    ``move=False`` a box on blank paper stays there, and grow has no line of its own to grow over - so the
+    two faults can always be told apart in the note.
 
     Returns ``((x1, y1, x2, y2), note)`` - ``note`` says what happened, for the evidence trail.
     """
@@ -303,6 +311,8 @@ def snap_box_to_ink(box: Sequence[float], mask: np.ndarray,
     own = next((b for b in bands if b[0] < y2 and b[1] > y1), None)
     note = ""
     if own is None:
+        if not move:
+            return (int(x1), int(y1), int(x2), int(y2)), "unchanged"
         near = min(bands, key=lambda b: min(abs(b[0] - y2), abs(b[1] - y1)))
         gap = min(abs(near[0] - y2), abs(near[1] - y1))
         if gap > travel:
@@ -311,6 +321,8 @@ def snap_box_to_ink(box: Sequence[float], mask: np.ndarray,
         y1, y2 = float(own[0]), float(own[1])
 
     grown = ""
+    if not grow:
+        return (int(x1), int(y1), int(x2), int(y2)), note or "unchanged"
     inked = mask[max(0, own[0]):max(own[0] + 1, own[1]), :].sum(axis=0) > 0
     runs, start, last = [], None, 0
     for x in range(W):

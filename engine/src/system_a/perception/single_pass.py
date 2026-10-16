@@ -327,7 +327,7 @@ class PageAnswer:
                  rot_w: Optional[int] = None, rot_h: Optional[int] = None,
                  M: Optional[np.ndarray] = None, answer: Optional[dict] = None,
                  coord: str = "norm1000", mask: Optional[np.ndarray] = None,
-                 snap: bool = True):
+                 snap: bool | str = True):
         self.page_no = page_no
         if answer is None and isinstance(rot_w, dict):
             # Backward compatibility with (page_no, w, h, answer, coord)
@@ -342,7 +342,8 @@ class PageAnswer:
         self.w, self.h = orig_w, orig_h
         self.answer = answer or {}
         self.mask = mask          # ink map of the page as it was sent, for box corrections
-        self.snap_boxes = snap    # False = the arm that delivers the model's boxes untouched
+        self.snap_mode = ink_snap_mode(snap)      # both / move / grow / off - see R4-9 below
+        self.snap_boxes = self.snap_mode != "off"  # False = the arm that delivers the model's boxes untouched
         boxes = [b for b in (_box(v) for v in (self.answer.get("fields") or {}).values()) if b]
         for r in self.answer.get("line_items") or []:
             if isinstance(r, dict):
@@ -350,18 +351,47 @@ class PageAnswer:
         boxes += [b for b in (_box(r) for r in self.answer.get("regions") or []) if b]
         self.coord = choose_coord_mode(boxes, rot_w, rot_h, None, coord) if coord in ("auto", "words") else coord
 
-    def region(self, b, snap: bool = False) -> Optional[Region]:
-        """A model box -> a page region.  ``snap`` corrects a field/cell box against the page's own ink.
-
-        The page's own ``snap_boxes`` has the final say, so one run is one arm: a measurement run that
-        switched the correction off cannot have a single box quietly corrected anyway.
-        """
+    def _px(self, b, snap: bool = False):
+        """A model box -> a pixel rect in the frame the page was sent in, optionally corrected against ink."""
         if not b:
             return None
         mode = "norm1" if max(float(v) for v in b) <= 1.0 else self.coord
         rect = xyxy_px(b, self.rot_w, self.rot_h, mode)
         if snap and self.snap_boxes and self.mask is not None:
-            rect, _ = snap_box_to_ink(rect, self.mask)
+            corrected, note = snap_box_to_ink(rect, self.mask,
+                                             move=self.snap_mode in ("both", "move"),
+                                             grow=self.snap_mode in ("both", "grow"))
+            if note != "unchanged":
+                rect = corrected
+            # untouched stays untouched: the correction works in whole pixels, so adopting its answer when
+            # it acted on nothing would re-quantise the model's own box by up to 1 px (see R4-9's control arm)
+        return rect
+
+    def region(self, b, snap: bool = False, contains: tuple = ()) -> Optional[Region]:
+        """A model box -> a page region.  ``snap`` corrects a field/cell box against the page's own ink.
+
+        The page's own ``snap_mode`` has the final say, so one run is one arm: a measurement run that
+        switched the correction off cannot have a single box quietly corrected anyway.
+
+        ``contains`` are the boxes this region is the frame of - a row's cells - given in the model's own
+        units and corrected by the same rule the cells themselves get.  A row that was drawn around a cell
+        must still contain it after the cell is corrected: only cells are snapped, so without this the
+        correction would break, for free, the one invariant two audit rounds measured at zero breaks.
+        A box the model never placed inside this one is not adopted (it stays a model problem to report).
+        """
+        rect = self._px(b, snap)
+        if rect is None:
+            return None
+        if contains:
+            frame = self._px(b) or rect
+            for cell in contains:
+                drawn, moved = self._px(cell), self._px(cell, snap=True)
+                if drawn is None or moved is None:
+                    continue
+                if drawn[1] >= frame[3] or drawn[3] <= frame[1]:      # not in this row to begin with
+                    continue
+                rect = (min(rect[0], moved[0]), min(rect[1], moved[1]),
+                        max(rect[2], moved[2]), max(rect[3], moved[3]))
         bbox, rbox = rotate_px_box_back(rect, self.rot_w, self.rot_h, self.orig_w, self.orig_h, self.M)
         if bbox[2] <= 0 or bbox[3] <= 0:
             return None
@@ -437,7 +467,8 @@ def build_extraction(*, package_id: str, dms_doc_id: str, sha: str, page_infos: 
                      classified: list[dict], selection: dict, reads: dict[int, PageAnswer],
                      page_errors: dict, calls: list, model: str, prompt_version: str,
                      timings: dict, page_orientations: Optional[dict] = None,
-                     ink_snap: bool = True) -> ExtractionResult:
+                     ink_snap: bool = True, snap_mode: Optional[str] = None) -> ExtractionResult:
+    snap_mode = snap_mode or INK_SNAP_DEFAULT     # the payload has to say which knobs made it
     selected = [p for p in selection["selected"] if p in reads]
     selected, reprint_pages = drop_reprint_pages(reads, selected)
     # ---------------------------------------------------------------- fields
@@ -514,7 +545,8 @@ def build_extraction(*, package_id: str, dms_doc_id: str, sha: str, page_infos: 
             cand = compute_row_bbox_from_cells(row, table_bbox=table_bbox)
             if validate_line_bbox(cand):
                 effective_box = cand
-        row_region = pg.region(effective_box) if effective_box else None
+        row_region = pg.region(effective_box, contains=tuple(
+            b for b in (_box(row.get(k)) for k in CELLS if row.get(k) is not None) if b)) if effective_box else None
         lines.append(RawLine(line_no=it["line_no"], region=row_region, cells=cells))
     for ex in excluded:
         txt = " | ".join(t for t in (_raw(ex["row"].get(k)) for k in CELLS) if t)
@@ -577,6 +609,7 @@ def build_extraction(*, package_id: str, dms_doc_id: str, sha: str, page_infos: 
             "reprint_pages": reprint_pages,
             "coord_mode_by_page": {str(p): reads[p].coord for p in reads},
             "ink_snap": bool(ink_snap),        # which arm of the R4-3c A/B produced this payload
+            "ink_snap_mode": snap_mode,        # and which of its two knobs R4-9 left switched on
             "orientation": {str(p): {"r": o.r, "confidence": o.confidence, "uncertain": o.uncertain,
                                      "skew": o.skew, "total": o.total, "runtime": o.runtime}
                             for p, o in (page_orientations or {}).items()},
@@ -589,16 +622,40 @@ def build_extraction(*, package_id: str, dms_doc_id: str, sha: str, page_infos: 
 #: R4-3c: the ink snap must be measurable, and a measurement needs an arm where it is switched off.  The
 #: environment decides the default so a batch run picks its arm without any code or Settings change;
 #: PERCEPTION_INK_SNAP=0 (also off/false/no) measures the raw model boxes on the same documents.
+#: R4-9: the correction is two actions, not one - MOVE a box that sits on blank paper, GROW a box over the
+#: run it already touches.  They were shipped together in R4-3a and measured together in R4-3c, which is how
+#: a net-negative knob ended up in production: paired on two replications, move fixed 3 boxes and broke none
+#: (and removed every empty box), grow fixed 5 and broke 13.  So the shipped default is ``move``, and the
+#: environment can name any of them: PERCEPTION_INK_SNAP=move / grow / both / off.
 INK_SNAP_ENV = "PERCEPTION_INK_SNAP"
 INK_SNAP_OFF = ("0", "off", "false", "no")
+INK_SNAP_MODES = ("both", "move", "grow", "off")
+INK_SNAP_DEFAULT = "move"
 
 
-def ink_snap_from_env(default: bool = True) -> bool:
-    """The snap arm an environment asks for (unset or nonsense keeps production behaviour: on)."""
-    raw = (os.getenv(INK_SNAP_ENV) or "").strip().lower()
+def ink_snap_mode(value, default: str = INK_SNAP_DEFAULT) -> str:
+    """The knob setting a bool or a name asks for.  Anything unrecognised keeps the shipped default.
+
+    ``True``/``False`` are the R4-3c spellings and stay exact (all knobs / none); ``None`` means "whatever
+    the environment says", which the caller resolves.  An unusable name is not an off switch: silently
+    losing the correction would be the worst possible way to read a typo.
+    """
+    if isinstance(value, bool):
+        return "both" if value else "off"
+    raw = str(value if value is not None else "").strip().lower()
+    if raw in INK_SNAP_MODES:
+        return raw
+    if raw in INK_SNAP_OFF:
+        return "off"
     if not raw:
         return default
-    return raw not in INK_SNAP_OFF
+    return default
+
+
+def ink_snap_from_env(default: str = INK_SNAP_DEFAULT) -> str:
+    """The knob setting an environment asks for (unset or nonsense keeps the shipped default)."""
+    raw = (os.getenv(INK_SNAP_ENV) or "").strip().lower()
+    return ink_snap_mode(raw, default=default) if raw else default
 
 
 # ============================================================================ the pipeline (LLM IO)
@@ -615,14 +672,15 @@ class SinglePassPipeline:
         self.client, self.model = client, model
         self.dpi, self.classify_dpi, self.max_pages = dpi, classify_dpi, max_pages
         self.max_tokens, self.coord, self.json_mode, self.thinking = max_tokens, coord, json_mode, thinking
-        self.ink_snap = ink_snap_from_env() if ink_snap is None else bool(ink_snap)
+        self.snap_mode = ink_snap_from_env() if ink_snap is None else ink_snap_mode(ink_snap)
+        self.ink_snap = self.snap_mode != "off"   # R4-3c's boolean, still the payload's "was anything corrected"
         self.prompts = {n: load_prompt(n) for n in PROMPTS}
         self.prompt_version = "+".join(self._pid(n) for n in PROMPTS)
         with open(__file__, "rb") as fh:
             # the snap arm is part of the identity: it changes the boxes this pipeline delivers, and
             # process_pdf.py hashes code_version into the perception cache key
             self.code_version = hashlib.sha256(fh.read() + MODEL_SHA256.encode()
-                                               + f"|ink_snap={self.ink_snap}".encode()).hexdigest()[:12]
+                                               + f"|ink_snap={self.snap_mode}".encode()).hexdigest()[:12]
         self.calls: list[dict] = []
         self.stats: dict = {}
 
@@ -722,7 +780,7 @@ class SinglePassPipeline:
                     page_errors[str(p)] = f"{type(e).__name__}: {str(e)[:200]}"
                     ans = {}
                 reads[p] = PageAnswer(p, orig_w, orig_h, rot_w, rot_h, M, ans, self.coord,
-                                      mask=ink_mask(rot_img), snap=self.ink_snap)
+                                      mask=ink_mask(rot_img), snap=self.snap_mode)
             timings["extract_ms"] = round((time.time() - t0) * 1000)
             infos = []
             for i in range(len(doc)):
@@ -735,7 +793,8 @@ class SinglePassPipeline:
         ext = build_extraction(package_id=package_id, dms_doc_id=dms_doc_id, sha=sha, page_infos=infos,
                                classified=classified, selection=selection, reads=reads, page_errors=page_errors,
                                calls=list(self.calls), model=self.model, prompt_version=self.prompt_version,
-                               timings=timings, page_orientations=page_orientations, ink_snap=self.ink_snap)
+                               timings=timings, page_orientations=page_orientations, ink_snap=self.ink_snap,
+                               snap_mode=self.snap_mode)
         self.stats = {"calls": len(self.calls), "ok": sum(1 for c in self.calls if c["ok"]),
                       "failed": sum(1 for c in self.calls if not c["ok"]), "ms": timings["total_ms"],
                       "pages": len(infos), "selected": selection["selected"], "lines": len(ext.lines),

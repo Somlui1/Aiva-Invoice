@@ -15,7 +15,7 @@ from system_a.adapters.llm.litellm_client import LiteLLMClient
 from system_a.application.orchestrator import validate
 from system_a.container import Settings, build_services
 from system_a.domain.standard import load_standard
-from system_a.perception.single_pass import (SinglePassPipeline, admit_rows, classify_row,
+from system_a.perception.single_pass import (SinglePassPipeline, admit_rows, classify_row, ink_snap_mode,
                                               select_invoice_pages)
 from system_a.sandbox.scenarios import tax_id_of
 
@@ -224,6 +224,22 @@ def _printed_rows(pdf: bytes, dpi: int, x0: int = 100, x1: int = 400) -> tuple[i
     return int(rows.min()), int(rows.max()) + 1, mask.shape[0]
 
 
+def _printed_ink_box(pdf: bytes, dpi: int) -> tuple[int, int, int, int, int, int]:
+    """(r0, r1, c0, c1, page height, page width) around the only ink on the sheet - the value's own extent."""
+    import io
+
+    import numpy as np
+    from PIL import Image
+
+    from system_a.perception.coords import ink_mask
+    with fitz.open(stream=pdf, filetype="pdf") as doc:
+        img = Image.open(io.BytesIO(doc[0].get_pixmap(dpi=dpi).tobytes("png"))).convert("RGB")
+    mask = ink_mask(img)
+    rows = np.flatnonzero(mask.any(axis=1))
+    cols = np.flatnonzero(mask.any(axis=0))
+    return int(rows.min()), int(rows.max()) + 1, int(cols.min()), int(cols.max()) + 1, mask.shape[0], mask.shape[1]
+
+
 ONE_PAGE = {"pages": [{"p": 1, "t": "tax_invoice", "c": "original", "n": INV, "m": "1/1", "r": 0, "h": []}]}
 
 
@@ -237,8 +253,11 @@ def _answer_a_box_above_the_value(top: int) -> dict:
             "line_items": [], "regions": [], "handwritten_refs": []}
 
 
-def _run_snap_arm(ink_snap: bool):
-    """One arm of the A/B: same bytes, same page, same model answer - only the switch differs."""
+def _run_snap_arm(ink_snap):
+    """One arm of the A/B: same bytes, same page, same model answer - only the switch differs.
+
+    ``ink_snap`` takes the R4-3c boolean or one of R4-9's knob names (``both``/``move``/``grow``/``off``).
+    """
     pdf = _pdf_with_a_printed_value()
     dpi = 100
     top, bottom, h = _printed_rows(pdf, dpi)
@@ -292,6 +311,283 @@ def test_the_two_snap_arms_may_not_share_a_perception_cache_entry():
     on = SinglePassPipeline(FakeClient(), "fake-vl", ink_snap=True).code_version
     off = SinglePassPipeline(FakeClient(), "fake-vl", ink_snap=False).code_version
     assert on != off, "both arms claim the same pipeline identity - a cache hit would cross the arms"
+
+
+# ------------------------------------------------- R4-9: the two knobs of the snap are measured separately
+# R4-3c's paired A/B blamed the whole correction for a net -2 pp, but it never separated the two things the
+# code does: MOVE a box that sits on blank paper, and GROW a box over the ink run it already touches.  The
+# measured damage was all grow ("grown" fired on ~45% of boxes and spilled into the neighbouring column)
+# while the measured profit was all move (the 5 empty boxes).  A knob that cannot be switched on its own
+# cannot be measured on its own, and an unmeasured knob is what got us here.
+def _run_knob_arm(mode: str):
+    """The same page and the same model answer, with only the knob setting changed."""
+    return _run_snap_arm(mode)
+
+def test_the_move_arm_lands_the_box_on_the_value_without_widening_it():
+    """Move only, on the failure R4-3a was written for: a narrow box drawn above the value.
+
+    The box must end up on the printed line and keep exactly the width the model drew - widening is the
+    other knob's job, and it is the one R4-3c measured as damaging.
+    """
+    pdf = _pdf_with_a_printed_value()
+    dpi = 100
+    r0, r1, c0, c1, h, _w_px = _printed_ink_box(pdf, dpi)
+    narrow = [c0 + (c1 - c0) // 4, r0 - 36, c0 + 3 * (c1 - c0) // 4, r0 - 16]   # above the line, too narrow
+    answer = {"fields": {"grand_total": {"raw": "3,317.00", "bbox_2d": narrow}},
+              "line_items": [], "regions": [], "handwritten_refs": []}
+    got = {}
+    for mode in ("off", "move", "both"):
+        client = FakeClient(classify=ONE_PAGE, extract=answer)
+        ext = SinglePassPipeline(client, "fake-vl", dpi=dpi, coord="pixel",
+                                ink_snap=mode).extract(pdf, package_id="P", dms_doc_id="D")
+        got[mode] = ext.fields["grand_total"].region.bbox
+    _ox, oy, ow, _oh = got["off"]
+    assert oy + got["off"][3] < r0 / h, "the off arm must still be above the printed line"
+    mx, my, mw, mh = got["move"]
+    assert my >= r0 / h - 2e-3 and my + mh <= r1 / h + 2e-3, f"move must land the box on the value, got {got}"
+    assert abs(mw - ow) < 1e-6 and abs(mx - got["off"][0]) < 1e-6, \
+        f"the move arm must not widen the box: drew {ow} at x={got['off'][0]}, delivered {mw} at x={mx}"
+    assert got["both"][2] > mw + 1e-6, f"the grow knob must be the one that widens, both arm = {got['both']}"
+
+
+def test_the_grow_arm_widens_a_box_that_clips_the_value_and_the_move_arm_does_not():
+    """The grow knob's own job: a box on the right line but too narrow gets the whole printed run."""
+    pdf = _pdf_with_a_printed_value()
+    dpi = 100
+    r0, r1, c0, c1, h, w_px = _printed_ink_box(pdf, dpi)
+    inside = [c0, r0 + 1, c0 + 3 * (c1 - c0) // 4, r1 - 1]   # on the line, missing its last quarter
+    # (deliberately not narrower than that: the snap is capped at INK_GROW_RATIO x its own width, so a box
+    # far narrower than the value is *allowed* to stop short - this asserts the promise, not more than it)
+    answer = {"fields": {"grand_total": {"raw": "3,317.00", "bbox_2d": inside}},
+              "line_items": [], "regions": [], "handwritten_refs": []}
+    out = {}
+    for mode in ("off", "move", "grow", "both"):
+        client = FakeClient(classify=ONE_PAGE, extract=answer)
+        ext = SinglePassPipeline(client, "fake-vl", dpi=dpi, coord="pixel",
+                                ink_snap=mode).extract(pdf, package_id="P", dms_doc_id="D")
+        out[mode] = ext.fields["grand_total"].region.bbox
+    x, y, ww, hh = out["off"]
+    assert out["move"] == out["off"], f"the move arm touched a box already on the line: {out}"
+    for mode in ("grow", "both"):
+        gx, _gy, gw, _gh = out[mode]
+        assert gw > ww, f"{mode} must widen the box over the printed run, got {out}"
+        assert gx * w_px <= c0 + 1 and (gx + gw) * w_px >= c1 - 1, \
+            f"{mode} must cover the printed ink {c0}-{c1}px, delivered {out[mode]}"
+    assert abs(out["grow"][1] - y) < 1e-9 and abs(out["grow"][3] - hh) < 1e-9, \
+        f"the grow arm must not move a box that is on the right line, got {out}"
+
+
+def test_a_box_the_snap_leaves_alone_is_delivered_exactly_as_the_model_drew_it():
+    """An unchanged correction must not re-measure the box it decided not to touch.
+
+    ``snap_box_to_ink`` works in whole pixels, and handing a box through it and back re-quantises the
+    model's fractional coordinates to the pixel - up to 1 px of drift on a box the correction did not
+    change.  That is not cosmetic: the paired A/B of R4-9 counted two verdicts flipping (one fixed, one
+    broken) on a corpus where the knob moved nothing at all, and this 1 px truncation was the only thing
+    that had touched those boxes.  A measurement arm, and a production path, must differ only where the
+    correction actually acts.
+    """
+    pdf = _pdf_with_a_printed_value()
+    dpi = 100
+    r0, r1, c0, c1, h, w_px = _printed_ink_box(pdf, dpi)
+    # the model's own box, already covering the printed value with a hair to spare, expressed where models
+    # express it (norm1000) - which lands it on a fractional pixel, like any real answer does
+    drawn = [(c0 - 0.4) / w_px * 1000, (r0 - 0.4) / h * 1000,
+             (c1 + 0.4) / w_px * 1000, (r1 + 0.4) / h * 1000]
+    answer = {"fields": {"grand_total": {"raw": "3,317.00", "bbox_2d": drawn}},
+              "line_items": [], "regions": [], "handwritten_refs": []}
+    got = {}
+    for mode in ("off", "both"):
+        client = FakeClient(classify=ONE_PAGE, extract=answer)
+        ext = SinglePassPipeline(client, "fake-vl", dpi=dpi,
+                                ink_snap=mode).extract(pdf, package_id="P", dms_doc_id="D")
+        got[mode] = ext.fields["grand_total"].region.bbox
+    assert got["off"] == got["both"], \
+        f"a box nobody corrected drifted by {max(abs(a - b) for a, b in zip(got['off'], got['both']))} " \
+        f"of the page: {got}"
+
+
+def test_the_payload_names_the_knobs_that_produced_it():
+    """A run must record which knob setting made it, or the arms cannot be told apart after the fact."""
+    for mode, active in (("both", True), ("move", True), ("grow", True), ("off", False)):
+        ext, _ = _run_knob_arm(mode)
+        assert ext.extra["ink_snap_mode"] == mode, ext.extra
+        assert ext.extra["ink_snap"] is active, f"{mode}: ink_snap must stay the boolean it was before R4-9"
+
+
+def test_the_grow_arm_never_moves_a_box_off_the_line_the_model_chose():
+    """Grow only: a box with no ink under it stays where it was drawn - grow has nothing to grow over.
+
+    This is what separates R4-9's two verdicts.  R4-3c measured that the boxes which got worse were all
+    widened, and widening is what a grow arm does; if a grow arm also moved boxes, the two faults could
+    not be told apart again.
+    """
+    grew, f = _run_knob_arm("grow")
+    drawn, _ = _run_knob_arm("off")
+    assert grew.fields["grand_total"].region.bbox == drawn.fields["grand_total"].region.bbox, \
+        "the grow arm moved a box: the knobs are not independent"
+    assert grew.fields["grand_total"].raw == "3,317.00"
+
+
+def test_the_environment_names_a_knob_and_an_unusable_name_falls_back_to_the_shipped_default(monkeypatch):
+    """What ships is what the measurement supported, not what was written first.
+
+    R4-3a shipped both knobs without measuring either.  R4-9's paired A/B priced them separately on two
+    replications: move fixed 3 boxes and broke none (-1.3 pp, and empty boxes 2.4% -> 0%), grow fixed 5 and
+    broke 13 (+1.7 pp in both replications, with no gain on the empty-box ruler it was written for).  So the
+    default is the knob with evidence behind it, and a typo in the environment cannot silently lose the
+    correction - an unusable name resolves to the same default production runs.
+    """
+    monkeypatch.delenv("PERCEPTION_INK_SNAP", raising=False)
+    assert SinglePassPipeline(FakeClient(), "fake-vl").snap_mode == "move"
+    assert SinglePassPipeline(FakeClient(), "fake-vl").ink_snap is True
+    for raw, mode in (("move", "move"), ("GROW", "grow"), ("0", "off"), ("off", "off"), ("both", "both"),
+                      ("nonsense", "move"), ("gro", "move")):
+        monkeypatch.setenv("PERCEPTION_INK_SNAP", raw)
+        assert SinglePassPipeline(FakeClient(), "fake-vl").snap_mode == mode, raw
+    monkeypatch.setenv("PERCEPTION_INK_SNAP", "0")
+    assert SinglePassPipeline(FakeClient(), "fake-vl").ink_snap is False
+    assert ink_snap_mode(True) == "both" and ink_snap_mode(False) == "off", \
+        "the R4-3c spellings stay exact: True means both knobs, not the default"
+
+
+def test_every_knob_combination_gets_its_own_perception_cache_entry():
+    """Three arms, three identities: a move-arm run may not read a both-arm payload from cache."""
+    versions = {m: SinglePassPipeline(FakeClient(), "fake-vl", ink_snap=m).code_version
+                for m in ("both", "move", "grow", "off")}
+    assert len(set(versions.values())) == 4, versions
+    assert SinglePassPipeline(FakeClient(), "fake-vl", ink_snap=True).code_version == versions["both"]
+    assert SinglePassPipeline(FakeClient(), "fake-vl", ink_snap=False).code_version == versions["off"]
+
+
+# ------------------------------------------- R4-9: a corrected cell must not escape the box of its own row
+# The engine has an invariant that two rounds of audit measured at 0 breaks (R3-9: "the row box contains its
+# own cells"), and the snap breaks it by construction: only the cells are corrected, never the row.  These
+# two tests are the whole repair - follow the cells the model put in the row, and only those.
+def _pdf_with_two_printed_lines() -> bytes:
+    doc = fitz.open()
+    page = doc.new_page(width=595, height=842)
+    page.insert_text((300, 700), "12")
+    page.insert_text((380, 700), "1,234.00")
+    page.insert_text((300, 780), "99")
+    page.insert_text((380, 780), "9,999.00")
+    return doc.tobytes()
+
+
+def _page_mask(pdf: bytes, dpi: int):
+    import io
+
+    from PIL import Image
+
+    from system_a.perception.coords import ink_mask
+    with fitz.open(stream=pdf, filetype="pdf") as doc:
+        img = Image.open(io.BytesIO(doc[0].get_pixmap(dpi=dpi).tobytes("png"))).convert("RGB")
+    return ink_mask(img)
+
+
+def _bands(lines: list[bool]) -> list[tuple[int, int]]:
+    """Contiguous runs of True, as (start, end) - the printed rows or words of a page."""
+    out, start, prev = [], None, None
+    for i, on in enumerate(lines):
+        if on and start is None:
+            start = prev = i
+        elif on:
+            prev = i
+        elif start is not None:
+            out.append((start, prev + 1))
+            start = None
+    if start is not None:
+        out.append((start, prev + 1))
+    return out
+
+
+def _ink_rows(pdf: bytes, dpi: int) -> list[tuple[int, int]]:
+    """The printed rows of a page, top to bottom, as the engine's own mask sees them."""
+    return _bands([bool(v) for v in _page_mask(pdf, dpi).any(axis=1)])
+
+
+def _ink_cols(pdf: bytes, dpi: int, r0: int, r1: int) -> list[tuple[int, int]]:
+    """The words printed inside one row band, left to right."""
+    mask = _page_mask(pdf, dpi)
+    return _bands([bool(v) for v in mask[r0:r1].any(axis=0)])
+
+
+def _row_answer(pdf: bytes, dpi: int, band: tuple[int, int], amount_band=None) -> dict:
+    """One table row, drawn a line above where it is printed, in the units the pipeline reads by default.
+
+    Every box is derived from the page's own ink (not from a typed-in coordinate), so the snap's travel
+    budget is the only thing separating the arms: the cells start inside the row box and the row box stays
+    where the model drew it.
+    """
+    mask = _page_mask(pdf, dpi)
+    h, w = mask.shape[:2]
+    sx, sy = 1000 / w, 1000 / h
+    words = _ink_cols(pdf, dpi, band[0], band[1])
+    qty_c, amt_c = words[0], words[-1]
+    top = band[0]
+    a_top = amount_band[0] - 20 if amount_band else top - 36
+    def norm(x0, y0, x1, y1):
+        return [x0 * sx, y0 * sy, x1 * sx, y1 * sy]
+    return {"fields": {}, "regions": [], "handwritten_refs": [],
+            "line_items": [{"line_no": 1,
+                            "description": {"raw": "OXYGEN 47L", "bbox_2d": norm(10, top - 36, 10 + 150, top - 16)},
+                            "qty": {"raw": "12", "bbox_2d": norm(qty_c[0] - 4, top - 36, qty_c[1] + 4, top - 16)},
+                            "amount": {"raw": "1,234.00", "bbox_2d": norm(amt_c[0] - 4, a_top,
+                                                                          amt_c[1] + 4, a_top + 20)},
+                            "line_bbox": norm(6, top - 40, w - 6, top - 12)}]}
+
+
+def _row_and_cells(ink_snap, pdf: bytes, dpi: int, answer: dict):
+    client = FakeClient(classify=ONE_PAGE, extract=answer)
+    ext = SinglePassPipeline(client, "fake-vl", dpi=dpi,
+                            ink_snap=ink_snap).extract(pdf, package_id="P", dms_doc_id="D")
+    line = ext.lines[0]
+    return line.region.bbox, {k: v.region.bbox for k, v in line.cells.items() if v.region}
+
+
+def _contained(cell, row) -> float:
+    ix = max(0.0, min(cell[0] + cell[2], row[0] + row[2]) - max(cell[0], row[0]))
+    iy = max(0.0, min(cell[1] + cell[3], row[1] + row[3]) - max(cell[1], row[1]))
+    return ix * iy / max(1e-9, cell[2] * cell[3])
+
+
+def test_a_cell_that_was_snapped_onto_its_line_stays_inside_the_box_of_its_row():
+    """R3-9 measured 0 breaks of this invariant over 50 documents; R4-9's paired A/B measured 6.
+
+    The snap corrects cells and never the row, so a cell that travels to its printed line leaves the row box
+    behind it - and the audit's row/cell check reports the row as broken.  The row has to follow the cells it
+    was drawn around, otherwise fixing the cell breaks the row for free.
+    """
+    pdf = _pdf_with_two_printed_lines()
+    dpi = 100
+    band = _ink_rows(pdf, dpi)[0]
+    row, cells = _row_and_cells("move", pdf, dpi, _row_answer(pdf, dpi, band))
+    assert cells, "the row must have delivered its cells"
+    for name, box in cells.items():
+        assert _contained(box, row) >= 0.95, \
+            f"{name} {tuple(round(v, 4) for v in box)} escaped its own row {tuple(round(v, 4) for v in row)}"
+
+
+def test_the_row_follows_only_the_cells_the_model_placed_in_it():
+    """The repair must not turn a far-away cell into a giant row box.
+
+    A cell the model drew somewhere else (another row, another page area) is a model problem, and the honest
+    report is the row box as drawn plus an audit flag - not a row box inflated to swallow it.
+    """
+    pdf = _pdf_with_two_printed_lines()
+    dpi = 100
+    bands = _ink_rows(pdf, dpi)
+    assert len(bands) >= 2, "the fixture needs two printed lines"
+    h = _page_mask(pdf, dpi).shape[0]
+    answer = _row_answer(pdf, dpi, bands[0], amount_band=bands[1])   # amount belongs to the row below
+    drawn_row, drawn_cells = _row_and_cells("off", pdf, dpi, answer)
+    moved_row, cells = _row_and_cells("move", pdf, dpi, answer)
+    assert cells["amount"] != drawn_cells["amount"], "the fixture needs the stray cell to be corrected somewhere"
+    assert moved_row[1] + moved_row[3] < bands[1][0] / h, \
+        (f"the row box reached down to the printed line its cells were not drawn on: "
+         f"row {tuple(round(v, 4) for v in moved_row)}, next line starts at {bands[1][0] / h:.4f}")
+    assert moved_row[1] + moved_row[3] > drawn_row[1] + drawn_row[3], \
+        "its own corrected cells must still have been followed (that is the other test's job)"
 
 
 def test_select_invoice_pages_preserves_multipage_continuation():

@@ -2910,6 +2910,40 @@ def test_snapping_a_box_that_already_covers_its_value_changes_nothing():
     assert note == "unchanged"
 
 
+# ----------------------------------------------------------- R4-9: the snap has two knobs, and they are
+# measured separately because R4-3c found one of them profitable and the other one damaging
+def test_the_grow_knob_switched_off_leaves_the_box_at_the_width_the_model_drew():
+    """~45% of boxes were widened and some of them swallowed the neighbouring column; that knob must be
+    switchable on its own, so a measurement can price it without also switching off the useful move."""
+    from system_a.perception.coords import snap_box_to_ink
+    mask = _sheet_mask()
+    _draw_word(mask, 30, 38, 40, 80)
+    box, note = snap_box_to_ink((46, 31, 70, 37), mask, grow=False)
+    assert (box[0], box[2]) == (46, 70), f"grow=False must not change the width, got {box} ({note})"
+    assert "grown" not in note, note
+
+
+def test_the_move_knob_switched_off_leaves_an_empty_box_on_the_blank_paper_it_was_drawn_on():
+    """The other knob: with move off, a box above the value stays above the value - no widening either,
+    because grow only ever grows over the line the box already touches."""
+    from system_a.perception.coords import snap_box_to_ink
+    mask = _sheet_mask()
+    _draw_word(mask, 30, 38, 40, 80)
+    box, note = snap_box_to_ink((40, 20, 80, 24), mask, move=False)
+    assert box == (40, 20, 80, 24), box
+    assert note == "unchanged", note
+
+
+def test_a_box_that_needs_both_knobs_reports_both():
+    """The note is the evidence trail for the decomposition; it must not blur the two actions together."""
+    from system_a.perception.coords import snap_box_to_ink
+    mask = _sheet_mask()
+    _draw_word(mask, 30, 38, 40, 80)
+    box, note = snap_box_to_ink((46, 20, 70, 24), mask)
+    assert "moved" in note and "grown" in note, note
+    assert box[1] >= 30 and box[3] <= 38 and box[0] <= 40 and box[2] >= 79, f"{box} ({note})"
+
+
 def test_ink_mask_finds_print_and_only_print():
     """The snap needs a truth map of the page: dark strokes yes, white paper no."""
     import numpy as np
