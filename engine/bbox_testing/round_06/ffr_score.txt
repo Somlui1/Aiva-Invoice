@@ -1,0 +1,36 @@
+FFR census: 223 documents scored from ffr/run1
+  vision calls spent this round: 447   (preflight estimated <= 1008)
+  boxes the ruler could judge: 5404   flagged: 611   defect rate 11.3%
+  documents with no measurable box at all: 14 [56, 93, 123, 124, 147, 180, 195, 205, 206, 207, 212, 223]
+  documents that delivered no field: 12
+  documents with page_errors: 0
+  documents wider than max_pages=12 (pages past the cap were never read): [(40, 13, 4), (95, 19, 7)]
+  note: DMS-118 p1: engine turned this page 90? but delivers its boxes unrotated - align's frame does not apply here
+  note: DMS-119 p1: engine turned this page 90? but delivers its boxes unrotated - align's frame does not apply here
+  note: DMS-224 p1: engine turned this page 90? but delivers its boxes unrotated - align's frame does not apply here
+  note: DMS-225 p1: engine turned this page 90? but delivers its boxes unrotated - align's frame does not apply here
+  note: DMS-32 p1: engine turned this page 90? but delivers its boxes unrotated - align's frame does not apply here
+  note: DMS-36 p1: engine turned this page 90? but delivers its boxes unrotated - align's frame does not apply here
+  note: DMS-49 p1: engine turned this page 90? but delivers its boxes unrotated - align's frame does not apply here
+  note: DMS-59 p1: engine turned this page 90? but delivers its boxes unrotated - align's frame does not apply here
+  note: DMS-62 p1: engine turned this page 90? but delivers its boxes unrotated - align's frame does not apply here
+  note: DMS-64 p1: engine turned this page 90? but delivers its boxes unrotated - align's frame does not apply here
+  empty by ink (historical series): 81/5176 = 1.6%
+  empty by print (R4-15 diagnostic): 781/5176 = 15.1%
+  documents holding empty boxes (18), worst first: DMS-118:22ink/30print, DMS-119:16ink/19print, DMS-62:6ink/14print, DMS-49:3ink/12print, DMS-20:3ink/11print, DMS-64:4ink/11print, DMS-225:6ink/11print, DMS-32:4ink/9print, DMS-59:2ink/9print, DMS-36:4ink/8print, DMS-165:2ink/7print, DMS-83:2ink/6print, DMS-153:2ink/6print, DMS-224:1ink/5print
+
+  worst documents by defect rate (>=8 measurable boxes), ruler verdict per box:
+      doc | pages | sel | calls | boxes | flag |   rate | fields | lines
+  DMS-  15 |     1 |   1 |     2 |    24 |   14 |  58.3% |     10 |     2
+  DMS-  23 |     2 |   1 |     2 |    18 |    9 |  50.0% |     11 |     1
+  DMS- 213 |     2 |   1 |     2 |    18 |    9 |  50.0% |     11 |     1
+  DMS- 215 |     2 |   1 |     2 |    18 |    9 |  50.0% |     11 |     1
+  DMS- 190 |     2 |   1 |     2 |    46 |   22 |  47.8% |     11 |     5
+  DMS- 214 |     2 |   1 |     2 |    18 |    8 |  44.4% |     11 |     1
+  DMS- 221 |     2 |   1 |     2 |    21 |    9 |  42.9% |     11 |     2
+  DMS- 236 |     3 |   1 |     2 |    17 |    7 |  41.2% |     12 |     1
+  DMS- 120 |     2 |   1 |     2 |    18 |    7 |  38.9% |     12 |     1
+  DMS- 175 |     2 |   1 |     2 |    17 |    6 |  35.3% |     12 |     1
+
+  payload set written for the ruler: C:\Users\wajeepradit.p\git\DMS_Invoice_Auto_mathing\engine\bbox_testing\round_06\align\ffr_run1
+  rate is the number to compare; counts move with what the model chose to read (R4-7).
