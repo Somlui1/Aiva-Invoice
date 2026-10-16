@@ -75,4 +75,11 @@
 | prod-v5-task-7 | Full Verification & Integration Regression | completed | Full vitest suite 40/40 test files (251/251 tests) pass; tsc --noEmit clean; Next.js 15 standalone build (19/19 routes) clean; docker compose config valid; commit pending |
 | prod-v5-engine-offline-seed | Comment out Engine & Auto-seed Paperless V5 for Production Frontend | completed | Commented out engine service and depends_on in docker-compose.prod.yml; created src/lib/autoSeedSample.ts; wired into instrumentation.ts and docker-entrypoint.sh; verified live standalone startup serving 125 documents (51 Auto-pass, 23 Review, 12 Hold, 39 Manual Review); 41/41 vitest files (253/253 tests) pass |
 | prod-ad-auth-scope-fix | Support Dynamic AD Identity, HTTP Cookie & Default Company Scope | completed | Fixed login bounce for all AD accounts; updated AuthContext with rich profile recovery & dynamic AD user fallback; created GET /api/auth/me; dynamic isHttps cookie; default company scope ['AH','AHA','AHT','AHP','AM'] in DB and scopeCheck; 42/42 vitest files (256/256 tests) pass; Next.js build clean |
-
+| enhancement-brainstorm | Complete Brainstorming & Architecture Design | completed | Approved by user; saved to docs/plans/2026-10-16-production-enhancements-alert-pdf-clean-engine-design.md; commit 4b0f3d7 |
+| enhancement-plan | Generate Detailed Implementation Plan | completed | Written to docs/plans/2026-10-16-production-enhancements-alert-pdf-clean-engine.md; commit 4b8f174 |
+| task-db-clean | Database Clear Scripts (`scripts/clear-database.ts` & `package.json`) & Auto-Seed Guard | pending | Pending execution via execute-plan workflow |
+| task-rbac-alerts | Ingestion Audit Log Creation & Scoped Notification Polling API | pending | Pending execution via execute-plan workflow |
+| task-alert-ui | Real-Time Alert UI (Glassmorphism Toast, Web Audio Chime, Pulse Badge) | pending | Pending execution via execute-plan workflow |
+| task-pdf-scroll | PDF Default Evidence State & Continuous Multi-Page Vertical Scroll | pending | Pending execution via execute-plan workflow |
+| task-docker-decouple | Decoupled Microservice Docker Configurations & Healthcheck | pending | Pending execution via execute-plan workflow |
+| task-full-verify | Full Regression Verification & Live Integration Pass | pending | Pending execution via execute-plan workflow |
