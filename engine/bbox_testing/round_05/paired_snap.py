@@ -35,23 +35,31 @@ from system_a.envfile import load_env                         # noqa: E402
 
 load_env()
 from system_a.container import Settings, build_paperless      # noqa: E402
-from system_a.perception.coords import ink_mask, rotate_px_box_back, snap_box_to_ink   # noqa: E402
+from system_a.perception.coords import ink_mask, rotate_px_box_back, snap_box_to_ink, strip_rules  # noqa: E402
 
 SRC_ARM = os.environ.get("PAIR_ARM", "snap_off")            # raw model boxes = the off arm's payload
 SRC_RUN = int(os.environ.get("PAIR_RUN", "1"))               # which run of that arm to pair on
-MODES = os.environ.get("PAIR_MODES", "off,move,grow,both").split(",")  # R4-9: price each knob, plus a control
+MODES = os.environ.get("PAIR_MODES", "off,move,grow,both,move+rules").split(",")
+#   R4-9: price each knob, plus a control.
+#   a "+rules" suffix (R4-11) runs the same knob on an ink map with the page furniture removed - that is a
+#   property of the map, not of the knob, so it rides along as a suffix instead of a fourth mode.
 #   off  = control arm: the replay machinery runs, nothing is corrected. Any verdict flip here is the
 #          instrument, not the correction - it is the paired measurement's own noise floor.
 ALIGN = ROOT / "bbox_testing" / "round_03" / "align.py"
 CELLS = A.CELLS
 
 
-def page_mask(fitz_doc, page_no: int, dpi: int) -> np.ndarray:
-    """The engine's own ink map of a page: what it renders for the model, thresholded by Otsu."""
+def page_mask(fitz_doc, page_no: int, dpi: int, rules: bool = False) -> np.ndarray:
+    """The engine's own ink map of a page: what it renders for the model, thresholded by Otsu.
+
+    ``rules=True`` is the R4-11 map - the same image with thin solid lines removed, which is what the
+    pipeline now hands the snap.
+    """
     from PIL import Image
     import io
     img = Image.open(io.BytesIO(fitz_doc[page_no - 1].get_pixmap(dpi=dpi).tobytes("png"))).convert("RGB")
-    return ink_mask(img)
+    mask = ink_mask(img)
+    return strip_rules(mask) if rules else mask
 
 
 def snap_box(box, mask, mode: str = "both"):
@@ -162,7 +170,7 @@ def main() -> int:
           f"engine frame at {settings.extract_dpi} DPI; arms: raw + {', '.join(MODES)}")
 
     import fitz
-    payloads, masks_by_doc = {}, {}
+    payloads, masks_by_doc, masks_clean = {}, {}, {}
     for doc in docs:
         src = json.loads((base_dir / "ocr" / f"DMS-{doc}.json").read_text(encoding="utf-8"))
         payloads[doc] = src
@@ -170,6 +178,7 @@ def main() -> int:
             pages = {int(f.get("page_no") or 1) for f in (src.get("fields") or {}).values()}
             pages |= {int(i.get("page_no") or 1) for i in src.get("line_items") or []}
             masks_by_doc[doc] = {p: page_mask(fdoc, p, settings.extract_dpi) for p in sorted(pages)}
+            masks_clean[doc] = {p: page_mask(fdoc, p, settings.extract_dpi, rules=True) for p in sorted(pages)}
 
     raw_states = {d: align_states(base_dir, [d]).get(d, {}) for d in docs}
     raw_empty = {d: empty_of(payloads[d], d) for d in docs}
@@ -180,7 +189,8 @@ def main() -> int:
         (dest / "ocr").mkdir(parents=True, exist_ok=True)
         snapped, moved, total = {}, 0, 0
         for doc in docs:
-            pay, mv, tt = build_snapped(payloads[doc], masks_by_doc[doc], mode)
+            masks = masks_clean[doc] if mode.endswith("+rules") else masks_by_doc[doc]
+            pay, mv, tt = build_snapped(payloads[doc], masks, mode.split("+")[0])
             snapped[doc] = pay
             moved += mv
             total += tt
