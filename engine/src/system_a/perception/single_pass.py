@@ -342,6 +342,10 @@ class PageAnswer:
         self.M = M
         self.w, self.h = orig_w, orig_h
         self.answer = answer or {}
+        #: boxes this page's answer carried that the parser could not map, kept as the model sent them.
+        #: A page can read perfectly and still lose every coordinate (DMS-147/212), and the only way to
+        #: diagnose that afterwards is to have kept what came back.
+        self.dropped: list[list] = []
         self.mask = mask          # ink map of the page as it was sent, for box corrections
         self.snap_mode = ink_snap_mode(snap)      # both / move / grow / off - see R4-9 below
         self.snap_boxes = self.snap_mode != "off"  # False = the arm that delivers the model's boxes untouched
@@ -382,6 +386,8 @@ class PageAnswer:
         """
         rect = self._px(b, snap)
         if rect is None:
+            if b and len(self.dropped) < 12 and list(b) not in [d for d in self.dropped]:
+                self.dropped.append(list(b))
             return None
         if contains:
             frame = self._px(b) or rect
@@ -395,8 +401,25 @@ class PageAnswer:
                         max(rect[2], moved[2]), max(rect[3], moved[3]))
         bbox, rbox = rotate_px_box_back(rect, self.rot_w, self.rot_h, self.orig_w, self.orig_h, self.M)
         if bbox[2] <= 0 or bbox[3] <= 0:
+            # the box arrived but collapsed on the way in (numbers in a shape this coordinate mode cannot
+            # read); the raw values are the only trace of what the model actually sent
+            if b and len(self.dropped) < 12 and list(b) not in self.dropped:
+                self.dropped.append(list(b))
             return None
         return Region(page=self.page_no, bbox=bbox, rbox=rbox)
+
+
+def count_answer_values(answer: dict) -> int:
+    """How many non-empty values one extract answer offered the parser, fields and cells together.
+
+    Compared against how many arrived with a box, this is what tells a coordinate-less read apart from a
+    page that simply had nothing to say.
+    """
+    n = sum(1 for v in (answer.get("fields") or {}).values() if _raw(v) is not None)
+    for row in answer.get("line_items") or []:
+        if isinstance(row, dict):
+            n += sum(1 for k in CELLS if _raw(row.get(k)) is not None)
+    return n
 
 
 def _rf(cell, page: PageAnswer) -> RawField:
@@ -597,6 +620,23 @@ def build_extraction(*, package_id: str, dms_doc_id: str, sha: str, page_infos: 
             run = []
         if p is not None:
             run.append(p)
+    # --------------------------------------------------- a page that delivered values with no boxes at all
+    # Every box on a page can fail to map - the numbers arrive in a shape the coordinate mode cannot read -
+    # and the payload still looks like a successful read: eleven fields, a line, totals, page_errors empty.
+    # A value with no box cannot be checked by a reviewer and should not stand as located evidence to
+    # matching, so the page is reported, with the raw boxes kept for whoever has to explain it.
+    # This runs BEFORE ``complete`` is decided, because it is exactly the kind of finding that makes a read
+    # incomplete.
+    for p in [x for x in selection["selected"] if x in reads]:
+        offered = count_answer_values(reads[p].answer)
+        located = sum(1 for f in fields.values()
+                      if f.raw is not None and f.region and f.region.page == p)
+        located += sum(1 for ln in lines for c in ln.cells.values()
+                       if c.raw is not None and c.region and c.region.page == p)
+        if offered and not located:
+            sample = "; ".join(str(d) for d in reads[p].dropped[:3])
+            page_errors[str(p)] = (f"NO_GEOMETRY: {offered} values read, none with a usable box "
+                                   f"(unmapped: {sample or 'none reported'})")
     complete = (bool(selection.get("pages_complete")) and bool(selected)
                 and not any(str(p) in page_errors for p in selection["selected"]))
     return ExtractionResult(

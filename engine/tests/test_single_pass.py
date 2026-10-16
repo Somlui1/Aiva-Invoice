@@ -233,6 +233,69 @@ def test_the_second_look_changes_evidence_but_the_gate_still_decides():
     assert 2 in dropped, "page 2 must be dropped as a reprint, not read as a second invoice"
 
 
+def unplaceable(answer: dict) -> dict:
+    """The same answer, with every box moved outside the coordinate space the prompt asked for.
+
+    DMS-147 and DMS-212 came back from the Final Full Round with eleven complete values and no coordinate
+    anywhere - a box the parser cannot map is dropped, and nothing said so. This is how a page like that is
+    reproduced without waiting for the model to do it again.
+    """
+    import copy
+    out = copy.deepcopy(answer)
+
+    def walk(node):
+        if isinstance(node, dict):
+            for k, v in node.items():
+                if k in ("bbox_2d", "line_bbox") and isinstance(v, (list, tuple)) and len(v) == 4:
+                    node[k] = [1100.0, 1600.0, 1200.0, 1700.0]
+                else:
+                    walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+    walk(out)
+    return out
+
+
+def test_a_page_that_delivers_values_without_a_single_box_is_not_a_successful_read():
+    """A read with values but no geometry is unusable, and must not look like a pass.
+
+    The reviewer needs a box to check, and matching must not treat a coordinate-less value as evidence of
+    the same standing as a located one. One unmappable page used to deliver eleven fields, a line and totals
+    with `page_errors` empty and the run reporting ok.
+    """
+    client = FakeClient(extract=unplaceable(EXTRACT))
+    ext = SinglePassPipeline(client, "fake-vl", ink_snap=False).extract(
+        _pdf(3), package_id="P", dms_doc_id="D")
+    assert ext.fields, "the values are still kept - they are the evidence of what went wrong"
+    assert all(f.region is None for f in ext.fields.values())
+    err = ext.extra["page_errors"].get("1", "")
+    assert err.startswith("NO_GEOMETRY"), ext.extra["page_errors"]
+    assert "1100" in err, "the raw box is recorded so the next occurrence can be diagnosed without a rerun"
+    assert ext.pages_complete is False
+    res = validate(ext, build_services(Settings(mode="sandbox"), oracle_dataset=_oracle()),
+                   std=load_standard(), request=REQ)
+    assert res["recommendation"]["value"] != "AUTO_PASS"
+    assert "E01" in res["recommendation"]["exception_codes"], res["recommendation"]
+
+
+def test_a_normal_read_is_not_called_geometry_less():
+    """The guard must not fire on the boxes that are legitimately absent - empty cells."""
+    ext = SinglePassPipeline(FakeClient(), "fake-vl", ink_snap=False).extract(
+        _pdf(3), package_id="P", dms_doc_id="D")
+    assert not any("NO_GEOMETRY" in str(v) for v in ext.extra["page_errors"].values()), ext.extra["page_errors"]
+    assert ext.pages_complete is True
+
+
+def test_a_page_that_read_no_values_is_not_blamed_for_missing_boxes():
+    """No values and no boxes is a blank page, not a geometry failure."""
+    blank = {"fields": {k: {"raw": None, "bbox_2d": None} for k in EXTRACT["fields"]},
+             "line_items": [], "occurrences": {}, "regions": [], "handwritten_refs": []}
+    ext = SinglePassPipeline(FakeClient(extract=blank), "fake-vl", ink_snap=False).extract(
+        _pdf(3), package_id="P", dms_doc_id="D")
+    assert not any("NO_GEOMETRY" in str(v) for v in ext.extra["page_errors"].values()), ext.extra["page_errors"]
+
+
 def _oracle():
     row = {"ORG_ID": 433, "RECEIPT_NUM": "RCV-0000070001", "RECEIVER": "SMITH J.", "LINE": 1,
            "ITEM": "OXYGEN IND PACK", "QTY": "1", "UOM": "Pack", "UNIT_PRICE": "3100.00", "LINE_AMOUNT": "3100.00",
