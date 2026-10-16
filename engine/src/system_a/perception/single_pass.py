@@ -35,7 +35,7 @@ import numpy as np
 
 from ..domain.contracts import (DocumentInfo, ExtractionResult, PageInfo, RawField, RawLine, Region,
                                 RegionNode, SignatureObs)
-from ..domain.normalize import thai_to_arabic
+from ..domain.normalize import thai_to_arabic, Invalid, tax_id
 from ..domain.standard import load_prompt
 from .coords import (choose_coord_mode, INK_RULES_VERSION, ink_mask, is_placeholder, rotate_box_back, rotate_image,
                      rotate_px_box_back, strip_rules,
@@ -438,6 +438,47 @@ def tax_id_warnings(fields: dict, field_page: dict) -> list[dict]:
     return out
 
 
+#: A tax id that fails the Thai rule is usually a resolution problem, not a reasoning problem: R6-12 read the
+#: same page at 150 DPI (one digit dropped) and at the same page read exactly at 300 DPI.  Paying 4x pixels for
+#: all ~224 pages is poor value; paying one extra read for the 13-16% of documents where the rule fails is.
+TAXID_RETRY_ENV = "PERCEPTION_TAXID_RETRY_DPI"
+TAXID_RETRY_DPI_DEFAULT = 300
+
+
+def taxid_retry_dpi_from_env() -> int:
+    """The resolution a suspicious page gets re-read at; 0 turns the second look off (the pre-R6-13 behaviour)."""
+    raw = (os.getenv(TAXID_RETRY_ENV) or "").strip().lower()
+    if raw in ("", "0", "off", "false", "no"):
+        return TAXID_RETRY_DPI_DEFAULT if raw == "" else 0
+    try:
+        return max(0, int(raw))
+    except ValueError:
+        return TAXID_RETRY_DPI_DEFAULT
+
+
+def tax_id_problem(answer: Optional[dict]) -> Optional[str]:
+    """Why this page's answer cannot be trusted on tax ids - or None when it can.
+
+    Three ways to fail, all measured on real pages: not 13 digits, 13 digits whose Thai check digit is wrong
+    (the signature of one mis-read character), and the issuer's id simply not returned when it is printed.
+    An absent customer id is not a trigger: plenty of documents genuinely do not print one.
+    """
+    fields = (answer or {}).get("fields") or {}
+    for name in ("supplier_tax_id", "customer_tax_id"):
+        raw = _raw(fields.get(name))
+        if raw in (None, ""):
+            if name == "supplier_tax_id":
+                return "TAX_ID_MISSING"
+            continue
+        try:
+            tax_id(str(raw))
+        except Invalid as e:
+            return str(e)
+        except Exception as e:                          # pragma: no cover - defensive
+            return type(e).__name__
+    return None
+
+
 def count_answer_values(answer: dict) -> int:
     """How many non-empty values one extract answer offered the parser, fields and cells together.
 
@@ -523,6 +564,7 @@ def _page_signature(answer: dict) -> tuple:
 def build_extraction(*, package_id: str, dms_doc_id: str, sha: str, page_infos: list[PageInfo],
                      classified: list[dict], selection: dict, reads: dict[int, PageAnswer],
                      page_errors: dict, calls: list, model: str, prompt_version: str,
+                     taxid_retry: Optional[list] = None,
                      timings: dict, page_orientations: Optional[dict] = None,
                      ink_snap: bool = True, snap_mode: Optional[str] = None,
                      adjudication: Optional[list] = None) -> ExtractionResult:
@@ -687,6 +729,7 @@ def build_extraction(*, package_id: str, dms_doc_id: str, sha: str, page_infos: 
             "ink_snap": bool(ink_snap),        # which arm of the R4-3c A/B produced this payload
             "ink_snap_mode": snap_mode,        # and which of its two knobs R4-9 left switched on
             "adjudication": list(adjudication or []),   # pages re-read because the document was about to be discarded
+            "taxid_retry": list(taxid_retry or []),     # pages re-read at higher DPI because a tax id failed the rule
             "orientation": {str(p): {"r": o.r, "confidence": o.confidence, "uncertain": o.uncertain,
                                      "skew": o.skew, "total": o.total, "runtime": o.runtime}
                             for p, o in (page_orientations or {}).items()},
@@ -811,13 +854,16 @@ class SinglePassPipeline:
     def __init__(self, client, model: str, *, dpi: int = 150, classify_dpi: int = 80, max_pages: int = 12,
                  max_tokens: int = 8000, coord: str = "norm1000", json_mode: bool = False,
                  thinking: Optional[bool] = False, ink_snap: Optional[bool] = None,
-                 adjudicate_dpi: int = 150, adjudicate: Optional[bool] = None):
+                 adjudicate_dpi: int = 150, adjudicate: Optional[bool] = None,
+                 taxid_retry_dpi: Optional[int] = None):
         self.client, self.model = client, model
         self.dpi, self.classify_dpi, self.max_pages = dpi, classify_dpi, max_pages
         self.max_tokens, self.coord, self.json_mode, self.thinking = max_tokens, coord, json_mode, thinking
         self.snap_mode = ink_snap_from_env() if ink_snap is None else ink_snap_mode(ink_snap)
         self.ink_snap = self.snap_mode != "off"   # R4-3c's boolean, still the payload's "was anything corrected"
         self.adjudicate = adjudicate_from_env() if adjudicate is None else bool(adjudicate)
+        self.taxid_retry_dpi = (taxid_retry_dpi_from_env() if taxid_retry_dpi is None
+                                else int(taxid_retry_dpi))
         self.adjudicate_dpi = adjudicate_dpi
         self.prompts = {n: load_prompt(n) for n in PROMPTS}
         self.prompt_version = "+".join(self._pid(n) for n in PROMPTS)
@@ -830,6 +876,7 @@ class SinglePassPipeline:
             self.code_version = hashlib.sha256(fh.read() + MODEL_SHA256.encode()
                                                + f"|ink_snap={self.snap_mode}|ink_rules={INK_RULES_VERSION}"
                                                  f"|adjudicate={int(self.adjudicate)}"
+                                                 f"|taxid_retry={self.taxid_retry_dpi}"
                                                  f"|prompts={self.prompt_version}".encode()).hexdigest()[:12]
         self.calls: list[dict] = []
         self.stats: dict = {}
@@ -956,6 +1003,9 @@ class SinglePassPipeline:
                 selection.update(pages_complete=False, truncated_at=self.max_pages)
             # ---------------- step 2: extract, one upright page per call
             reads: dict[int, PageAnswer] = {}
+            taxid_retry: list[dict] = []
+            taxid_spent = False        # one harder look per document, not per page: the cost stays bounded
+            dpi_by_page: dict[int, int] = {}
             t0 = time.time()
             for p in selection["selected"]:
                 ori = page_orientations.get(p) or OrientationResult(0, 1.0, False, 0.0, 0.0, "vlm_classify")
@@ -967,6 +1017,7 @@ class SinglePassPipeline:
                     rot_img, M = orig_img, None
                 rot_w, rot_h = rot_img.width, rot_img.height
                 text = self.prompts["single_pass_extract"].replace("{page_no}", str(p))
+                dpi_used = self.dpi
                 try:
                     ans = self._ask("extract", p, text, [self._data_url(rot_img)], self.max_tokens)
                     if getattr(self.client, "last_salvaged", False):
@@ -974,6 +1025,28 @@ class SinglePassPipeline:
                 except Exception as e:
                     page_errors[str(p)] = f"{type(e).__name__}: {str(e)[:200]}"
                     ans = {}
+                # ------------------------------------------- one harder look, only where the tax id rule fails
+                problem = tax_id_problem(ans) if (self.taxid_retry_dpi and not taxid_spent) else None
+                if problem:
+                    taxid_spent = True
+                    accepted = False
+                    try:
+                        hi_orig = self._render(doc[p - 1], self.taxid_retry_dpi)
+                        hi_rot, hi_M = rotate_image(hi_orig, ori.total) if ori.total != 0 else (hi_orig, None)
+                        ans_hi = self._ask("extract", p, text, [self._data_url(hi_rot)], self.max_tokens)
+                        if ans_hi and tax_id_problem(ans_hi) is None:
+                            # the accepted answer brings its own frame with it: its boxes are in the
+                            # high-resolution page, so dimensions, matrix and ink map all follow it
+                            ans, orig_img, rot_img, M = ans_hi, hi_orig, hi_rot, hi_M
+                            orig_w, orig_h = hi_orig.width, hi_orig.height
+                            rot_w, rot_h = hi_rot.width, hi_rot.height
+                            dpi_used = self.taxid_retry_dpi
+                            accepted = True
+                    except Exception:
+                        pass          # a failed second look leaves the first answer standing, and is reported
+                    taxid_retry.append({"page": p, "reason": problem, "dpi": self.taxid_retry_dpi,
+                                        "accepted": accepted})
+                dpi_by_page[p] = dpi_used
                 reads[p] = PageAnswer(p, orig_w, orig_h, rot_w, rot_h, M, ans, self.coord,
                                       mask=strip_rules(ink_mask(rot_img)), snap=self.snap_mode)
             timings["extract_ms"] = round((time.time() - t0) * 1000)
@@ -983,13 +1056,14 @@ class SinglePassPipeline:
                 w, h = round(pg.rect.width, 2), round(pg.rect.height, 2)
                 ori = page_orientations.get(i + 1)
                 r_deg = ori.r if ori else 0
-                infos.append(PageInfo(page_no=i + 1, width_pt=w, height_pt=h, rotation=r_deg, render_dpi=self.dpi))
+                infos.append(PageInfo(page_no=i + 1, width_pt=w, height_pt=h, rotation=r_deg,
+                                      render_dpi=dpi_by_page.get(i + 1, self.dpi)))
         timings["total_ms"] = round((time.time() - t_all) * 1000)
         ext = build_extraction(package_id=package_id, dms_doc_id=dms_doc_id, sha=sha, page_infos=infos,
                                classified=classified, selection=selection, reads=reads, page_errors=page_errors,
                                calls=list(self.calls), model=self.model, prompt_version=self.prompt_version,
                                timings=timings, page_orientations=page_orientations, ink_snap=self.ink_snap,
-                               snap_mode=self.snap_mode, adjudication=adjudication)
+                               snap_mode=self.snap_mode, adjudication=adjudication, taxid_retry=taxid_retry)
         self.stats = {"calls": len(self.calls), "ok": sum(1 for c in self.calls if c["ok"]),
                       "failed": sum(1 for c in self.calls if not c["ok"]), "ms": timings["total_ms"],
                       "pages": len(infos), "selected": selection["selected"], "lines": len(ext.lines),

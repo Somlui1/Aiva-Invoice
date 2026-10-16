@@ -71,9 +71,10 @@ class FakeClient:
     """Same chat_json signature as LiteLLMClient (no **kwargs)."""
 
     def __init__(self, classify=CLASSIFY3, fail_classify=False, extract=None,
-                 adjudicate=None, fail_adjudicate=False):
+                 adjudicate=None, fail_adjudicate=False, extract_seq=None):
         self.classify, self.fail_classify = classify, fail_classify
         self.extract = EXTRACT if extract is None else extract
+        self.extract_seq = list(extract_seq or [])      # successive extract answers, for retry tests
         self.adjudicate, self.fail_adjudicate = adjudicate, fail_adjudicate
         self.asked, self.sizes = [], []
         self.last_usage, self.last_salvaged = {}, False
@@ -100,6 +101,8 @@ class FakeClient:
             import base64, io
             from PIL import Image
             self.sizes.append(Image.open(io.BytesIO(base64.b64decode(images[0].split(",", 1)[1]))).size)
+            if self.extract_seq:
+                return self.extract_seq.pop(0)
         return self.classify if kind == "classify" else self.extract
 
 
@@ -405,6 +408,123 @@ def test_the_format_flag_names_the_field_that_carries_it():
     hits = _warnings(ext)
     assert [w["field"] for w in hits] == ["customer_tax_id"], hits
     assert hits[0]["digits"] == 14
+
+
+BAD_CHECKSUM_TAX = "0105537063170"        # 13 digits, fails the Thai check digit
+
+
+def test_a_tax_id_that_fails_the_rule_is_read_again_at_higher_resolution():
+    """R6-12: two documents read a digit wrong at 150 DPI and read them exactly at 300 DPI, while every page
+    here is legible at 150.  The fix is not to pay 4x pixels on 224 pages - it is to spend one harder look on
+    the ~13% of documents where the rule actually fails, at the resolution that is known to work.
+    """
+    bad = {k: dict(v) for k, v in EXTRACT["fields"].items()}
+    bad["supplier_tax_id"] = V(SUP_TAX[:-1])                       # 12 digits: one short
+    good = {k: dict(v) for k, v in EXTRACT["fields"].items()}
+    client = FakeClient(extract_seq=[{**EXTRACT, "fields": bad}, {**EXTRACT, "fields": good}])
+    ext = SinglePassPipeline(client, "fake-vl", ink_snap=False).extract(_pdf(1), package_id="P", dms_doc_id="D")
+    assert ext.fields["supplier_tax_id"].raw == SUP_TAX, "the second read replaced the untrusted one"
+    assert [k for k, _, _ in client.asked].count("extract") == 2, client.asked
+    assert client.sizes[-1][0] > client.sizes[0][0], f"retry must render bigger: {client.sizes}"
+    log = ext.extra["taxid_retry"]
+    assert log == [{"page": 1, "reason": "TAX_ID_NOT_13_DIGITS", "dpi": 300, "accepted": True}], log
+
+
+def test_a_checksum_failure_triggers_the_second_look_too():
+    """13 digits that fail the check digit are exactly as unusable as 12 digits - and the page is usually
+    readable, the model just mis-read one character."""
+    bad = {k: dict(v) for k, v in EXTRACT["fields"].items()}
+    bad["supplier_tax_id"] = V(BAD_CHECKSUM_TAX)
+    client = FakeClient(extract_seq=[{**EXTRACT, "fields": bad}, EXTRACT])
+    ext = SinglePassPipeline(client, "fake-vl", ink_snap=False).extract(_pdf(1), package_id="P", dms_doc_id="D")
+    assert ext.fields["supplier_tax_id"].raw == SUP_TAX
+    assert ext.extra["taxid_retry"][0]["reason"] == "TAX_ID_CHECKSUM", ext.extra["taxid_retry"]
+
+
+def test_a_missing_supplier_tax_id_gets_one_harder_look():
+    """The owner's rule counts a tax id that is simply absent as worth one more read: the class-5 documents
+    proved the number was printed and legible, and the model just did not return it in some runs.
+    """
+    none = {k: dict(v) for k, v in EXTRACT["fields"].items()}
+    none["supplier_tax_id"] = V(None)
+    client = FakeClient(extract_seq=[{**EXTRACT, "fields": none}, EXTRACT])
+    ext = SinglePassPipeline(client, "fake-vl", ink_snap=False).extract(_pdf(1), package_id="P", dms_doc_id="D")
+    assert ext.fields["supplier_tax_id"].raw == SUP_TAX
+    assert ext.extra["taxid_retry"][0]["reason"] == "TAX_ID_MISSING", ext.extra["taxid_retry"]
+
+
+def test_a_valid_first_read_costs_no_extra_call():
+    """The whole point is that the ordinary document is untouched: one call per selected page, same pixels."""
+    client = FakeClient()
+    ext = SinglePassPipeline(client, "fake-vl", ink_snap=False).extract(_pdf(3), package_id="P", dms_doc_id="D")
+    selected = ext.extra["selection"]["selected"]
+    assert [k for k, _, _ in client.asked].count("extract") == len(selected), client.asked
+    assert len(set(client.sizes)) == 1, client.sizes
+    assert ext.extra["taxid_retry"] == []
+
+
+def test_a_second_look_that_is_still_bad_does_not_silently_replace_the_first():
+    """If the sharper read is also wrong, the payload keeps the first value and says the retry happened -
+    two wrong answers are not a promotion, and a silent swap would hide the event."""
+    bad1 = {k: dict(v) for k, v in EXTRACT["fields"].items()}
+    bad1["supplier_tax_id"] = V(SUP_TAX[:-1])
+    bad2 = {k: dict(v) for k, v in EXTRACT["fields"].items()}
+    bad2["supplier_tax_id"] = V(BAD_CHECKSUM_TAX)
+    client = FakeClient(extract_seq=[{**EXTRACT, "fields": bad1}, {**EXTRACT, "fields": bad2}])
+    ext = SinglePassPipeline(client, "fake-vl", ink_snap=False).extract(_pdf(1), package_id="P", dms_doc_id="D")
+    assert ext.fields["supplier_tax_id"].raw == SUP_TAX[:-1], "first answer stays"
+    assert ext.extra["taxid_retry"][0]["accepted"] is False, ext.extra["taxid_retry"]
+    assert ext.extra["page_errors"].get("1", "").startswith("NO_GEOMETRY") is False
+
+
+def test_the_second_look_is_spent_once_per_document():
+    """Cost discipline: a three-page document with two bad pages buys ONE retry, not one per page."""
+    bad = {k: dict(v) for k, v in EXTRACT["fields"].items()}
+    bad["supplier_tax_id"] = V(SUP_TAX[:-1])
+    client = FakeClient(extract_seq=[{**EXTRACT, "fields": bad}, {**EXTRACT, "fields": bad},
+                                     {**EXTRACT, "fields": bad}])
+    ext = SinglePassPipeline(client, "fake-vl", ink_snap=False).extract(_pdf(3), package_id="P", dms_doc_id="D")
+    selected = ext.extra["selection"]["selected"]
+    calls = [k for k, _, _ in client.asked].count("extract")
+    assert calls == len(selected) + 1, f"expected exactly one extra call, got {calls} for {len(selected)} pages"
+
+
+def test_turning_the_second_look_off_restores_the_old_behaviour_and_changes_the_cache_key(monkeypatch):
+    monkeypatch.setenv("PERCEPTION_TAXID_RETRY_DPI", "0")
+    bad = {k: dict(v) for k, v in EXTRACT["fields"].items()}
+    bad["supplier_tax_id"] = V(SUP_TAX[:-1])
+    client = FakeClient(extract_seq=[{**EXTRACT, "fields": bad}, EXTRACT])
+    off = SinglePassPipeline(client, "fake-vl", ink_snap=False)
+    ext = off.extract(_pdf(1), package_id="P", dms_doc_id="D")
+    assert [k for k, _, _ in client.asked].count("extract") == 1, "knob off means no extra call"
+    assert ext.fields["supplier_tax_id"].raw == SUP_TAX[:-1]
+    monkeypatch.delenv("PERCEPTION_TAXID_RETRY_DPI", raising=False)
+    same_arm = SinglePassPipeline(FakeClient(), "fake-vl", ink_snap=False)
+    assert same_arm.code_version != off.code_version, \
+        "the knob must be part of the cache key - compared with every other arm setting identical"
+
+
+def test_a_retried_page_still_lands_its_boxes_in_the_right_place():
+    """Accepting a sharper answer swaps the coordinate frame too.  If the point conversion kept using 150 DPI
+    for a page rendered at 300, every box on that page would come out twice the size relative to the page and
+    still look plausible - so this compares where the same printed value lands with and without the second look.
+    """
+    def read(with_retry: bool):
+        bad = {k: dict(v) for k, v in EXTRACT["fields"].items()}
+        bad["supplier_tax_id"] = V(SUP_TAX[:-1])
+        client = FakeClient(extract_seq=[{**EXTRACT, "fields": bad}, EXTRACT] if with_retry
+                            else [{**EXTRACT, "fields": bad}])
+        pipe = SinglePassPipeline(client, "fake-vl", ink_snap=False,
+                                  taxid_retry_dpi=300 if with_retry else 0)
+        return pipe.extract(_pdf(1), package_id="P", dms_doc_id="D")
+
+    with_retry, without = read(True), read(False)
+    a, b = with_retry.fields["invoice_num"].region, without.fields["invoice_num"].region
+    assert a and b, f"both reads should carry a box: {a} {b}"
+    # Region.bbox is a fraction of the page, so a DPI bookkeeping error would show as a box ~2x off here
+    for va, vb in zip(a.bbox, b.bbox):
+        assert abs(va - vb) < 0.01, f"same printed value, different page position: {a.bbox} vs {b.bbox}"
+    assert all(0.0 <= v <= 1.0 for v in a.bbox), f"fractions must stay on the page: {a.bbox}"
 
 
 def _oracle():

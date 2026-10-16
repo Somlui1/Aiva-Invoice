@@ -435,3 +435,65 @@ Full evidence: `r69_class5_evidence.md` · measurement: `class5_probe.py` / `cla
 - Owner trade-off left open: raise extract DPI 150→300 (≈4× pixels/page on ~224 pages), or the cheaper
   unmeasured option — **re-read at 300 DPI only the pages whose tax id fails the format/checksum rule**
   (18 + 23 rejections out of 836 delivered values). Not my call, and I'll measure before proposing.
+
+
+---
+
+# R6-13 · Targeted 300 DPI retry — the owner's cost rule turned into code, and it fixes the two documents R6-12 could not
+
+## Design, then measurement, in that order
+
+Before writing anything I measured what the trigger would cost on the three full corpus runs already on disk:
+
+| run | documents | T1 delivered tax id fails format/checksum | T2 issuer tax id absent | retry rate if T1 only | if T1+T2 (ordered) |
+|---|---|---|---|---|---|
+| repA | 223 | 21 (9.4%) | 9 (4.0%) | 9.4% | **13.5%** |
+| repB | 223 | 20 (9.0%) | 15 (6.7%) | 9.0% | **15.7%** |
+| ffr/run1 | 223 | 15 (6.7%) | 14 (6.3%) | 6.7% | **13.0%** |
+
+So the owner's rule ("150 DPI as the default, re-shoot 300 DPI only where a tax id is missing or fails
+format/checksum") buys the resolution R6-12 proved was needed, for **~1 extra extract call on 13-16% of
+documents** instead of 4× pixels on all ~224 pages. T2 (missing) is included because the owner asked for it and
+because R6-12 showed those numbers are usually printed and simply not returned. An absent *customer* id is
+deliberately **not** a trigger — plenty of documents legitimately print none.
+
+## What ships
+
+`PERCEPTION_TAXID_RETRY_DPI` (default 300, `0` = off, and the knob is part of `code_version`):
+one re-read per **document** (not per page — cost stays bounded), same prompt, same rotation handling.
+The second answer is accepted **only if the tax id rule now passes**; otherwise the first value stands and the
+event is still logged. `extra["taxid_retry"]` records `{page, reason, dpi, accepted}`, and the retried page's
+`render_dpi` is recorded as 300 so the geometry bookkeeping cannot lie about which frame the boxes came from.
+
+## Tests: 8, red first
+
+Trigger on 12 digits · on a check-digit failure · on a missing issuer id · **no extra call when the first read is
+valid** · a still-wrong second read does not silently replace the first · **one retry per document, not per
+page** · knob off restores old behaviour *and* changes the cache key · **a retried page still lands its boxes in
+the same place** (compares `Region.bbox` fractions between 150-only and retried reads — a DPI bookkeeping error
+would show up as a box ~2× off while still looking plausible).
+
+One of these was green for the wrong reason and I only caught it because I checked: the knob-off/cache-key test
+compared a pipeline built with `ink_snap=False` against one built with the default, so the `code_version`
+differed because of the **snap**, not the knob. Fixed to compare arms that differ in the knob and nothing else.
+
+`261 passed` (was 253). Mutation: `tax_id_problem()` always returns `None` → **5 of the 8 red**, the three
+"no extra call" tests correctly stay green.
+
+## Real documents, production pipeline, not a probe
+
+| doc | what R6-12 measured | what the shipped pipeline delivers now | second look |
+|---|---|---|---|
+| **DMS-31** | `011554004198` at 150 DPI (digit dropped) | **`0115554004198` = exactly what the page prints** | `{'page':1,'reason':'TAX_ID_NOT_13_DIGITS','dpi':300,'accepted':True}`, page 1 recorded at 300 DPI, format flags 0 |
+| **DMS-96** | `01155490004428` at 150 DPI (digit inserted) | **`0115549004428` = matches the page** | same shape, accepted |
+| DMS-42 | prints its id spaced inside a box | delivered, **not flagged, not re-read** | none — a false positive would have shown as a wasted call |
+| DMS-106 | clean control | delivered, **not re-read** | none |
+
+## The mistake I made in this task, recorded because it cost an hour
+
+To revert my mutation test I ran `git checkout -- src/system_a/perception/single_pass.py` on a file whose retry
+work was **not yet committed** — which is the exact thing I wrote down as a rule after R6-3 ("back up to
+bbox_testing/ before mutation testing"). The checkout restored HEAD and deleted the implementation; the tests
+survived, so `261 passed` after re-applying proves nothing was silently lost. The file is now backed up to
+`bbox_testing/round_06/single_pass.after_retry.py.bak` *before* any mutation, and mutation reverts by editing
+the specific line back, not by asking git for a clean copy.
