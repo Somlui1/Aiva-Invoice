@@ -26,10 +26,10 @@ export const TABS: { key: TabKey; label: string; icon: IconName }[] = [
   { key: "queue", label: "หน้าคิวตรวจสอบ", icon: "table" },
 ];
 
-/** เวลาที่อยู่ในแต่ละแท็บก่อนเลื่อนไปแท็บถัดไป (ms) */
-export const DWELL: Record<TabKey, number> = { flow: 20000, rules: 25000, state: 17000, role: 14500, queue: 8000 };
-/** เวลาต่อ 1 ขั้นภายในแท็บ (ms) · แท็บ rules/queue เล่นเองจึงไม่มี */
-export const STEP_MS: Partial<Record<TabKey, number>> = { flow: 3300, state: 2900, role: 3500 };
+/** เวลาที่อยู่ในแต่ละแท็บก่อนเลื่อนไปแท็บถัดไป (ms) - เร่งความเร็ว ~2x */
+export const DWELL: Record<TabKey, number> = { flow: 10000, rules: 12000, state: 9000, role: 8000, queue: 5000 };
+/** เวลาต่อ 1 ขั้นภายในแท็บ (ms) · แท็บ rules/queue เล่นเองจึงไม่มี - เร่งความเร็ว ~2x */
+export const STEP_MS: Partial<Record<TabKey, number>> = { flow: 1650, state: 1450, role: 1750 };
 
 /* ------------------------------------------------------- แท็บ 1 · กระบวนการ ---- */
 export interface WfStep {
@@ -55,7 +55,7 @@ export const WF: WfStep[] = [
     inp: "ไฟล์ใบแจ้งหนี้ (ต้นฉบับ + สำเนา)",
     out: "dms_doc_id · uploaded_by · uploaded_at",
     chips: [],
-    note: "Portal ไม่เก็บ URL ของ DMS · ออกลิงก์ชั่วคราว 10 นาที พร้อมลายน้ำ เมื่อมีคนเปิดดู",
+    note: "",
   },
   {
     t: "AIVA อ่านและตรวจเอกสาร",

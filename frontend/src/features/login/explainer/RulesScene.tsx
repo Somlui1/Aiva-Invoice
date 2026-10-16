@@ -16,7 +16,7 @@ interface Props {
 
 type RowState = { cls: string; icon?: IconName; em?: string; title?: string };
 
-const T = 460; // ms ต่อกฎ
+const T = 240; // ms ต่อกฎ (~2x faster)
 
 /** แท็บ 2 · ตรวจกฎทีละข้อ (V-01…V-09) ตามตัวอย่างที่เลือก */
 export function RulesScene({ scn, nonce, autoRef, holdRef, onPick, onNext }: Props) {
@@ -46,7 +46,7 @@ export function RulesScene({ scn, nonce, autoRef, holdRef, onPick, onNext }: Pro
             title: k === "skip" ? `ไม่ได้ประเมิน · หยุดที่ ${(r as [string, string])[1]}` : undefined,
           },
         }));
-      }, i * T + 330);
+      }, i * T + 170);
     });
 
     later(() => {
@@ -55,13 +55,13 @@ export function RulesScene({ scn, nonce, autoRef, holdRef, onPick, onNext }: Pro
       const wait = () => {
         if (!autoRef.current) return;
         if (holdRef.current || document.hidden) {
-          timers.push(setTimeout(wait, 900));
+          timers.push(setTimeout(wait, 400));
           return;
         }
         onNext();
       };
-      timers.push(setTimeout(wait, 3400));
-    }, RSEQ.length * T + 200);
+      timers.push(setTimeout(wait, 1800));
+    }, RSEQ.length * T + 100);
 
     return () => timers.forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
