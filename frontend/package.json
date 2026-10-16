@@ -12,6 +12,7 @@
     "postbuild": "node scripts/copy-standalone-assets.mjs",
     "start": "node .next/standalone/server.js",
     "start:next": "next start",
+    "check:services": "tsx scripts/check-services.ts",
     "lint": "next lint",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
