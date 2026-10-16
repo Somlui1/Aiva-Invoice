@@ -76,7 +76,7 @@ describe('RbacPage Tab 3: Company Master Search & Oracle Sync', () => {
         ok: true,
         json: async () => ({ ok: true }),
       } as Response)
-    })
+    }) as any
   })
 
   it('renders company search bar and counter in Tab 3', async () => {

@@ -91,4 +91,4 @@
 | task-audit-multitype-api | Multi-Type Scoped Audit Logs API (`/api/audit-logs`) | completed | Tested & verified: category and search query params, non-admin RBAC scoping, metadataJson included (src/test/auditLogMultiType.test.ts 4/4 pass, auditLogScoping.test.ts 3/3 pass) |
 | task-unified-audit-ui | Unified Audit Logs UI with Search & Category Dropdown (`AuditPage.tsx`) | completed | Tested & verified: text search, category dropdown, role-based categories, and category badges (src/test/unifiedAuditPage.test.tsx 3/3 pass) |
 | task-rbac-company-search-ui | RbacPage Tab 3 Instant Search & Live MCP Sync UI | completed | Tested & verified: instant multi-field search input, company count badge, 26-entity table, and live MCP sync (src/test/rbacCompanySearch.test.tsx 3/3 pass) |
-| task-audit-company-full-verify | Full Regression Verification & Integration Pass | in_progress | Running full test suite, tsc typecheck, and next build |
+| task-audit-company-full-verify | Full Regression Verification & Integration Pass | completed | Full vitest suite 53/53 files (289/289 tests) pass; tsc --noEmit exit 0 (0 errors); Next.js 15 standalone build 19/19 routes exit 0 |
