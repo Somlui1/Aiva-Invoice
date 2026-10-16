@@ -2944,6 +2944,65 @@ def test_a_box_that_needs_both_knobs_reports_both():
     assert box[1] >= 30 and box[3] <= 38 and box[0] <= 40 and box[2] >= 79, f"{box} ({note})"
 
 
+# ------------------------------------------------- R4-11: the truth map must be text ink, not page furniture
+# ``moved`` fired 0 and 5 times in 211 boxes per run while the audit round recorded 90 empty boxes: the snap
+# finds "a line of its own" almost everywhere, because a table rule or a box border crossing the box's columns
+# reads as ink.  Two consequences, both measured, both wrong.
+def _sheet_with_a_rule(h=60, w=200):
+    """A form row: a printed value, a thin rule across the page above it, blank paper between.
+
+    The gap is inside the snap's own travel budget (twice the box height) on purpose, so the only thing
+    deciding where the box lands is which ink the map admits.
+    """
+    mask = _sheet_mask(h=h, w=w)
+    _draw_word(mask, 34, 42, 40, 80)
+    mask[28:30, 5:195] = 1                      # the rule the form prints under every label
+    return mask
+
+
+def test_the_map_the_snap_reads_ignores_a_rule_it_would_otherwise_land_on():
+    """Given a box in the blank strip between a rule and its value, the snap moves it onto the rule.
+
+    Measured before this test was written: ``moved_4px`` - four pixels of drift onto a printed line that
+    carries no text at all, when the value it was meant to cover sits eight pixels further down.  A rule is
+    page furniture; the ink that decides where a box belongs is the print.
+    """
+    from system_a.perception.coords import snap_box_to_ink, strip_rules
+    raw, note = snap_box_to_ink((40, 20, 80, 26), _sheet_with_a_rule(), grow=False)
+    assert raw[1] < 34, f"what the unstripped map does, for the record: {raw} ({note})"
+    clean = strip_rules(_sheet_with_a_rule())
+    box, note = snap_box_to_ink((40, 20, 80, 26), clean, grow=False)
+    assert box[1] >= 34 and box[3] <= 42, f"the box belongs on the printed value, got {box} ({note})"
+
+
+def test_a_box_drawn_on_a_rule_is_no_longer_read_as_sitting_on_its_own_line():
+    """The other half of the blindness: a box whose only ink is a rule was "unchanged" forever.
+
+    This is the failure Round 3 counted 90 of, and why the empty-box ruler read 0.0% on the engine path while
+    the audit harness read 50% on the same documents.
+    """
+    from system_a.perception.coords import snap_box_to_ink, strip_rules
+    _box, note = snap_box_to_ink((40, 27, 80, 31), _sheet_with_a_rule(), grow=False)
+    assert note == "unchanged", f"what the unstripped map says, for the record: {note}"
+    clean = strip_rules(_sheet_with_a_rule())
+    box, note = snap_box_to_ink((40, 27, 80, 31), clean, grow=False)
+    assert "moved" in note, f"a box on a rule has no line of its own: {box} ({note})"
+    assert box[1] >= 34 and box[3] <= 42, f"it should travel to the value, got {box} ({note})"
+
+
+def test_stripping_rules_leaves_printed_text_alone():
+    """The strip must be conservative: a wide line of small print is a row of values, not a rule."""
+    import numpy as np
+
+    from system_a.perception.coords import strip_rules
+    mask = _sheet_mask(h=60, w=200)
+    _draw_word(mask, 20, 32, 6, 190, step=3)     # a full-width description line: same span as a rule, 12 px tall
+    clean = strip_rules(mask)
+    assert np.array_equal(clean, mask), "a text row was erased from the ink map"
+    assert not np.array_equal(strip_rules(_sheet_with_a_rule()), _sheet_with_a_rule()), \
+        "the rule was not stripped either"
+
+
 def test_ink_mask_finds_print_and_only_print():
     """The snap needs a truth map of the page: dark strokes yes, white paper no."""
     import numpy as np

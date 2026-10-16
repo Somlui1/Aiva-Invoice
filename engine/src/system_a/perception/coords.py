@@ -277,6 +277,56 @@ def _ink_bands(mask: np.ndarray, x0: int, x1: int) -> list[tuple[int, int]]:
     return bands
 
 
+#: A printed rule (a form's underline, a table border) is a thin, near-unbroken line of ink across the page.
+#: Dotted leaders are deliberately NOT in this definition - their dots leave gaps - so the strip is
+#: conservative and only removes what cannot be print a box was meant to cover.
+RULE_MAX_HEIGHT_PX = 4
+RULE_MIN_SPAN_RATIO = 0.8
+
+
+def strip_rules(mask: np.ndarray) -> np.ndarray:
+    """Remove page furniture from an ink map: thin solid lines that run across the sheet.
+
+    ``snap_box_to_ink`` decides "this box already has its own line" from the ink under the box's columns, and a
+    table rule answers that question the same way printed digits do.  Measured on six documents that is why
+    ``moved`` - the correction's whole reason for existing - fired 0 and 5 times in 211 boxes, while the audit
+    round had counted 90 boxes sitting on blank paper: they were not on paper, they were on rules.
+
+    Deliberately conservative: a band must be thin *and* run unbroken across almost the whole page, so a line
+    of small print (which spans just as wide, but is twelve pixels of strokes with gaps) survives.
+    """
+    inked = np.asarray(mask) > 0
+    out = np.asarray(mask).copy()
+    H, W = inked.shape[:2]
+    if W < 8:
+        return out
+    rows = np.flatnonzero(inked.any(axis=1))
+    for r0, r1 in _bands(list(rows)):
+        if r1 - r0 > RULE_MAX_HEIGHT_PX:
+            continue
+        cols = np.flatnonzero(inked[r0:r1].any(axis=0))
+        spans = [b[1] - b[0] for b in _bands(list(cols))] or [0]
+        if max(spans) / W >= RULE_MIN_SPAN_RATIO:
+            out[r0:r1, :] = 0
+    return out
+
+
+def _bands(indices: list[int]) -> list[tuple[int, int]]:
+    """Contiguous runs of a sorted index list, as (start, end) - rows or columns that carry ink."""
+    out, start, prev = [], None, None
+    for i in indices:
+        if start is None:
+            start = prev = int(i)
+        elif i == prev + 1:
+            prev = int(i)
+        else:
+            out.append((start, prev + 1))
+            start = prev = int(i)
+    if start is not None:
+        out.append((start, prev + 1))
+    return out
+
+
 def snap_box_to_ink(box: Sequence[float], mask: np.ndarray,
                     max_move: Optional[float] = None, *,
                     move: bool = True, grow: bool = True) -> tuple[tuple[int, int, int, int], str]:

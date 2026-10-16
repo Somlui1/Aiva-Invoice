@@ -37,7 +37,7 @@ from ..domain.contracts import (DocumentInfo, ExtractionResult, PageInfo, RawFie
                                 RegionNode, SignatureObs)
 from ..domain.normalize import thai_to_arabic
 from ..domain.standard import load_prompt
-from .coords import (choose_coord_mode, ink_mask, rotate_box_back, rotate_image, rotate_px_box_back,
+from .coords import (choose_coord_mode, ink_mask, rotate_box_back, rotate_image, rotate_px_box_back, strip_rules,
                     sanitize_xyxy, snap_box_to_ink, xyxy_px, xyxy_to_xywh)
 from .orientation import MODEL_SHA256, OrientationResult
 
@@ -780,7 +780,7 @@ class SinglePassPipeline:
                     page_errors[str(p)] = f"{type(e).__name__}: {str(e)[:200]}"
                     ans = {}
                 reads[p] = PageAnswer(p, orig_w, orig_h, rot_w, rot_h, M, ans, self.coord,
-                                      mask=ink_mask(rot_img), snap=self.snap_mode)
+                                      mask=strip_rules(ink_mask(rot_img)), snap=self.snap_mode)
             timings["extract_ms"] = round((time.time() - t0) * 1000)
             infos = []
             for i in range(len(doc)):

@@ -545,6 +545,48 @@ def _row_and_cells(ink_snap, pdf: bytes, dpi: int, answer: dict):
     return line.region.bbox, {k: v.region.bbox for k, v in line.cells.items() if v.region}
 
 
+def _pdf_with_a_rule_and_a_value() -> bytes:
+    """A form row: a thin rule printed across the page, and the value it belongs to printed below it."""
+    doc = fitz.open()
+    page = doc.new_page(width=595, height=842)
+    page.draw_line((50, 683), (545, 683), width=0.8)
+    page.insert_text((72, 700), "3,317.00")
+    return doc.tobytes()
+
+
+def test_a_box_between_a_rule_and_its_value_is_delivered_on_the_value_not_the_rule():
+    """The same failure through the whole pipeline, on a real rendered page.
+
+    The model read the number correctly and drew its box in the gap between the form's underline and the
+    digits.  The nearest ink is the rule, so the correction as shipped lands the box on a printed line that
+    carries no text at all - four pixels of drift onto furniture, while the value it was meant to cover sits
+    sixteen pixels away.  This is also why ``moved`` looked almost useless on dense forms: on a box that
+    overlaps a rule, the rule *is* the "own line", and the box is reported as already correct.
+    """
+    pdf = _pdf_with_a_rule_and_a_value()
+    dpi = 100
+    bands = _ink_rows(pdf, dpi)
+    assert len(bands) >= 2, f"the fixture needs a rule and printed digits: {bands}"
+    rule = bands[0]
+    value = max(bands[1:], key=lambda b: b[1] - b[0])       # the digits, not a comma's tail below them
+    words = _ink_cols(pdf, dpi, value[0], value[1])
+    mask = _page_mask(pdf, dpi)
+    h, w = mask.shape[:2]
+    drawn = [(words[0][0] - 6) / w * 1000, (value[0] - 36) / h * 1000,
+             (words[-1][1] + 6) / w * 1000, (value[0] - 16) / h * 1000]
+    assert rule[0] >= value[0] - 16 and rule[1] <= value[0], \
+        f"fixture: the rule must lie between the drawn box (ends at {value[0] - 16}) and its value {value}: {rule}"
+    client = FakeClient(classify=ONE_PAGE, extract={"fields": {"grand_total": {"raw": "3,317.00",
+                                                                            "bbox_2d": drawn}},
+                                                   "line_items": [], "regions": [], "handwritten_refs": []})
+    ext = SinglePassPipeline(client, "fake-vl", dpi=dpi, ink_snap="move").extract(pdf, package_id="P",
+                                                                                 dms_doc_id="D")
+    x, y, _w2, hh = ext.fields["grand_total"].region.bbox
+    assert y >= value[0] / h - 2e-3 and y + hh <= value[1] / h + 2e-3, \
+        (f"the box must be delivered on the printed value {value}, got y {y:.4f}..{y + hh:.4f} "
+         f"(the rule it would otherwise land on is at {rule[0] / h:.4f})")
+
+
 def _contained(cell, row) -> float:
     ix = max(0.0, min(cell[0] + cell[2], row[0] + row[2]) - max(cell[0], row[0]))
     iy = max(0.0, min(cell[1] + cell[3], row[1] + row[3]) - max(cell[1], row[1]))
