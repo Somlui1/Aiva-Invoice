@@ -541,3 +541,60 @@ says it is: `[invoice_num, po_number, customer_name, customer_address, customer_
 
 This also closes the loop with R6-13: those pages are exactly what the new targeted retry re-reads at 300 DPI,
 so the corpus run (order 4) will show how many of these 25 stop needing REVIEW for a digit-level reason.
+
+
+---
+
+# R6-15 (owner order 3) · Ambiguity is now policy in the prompt — and I had read one of the labels wrong
+
+## Before writing the rule, I re-read the pages at 300 DPI — and my 130 DPI note was wrong
+
+`label_zoom.py` / `label_crop.py` render page 1 from the PDF at 300 DPI (upscaling a 130 DPI PNG invents no
+detail — the lesson R6-12 taught me when I mis-read a tax id off a shrunk montage):
+
+| doc | what the page actually prints | my earlier 130 DPI note | owner's ruling |
+|---|---|---|---|
+| DMS-236 | **`เล่มที่ 085`** above **`เลขที่ 422`** | "เลขที่ 085 beside เลขที่ 422" — **wrong label** | เลขที่ (422) wins ✓ matches the page |
+| DMS-237 | same Mongkonchai form: `เล่มที่ 085` / `เลขที่ 422` (+ handwritten 5022004356) | same wrong note | same ✓ |
+| DMS-159 | header `Doc No. : SLI2610000004`; body/shipment block **`INVOICE NO. : INV-2026-0802`** | right, but I had not seen that INVOICE NO. sits *below* the header | INVOICE NO. wins ✓ |
+
+Had I encoded the rule from my 130 DPI note, I would have written "two identical เลขที่ labels" — an unresolvable
+statement — instead of "a volume number is not a document number", which is the actual, decidable rule.
+
+## The rule that ships (`single-pass-extract@1.6.0`)
+
+A precedence ladder in which **what a label means outranks where it is printed**:
+(a) any field labelled `เลขที่ใบกำกับภาษี` / `TAX INVOICE NO.` / `INVOICE NO.` / `INV. NO.` — **take it even when
+it sits in the body or the shipment/charges block**; (b) only if nothing like (a) exists, the `เลขที่ / No.` in the
+header under the title. A generic label (`Doc No.`, `Document No.`, `เลขที่เอกสาร`, `Ref`, `Job No.`, `HB/L NO.`,
+`MB/L NO.`, `AWB`, `1st FLIGHT NO.`) does **not** win while a label from (a) exists on the page, and **`เล่มที่` is a
+volume number, never a document number, even when printed above `เลขที่`**. The fallback is kept on purpose: a
+freight page that prints *only* `Doc No.` may deliver it — forbidding without the fallback would have nulled
+those documents.
+
+## Two tests — and a mutation that proved the first version of them worthless
+
+Both green… until I flipped the prompt sentence to "a generic label wins whenever it is printed in the header"
+and **the test stayed green**. It was checking that the words `เล่มที่`, `volume`, `Doc No.` and `INVOICE NO.`
+appear, not which way the rule points — a keyword test, not a rule test. Rewritten to assert the *direction*
+(`"generic label does not win"`, `"even when it sits in the body"`, `"never a document number"`, and the
+fallback as permission) the same mutation goes **red**, and stays green after restoring. `263 passed`.
+
+## Real documents (12 docs, shipped pipeline)
+
+`prompt160_check.py` compares against repA/repB — **and reads the old arm's prompt version out of the payloads
+instead of assuming it**, which caught a second mistake of mine: repA/repB ran `single-pass-extract@1.3.0`,
+i.e. the arm from *before* Option A, so the column I had labelled "old(1.5.0)" was wrong and some of the
+improvement is 1.5.0's party rule, not 1.6.0's.
+
+| | result |
+|---|---|
+| **ambiguity targets** | **4/4 deliver the ruled number**: DMS-159 `INV-2026-0802` · DMS-236 `422` · DMS-237 `422` · DMS-175 `2213666606` (not the delivery-note `1003801984`) |
+| **regression / controls** | DMS-43/127/147/212/20/30/33/106 — `invoice_num` **unchanged on all 8**, nothing moved off a value that was already correct |
+| DMS-127 | `supplier_tax_id` `0145563000434` (the buyer's) → **`0105546047223`** and the buyer's id moved to `customer_tax_id` — that is Option A's rule, carried forward |
+| **DMS-237, first attempt** | delivered **nothing**: `page_errors={'classify': 'AIResponseError: truncated JSON object'}` → no page selected. Not a policy effect: a classify call came back truncated (the intermittent fault family from R6-3/R6-8). It degrades to *no page read / E01*, not to a wrong number. Re-ran: correct on every field. |
+| **DMS-237, clean run** | `422` ✓ · `supplier_tax_id 0103522008471` ✓ · `customer_tax_id` **`0145548001557` = the master id**, with `taxid_retry=[{'page':1,'reason':'TAX_ID_CHECKSUM','dpi':300,'accepted':True}]` — the targeted retry rescued a buyer id that R6-14 had listed as a REVIEW cause. Orders 1 and 2 meeting in one payload. |
+
+Single-observation caveat, stated because R6-8 says 15.9% of key-field reads differ between identical runs: the
+new arm has one run per document here, so a single match is evidence, not proof. The corpus run (order 4) is
+where the rate gets measured.

@@ -527,6 +527,33 @@ def test_a_retried_page_still_lands_its_boxes_in_the_right_place():
     assert all(0.0 <= v <= 1.0 for v in a.bbox), f"fractions must stay on the page: {a.bbox}"
 
 
+def test_the_prompt_carries_the_ambiguity_ruling():
+    """R6-15: three documents print two numbers and the model had no basis to choose, so the choice is now
+    policy rather than a guess by the model (owner ruling, after the labels were read off 300 DPI crops -
+    DMS-236/237 print "เล่มที่ 085" above "เลขที่ 422", and DMS-159 puts "INVOICE NO.: INV-2026-0802" in the
+    body while "Doc No.: SLI2610000004" sits in the header, so the label's meaning has to beat its position).
+    """
+    text = load_prompt("single_pass_extract")
+    low = " ".join(text.split()).casefold()
+    assert "เล่มที่" in text, "the volume label has to be named or the model cannot exclude it"
+    assert "never a document number" in low, "and be ruled out as a document number, not merely described"
+    assert "doc no" in low and "invoice no" in low, "the two competing labels on DMS-159 must both appear"
+    assert "generic label does not win" in low, \
+        "the direction of the ruling has to be written down: a prompt that only names both labels lets position win. " \
+        "(locked because a mutation that flipped this sentence kept the old test green)"
+    assert "even when it sits in the body" in low, \
+        "DMS-159's INVOICE NO. is in the body while Doc No. owns the header, so the exception must be explicit"
+
+
+def test_the_ambiguity_ruling_still_allows_a_page_that_prints_only_a_doc_no():
+    """The other half of a prohibition: freight documents print nothing but "Doc No." and that number IS the
+    document number.  A rule that only forbids would have nulled them - so the test locks the fallback too.
+    """
+    low = " ".join(load_prompt("single_pass_extract").split()).casefold()
+    assert "prints only" in low and "doc no" in low, "the generic-label fallback must stay written down"
+    assert "may be delivered" in low, "and stated as permission, not grudging silence"
+
+
 def _oracle():
     row = {"ORG_ID": 433, "RECEIPT_NUM": "RCV-0000070001", "RECEIVER": "SMITH J.", "LINE": 1,
            "ITEM": "OXYGEN IND PACK", "QTY": "1", "UOM": "Pack", "UNIT_PRICE": "3100.00", "LINE_AMOUNT": "3100.00",
