@@ -38,7 +38,7 @@ from system_a.envfile import load_env                         # noqa: E402
 
 load_env()
 import system_a.perception.coords as COORDS                   # noqa: E402
-from system_a.perception.coords import snap_box_to_ink, strip_rules   # noqa: E402
+from system_a.perception.coords import is_placeholder, snap_box_to_ink, strip_rules   # noqa: E402
 
 PAYLOADS = ROOT / "bbox_testing" / "round_04" / "ocr"
 CELLS = ("item_code", "description", "qty", "uom", "unit_price", "amount")
@@ -95,12 +95,16 @@ def move_box(box, clean, raw, floor=True):
     if floor:
         new, note = snap_box_to_ink(px, clean, move=True, grow=False)
     else:
-        saved = COORDS.MIN_LINE_HEIGHT_PX, COORDS.MIN_LINE_HEIGHT_RATIO
-        COORDS.MIN_LINE_HEIGHT_PX = COORDS.MIN_LINE_HEIGHT_RATIO = 0.0
+        saved = (COORDS.MIN_LINE_HEIGHT_PX, COORDS.MIN_LINE_HEIGHT_RATIO, COORDS.MAX_LINE_HEIGHT_PX,
+                 COORDS.MAX_LINE_HEIGHT_RATIO, COORDS.VALLEY_MERGE_PX)
+        COORDS.MIN_LINE_HEIGHT_PX = COORDS.MIN_LINE_HEIGHT_RATIO = 0.0        # all three line rules off: what
+        COORDS.MAX_LINE_HEIGHT_PX = COORDS.MAX_LINE_HEIGHT_RATIO = 1e9        # shipped before R4-13 and R4-14
+        COORDS.VALLEY_MERGE_PX = 0
         try:                                            # the shipped code reads these globals per band scan
             new, note = snap_box_to_ink(px, clean, move=True, grow=False)
         finally:
-            COORDS.MIN_LINE_HEIGHT_PX, COORDS.MIN_LINE_HEIGHT_RATIO = saved
+            (COORDS.MIN_LINE_HEIGHT_PX, COORDS.MIN_LINE_HEIGHT_RATIO, COORDS.MAX_LINE_HEIGHT_PX,
+             COORDS.MAX_LINE_HEIGHT_RATIO, COORDS.VALLEY_MERGE_PX) = saved
     if note == "unchanged":
         return list(box), note, False
     return [new[0] / W, new[1] / H, (new[2] - new[0]) / W, (new[3] - new[1]) / H], note, True
@@ -152,7 +156,8 @@ def scan(doc: int, masks: dict):
     return stats, notes
 
 
-def apply_move(payload: dict, masks: dict, do_move: bool = True) -> tuple[dict, int]:
+def apply_move(payload: dict, masks: dict, do_move: bool = True,
+               with_stats: bool = False) -> tuple:
     """The payload as the shipped knob would have delivered it - and the row box follows the cells it drew.
 
     The second half is not decoration: only fields and cells are corrected against ink, so a row that keeps the
@@ -161,10 +166,19 @@ def apply_move(payload: dict, masks: dict, do_move: bool = True) -> tuple[dict, 
     """
     out, moved = json.loads(json.dumps(payload)), 0
     skip = (lambda box, page: ([box[0], box[1], box[2], box[3]], "", False)) if not do_move else None
+    # The engine leaves a box alone when its value is a placeholder (`_rf`); the replay must do the same or it
+    # measures a pipeline nobody ships.  A field that read "-" is not even delivered by the engine, but the
+    # audit payloads still carry it, so the rule is applied here too - with a note of what it skipped.
+    stats = {"skipped_placeholder": 0}
+    def value_of(blob):
+        return blob.get("raw") if isinstance(blob, dict) else None
     for f in (out.get("fields") or {}).values():
         if not f.get("bbox"):
             continue
         page = int(f.get("page_no") or f.get("page") or 1)
+        if is_placeholder(value_of(f)):
+            stats["skipped_placeholder"] += 1
+            continue
         box, _note, mv = (skip(f["bbox"], page) if skip else move_box(f["bbox"], masks["clean"][page], masks["raw"][page]))
         f["bbox"], moved = box, moved + int(mv)
     for n, item in enumerate(out.get("line_items") or [], 1):
@@ -176,6 +190,9 @@ def apply_move(payload: dict, masks: dict, do_move: bool = True) -> tuple[dict, 
             if not isinstance(v, dict) or not v.get("bbox"):
                 continue
             drawn = v["bbox"]
+            if is_placeholder(value_of(v)):
+                stats["skipped_placeholder"] += 1
+                continue
             box, _note, mv = (skip(drawn, page) if skip else move_box(drawn, masks["clean"][page], masks["raw"][page]))
             v["bbox"], moved = box, moved + int(mv)
             if hull and row and drawn[1] < row[1] + row[3] and drawn[1] + drawn[3] > row[1]:
@@ -183,7 +200,12 @@ def apply_move(payload: dict, masks: dict, do_move: bool = True) -> tuple[dict, 
                         max(hull[0] + hull[2], box[0] + box[2]), max(hull[1] + hull[3], box[1] + box[3])]
         if hull and row:
             item["line_bbox"] = [hull[0], hull[1], hull[2] - hull[0], hull[3] - hull[1]]
-    return out, moved
+    return (out, moved, stats) if with_stats else (out, moved)
+
+
+def apply_move_stats(payload, masks, do_move=True):
+    """``apply_move`` plus what it refused to touch because the value was a placeholder."""
+    return apply_move(payload, masks, do_move=do_move, with_stats=True)
 
 
 def load_masks(doc: int, payload: dict):

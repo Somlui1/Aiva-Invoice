@@ -39,7 +39,11 @@ def render(doc: int, page_no: int, rot: int):
         return None
     im = Image.open(path).convert("L")
     if rot:
-        im = im.rotate(-rot)
+        # expand=True is not cosmetic: PIL keeps the original bounding box without it, so "rotating" a
+        # 1521x1075 page by 90 handed back a 1521x1075 CROP of the rotated image - the ruler then measured a
+        # slice of the wrong corner for every rotated page (DMS-224, DMS-59).  align.py gets this right, which
+        # is why the ruler and this metric disagreed on exactly those documents.
+        im = im.rotate(-rot, expand=True)
     return ink_mask(np.asarray(im))
 
 
