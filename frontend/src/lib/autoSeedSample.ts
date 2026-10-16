@@ -3,12 +3,52 @@ import path from 'node:path'
 import { prisma } from './prisma'
 import { transformEngineResultToPortalDoc } from '@/features/engine/adapters/engineToPortalAdapter'
 
+import { COMPANIES_26 } from '@/mock/companies26'
+
+/**
+ * Seeds all 26 real AAPICO conglomerate companies from Oracle EBS into the database if empty.
+ */
+export async function autoSeedCompanies(): Promise<void> {
+  try {
+    const count = await prisma.company.count().catch(() => -1)
+    if (count > 0) return // Already seeded
+
+    for (const info of Object.values(COMPANIES_26)) {
+      await prisma.company.upsert({
+        where: { code: info.code },
+        create: {
+          code: info.code,
+          name: info.name,
+          taxId: info.taxId,
+          ouName: info.ouName,
+          ledgerName: info.ledgerName,
+          orgId: info.orgId,
+          isActive: info.isActive,
+        },
+        update: {
+          name: info.name,
+          taxId: info.taxId,
+          ouName: info.ouName,
+          ledgerName: info.ledgerName,
+          orgId: info.orgId,
+          isActive: info.isActive,
+        },
+      })
+    }
+  } catch (err: any) {
+    console.warn('[AIVA Bootstrap] Could not seed companies:', err?.message)
+  }
+}
+
 /**
  * Ensures production database is populated with sample data from `temp/paperless_invoices_v5`
  * when running standalone without a live Engine service.
  */
 export async function ensureProductionSampleData(): Promise<void> {
   try {
+    // 0. Ensure 26 master companies are seeded
+    await autoSeedCompanies()
+
     // 1. Ensure default Super Admin account exists
     const userCount = await prisma.user.count().catch(() => -1)
     if (userCount === 0) {

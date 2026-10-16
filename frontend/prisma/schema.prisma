@@ -72,21 +72,24 @@ model DocumentBBox {
 }
 
 model AuditLog {
-  id         String   @id @default(cuid())
-  docId      String
-  whoId      String?
-  who        String
-  role       String
-  act        String
-  action     String?
-  fromStatus String?
-  toStatus   String?
-  reason     String?
-  note       String?
-  detail     String
-  ipAddress  String?
-  createdAt  DateTime @default(now())
+  id           String   @id @default(cuid())
+  category     String   @default("DOCUMENT") // 'DOCUMENT' | 'INGESTION' | 'RBAC_USER' | 'RBAC_PERMISSION' | 'AUTH' | 'ORACLE_SYNC' | 'AP_BATCH'
+  docId        String   @default("—")
+  whoId        String?
+  who          String
+  role         String
+  act          String
+  action       String?
+  fromStatus   String?
+  toStatus     String?
+  reason       String?
+  note         String?
+  detail       String
+  metadataJson String?
+  ipAddress    String?
+  createdAt    DateTime @default(now())
 
+  @@index([category])
   @@index([docId])
   @@index([createdAt])
 }
@@ -139,4 +142,19 @@ model UserReceiverMap {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, receiverName])
+}
+
+model Company {
+  code        String   @id // Short code: AH, AHP, AHT, AF, AITS, AM, AHA, AMPK, AMPT, ABC, AEV, MG, AVEE...
+  name        String       // Official legal entity name
+  taxId       String?      // Tax Identifier (e.g. 'TH3011706022')
+  ouName      String?      // Oracle EBS Operating Unit name (e.g. 'AH - Aapico Hitech')
+  ledgerName  String?      // Oracle EBS Ledger name (e.g. 'AH_Ledger')
+  orgId       Int?         // Oracle Organization ID (e.g. 101, 176, 195, 413, 535)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([name])
+  @@index([orgId])
 }
