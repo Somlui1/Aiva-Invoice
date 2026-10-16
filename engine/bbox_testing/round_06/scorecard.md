@@ -497,3 +497,47 @@ bbox_testing/ before mutation testing"). The checkout restored HEAD and deleted 
 survived, so `261 passed` after re-applying proves nothing was silently lost. The file is now backed up to
 `bbox_testing/round_06/single_pass.after_retry.py.bak` *before* any mutation, and mutation reverts by editing
 the specific line back, not by asking git for a clean copy.
+
+
+---
+
+# R6-14 (owner order 2) · Do the checksum-rejected tax ids really reach REVIEW? — measured, **56/56 do, zero AUTO_PASS**
+
+The owner's question was not "does the rule fire" but "does the document get caught".  Reading the chain first,
+because it is not obvious and one link makes the whole thing safe or unsafe:
+
+| link | what the code does |
+|---|---|
+| `normalize.tax_id()` | 13 digits + Thai check digit, raises `Invalid` → `_nfield` sets `ok=False, null_reason=INVALID_FORMAT:TAX_ID_CHECKSUM` |
+| `V-05` | `if not d.ok("customer_tax_id"): return _skip("V-05", "V-01", ...)` → `not_evaluated` **with `halted_by="V-01"`** |
+| `recommend()` | `not_evaluated` only forces `MANUAL_REVIEW` **when it has NO `halted_by`** → so **V-05's own skip protects nothing** |
+| `V-01` | fires for every field in `policy.required_fields` whose `ok` is False → **E01**, and `codes.yaml` says E01 severity = **Medium** → `recommend` → **REVIEW** |
+
+So the safety of the case rests entirely on `customer_tax_id` being in `required_fields` — and `policy.yaml:70`
+says it is: `[invoice_num, po_number, customer_name, customer_address, customer_tax_id, sub_total, vat, grand_total]`.
+
+**Measured, not argued** (`v05_coverage.py`, **zero vision calls** — payloads from repA/repB/ffr rehydrated with
+`ExtractionResult.model_validate_json`, then the real `normalize()`, the real `v01_required()`, the real
+`recommend()`):
+
+- **25 distinct documents** deliver a tax id the rule rejects, **56 document×run reads** in total
+  (`customer_tax_id` checksum 30, `customer_tax_id` not-13 15, `supplier_tax_id` checksum 3, not-13 8)
+- **recommendation on all 56 reads: `REVIEW`** (E01, Medium) — **`AUTO_PASS`: 0**
+- The operator's message carries the real cause, e.g. `customer_tax_id(INVALID_FORMAT:TAX_ID_CHECKSUM)`, so the
+  queue entry says "read but fails the check digit", not a bare "unreadable".
+- V-05 itself is `not_evaluated` (halted by V-01) on those documents — the buyer entity is never compared to
+  Oracle there, but the document is already in REVIEW, so nothing passes unchecked.
+
+## Why 30 checksum failures is not the rule being too strict (`master_distance.py`)
+
+- **54 entities, 28 with a tax id, 13 distinct tax ids, and 0 of them fail the checksum themselves** — the rule
+  is not punishing legitimate master data.
+- **15 of the 30** checksum-rejected customer ids differ from master `0145548001557` by **exactly one digit**
+  (DMS-68 `0145549001557`, DMS-103 `0145548001357`, DMS-184 `0145546001557`, DMS-227/238 `...558`): the checksum
+  is catching a mis-read character on a buyer the system already knows.  The other 15 are not at distance 1 from
+  any master id — two-digit errors, or a buyer outside the 13.
+- Correction to my own R6-11 wording: I said "master data has 28 ids"; the precise figures are 54 entities /
+  28 carrying a tax id / **13 distinct**.
+
+This also closes the loop with R6-13: those pages are exactly what the new targeted retry re-reads at 300 DPI,
+so the corpus run (order 4) will show how many of these 25 stop needing REVIEW for a digit-level reason.

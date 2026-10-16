@@ -1,0 +1,1514 @@
+[
+ {
+  "doc": 31,
+  "run": "repA",
+  "delivered": {
+   "supplier_tax_id": [
+    "011554004198",
+    "TAX_ID_NOT_13_DIGITS"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "011554004198",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": "0107545000179",
+    "ok": false,
+    "reason": "CONFLICT_BETWEEN_SOURCES"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 47,
+  "run": "ffr/run1",
+  "delivered": {
+   "customer_tax_id": [
+    "43029104-176",
+    "TAX_ID_NOT_13_DIGITS"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0105546035721",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_NOT_13_DIGITS"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 47,
+  "run": "repB",
+  "delivered": {
+   "customer_tax_id": [
+    "43029104-176",
+    "TAX_ID_NOT_13_DIGITS"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0105546035721",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_NOT_13_DIGITS"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 68,
+  "run": "ffr/run1",
+  "delivered": {
+   "customer_tax_id": [
+    "0145549001557",
+    "TAX_ID_CHECKSUM"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0105535143838",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_CHECKSUM"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 68,
+  "run": "repA",
+  "delivered": {
+   "customer_tax_id": [
+    "0145549001557",
+    "TAX_ID_CHECKSUM"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0105535143838",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_CHECKSUM"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 68,
+  "run": "repB",
+  "delivered": {
+   "customer_tax_id": [
+    "0145549001557",
+    "TAX_ID_CHECKSUM"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0105535143838",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_CHECKSUM"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 76,
+  "run": "ffr/run1",
+  "delivered": {
+   "customer_tax_id": [
+    "0743548007557",
+    "TAX_ID_CHECKSUM"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0103522008471",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_CHECKSUM"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 76,
+  "run": "repA",
+  "delivered": {
+   "customer_tax_id": [
+    "0745548007557",
+    "TAX_ID_CHECKSUM"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0103522008471",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_CHECKSUM"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 76,
+  "run": "repB",
+  "delivered": {
+   "customer_tax_id": [
+    "0745548007557",
+    "TAX_ID_CHECKSUM"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0103522008471",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_CHECKSUM"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 77,
+  "run": "ffr/run1",
+  "delivered": {
+   "customer_tax_id": [
+    "0745548007357",
+    "TAX_ID_CHECKSUM"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0103522008471",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_CHECKSUM"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 77,
+  "run": "repA",
+  "delivered": {
+   "customer_tax_id": [
+    "0745548007357",
+    "TAX_ID_CHECKSUM"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0103522008471",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_CHECKSUM"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 77,
+  "run": "repB",
+  "delivered": {
+   "customer_tax_id": [
+    "0745548007357",
+    "TAX_ID_CHECKSUM"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0103522008471",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_CHECKSUM"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 96,
+  "run": "ffr/run1",
+  "delivered": {
+   "supplier_tax_id": [
+    "01155490004428",
+    "TAX_ID_NOT_13_DIGITS"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "01155490004428",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": "0145548001557",
+    "ok": false,
+    "reason": "CONFLICT_BETWEEN_SOURCES"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 96,
+  "run": "repA",
+  "delivered": {
+   "supplier_tax_id": [
+    "01155490004428",
+    "TAX_ID_NOT_13_DIGITS"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "01155490004428",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": "0145548001557",
+    "ok": false,
+    "reason": "CONFLICT_BETWEEN_SOURCES"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 103,
+  "run": "ffr/run1",
+  "delivered": {
+   "customer_tax_id": [
+    "0145548001357",
+    "TAX_ID_CHECKSUM"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0105545105637",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_CHECKSUM"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 103,
+  "run": "repA",
+  "delivered": {
+   "customer_tax_id": [
+    "0145548001357",
+    "TAX_ID_CHECKSUM"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0105545105637",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_CHECKSUM"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 103,
+  "run": "repB",
+  "delivered": {
+   "customer_tax_id": [
+    "0145548001357",
+    "TAX_ID_CHECKSUM"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0105545105637",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_CHECKSUM"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 118,
+  "run": "repA",
+  "delivered": {
+   "customer_tax_id": [
+    "01454584001557",
+    "TAX_ID_NOT_13_DIGITS"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0105521010334",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_NOT_13_DIGITS"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 134,
+  "run": "ffr/run1",
+  "delivered": {
+   "customer_tax_id": [
+    "130108104",
+    "TAX_ID_NOT_13_DIGITS"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0105544109337",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_NOT_13_DIGITS"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 134,
+  "run": "repA",
+  "delivered": {
+   "customer_tax_id": [
+    "130108104",
+    "TAX_ID_NOT_13_DIGITS"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0105544109337",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_NOT_13_DIGITS"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 134,
+  "run": "repB",
+  "delivered": {
+   "customer_tax_id": [
+    "130108104",
+    "TAX_ID_NOT_13_DIGITS"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0105544109337",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_NOT_13_DIGITS"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 155,
+  "run": "repA",
+  "delivered": {
+   "supplier_tax_id": [
+    "0105551155806",
+    "TAX_ID_CHECKSUM"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0105551155806",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": "0145563000434",
+    "ok": false,
+    "reason": "CONFLICT_BETWEEN_SOURCES"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 155,
+  "run": "repB",
+  "delivered": {
+   "supplier_tax_id": [
+    "0105551155000",
+    "TAX_ID_CHECKSUM"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0105551155000",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": "0145563000434",
+    "ok": false,
+    "reason": "CONFLICT_BETWEEN_SOURCES"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 161,
+  "run": "repA",
+  "delivered": {
+   "customer_tax_id": [
+    "145563000434",
+    "TAX_ID_NOT_13_DIGITS"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0115546000057",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_NOT_13_DIGITS"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 161,
+  "run": "repB",
+  "delivered": {
+   "customer_tax_id": [
+    "145563000434",
+    "TAX_ID_NOT_13_DIGITS"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0115546000057",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_NOT_13_DIGITS"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 175,
+  "run": "repA",
+  "delivered": {
+   "customer_tax_id": [
+    "130054994",
+    "TAX_ID_NOT_13_DIGITS"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0145548001557",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_NOT_13_DIGITS"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 177,
+  "run": "repA",
+  "delivered": {
+   "supplier_tax_id": [
+    "011546006764",
+    "TAX_ID_NOT_13_DIGITS"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "011546006764",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": "0145548001557",
+    "ok": false,
+    "reason": "CONFLICT_BETWEEN_SOURCES"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 177,
+  "run": "repB",
+  "delivered": {
+   "supplier_tax_id": [
+    "011546006764",
+    "TAX_ID_NOT_13_DIGITS"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "011546006764",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": "0145548001557",
+    "ok": false,
+    "reason": "CONFLICT_BETWEEN_SOURCES"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 184,
+  "run": "ffr/run1",
+  "delivered": {
+   "customer_tax_id": [
+    "0145546001557",
+    "TAX_ID_CHECKSUM"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0105540008838",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_CHECKSUM"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 184,
+  "run": "repA",
+  "delivered": {
+   "customer_tax_id": [
+    "0145546001557",
+    "TAX_ID_CHECKSUM"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0105540008838",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_CHECKSUM"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 184,
+  "run": "repB",
+  "delivered": {
+   "customer_tax_id": [
+    "0145546001557",
+    "TAX_ID_CHECKSUM"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0105540008838",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_CHECKSUM"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 189,
+  "run": "ffr/run1",
+  "delivered": {
+   "supplier_tax_id": [
+    "0105454008838",
+    "TAX_ID_CHECKSUM"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0105454008838",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": "0145548001557",
+    "ok": false,
+    "reason": "CONFLICT_BETWEEN_SOURCES"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 189,
+  "run": "repB",
+  "delivered": {
+   "supplier_tax_id": [
+    "01054540008838",
+    "TAX_ID_NOT_13_DIGITS"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "01054540008838",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": "0145548001557",
+    "ok": false,
+    "reason": "CONFLICT_BETWEEN_SOURCES"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 194,
+  "run": "ffr/run1",
+  "delivered": {
+   "customer_tax_id": [
+    "0145548001359",
+    "TAX_ID_CHECKSUM"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0103522008471",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_CHECKSUM"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 194,
+  "run": "repA",
+  "delivered": {
+   "customer_tax_id": [
+    "0145548001359",
+    "TAX_ID_CHECKSUM"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0103522008471",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_CHECKSUM"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 194,
+  "run": "repB",
+  "delivered": {
+   "customer_tax_id": [
+    "0145548001357",
+    "TAX_ID_CHECKSUM"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0103522008471",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_CHECKSUM"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 212,
+  "run": "repB",
+  "delivered": {
+   "supplier_tax_id": [
+    "002-46810",
+    "TAX_ID_NOT_13_DIGITS"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "002-46810",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": "0145548001557",
+    "ok": false,
+    "reason": "CONFLICT_BETWEEN_SOURCES"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 213,
+  "run": "repA",
+  "delivered": {
+   "supplier_tax_id": [
+    "01355370003456",
+    "TAX_ID_NOT_13_DIGITS"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "01355370003456",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": "0145548001557",
+    "ok": false,
+    "reason": "CONFLICT_BETWEEN_SOURCES"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 227,
+  "run": "repA",
+  "delivered": {
+   "customer_tax_id": [
+    "0145548001558",
+    "TAX_ID_CHECKSUM"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0103522008471",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_CHECKSUM"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 227,
+  "run": "repB",
+  "delivered": {
+   "customer_tax_id": [
+    "0145548001558",
+    "TAX_ID_CHECKSUM"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0103522008471",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_CHECKSUM"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 228,
+  "run": "ffr/run1",
+  "delivered": {
+   "customer_tax_id": [
+    "0745548007553",
+    "TAX_ID_CHECKSUM"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0103522008471",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_CHECKSUM"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 228,
+  "run": "repA",
+  "delivered": {
+   "customer_tax_id": [
+    "0745548007553",
+    "TAX_ID_CHECKSUM"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0103522008471",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_CHECKSUM"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 228,
+  "run": "repB",
+  "delivered": {
+   "customer_tax_id": [
+    "0145548007553",
+    "TAX_ID_CHECKSUM"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0103522008471",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_CHECKSUM"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 229,
+  "run": "ffr/run1",
+  "delivered": {
+   "customer_tax_id": [
+    "01454800759",
+    "TAX_ID_NOT_13_DIGITS"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0103522008471",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_NOT_13_DIGITS"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 229,
+  "run": "repA",
+  "delivered": {
+   "customer_tax_id": [
+    "01454800759",
+    "TAX_ID_NOT_13_DIGITS"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0103522008471",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_NOT_13_DIGITS"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 229,
+  "run": "repB",
+  "delivered": {
+   "customer_tax_id": [
+    "07454800759",
+    "TAX_ID_NOT_13_DIGITS"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0103522008471",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_NOT_13_DIGITS"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 234,
+  "run": "ffr/run1",
+  "delivered": {
+   "customer_tax_id": [
+    "100317",
+    "TAX_ID_NOT_13_DIGITS"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0115556015359",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_NOT_13_DIGITS"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 234,
+  "run": "repA",
+  "delivered": {
+   "customer_tax_id": [
+    "100317",
+    "TAX_ID_NOT_13_DIGITS"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0115556015359",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_NOT_13_DIGITS"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 234,
+  "run": "repB",
+  "delivered": {
+   "customer_tax_id": [
+    "100317",
+    "TAX_ID_NOT_13_DIGITS"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0115556015359",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_NOT_13_DIGITS"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 236,
+  "run": "ffr/run1",
+  "delivered": {
+   "customer_tax_id": [
+    "0145548001594",
+    "TAX_ID_CHECKSUM"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0103522008471",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_CHECKSUM"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 236,
+  "run": "repA",
+  "delivered": {
+   "customer_tax_id": [
+    "0145548001594",
+    "TAX_ID_CHECKSUM"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0103522008471",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_CHECKSUM"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 236,
+  "run": "repB",
+  "delivered": {
+   "customer_tax_id": [
+    "0145548001594",
+    "TAX_ID_CHECKSUM"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0103522008471",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_CHECKSUM"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 237,
+  "run": "repB",
+  "delivered": {
+   "customer_tax_id": [
+    "0745548007557",
+    "TAX_ID_CHECKSUM"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0103522008471",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_CHECKSUM"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 238,
+  "run": "ffr/run1",
+  "delivered": {
+   "customer_tax_id": [
+    "0145548001558",
+    "TAX_ID_CHECKSUM"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0103522008471",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_CHECKSUM"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 238,
+  "run": "repA",
+  "delivered": {
+   "customer_tax_id": [
+    "0145548001558",
+    "TAX_ID_CHECKSUM"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0103522008471",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_CHECKSUM"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ },
+ {
+  "doc": 238,
+  "run": "repB",
+  "delivered": {
+   "customer_tax_id": [
+    "0145548001558",
+    "TAX_ID_CHECKSUM"
+   ]
+  },
+  "nfield": {
+   "supplier_tax_id": {
+    "value": "0103522008471",
+    "ok": true,
+    "reason": null
+   },
+   "customer_tax_id": {
+    "value": null,
+    "ok": false,
+    "reason": "INVALID_FORMAT:TAX_ID_CHECKSUM"
+   }
+  },
+  "v01": "fail",
+  "codes": [
+   "E01"
+  ],
+  "recommendation": "REVIEW"
+ }
+]
