@@ -50,6 +50,8 @@ export function LoginPage({ redirectTo, initialError = null, adapter, mock, show
       try {
         if (typeof window !== "undefined") {
           localStorage.setItem("aiva.auth.user", user.id);
+          localStorage.setItem("aiva.auth.profile", JSON.stringify(user));
+          localStorage.removeItem("aiva.test.unauthenticated");
         }
       } catch {}
       if (onSuccess) return onSuccess(user, method);

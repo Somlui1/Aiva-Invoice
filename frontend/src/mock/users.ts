@@ -104,7 +104,11 @@ export const USERS: User[] = [
 export const INITIAL_MAPS: AccountMapping[] = []
 
 export function acctsOf(u: User, maps: AccountMapping[] = INITIAL_MAPS): string[] {
-  return maps.filter(m => m.user === u.id).map(m => m.acct)
+  const list = maps.filter(m => m.user === u.id).map(m => m.acct)
+  if (u.rcvName && u.rcvName !== '—' && !list.includes(u.rcvName)) {
+    list.push(u.rcvName)
+  }
+  return list
 }
 
 export function isAccountBound(acct: string | undefined, maps: AccountMapping[] = INITIAL_MAPS, users: User[] = USERS): boolean {

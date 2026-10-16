@@ -97,26 +97,34 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       ? 'SA'
       : (existingDbUser?.role || matchedMock?.role || 'EU') as 'EU' | 'ACC' | 'APR' | 'ADM' | 'SA'
 
+    const dbCompanies = (existingDbUser?.companies || []).map(c => c.companyCode)
     const assignedCompanies = isItsupport
       ? ['AH', 'AHA', 'AHT', 'AHP', 'AM']
-      : existingDbUser?.companies.map(c => c.companyCode) || matchedMock?.co || ['AH']
+      : dbCompanies.length > 0
+        ? dbCompanies
+        : (matchedMock?.co && matchedMock.co.length > 0 ? matchedMock.co : ['AH', 'AHA', 'AHT', 'AHP', 'AM'])
 
     const assignedReceivers = isItsupport
       ? []
       : existingDbUser?.receivers.map(r => r.receiverName) || (matchedMock?.rcvName && matchedMock?.rcvName !== '—' ? [matchedMock.rcvName] : [])
 
-    // Ensure user record is updated in prisma.user
+    const resolvedUserId = existingDbUser?.id || matchedMock?.id || adUser.samAccount
+
+    // Ensure user record is updated in prisma.user and default companies are linked
     try {
-      await prisma.user.upsert({
+      const savedUser = await prisma.user.upsert({
         where: { email: adUser.email },
         create: {
-          id: existingDbUser?.id || matchedMock?.id || adUser.samAccount,
+          id: resolvedUserId,
           email: adUser.email,
           name: adUser.name,
           samAccount: adUser.samAccount,
           empId: adUser.empId || null,
           unit: adUser.unit || null,
           role: assignedRole,
+          companies: {
+            create: assignedCompanies.map(c => ({ companyCode: c })),
+          },
         },
         update: {
           name: adUser.name,
@@ -126,6 +134,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           role: assignedRole,
         },
       })
+
+      // If user in database has no companies linked, link assigned companies now
+      if (!existingDbUser || existingDbUser.companies.length === 0) {
+        for (const code of assignedCompanies) {
+          await prisma.userCompany.upsert({
+            where: { userId_companyCode: { userId: savedUser.id, companyCode: code } },
+            create: { userId: savedUser.id, companyCode: code },
+            update: {},
+          }).catch(() => {})
+        }
+      }
     } catch {}
 
     // Audit log successful AD login
@@ -145,7 +164,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const response = NextResponse.json({
       ok: true,
       user: {
-        id: existingDbUser?.id || matchedMock?.id || adUser.samAccount,
+        id: resolvedUserId,
         name: adUser.name,
         email: adUser.email,
         role: assignedRole,
@@ -154,9 +173,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       },
     })
 
-    response.cookies.set('aiva_session', existingDbUser?.id || matchedMock?.id || adUser.samAccount, {
+    const isHttps =
+      req.headers.get('x-forwarded-proto') === 'https' ||
+      req.nextUrl.protocol === 'https:'
+
+    response.cookies.set('aiva_session', resolvedUserId, {
       httpOnly: false,
-      secure: process.env.NODE_ENV === 'production',
+      secure: isHttps,
       sameSite: 'lax',
       path: '/',
       maxAge: 86400 * 7,
