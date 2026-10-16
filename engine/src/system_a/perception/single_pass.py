@@ -42,8 +42,8 @@ from .coords import (choose_coord_mode, INK_RULES_VERSION, ink_mask, is_placehol
                     sanitize_xyxy, snap_box_to_ink, xyxy_px, xyxy_to_xywh)
 from .orientation import MODEL_SHA256, OrientationResult
 
-ENGINE = "single-pass/1.2.0"
-PROMPTS = ("single_pass_classify", "single_pass_extract")
+ENGINE = "single-pass/1.3.0"
+PROMPTS = ("single_pass_classify", "single_pass_extract", "single_pass_adjudicate")
 
 HEADER_FIELDS = ("invoice_num", "invoice_date", "po_number", "supplier_name", "supplier_tax_id",
                  "customer_name", "customer_tax_id", "customer_address", "currency")
@@ -472,7 +472,8 @@ def build_extraction(*, package_id: str, dms_doc_id: str, sha: str, page_infos: 
                      classified: list[dict], selection: dict, reads: dict[int, PageAnswer],
                      page_errors: dict, calls: list, model: str, prompt_version: str,
                      timings: dict, page_orientations: Optional[dict] = None,
-                     ink_snap: bool = True, snap_mode: Optional[str] = None) -> ExtractionResult:
+                     ink_snap: bool = True, snap_mode: Optional[str] = None,
+                     adjudication: Optional[list] = None) -> ExtractionResult:
     snap_mode = snap_mode or INK_SNAP_DEFAULT     # the payload has to say which knobs made it
     selected = [p for p in selection["selected"] if p in reads]
     selected, reprint_pages = drop_reprint_pages(reads, selected)
@@ -615,6 +616,7 @@ def build_extraction(*, package_id: str, dms_doc_id: str, sha: str, page_infos: 
             "coord_mode_by_page": {str(p): reads[p].coord for p in reads},
             "ink_snap": bool(ink_snap),        # which arm of the R4-3c A/B produced this payload
             "ink_snap_mode": snap_mode,        # and which of its two knobs R4-9 left switched on
+            "adjudication": list(adjudication or []),   # pages re-read because the document was about to be discarded
             "orientation": {str(p): {"r": o.r, "confidence": o.confidence, "uncertain": o.uncertain,
                                      "skew": o.skew, "total": o.total, "runtime": o.runtime}
                             for p, o in (page_orientations or {}).items()},
@@ -663,6 +665,62 @@ def ink_snap_from_env(default: str = INK_SNAP_DEFAULT) -> str:
     return ink_snap_mode(raw, default=default) if raw else default
 
 
+def _fold_wording(text: str) -> str:
+    """Fold Thai spelling wobble and spaces so one printed word matches however it was typed or quoted.
+
+    ``ใบกำกับภาษี`` is printed and transcribed with its vowels and tone marks in more than one place
+    (``ใบกำกับภาษี`` and friends), and the model quotes what it sees - so a rescue must not depend on a
+    transcription being letter-perfect, only on the word being there.
+    """
+    return re.sub(r"[\u0e31\u0e34-\u0e3a\u0e47-\u0e4e]", "", text or "").replace(" ", "").lower()
+
+
+_TAX_INVOICE_WORD = _fold_wording("ใบกำกับภาษี")
+_TAX_INVOICE_EN = _fold_wording("TAX INVOICE")
+_INVOICE_WORD = _fold_wording("ใบแจ้งหนี้")
+_INVOICE_EN = _fold_wording("INVOICE")
+#: the knob that turns the second look off, for A/B and for a rollback that needs no code change
+ADJUDICATE_ENV = "PERCEPTION_ADJUDICATE"
+#: Words that mean the page has ruled itself out, folded the same way as the titles. Seven of the twelve
+#: documents the FFR discarded print exactly this - which is why a plain substring test is not a rule.
+_DENIALS = tuple(_fold_wording(w) for w in
+                 ("ไม่ใช่", "มิใช่", "not a ", "no tax", "not the tax", "this is not a tax"))
+#: how far back (in folded characters) a denial still governs the title it precedes
+_DENIAL_WINDOW = 10
+
+
+def invoice_wording(text: str) -> str:
+    """Which invoice wording a page actually PRINTS: ``"tax_invoice"`` | ``"invoice"`` | ``""``.
+
+    This gates the reopening of a page-type decision, so it is written to be hard to satisfy:
+
+    * only the printed name of the document counts. A table of items, a VAT column and totals appear on
+      delivery notes and purchase orders too, and the round's forced-extract arm proved a model will read
+      an invoice number off such a page;
+    * a title the page denies is not a title: ``ไม่ใช่ใบกำกับภาษี`` carries the same characters as
+      ``ใบกำกับภาษี`` and must resolve to "not an invoice" (measured on DMS-93/123/124/180/205/206/207);
+    * when both names appear, ``tax_invoice`` wins - what the classify prompt already asks for on combined
+      titles like ``ต้นฉบับใบกำกับภาษี/ใบส่งของ``.
+    """
+    folded = _fold_wording(text)
+    found: list[str] = []
+    for kind, needles in (("tax_invoice", (_TAX_INVOICE_WORD, _TAX_INVOICE_EN)),
+                          ("invoice", (_INVOICE_WORD, _INVOICE_EN))):
+        for needle in needles:
+            at = folded.find(needle)
+            while at >= 0:
+                before = folded[max(0, at - _DENIAL_WINDOW):at]
+                if not any(d in before for d in _DENIALS):
+                    found.append(kind)
+                at = folded.find(needle, at + 1)
+    return "tax_invoice" if "tax_invoice" in found else ("invoice" if "invoice" in found else "")
+
+
+def adjudicate_from_env() -> bool:
+    """Whether the second look may spend calls (default on; off reproduces the pre-R6-6 engine)."""
+    return (os.getenv(ADJUDICATE_ENV) or "1").strip().lower() not in ("0", "off", "false", "no")
+
+
 # ============================================================================ the pipeline (LLM IO)
 class SinglePassPipeline:
     """Same public surface as ``VisionPipeline``: ``extract(pdf, package_id=, dms_doc_id=)``.
@@ -673,19 +731,23 @@ class SinglePassPipeline:
 
     def __init__(self, client, model: str, *, dpi: int = 150, classify_dpi: int = 80, max_pages: int = 12,
                  max_tokens: int = 8000, coord: str = "norm1000", json_mode: bool = False,
-                 thinking: Optional[bool] = False, ink_snap: Optional[bool] = None):
+                 thinking: Optional[bool] = False, ink_snap: Optional[bool] = None,
+                 adjudicate_dpi: int = 150, adjudicate: Optional[bool] = None):
         self.client, self.model = client, model
         self.dpi, self.classify_dpi, self.max_pages = dpi, classify_dpi, max_pages
         self.max_tokens, self.coord, self.json_mode, self.thinking = max_tokens, coord, json_mode, thinking
         self.snap_mode = ink_snap_from_env() if ink_snap is None else ink_snap_mode(ink_snap)
         self.ink_snap = self.snap_mode != "off"   # R4-3c's boolean, still the payload's "was anything corrected"
+        self.adjudicate = adjudicate_from_env() if adjudicate is None else bool(adjudicate)
+        self.adjudicate_dpi = adjudicate_dpi
         self.prompts = {n: load_prompt(n) for n in PROMPTS}
         self.prompt_version = "+".join(self._pid(n) for n in PROMPTS)
         with open(__file__, "rb") as fh:
             # the snap arm is part of the identity: it changes the boxes this pipeline delivers, and
             # process_pdf.py hashes code_version into the perception cache key
             self.code_version = hashlib.sha256(fh.read() + MODEL_SHA256.encode()
-                                               + f"|ink_snap={self.snap_mode}|ink_rules={INK_RULES_VERSION}".encode()).hexdigest()[:12]
+                                               + f"|ink_snap={self.snap_mode}|ink_rules={INK_RULES_VERSION}"
+                                                 f"|adjudicate={int(self.adjudicate)}".encode()).hexdigest()[:12]
         self.calls: list[dict] = []
         self.stats: dict = {}
 
@@ -722,6 +784,42 @@ class SinglePassPipeline:
                            "salvaged": bool(getattr(self.client, "last_salvaged", False)),
                            "usage": dict(getattr(self.client, "last_usage", {}) or {})})
         return out if isinstance(out, dict) else {}
+
+    def _adjudicate(self, doc, classified: list[dict], selection: dict,
+                    page_errors: dict) -> tuple[list[dict], dict, list[dict]]:
+        """Look again, page by page, before a whole document is thrown away - and change only the evidence.
+
+        Round 6 discarded twelve documents on a single classify vote. Five printed a title naming both roles
+        (``ต้นฉบับใบกำกับภาษี/ใบส่งของ``) and were real invoices; seven printed ``ไม่ใช่ใบกำกับภาษี`` and were
+        correctly discarded. The cheap multi-page pass at 80 DPI could not tell the two groups apart, while a
+        slower single-page look at the printed title got all twelve right - so this asks the slower question,
+        and it is allowed to fire only when the gate is about to discard the document.
+
+        It never overrides the gate. A page's ``doc_type`` changes only when that page's own quoted text
+        prints an invoice name (``invoice_wording``), and the unchanged ``select_invoice_pages`` rule is then
+        run again over the new evidence, so copy detection, page markers and multi-document handling still
+        apply. If the second look cannot answer, the original decision stands and the failure is recorded.
+        """
+        log: list[dict] = []
+        changed = False
+        for entry in classified:
+            p = entry["page_no"]
+            try:
+                img = self._render(doc[p - 1], self.adjudicate_dpi)
+                ans = self._ask("adjudicate", p, self.prompts["single_pass_adjudicate"],
+                                [self._data_url(img, quality=85)], 900)
+            except Exception as e:                       # keep the discard; never take the read down with this
+                page_errors["adjudicate"] = f"{type(e).__name__}: {str(e)[:200]}"
+                break
+            quote = " | ".join(str(q).strip() for q in ((ans or {}).get("quotes") or []) if str(q).strip())
+            kind = invoice_wording(quote)               # the printed word, not the model's opinion, decides
+            log.append({"page_no": p, "was": entry["doc_type"], "accepted": kind or False,
+                        "quote": quote[:400], "said_tax_invoice": bool((ans or {}).get("serves_as_tax_invoice")),
+                        "dpi": self.adjudicate_dpi})
+            if kind and entry["doc_type"] not in ("tax_invoice", "invoice"):
+                entry["doc_type"] = kind
+                changed = True
+        return classified, (select_invoice_pages(classified) if changed else selection), log
 
     def extract(self, pdf: bytes, *, package_id: str, dms_doc_id: str) -> ExtractionResult:
         import fitz
@@ -762,6 +860,12 @@ class SinglePassPipeline:
                     r=r_val, confidence=1.0, uncertain=False, skew=0.0, total=float(r_val), runtime="vlm_classify"
                 )
             timings["classify_ms"] = round((time.time() - t0) * 1000)
+            # ---------------- step 1b: one harder look, only on the edge of discarding the whole document
+            adjudication: list[dict] = []
+            if self.adjudicate and not selection["selected"] and not page_errors.get("classify"):
+                t_adj = time.time()
+                classified, selection, adjudication = self._adjudicate(doc, classified, selection, page_errors)
+                timings["adjudicate_ms"] = round((time.time() - t_adj) * 1000)
             if len(doc) > self.max_pages:
                 selection.update(pages_complete=False, truncated_at=self.max_pages)
             # ---------------- step 2: extract, one upright page per call
@@ -799,7 +903,7 @@ class SinglePassPipeline:
                                classified=classified, selection=selection, reads=reads, page_errors=page_errors,
                                calls=list(self.calls), model=self.model, prompt_version=self.prompt_version,
                                timings=timings, page_orientations=page_orientations, ink_snap=self.ink_snap,
-                               snap_mode=self.snap_mode)
+                               snap_mode=self.snap_mode, adjudication=adjudication)
         self.stats = {"calls": len(self.calls), "ok": sum(1 for c in self.calls if c["ok"]),
                       "failed": sum(1 for c in self.calls if not c["ok"]), "ms": timings["total_ms"],
                       "pages": len(infos), "selected": selection["selected"], "lines": len(ext.lines),

@@ -15,8 +15,8 @@ from system_a.adapters.llm.litellm_client import LiteLLMClient
 from system_a.application.orchestrator import validate
 from system_a.container import Settings, build_services
 from system_a.domain.standard import load_standard
-from system_a.perception.single_pass import (SinglePassPipeline, admit_rows, classify_row, ink_snap_mode,
-                                              select_invoice_pages)
+from system_a.perception.single_pass import (SinglePassPipeline, admit_rows, classify_row, invoice_wording,
+                                              ink_snap_mode, select_invoice_pages)
 from system_a.sandbox.scenarios import tax_id_of
 
 SUP_TAX = tax_id_of("123456789012")
@@ -70,24 +70,120 @@ EXTRACT = {
 class FakeClient:
     """Same chat_json signature as LiteLLMClient (no **kwargs)."""
 
-    def __init__(self, classify=CLASSIFY3, fail_classify=False, extract=None):
+    def __init__(self, classify=CLASSIFY3, fail_classify=False, extract=None,
+                 adjudicate=None, fail_adjudicate=False):
         self.classify, self.fail_classify = classify, fail_classify
         self.extract = EXTRACT if extract is None else extract
+        self.adjudicate, self.fail_adjudicate = adjudicate, fail_adjudicate
         self.asked, self.sizes = [], []
         self.last_usage, self.last_salvaged = {}, False
 
     def chat_json(self, model: str, system: str, user: str, *, temperature: float = 0.0,
                   enable_thinking: Optional[bool] = None, images: list[str] | None = None,
                   max_tokens: Optional[int] = None, json_mode: bool = True, layout: str = "system") -> dict:
-        kind = "classify" if "classify every page" in user else "extract"
+        # "serves_as_tax_invoice" is the second-look prompt's own response key, so it identifies that call
+        # wherever the wording of the prompt itself changes. If the pipeline ever sends a prompt this fake
+        # cannot tell apart, the tests below go red instead of quietly answering with an extract payload.
+        kind = ("classify" if "classify every page" in user else
+                "adjudicate" if "serves_as_tax_invoice" in user else "extract")
         self.asked.append((kind, len(images or []), enable_thinking))
         if kind == "classify" and self.fail_classify:
             raise RuntimeError("AIResponseError: simulated")
+        if kind == "adjudicate":
+            if self.fail_adjudicate:
+                raise RuntimeError("AIResponseError: simulated")
+            ans = self.adjudicate or {}
+            if isinstance(ans, list):                    # one answer per page, in page order
+                ans = ans[min(len([k for k, _, _ in self.asked if k == "adjudicate"]) - 1, len(ans) - 1)]
+            return ans
         if kind == "extract":
             import base64, io
             from PIL import Image
             self.sizes.append(Image.open(io.BytesIO(base64.b64decode(images[0].split(",", 1)[1]))).size)
         return self.classify if kind == "classify" else self.extract
+
+
+# --------------------------------------------------------------------------------- the second look (R6-6)
+# Quotes below are text copied out of real dropped documents by bbox_testing/round_06/page_identity_probe.py
+# (DMS-56 rescued, DMS-123/124 discarded), including the spelling the model actually produced.
+ALL_DELIVERY = {"pages": [{"p": 1, "t": "delivery", "c": "original", "n": "DO-9", "m": "1/1", "r": 0, "h": []},
+                         {"p": 2, "t": "po", "c": "original", "n": "PO-9", "m": None, "r": 0, "h": []}]}
+ADJ_COMBINED = {"quotes": ["ต้นฉบับใบกำกับภาษี/ใบส่งของ", "ภาษีมูลค่าเพิ่ม 1,086.75"],
+                "serves_as_tax_invoice": True, "serves_as_delivery_note": True}
+ADJ_SELF_EXCLUDED = {"quotes": ["ใบส่งสินค้า", "D/O", "ไม่ใช่ใบกำกับภาษี"],
+                     "serves_as_tax_invoice": True, "serves_as_delivery_note": True}
+ADJ_PLAIN_DELIVERY = {"quotes": ["ใบส่งสินค้า", "D/O", "รวมเงินทั้งสิ้น 3,200.00"],
+                      "serves_as_tax_invoice": False, "serves_as_delivery_note": True}
+ADJ_PURCHASE_ORDER = {"quotes": ["ใบสั่งซื้อ", "PURCHASE ORDER", "กำหนดส่งของ"],
+                      "serves_as_tax_invoice": False, "serves_as_delivery_note": False}
+
+
+def test_the_wording_on_the_page_decides_a_rescue_not_the_models_opinion():
+    """The gate may only be reopened by words the page actually prints."""
+    assert invoice_wording("ต้นฉบับใบกำกับภาษี/ใบส่งของ") == "tax_invoice"      # DMS-56's printed title
+    assert invoice_wording("ใบส่งของ/ใบกำกับภาษี") == "tax_invoice"            # DMS-227's
+    assert invoice_wording("TAX INVOICE / DELIVERY ORDER") == "tax_invoice"
+    assert invoice_wording("ใบส่งสินค้า/ใบแจ้งหนี้") == "invoice"              # DMS-195's: bills, no tax line
+    assert invoice_wording("ใบส่งสินค้า D/O") == ""                            # a delivery note, plain
+    assert invoice_wording("") == ""
+
+
+def test_a_page_that_prints_its_own_exclusion_is_not_an_invoice():
+    """Seven of the twelve dropped documents print 'not a tax invoice' on their face.
+
+    The same characters as a positive title, so a substring test would rescue all seven by inventing
+    invoices - which is worse than discarding them, because matching would then chase a receipt that
+    was never billed.  Negation has to be part of the rule, not a note in a prompt.
+    """
+    assert invoice_wording("ไม่ใช่ใบกำกับภาษี") == ""
+    assert invoice_wording("ไม่ใช่ใบกำกับภาษี") == ""          # the misspelling DMS-124's page produced
+    assert invoice_wording("ไม่ใช่ในกำกับภาษี") == ""          # as quoted from DMS-93
+    assert invoice_wording("NOT A TAX INVOICE") == ""
+    assert invoice_wording("เอกสารนี้ไม่ใช่ใบกำกับภาษี") == ""
+
+
+def test_a_document_the_gate_is_about_to_discard_gets_one_harder_look():
+    """Five of the twelve dropped documents were real invoices with a combined title.
+
+    The second look changes only the *evidence* - a page type - and hands it back to the same
+    ``select_invoice_pages`` rule, so the gate's copy/marker/multi-document logic still decides.
+    """
+    ext = SinglePassPipeline(FakeClient(classify=ALL_DELIVERY,
+                                        adjudicate=[ADJ_COMBINED, ADJ_PURCHASE_ORDER]), "fake-vl").extract(
+        _pdf(2), package_id="P", dms_doc_id="D")
+    assert ext.extra["invoice_pages"] == [1], ext.extra["selection"]
+    assert [c["kind"] for c in ext.extra["calls"] if c["kind"] == "adjudicate"] == ["adjudicate", "adjudicate"]
+    said = {a["page_no"]: a for a in ext.extra["adjudication"]}
+    assert said[1]["accepted"] == "tax_invoice" and "ใบกำกับภาษี" in said[1]["quote"]
+    assert said[2]["accepted"] is False            # page 2 stayed a purchase order
+    assert ext.lines, "the rescued page must actually be read"
+
+
+def test_a_page_that_denies_being_an_invoice_stays_discarded():
+    """The model's own opinion is not enough: its 'yes' is refused when the quote denies it."""
+    ext = SinglePassPipeline(FakeClient(classify=ALL_DELIVERY, adjudicate=ADJ_SELF_EXCLUDED), "fake-vl").extract(
+        _pdf(2), package_id="P", dms_doc_id="D")
+    assert ext.extra["invoice_pages"] == []
+    assert ext.extra["selection"]["no_invoice_page"] is True
+    assert all(a["accepted"] is False for a in ext.extra["adjudication"])
+    assert ext.fields == {}, "nothing may be delivered for a document that is not an invoice"
+
+
+def test_the_second_look_costs_nothing_when_the_first_look_found_the_invoice():
+    """Escalation is for documents about to be thrown away, not a tax on every page of every job."""
+    client = FakeClient(adjudicate=[ADJ_COMBINED, ADJ_PURCHASE_ORDER, ADJ_PURCHASE_ORDER])
+    SinglePassPipeline(client, "fake-vl").extract(_pdf(3), package_id="P", dms_doc_id="D")
+    assert [k for k, _, _ in client.asked].count("adjudicate") == 0
+    assert client.asked[0][0] == "classify" and all(k == "extract" for k, _, _ in client.asked[1:])
+
+
+def test_a_failed_second_look_leaves_the_original_decision_intact():
+    """An escalation that cannot answer must not invent a document, nor take the read down with it."""
+    ext = SinglePassPipeline(FakeClient(classify=ALL_DELIVERY, fail_adjudicate=True), "fake-vl").extract(
+        _pdf(2), package_id="P", dms_doc_id="D")
+    assert ext.extra["invoice_pages"] == []
+    assert "adjudicate" in ext.extra["page_errors"]
+    assert ext.extra["selection"]["no_invoice_page"] is True
 
 
 def _oracle():
