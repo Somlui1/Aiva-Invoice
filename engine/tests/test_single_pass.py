@@ -352,6 +352,61 @@ def test_a_prompt_change_cannot_be_served_from_an_older_cache(monkeypatch):
     assert before != after, "a prompt edit must invalidate every cached payload it could otherwise poison"
 
 
+def with_tax_ids(supplier=None, customer=None) -> dict:
+    """The standard answer with the tax ids replaced - nothing else moved."""
+    import copy
+    out = copy.deepcopy(EXTRACT)
+    if supplier is not None:
+        out["fields"]["supplier_tax_id"] = V(supplier)
+    if customer is not None:
+        out["fields"]["customer_tax_id"] = V(customer)
+    return out
+
+
+def _warnings(ext):
+    return ext.extra.get("format_warnings") or []
+
+
+def test_a_tax_id_that_is_not_13_digits_is_flagged_not_delivered_quietly():
+    """R6-9 found DMS-177 delivering 011546006764 - twelve digits where the page prints thirteen - and the
+    SAME wrong value in both runs, so no amount of repeatability testing would ever surface it.  A Thai tax
+    id has 13 digits; that is checkable without asking the model anything.
+    """
+    ext = SinglePassPipeline(FakeClient(extract=with_tax_ids(supplier="011546006764")), "fake-vl",
+                             ink_snap=False).extract(_pdf(3), package_id="P", dms_doc_id="D")
+    hits = [w for w in _warnings(ext) if w["field"] == "supplier_tax_id"]
+    assert hits, _warnings(ext)
+    assert hits[0]["digits"] == 12 and hits[0]["rule"] == "thai_tax_id_13_digits", hits[0]
+    assert ext.fields["supplier_tax_id"].raw == "011546006764", \
+        "raw stays exactly as printed - the flag reports, it does not rewrite history"
+
+
+def test_spacing_is_removed_before_the_rule_is_applied():
+    """Thai invoices print tax ids with wide gaps between digits (DMS-42: "0 2 0 5 5 5 7 0 0 2 7 3 0").
+    Counting those as a violation would bury the real ones under 30 false alarms.
+    """
+    ext = SinglePassPipeline(FakeClient(extract=with_tax_ids(supplier="0 2 0 5 5 5 7 0 0 2 7 3 0")),
+                             "fake-vl", ink_snap=False).extract(_pdf(3), package_id="P", dms_doc_id="D")
+    assert not [w for w in _warnings(ext) if w["field"] == "supplier_tax_id"], _warnings(ext)
+
+
+def test_a_value_that_is_not_tax_id_shaped_is_not_flagged():
+    """A branch code or a dash is not a truncated tax id; flagging them trains people to ignore the flag."""
+    for junk in ("-", "N/A", "01-33145", "สหมงคล"):
+        ext = SinglePassPipeline(FakeClient(extract=with_tax_ids(supplier=junk)), "fake-vl",
+                                 ink_snap=False).extract(_pdf(3), package_id="P", dms_doc_id="D")
+        assert not [w for w in _warnings(ext) if w["field"] == "supplier_tax_id"], (junk, _warnings(ext))
+
+
+def test_the_format_flag_names_the_field_that_carries_it():
+    """The same rule belongs on the customer's id - and the report must not blame the supplier for it."""
+    ext = SinglePassPipeline(FakeClient(extract=with_tax_ids(customer="01355370003456")), "fake-vl",
+                             ink_snap=False).extract(_pdf(3), package_id="P", dms_doc_id="D")
+    hits = _warnings(ext)
+    assert [w["field"] for w in hits] == ["customer_tax_id"], hits
+    assert hits[0]["digits"] == 14
+
+
 def _oracle():
     row = {"ORG_ID": 433, "RECEIPT_NUM": "RCV-0000070001", "RECEIVER": "SMITH J.", "LINE": 1,
            "ITEM": "OXYGEN IND PACK", "QTY": "1", "UOM": "Pack", "UNIT_PRICE": "3100.00", "LINE_AMOUNT": "3100.00",

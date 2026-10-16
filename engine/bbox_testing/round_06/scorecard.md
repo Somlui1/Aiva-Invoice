@@ -364,3 +364,52 @@ arm ที่ rewind prompt **ส่งข้อความเก่าจร�
 `code_version` **รวม prompt version เข้าไปใน cache key แล้ว** — เดิมถ้าแก้ prompt อย่างเดียว cache key ofเหมือนเดิม
 → payloads เก่าunder ข้อความเดิมจะถูก serve ต่อไปอย่างเงียบ ๆ (ofเดียวกับที่ INK_RULES_VERSION เคยปิดไว้)
 test ครอบคลุม: เปลี่ยนข้อความ prompt → `code_version` ต้องเปลี่ยน
+
+
+---
+
+# R6-11: Option B — format guard ฝั่ง perception
+
+## สิ่งที่ ship (+0 vision calls)
+`extra["format_warnings"]` ใน payload: flag เมื่อค่าที่ส่งออกมาเป็นรูปแบบ tax id แต่ **ไม่ใช่ 13 หลัก**
+- strip ช่องว่าง/ขีด ก่อนนับ
+- **ไม่แก้ `raw`** — ของจริงคงตามทีพิมพ์ (contract ของ prompt) flag只做รายงาน
+- rule id `thai_tax_id_13_digits` พร้อม `field / raw / digits / page`
+- ครอบคลุมทั้ง `supplier_tax_id` และ `customer_tax_id`
+
+**ทดสอบกับเอกสารจริง 7 ฉบับ** (กลุ่ม R6-9):
+
+| doc | ค่าที่ส่งมา | ผล |
+|---|---|---|
+| DMS-31 | `011554004198` | **flag 12 digits** ✓ |
+| DMS-96 | `01155490004428` | **flag 14 digits** ✓ |
+| DMS-42 | `0205557002730` (พิมพ์เว้นวรรค) | ไม่ fired ✓ |
+| DMS-177, DMS-213 | รอบนี้ค่าถูกต้อง | ไม่ fired ✓ |
+| DMS-20, DMS-106 (control) | ค่าปกติ | สะอาด ✓ |
+
+`pytest 253 passed` · mutation สองทิศทาง: ปิด guard → แดง 2 tests · ให้ flag แม้ค่าที่ถูกต้อง → แดง 2 tests
+
+## and ผลที่ พลิก งานนี้: ไม่มีอะไร ต้องเสนอ ให้ แก้ `rules.py`
+ผมเตรียม 2 แนวทาง (เทียบแบบ digits-only / ให้ flag ห้าม fail E07) แล้วอ่าน `normalize.py` ก่อน — **กติกาพวกนี้มีอยู่แล้ว**
+และเข้มกว่าที่ผมจะเสนอ: `tax_id()` strip ช่องขีด, บังคับ 13 หลัก, **ตรวจ Thai checksum**, และซ่อมรูปแบบ `0155…` (12 หลัก)
+→ `0111…` ได้ ส่วน `_nfield()` แปลงเป็น `INVALID_FORMAT:<reason>` + `ok=False` และ `V-05` ใช้ `.value` ที่ normalize แล้ว
+
+วัดจริงบนค่าที่ Final Full Round ส่งออกมา **836 ค่า** (ทั้งสองรอบ):
+
+| field | ผ่าน validator | rejected |
+|---|---|---|
+| `supplier_tax_id` | 413/422 (97.9%) — รวมแก้รูปแบบ 17 ค่า | `NOT_13_DIGITS` 7 (= ตรงกับ flag ของผมทุกค่า) · `CHECKSUM` 2 |
+| `customer_tax_id` | 382/414 (92.3%) — รวมแก้รูปแบบ 13 ค่า | `NOT_13_DIGITS` 11 · **`CHECKSUM` 21** |
+
+สรุป: **false E07 ทั้งจาก typography และจาก id ที่อ่านขาด ถูกกันไว้ตั้งแต่ต้นแล้ว** — proposal สำหรับ `rules.py` จึงไม่มี
+(เก็บไว้เป็นหลักฐานว่า "วัดแล้ว" ไม่ใช่ "คิดเอาว่าไม่ต้องมี")
+
+## ofใหม่ที่ ได้ from ตารางข้างบน (ถึง owner)
+`customer_tax_id` ตก checksum **21 reads (5.1%)** ขณะที่ `supplier_tax_id` ตกแค่ 2 (0.5%)
+และ **master data (buyer_entity.yaml, 28 ids) ตก checksum = 0 ตัว**
+→ checksum กำลัง **จับ OCR อ่านเลขผิดหลักเดียว** ของ buyer id `0145548001557` ได้จริง
+(เห็นเป็น `0145548001558`, `0145548001357`, `0145546001557`, `0145548001594`, `0145549001557` ใน ~14 ฉบับ: 68, 76, 77, 103, 184, 194, 227, 236, 237, 238 …)
+
+ผลต่อเนื่อง: เมื่อตก checksum field เป็น `ok=False` → **V-05 ไม่ถูกประเมินในเอกสารกลุ่มนั้น** (`_skip`)
+ของที่ต้องตามคือ **เอกสารเหล่านี้โผล่เป็น REVIEW จริงหรือไม่** — วัดด้วยการรัน validate เทียบ outcome
+ผมยังไม่ได้รัน และจะไม่สรุปเองว่าเป็นหรือไม่ใช่

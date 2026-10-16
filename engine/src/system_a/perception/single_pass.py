@@ -409,6 +409,35 @@ class PageAnswer:
         return Region(page=self.page_no, bbox=bbox, rbox=rbox)
 
 
+TAX_ID_FIELDS = ("supplier_tax_id", "customer_tax_id")
+
+
+def tax_id_warnings(fields: dict, field_page: dict) -> list[dict]:
+    """Flag a tax id that cannot be one, without rewriting what the model saw.
+
+    A Thai taxpayer identification number is 13 digits.  DMS-177 delivered twelve - the same twelve in both
+    runs of an identical corpus, which is why the repeatability measurement rated it as stable: a fault that
+    never varies is invisible to a test that only looks for variation.  A digit count needs no model, so it
+    catches what that cannot.
+
+    The printed value is left exactly as delivered (the prompt's fidelity contract); this only reports, so a
+    reviewer or a rule can decide what a short id means.  Spacing and hyphens are removed before counting,
+    because Thai invoices print these with wide gaps between digits.
+    """
+    out = []
+    for name in TAX_ID_FIELDS:
+        field = fields.get(name)
+        raw = getattr(field, "raw", None)
+        if raw in (None, ""):
+            continue
+        digits = re.sub(r"\D", "", str(raw))
+        if len(digits) < 8 or len(digits) == 13:
+            continue        # not a tax id at all (a dash, a branch code, prose), or a well-formed one
+        out.append({"field": name, "raw": str(raw), "digits": len(digits),
+                    "rule": "thai_tax_id_13_digits", "page": (field_page or {}).get(name)})
+    return out
+
+
 def count_answer_values(answer: dict) -> int:
     """How many non-empty values one extract answer offered the parser, fields and cells together.
 
@@ -653,6 +682,7 @@ def build_extraction(*, package_id: str, dms_doc_id: str, sha: str, page_infos: 
             "folded_rows": [{k: v for k, v in f.items()} for f in folded],
             "excluded_rows": [{k: v for k, v in e.items()} for e in excluded],
             "reprint_pages": reprint_pages,
+            "format_warnings": tax_id_warnings(fields, field_page),   # e.g. a 12-digit tax id, delivered twice
             "coord_mode_by_page": {str(p): reads[p].coord for p in reads},
             "ink_snap": bool(ink_snap),        # which arm of the R4-3c A/B produced this payload
             "ink_snap_mode": snap_mode,        # and which of its two knobs R4-9 left switched on
