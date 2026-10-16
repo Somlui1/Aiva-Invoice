@@ -49,7 +49,7 @@ export function AuditPage() {
   }
 
   // Filter fallback logs if endpoint was unavailable
-  const filteredFallback = currentUser.role === 'ADM' || currentUser.role === 'itsupport'
+  const filteredFallback = currentUser.role === 'ADM' || currentUser.role === 'SA'
     ? fallbackLogs
     : currentUser.role === 'APR'
     ? fallbackLogs.filter(l => currentUser.co.some(c => l.detail.includes(c)) || l.who === currentUser.n)

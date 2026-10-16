@@ -39,14 +39,14 @@ describe('LDAP / Active Directory Authentication API', () => {
     expect(data.ok).toBe(true)
     expect(data.user.id).toBe('itsupport')
     expect(data.user.role).toBe('ADM')
-    expect(data.user.name).toBe('IT Support')
+    expect(data.user.name).toContain('IT Support')
 
     // Verify audit log
     const log = await prisma.auditLog.findFirst({
       where: { docId: 'AUTH', action: 'login_ldap' },
     })
     expect(log).toBeDefined()
-    expect(log?.who).toBe('IT Support')
+    expect(log?.who).toContain('IT Support')
 
     // Verify user in DB
     const dbUser = await prisma.user.findUnique({

@@ -1,4 +1,4 @@
-export type RoleKey = 'EU' | 'ACC' | 'APR' | 'ADM' | 'itsupport'
+export type RoleKey = 'EU' | 'ACC' | 'APR' | 'ADM' | 'SA'
 
 export type Permission =
   | 'VIEW_OWN'

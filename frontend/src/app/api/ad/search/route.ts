@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { searchActiveDirectory } from '@/lib/adAuth'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -41,6 +42,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ ok: true, results: DIRECTORY_EMPLOYEES })
   }
 
+  // Query real Active Directory Domain Controller first
+  try {
+    const liveResults = await searchActiveDirectory(q)
+    if (liveResults && liveResults.length > 0) {
+      return NextResponse.json({ ok: true, results: liveResults })
+    }
+  } catch {}
+
+  // Fallback to local directory list
   const results = DIRECTORY_EMPLOYEES.filter(
     e =>
       e.samAccount.toLowerCase().includes(q) ||

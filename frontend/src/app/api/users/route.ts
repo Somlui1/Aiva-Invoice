@@ -13,7 +13,7 @@ const USER_SAVE_SCHEMA = z.object({
   samAccount: z.string().optional(),
   empId: z.string().optional(),
   unit: z.string().optional(),
-  role: z.enum(['EU', 'ACC', 'APR', 'ADM']),
+  role: z.enum(['EU', 'ACC', 'APR', 'ADM', 'SA']),
   companies: z.array(z.string()).default([]),
   receivers: z.array(z.string()).default([]),
 })

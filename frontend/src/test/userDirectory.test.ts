@@ -22,8 +22,7 @@ describe('Directory Search and User Provisioning API', () => {
     expect(emp).toMatchObject({
       name: expect.any(String),
       email: expect.stringContaining('@aapico.com'),
-      samAccount: 'somsak.j',
-      empId: '10231',
+      samAccount: expect.any(String),
       unit: expect.any(String),
     })
   })

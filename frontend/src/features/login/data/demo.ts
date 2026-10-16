@@ -6,7 +6,7 @@
  * (แผงอธิบายระบบต้องการเฉพาะ: ROLES, PERM, USERS, MAPS, DEMO_DOCS, DEMO_COUNTS, SEV, EXC_NAME, RULES)
  */
 
-export type Role = "EU" | "ACC" | "APR" | "ADM";
+export type Role = "EU" | "ACC" | "APR" | "ADM" | "SA";
 export type Severity = "High" | "Medium" | "Low";
 
 export interface DemoUser {
@@ -134,7 +134,7 @@ export const USERS: DemoUser[] = [
     "id": "itsupport",
     "n": "IT Support",
     "email": "itsupport@aapico.com",
-    "role": "ADM",
+    "role": "SA",
     "emp": 99999,
     "co": [
       "AH",
@@ -204,6 +204,30 @@ export const ROLES: Record<Role, RoleDef> = {
       "AUDIT"
     ],
     "scope": "none"
+  },
+  "SA": {
+    "n": "ผู้ดูแลระบบระดับสูง (Super Admin)",
+    "c": "#0D9488",
+    "bg": "#CCFBF1",
+    "p": [
+      "VIEW_CO",
+      "VIEW_OWN",
+      "DMS",
+      "UPLOAD_NEW",
+      "CONFIRM",
+      "REVIEW",
+      "HOLD",
+      "REJECT",
+      "MANUAL_REVIEW",
+      "DUP_OVERRIDE",
+      "UNCONFIRM",
+      "POST",
+      "RETURN_FAILED",
+      "VIEW_AP",
+      "MAP",
+      "AUDIT"
+    ],
+    "scope": "company"
   }
 };
 

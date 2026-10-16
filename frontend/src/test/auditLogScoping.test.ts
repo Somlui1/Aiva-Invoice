@@ -91,7 +91,7 @@ describe('Audit Log Security Scoping API', () => {
 
   it('allows ADM and itsupport to see all audit logs across the system', async () => {
     // itsupport
-    const reqSupport = new NextRequest('http://localhost/api/audit-logs?whoId=itsupport&role=itsupport')
+    const reqSupport = new NextRequest('http://localhost/api/audit-logs?whoId=itsupport&role=SA')
     const resSupport = await GET(reqSupport)
     const dataSupport = await resSupport.json()
     expect(dataSupport.ok).toBe(true)
