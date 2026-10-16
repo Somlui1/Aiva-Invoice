@@ -22,6 +22,10 @@ COPY . .
 RUN npx prisma generate
 RUN node scripts/copy-pdfjs-worker.mjs
 
+# Pre-seed template SQLite database with real dataset from temp/paperless_invoices_v5
+RUN DATABASE_URL="file:./prisma/dev.db" npx prisma db push --skip-generate
+RUN DATABASE_URL="file:./prisma/dev.db" npx tsx scripts/seed-invoices-v5.ts
+
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
