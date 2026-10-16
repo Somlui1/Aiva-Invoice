@@ -41,15 +41,18 @@ from system_a.envfile import load_env                                 # noqa: E4
 load_env()
 
 # Point the round-05 machinery at this round: one arm, one run, no comparison - this is a census, not an A/B.
+# FFR_ARM lets the same unmodified ruler re-score a later round ("final" = the 1.6.0 + retry census) without
+# touching the numbers already recorded for ffr; the default is exactly what scored the Final Full Round.
+ARM = os.environ.get("FFR_ARM", "ffr").strip() or "ffr"
 AM.HERE = HERE
-AM.ARMS = ("ffr",)
+AM.ARMS = (ARM,)
 AM.RUNS = (1,)
 MAX_PAGES = 12                                         # SinglePassPipeline default (see preflight.md)
 
 
 def payloads():
     return {int(p.parent.name.split("-")[1]): json.loads(p.read_text(encoding="utf-8"))
-            for p in HERE.glob("ffr/run1/DMS-*/extraction.json")}
+            for p in HERE.glob(f"{ARM}/run1/DMS-*/extraction.json")}
 
 
 def rendered_pages():
@@ -64,11 +67,11 @@ def main() -> int:
     pay = payloads()
     docs = sorted(set(pay) & only if only else set(pay))
     if not docs:
-        print("nothing to score: no payloads under ffr/run1")
+        print(f"nothing to score: no payloads under {ARM}/run1")
         return 1
 
     page_totals = rendered_pages()
-    dest, notes = AM.convert("ffr", 1, docs)
+    dest, notes = AM.convert(ARM, 1, docs)
     # The ruler is called as a subprocess and is not edited - but its own prints quote the payload's Thai text,
     # and on this cp874 console that raises UnicodeEncodeError *inside* align.py, which used to kill the
     # measurement halfway through and leave 96 documents looking like they had no measurable boxes at all.
@@ -98,7 +101,7 @@ def main() -> int:
     tf = sum(r[5] for r in rows)
     ti = sum(1 for r in rows if r[6] == 0)
 
-    print(f"FFR census: {len(docs)} documents scored from ffr/run1")
+    print(f"{ARM} census: {len(docs)} documents scored from {ARM}/run1")
     print(f"  vision calls spent this round: {calls}   (preflight estimated <= 1008)")
     print(f"  boxes the ruler could judge: {tb}   flagged: {tf}   defect rate {AM.rate(tf, tb):.1f}%")
     print(f"  documents with no measurable box at all: {len(unmeasured)} {unmeasured[:12]}")

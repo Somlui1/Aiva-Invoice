@@ -598,3 +598,15 @@ improvement is 1.5.0's party rule, not 1.6.0's.
 Single-observation caveat, stated because R6-8 says 15.9% of key-field reads differ between identical runs: the
 new arm has one run per document here, so a single match is evidence, not proof. The corpus run (order 4) is
 where the rate gets measured.
+
+
+
+---
+
+# R6-16 (owner order 4) · Final Full Corpus run under the shipped config — see `FINAL_SCORECARD.md`
+
+223/223 ok · 504 calls · box defect **11.4% vs 11.3% = unchanged inside the noise floor** (this round was never
+aimed at geometry) · tax ids the rule rejects **6.7-9.4% -> 3.6%** · party confusion **0/223** · ambiguity
+rulings delivered in a real run (159/236/237/175) · retry fired on 23 docs (10.3%), accepted 15 ·
+NO_GEOMETRY 4 docs (1.8%, matching R6-8's estimate) · adjudication rescued DMS-56/195/226/227 ·
+open: DMS-227 invoice_num=4224, DMS-175 supplier_tax_id unverified, 4 geometry-less cause unproven, R6-4/R6-5/R6-7.
