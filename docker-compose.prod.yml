@@ -1,0 +1,99 @@
+﻿
+# =============================================================================
+# AIVA Portal & System A Invoice Matching Engine - Production Stack
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Frontend: Next.js 15 Standalone Web Portal & API
+  # ---------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.frontend
+    image: aiva-portal-frontend:latest
+    container_name: aiva-portal-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+      - DATABASE_URL=file:/app/data/aiva.db
+      - SYSTEM_A_URL=http://engine:8080
+      - NEXT_PUBLIC_AUTH_MOCK=false
+      - NEXT_PUBLIC_AUTH_BYPASS=false
+      - LDAP_URL=${LDAP_URL:-ldaps://dc.aapico.com:636}
+      - LDAP_BIND_DN=${LDAP_BIND_DN:-}
+      - LDAP_BIND_PASSWORD=${LDAP_BIND_PASSWORD:-}
+      - LDAP_SEARCH_BASE=${LDAP_SEARCH_BASE:-DC=aapico,DC=com}
+      - AUTH_SECRET=${AUTH_SECRET:-change-this-in-production-aiva-secret-key-12345}
+      - CACHE_DIR=/app/cache
+    volumes:
+      - sqlite_data:/app/data
+      - aiva_cache:/app/cache
+    depends_on:
+      engine:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+    networks:
+      - aiva-network
+
+  # ---------------------------------------------------------------------------
+  # Engine: System A Python 3.11 Invoice Matching & Validation Service
+  # ---------------------------------------------------------------------------
+  engine:
+    build:
+      context: ./engine
+      dockerfile: Dockerfile.engine
+    image: aiva-matching-engine:latest
+    container_name: aiva-matching-engine
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - CACHE_DIR=/engine/cache
+      - PORTAL_CALLBACK_URL=http://frontend:3000/api/engine/ingest
+    volumes:
+      - aiva_cache:/engine/cache
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:8080/health/ready || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+    networks:
+      - aiva-network
+
+# -----------------------------------------------------------------------------
+# Named Volumes for Persistent Storage
+# -----------------------------------------------------------------------------
+volumes:
+  sqlite_data:
+    driver: local
+  aiva_cache:
+    driver: local
+
+# -----------------------------------------------------------------------------
+# Isolated Bridge Network
+# -----------------------------------------------------------------------------
+networks:
+  aiva-network:
+    driver: bridge

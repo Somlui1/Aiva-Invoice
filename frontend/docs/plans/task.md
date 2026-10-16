@@ -71,6 +71,6 @@
 | prod-v5-task-3 | Login Page Polish, Explainer Animation Speedup & Play Bugfix | completed | Purged DMS note, fixed play button hover freeze, doubled animation speed (5/5 tests pass); commit 97c2982 |
 | prod-v5-task-4 | Strict Authentication Guard & No Default IT Support | completed | Strict route guard to /login when unauthenticated, ANONYMOUS_USER, tests pass; commit ba83127 |
 | prod-v5-task-5 | Ingest Real Dataset (paperless_invoices_v5) into Portal Database & Default State | completed | 125 real documents ingested into dev.db & initialDocs.ts; matches summary.json (51/23/12/39); 58/58 tests pass, tsc clean; commit pending |
-| prod-v5-task-6 | Complete Production Docker Compose & Dockerfiles | in_progress | Create Dockerfile.frontend, Dockerfile.engine, docker-compose.prod.yml with volumes |
-| prod-v5-task-7 | Full Verification & Integration Regression | pending | Run test suite, typecheck, Next.js standalone build, and Docker dry-run |
+| prod-v5-task-6 | Complete Production Docker Compose & Dockerfiles | completed | Created multi-stage Dockerfile.frontend, Dockerfile.engine, docker-compose.prod.yml with persistent volumes & healthchecks; validated with docker compose config; commit pending |
+| prod-v5-task-7 | Full Verification & Integration Regression | in_progress | Run test suite, typecheck, Next.js standalone build, and Docker dry-run |
 
