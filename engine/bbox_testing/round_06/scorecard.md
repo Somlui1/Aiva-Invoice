@@ -151,3 +151,51 @@ DMS-56 / 93 / 123 / 124 / 205 / 223 / 226 / 227 ...  -> recommendation=REVIEW  c
 - ของรองรับจาก probe ชุดนี้: **rescue 5/5 ของ combined forms, false rescue 0/7 ของใบส่งของจริง**
 - กติกาที่ต้องฝังพร้อมกัน: **ยอมรับได้เฉพาะเมื่อ quote มีคำ "ใบกำกับภาษี"/"TAX INVOICE" จริง** — ไม่รับด้วย layout/ความรู้สึก
   (เพราะ ของแสดงแล้วว่าโมเดลเสก invoice จากใบส่งของที่ประกาศว่าไม่ใช่ได้ ถ้าไม่ผูกกับคำที่พิมพ์จริง)
+
+
+---
+
+# R6-6 shipped: "one harder look" ก่อนทิ้งทั้งเอกสาร — และกติกาที่ต้องผูกกับ **ชื่อที่เอกสารตั้งให้ตัวเอง**
+
+## สิ่งที่ใส่ลง engine (`single-pass/1.3.0`)
+```
+step 1b (ใหม่)  fire เฉพาะตอน gate กำลังจะทิ้งทั้งเอกสาร และ classify ไม่ได้ error
+prompt         config/prompts/single_pass_adjudicate.md (v1.0.0) — หน้าเดียว 150 DPI q85
+               ขอ quotes verbatim + kind_word_seen (ชื่อที่พิมพ์เป็นชื่อเอกสาร) + 4 คำถาม yes/no
+accept         invoice_wording(quotes, kind_word=...) — ดูจาก kind_word ก่อน ถ้าไม่มีชื่อจึงถอยไปหา quotes
+               + คำปฏิเสธ (ไม่ใช่/not a/no tax) ชนะเสมอ + fold ตัวสะกดไทย
+gate           ไม่ bypass: เปลี่ยน doc_type แล้วรัน select_invoice_pages ใหม่ (copy/marker/multi-doc ยังทำงาน)
+fail-safe      escalate พัง = คงการตัดสินใจเดิม + บันทึก page_errors["adjudicate"]
+knob           PERCEPTION_ADJUDICATE=0 = behavior เดิม, ฝังใน code_version, payload carry extra["adjudication"]
+               (page, was, accepted, named_as, quote) ทุกการช่วยชีวิต audit ย้อนได้
+```
+
+## ของวัดจริงกับโมเดลจริง (12 ฉบับ, สอง arm)
+| | ผล |
+|---|---|
+| **ช่วยคืนได้** | **DMS-56, 195, 226, 227 = +4 ฉบับ (1.8% ของ corpus)** |
+| ยังช่วยไม่ได้ | DMS-223 (หน้า 1 ตั้งชื่อตัวเองว่า "ORIGINAL DELIVERY ORDER" คำว่า ใบกำกับภาษี อยู่ส่วนอื่นของหน้า — path ที่ไม่ปลอดภัยพอดีก) |
+| ทิ้งถูกต้องเหมือนเดิม | 93, 123, 124, 180, 205, 206, 207 (7) |
+| **เปิดของผิด (invented invoice)** | **0** (เวอร์ชันแรกคือ **5**) |
+| cost | 40 calls/12 doc · **0 calls บน 8 doc แข็งแรง** (control) และ payload เหมือน FFR **7/8** (DMS-30 ต่าง 1 field โดยไม่มี adjudication เกิดขึ้น = model variance) |
+
+## ของที่ version แรกทำผิด แล้ว ของจับได้ (จดไว้เพราะเป็นการลองที่ผิดที่มีค่า)
+เวอร์ชันแรก bind กับ "คำ invoice ปรากฏที่ใดก็ได้ใน quotes" → rescue ครบ 5/5 **แต่เปิดของผิด 5 ฉบับ**
+เพราะ *หน้า PO* ของ DMS-93/123/205/206/207 พิมพ์ "TAX INVOICE" / "เลขที่ใบกำกับภาษี" (PO ที่อ้างถึง invoice ที่มันอ้างวางบิล)
+**คำเดียวแยก "หน้านี้คือใบกำกับภาษี" ออกจาก "หน้านี้พูดถึงใบกำกับภาษี" ไม่ออก** → ผูกกับ `kind_word_seen` แทน
+และที่เจ็บกว่า: **ของจริงของผมมีรู** — identity probe ดูแค่หน้า 1 แต่ escalate เปิดได้ทุกหน้า
+= *กติกาจะถือว่า validated ไม่ได้ ถ้าของที่ใช้นี้ไม่ได้ครอบคลุมจุดที่มันทำงานจริง*
+
+การเลือก **4/5 + invented 0** แทน **5/5 + invented 5** เป็นการแลกที่ถูก: ของพลาด = REVIEW ที่คนเห็น, ของปลอม = ของที่ matching เชื่อเป็น fact
+
+## TDD + mutation testing (หลักฐานว่า test จับของเสียได้จริง)
+`pytest 242 passed` · test ใหม่ 8 ตัวเขียนแดงก่อนทั้งหมด · **mutation ที่ต้นทาง** (backup ก่อนแก้ ห้ามใช้ `git checkout` กับไฟล์ที่ยังไม่ commit — ผมทำแล้วเสียโค้ดทั้งก้อนรอบนึง):
+
+| mutation | ผล |
+|---|---|
+| A ไม่นับคำปฏิเสธ | แดง 2 test (matcher + pipeline) |
+| B ให้ความเห็นโมเดล reopen ได้ | แดง 1 test |
+| C escalate ทุกเอกสาร | แดง 4 test (กติกา cost ถูกจับ) |
+| D ยัดหน้าเข้า selection ตรง ๆ ไม่ผ่าน gate | แดง 1 test — **เป็น ของว่างที่ผมเจอตอนวัดเอง จึงเขียน test เพิ่ม** |
+| E ย้อนกติกาเป็น wording-anywhere | แดง 1 test (คือเวอร์ชันที่วัดแล้วเปิดของผิด 5 ฉบับ) |
+| F ไม่ fold ตัวสะกด/ไม่ reject denial | แดง ✓ |
