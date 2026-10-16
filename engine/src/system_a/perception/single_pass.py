@@ -42,7 +42,7 @@ from .coords import (choose_coord_mode, INK_RULES_VERSION, ink_mask, is_placehol
                     sanitize_xyxy, snap_box_to_ink, xyxy_px, xyxy_to_xywh)
 from .orientation import MODEL_SHA256, OrientationResult
 
-ENGINE = "single-pass/1.3.0"
+ENGINE = "single-pass/1.4.0"
 PROMPTS = ("single_pass_classify", "single_pass_extract", "single_pass_adjudicate")
 
 HEADER_FIELDS = ("invoice_num", "invoice_date", "po_number", "supplier_name", "supplier_tax_id",
@@ -793,10 +793,14 @@ class SinglePassPipeline:
         self.prompt_version = "+".join(self._pid(n) for n in PROMPTS)
         with open(__file__, "rb") as fh:
             # the snap arm is part of the identity: it changes the boxes this pipeline delivers, and
-            # process_pdf.py hashes code_version into the perception cache key
+            # process_pdf.py hashes code_version into the perception cache key.  So does the prompt: an
+            # edit to the wording changes which values the model returns, and a cached payload read under
+            # the old wording would otherwise be served as if it were the new one (same trap INK_RULES
+            # VERSION closed for the ink rules).
             self.code_version = hashlib.sha256(fh.read() + MODEL_SHA256.encode()
                                                + f"|ink_snap={self.snap_mode}|ink_rules={INK_RULES_VERSION}"
-                                                 f"|adjudicate={int(self.adjudicate)}".encode()).hexdigest()[:12]
+                                                 f"|adjudicate={int(self.adjudicate)}"
+                                                 f"|prompts={self.prompt_version}".encode()).hexdigest()[:12]
         self.calls: list[dict] = []
         self.stats: dict = {}
 

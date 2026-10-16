@@ -14,7 +14,7 @@ import fitz
 from system_a.adapters.llm.litellm_client import LiteLLMClient
 from system_a.application.orchestrator import validate
 from system_a.container import Settings, build_services
-from system_a.domain.standard import load_standard
+from system_a.domain.standard import load_standard, load_prompt
 from system_a.perception.single_pass import (SinglePassPipeline, admit_rows, classify_row, invoice_wording,
                                               ink_snap_mode, select_invoice_pages)
 from system_a.sandbox.scenarios import tax_id_of
@@ -294,6 +294,62 @@ def test_a_page_that_read_no_values_is_not_blamed_for_missing_boxes():
     ext = SinglePassPipeline(FakeClient(extract=blank), "fake-vl", ink_snap=False).extract(
         _pdf(3), package_id="P", dms_doc_id="D")
     assert not any("NO_GEOMETRY" in str(v) for v in ext.extra["page_errors"].values()), ext.extra["page_errors"]
+
+
+def test_the_extract_prompt_binds_a_value_to_the_block_it_is_printed_in():
+    """R6-9: the largest systematic key-field fault was never a bad copy, it was the right number in the
+    wrong box - the buyer's tax id delivered as supplier_tax_id, the delivery-note number delivered as
+    invoice_num. Fidelity rules cannot fix that; the prompt has to say which block a value may come from.
+    """
+    text = load_prompt("single_pass_extract")
+    low = " ".join(text.split()).casefold()      # the prompt is line-wrapped; compare on collapsed whitespace
+    assert "supplier_tax_id" in low and "customer" in low
+    assert "never take supplier_tax_id from the buyer" in low, \
+        "the party rule must be stated as a prohibition, not a preference"
+    assert "issuer" in low, "the rule must say where the supplier's own id lives"
+    assert "ใบกำกับภาษี" in text and "tax invoice" in low, "invoice_num must be tied to the tax-invoice label"
+    assert "delivery" in low and "registration" in low, "and explicitly away from DO numbers / company registration"
+
+
+def test_the_binding_rule_says_where_to_look_before_it_says_give_up():
+    """The first wording of this rule refused the buyer's id - and then nulls appeared on pages that DO print
+    the issuer's own id, in small type under its address (DMS-147 lost a correct 0105562195321, DMS-43 went
+    null in one of two runs).  Refusing the wrong box is only half the instruction; it has to say where the
+    right one usually is, and reserve null for "not printed in the issuer's block at all".
+    """
+    low = " ".join(load_prompt("single_pass_extract").split()).casefold()
+    assert "small type" in low or "small print" in low, "the issuer's id is usually small: tell the model where"
+    assert "under" in low and ("address" in low or "tel" in low), "point at the header line, not at 'the block'"
+    assert "before returning null" in low or "before you return null" in low, \
+        "null must come after a search, not as a reaction to seeing a customer id"
+    assert "then supplier_tax_id is null and" not in low, \
+        "a clause that offers null as soon as a customer id appears is what cost DMS-147 its correct value"
+
+
+def test_the_payload_says_which_prompt_read_it():
+    """An A/B that differs only by wording must still be separable after the run, or two arms collapse into
+    one population.  (Checked, not assumed: the version string was already recorded here, not in ``extra`` -
+    the real gap was the cache key, which the next test covers.)
+    """
+    ext = SinglePassPipeline(FakeClient(), "fake-vl", ink_snap=False).extract(
+        _pdf(3), package_id="P", dms_doc_id="D")
+    assert "single-pass-extract@" in ext.extractor["prompts"], ext.extractor
+
+
+def test_a_prompt_change_cannot_be_served_from_an_older_cache(monkeypatch):
+    """The perception cache key is code_version. It hashed code, model, snap and ink rules - but not the
+    prompt, so editing the wording alone would keep serving payloads read under the old wording.
+    """
+    import system_a.perception.single_pass as sp
+    before = SinglePassPipeline(FakeClient(), "fake-vl", ink_snap=False).code_version
+    real = sp.load_prompt
+
+    def patched(name):
+        text = real(name)
+        return text.replace("version: 1.", "version: 9.") if name == "single_pass_extract" else text
+    monkeypatch.setattr(sp, "load_prompt", patched)
+    after = SinglePassPipeline(FakeClient(), "fake-vl", ink_snap=False).code_version
+    assert before != after, "a prompt edit must invalidate every cached payload it could otherwise poison"
 
 
 def _oracle():
