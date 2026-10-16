@@ -105,8 +105,12 @@ def convert(arm: str, run: int, docs) -> tuple[Path, list[str]]:
 def align_counts(dest: Path, docs) -> dict:
     """{doc: (boxes, flagged)} straight out of the unmodified round-3 ruler's own stdout."""
     env = dict(os.environ, AUDIT_ROUND_DIR=str(dest.resolve()))
+    # Both directions are pinned to UTF-8: the ruler prints payload text that is Thai, and on a cp874 console
+    # it raised inside align.py while printing (killing the round) and, once the child was fixed, again here
+    # while *decoding* its stdout.  The ruler itself is still called unedited.
     proc = subprocess.run([sys.executable, str(ALIGN), *[f"DMS-{d}" for d in docs], "--all"],
-                          capture_output=True, text=True, env=env, cwd=str(ROOT))
+                          capture_output=True, text=True, encoding="utf-8", errors="replace",
+                          env=env, cwd=str(ROOT))
     out = {}
     for line in proc.stdout.splitlines():
         m = re.match(r"== (DMS-\d+) boxes=(\d+) flagged=(\d+)", line)
@@ -115,7 +119,10 @@ def align_counts(dest: Path, docs) -> dict:
         elif "not_in_round" in line:
             print(f"   ! align: {line.strip()}")
     if proc.returncode != 0:
-        print(f"   ! align.py exited {proc.returncode}: {proc.stderr.strip()[-400:]}")
+        # A round that scored 127 of 223 documents looks exactly like a round with 96 unreadable documents.
+        # It is not; it is a crashed ruler.  Refuse the number instead of reporting a rate over a population
+        # that silently shrank - that mistake would have been written into the FFR scorecard this morning.
+        raise SystemExit(f"align.py exited {proc.returncode}: {(proc.stderr or '').strip()[-600:]}")
     return out
 
 
