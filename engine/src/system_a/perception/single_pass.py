@@ -25,6 +25,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import io
+import os
 import re
 import statistics
 import time
@@ -325,7 +326,8 @@ class PageAnswer:
     def __init__(self, page_no: int, orig_w: int, orig_h: int,
                  rot_w: Optional[int] = None, rot_h: Optional[int] = None,
                  M: Optional[np.ndarray] = None, answer: Optional[dict] = None,
-                 coord: str = "norm1000", mask: Optional[np.ndarray] = None):
+                 coord: str = "norm1000", mask: Optional[np.ndarray] = None,
+                 snap: bool = True):
         self.page_no = page_no
         if answer is None and isinstance(rot_w, dict):
             # Backward compatibility with (page_no, w, h, answer, coord)
@@ -340,6 +342,7 @@ class PageAnswer:
         self.w, self.h = orig_w, orig_h
         self.answer = answer or {}
         self.mask = mask          # ink map of the page as it was sent, for box corrections
+        self.snap_boxes = snap    # False = the arm that delivers the model's boxes untouched
         boxes = [b for b in (_box(v) for v in (self.answer.get("fields") or {}).values()) if b]
         for r in self.answer.get("line_items") or []:
             if isinstance(r, dict):
@@ -348,12 +351,16 @@ class PageAnswer:
         self.coord = choose_coord_mode(boxes, rot_w, rot_h, None, coord) if coord in ("auto", "words") else coord
 
     def region(self, b, snap: bool = False) -> Optional[Region]:
-        """A model box -> a page region.  ``snap`` corrects a field/cell box against the page's own ink."""
+        """A model box -> a page region.  ``snap`` corrects a field/cell box against the page's own ink.
+
+        The page's own ``snap_boxes`` has the final say, so one run is one arm: a measurement run that
+        switched the correction off cannot have a single box quietly corrected anyway.
+        """
         if not b:
             return None
         mode = "norm1" if max(float(v) for v in b) <= 1.0 else self.coord
         rect = xyxy_px(b, self.rot_w, self.rot_h, mode)
-        if snap and self.mask is not None:
+        if snap and self.snap_boxes and self.mask is not None:
             rect, _ = snap_box_to_ink(rect, self.mask)
         bbox, rbox = rotate_px_box_back(rect, self.rot_w, self.rot_h, self.orig_w, self.orig_h, self.M)
         if bbox[2] <= 0 or bbox[3] <= 0:
@@ -429,7 +436,8 @@ def _page_signature(answer: dict) -> tuple:
 def build_extraction(*, package_id: str, dms_doc_id: str, sha: str, page_infos: list[PageInfo],
                      classified: list[dict], selection: dict, reads: dict[int, PageAnswer],
                      page_errors: dict, calls: list, model: str, prompt_version: str,
-                     timings: dict, page_orientations: Optional[dict] = None) -> ExtractionResult:
+                     timings: dict, page_orientations: Optional[dict] = None,
+                     ink_snap: bool = True) -> ExtractionResult:
     selected = [p for p in selection["selected"] if p in reads]
     selected, reprint_pages = drop_reprint_pages(reads, selected)
     # ---------------------------------------------------------------- fields
@@ -568,6 +576,7 @@ def build_extraction(*, package_id: str, dms_doc_id: str, sha: str, page_infos: 
             "excluded_rows": [{k: v for k, v in e.items()} for e in excluded],
             "reprint_pages": reprint_pages,
             "coord_mode_by_page": {str(p): reads[p].coord for p in reads},
+            "ink_snap": bool(ink_snap),        # which arm of the R4-3c A/B produced this payload
             "orientation": {str(p): {"r": o.r, "confidence": o.confidence, "uncertain": o.uncertain,
                                      "skew": o.skew, "total": o.total, "runtime": o.runtime}
                             for p, o in (page_orientations or {}).items()},
@@ -575,6 +584,21 @@ def build_extraction(*, package_id: str, dms_doc_id: str, sha: str, page_infos: 
             "invoice_pages": list(selected),
         },
         extractor={"vlm": model, "prompts": prompt_version, "pipeline": ENGINE, "consensus": "single-read+evidence"})
+
+
+#: R4-3c: the ink snap must be measurable, and a measurement needs an arm where it is switched off.  The
+#: environment decides the default so a batch run picks its arm without any code or Settings change;
+#: PERCEPTION_INK_SNAP=0 (also off/false/no) measures the raw model boxes on the same documents.
+INK_SNAP_ENV = "PERCEPTION_INK_SNAP"
+INK_SNAP_OFF = ("0", "off", "false", "no")
+
+
+def ink_snap_from_env(default: bool = True) -> bool:
+    """The snap arm an environment asks for (unset or nonsense keeps production behaviour: on)."""
+    raw = (os.getenv(INK_SNAP_ENV) or "").strip().lower()
+    if not raw:
+        return default
+    return raw not in INK_SNAP_OFF
 
 
 # ============================================================================ the pipeline (LLM IO)
@@ -587,14 +611,18 @@ class SinglePassPipeline:
 
     def __init__(self, client, model: str, *, dpi: int = 150, classify_dpi: int = 80, max_pages: int = 12,
                  max_tokens: int = 8000, coord: str = "norm1000", json_mode: bool = False,
-                 thinking: Optional[bool] = False):
+                 thinking: Optional[bool] = False, ink_snap: Optional[bool] = None):
         self.client, self.model = client, model
         self.dpi, self.classify_dpi, self.max_pages = dpi, classify_dpi, max_pages
         self.max_tokens, self.coord, self.json_mode, self.thinking = max_tokens, coord, json_mode, thinking
+        self.ink_snap = ink_snap_from_env() if ink_snap is None else bool(ink_snap)
         self.prompts = {n: load_prompt(n) for n in PROMPTS}
         self.prompt_version = "+".join(self._pid(n) for n in PROMPTS)
         with open(__file__, "rb") as fh:
-            self.code_version = hashlib.sha256(fh.read() + MODEL_SHA256.encode()).hexdigest()[:12]
+            # the snap arm is part of the identity: it changes the boxes this pipeline delivers, and
+            # process_pdf.py hashes code_version into the perception cache key
+            self.code_version = hashlib.sha256(fh.read() + MODEL_SHA256.encode()
+                                               + f"|ink_snap={self.ink_snap}".encode()).hexdigest()[:12]
         self.calls: list[dict] = []
         self.stats: dict = {}
 
@@ -694,7 +722,7 @@ class SinglePassPipeline:
                     page_errors[str(p)] = f"{type(e).__name__}: {str(e)[:200]}"
                     ans = {}
                 reads[p] = PageAnswer(p, orig_w, orig_h, rot_w, rot_h, M, ans, self.coord,
-                                      mask=ink_mask(rot_img))
+                                      mask=ink_mask(rot_img), snap=self.ink_snap)
             timings["extract_ms"] = round((time.time() - t0) * 1000)
             infos = []
             for i in range(len(doc)):
@@ -707,7 +735,7 @@ class SinglePassPipeline:
         ext = build_extraction(package_id=package_id, dms_doc_id=dms_doc_id, sha=sha, page_infos=infos,
                                classified=classified, selection=selection, reads=reads, page_errors=page_errors,
                                calls=list(self.calls), model=self.model, prompt_version=self.prompt_version,
-                               timings=timings, page_orientations=page_orientations)
+                               timings=timings, page_orientations=page_orientations, ink_snap=self.ink_snap)
         self.stats = {"calls": len(self.calls), "ok": sum(1 for c in self.calls if c["ok"]),
                       "failed": sum(1 for c in self.calls if not c["ok"]), "ms": timings["total_ms"],
                       "pages": len(infos), "selected": selection["selected"], "lines": len(ext.lines),

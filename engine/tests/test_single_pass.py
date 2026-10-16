@@ -70,8 +70,9 @@ EXTRACT = {
 class FakeClient:
     """Same chat_json signature as LiteLLMClient (no **kwargs)."""
 
-    def __init__(self, classify=CLASSIFY3, fail_classify=False):
+    def __init__(self, classify=CLASSIFY3, fail_classify=False, extract=None):
         self.classify, self.fail_classify = classify, fail_classify
+        self.extract = EXTRACT if extract is None else extract
         self.asked, self.sizes = [], []
         self.last_usage, self.last_salvaged = {}, False
 
@@ -86,7 +87,7 @@ class FakeClient:
             import base64, io
             from PIL import Image
             self.sizes.append(Image.open(io.BytesIO(base64.b64decode(images[0].split(",", 1)[1]))).size)
-        return self.classify if kind == "classify" else EXTRACT
+        return self.classify if kind == "classify" else self.extract
 
 
 def _oracle():
@@ -198,6 +199,99 @@ def test_select_invoice_pages_drops_named_copy_with_same_doc_no():
     assert res["selected"] == [1]
     assert len(res["dropped"]) == 1
     assert res["dropped"][0]["reason"] == "copy_sheet_of_existing_original"
+
+
+# ------------------------------------------------------------------ R4-3c: the ink snap must be switchable
+def _pdf_with_a_printed_value() -> bytes:
+    """One page carrying a single printed value low on the sheet - a box above it is on blank paper."""
+    doc = fitz.open()
+    doc.new_page(width=595, height=842).insert_text((72, 700), "3,317.00")
+    return doc.tobytes()
+
+
+def _printed_rows(pdf: bytes, dpi: int, x0: int = 100, x1: int = 400) -> tuple[int, int, int]:
+    """(first ink row, row after the last ink row, page height in px) of that value, per the engine's own mask."""
+    import io
+
+    import numpy as np
+    from PIL import Image
+
+    from system_a.perception.coords import ink_mask
+    with fitz.open(stream=pdf, filetype="pdf") as doc:
+        img = Image.open(io.BytesIO(doc[0].get_pixmap(dpi=dpi).tobytes("png"))).convert("RGB")
+    mask = ink_mask(img)
+    rows = np.flatnonzero(mask[:, x0:x1].any(axis=1))
+    return int(rows.min()), int(rows.max()) + 1, mask.shape[0]
+
+
+ONE_PAGE = {"pages": [{"p": 1, "t": "tax_invoice", "c": "original", "n": INV, "m": "1/1", "r": 0, "h": []}]}
+
+
+def _answer_a_box_above_the_value(top: int) -> dict:
+    """The model read the right number and drew its box one line too high, 16 px of blank paper between.
+
+    Round 3's dominant defect (90 boxes on blank paper), and inside the snap's own travel budget, so the two
+    arms differ by geometry only - never by what was read.
+    """
+    return {"fields": {"grand_total": {"raw": "3,317.00", "bbox_2d": [100, top - 36, 400, top - 16]}},
+            "line_items": [], "regions": [], "handwritten_refs": []}
+
+
+def _run_snap_arm(ink_snap: bool):
+    """One arm of the A/B: same bytes, same page, same model answer - only the switch differs."""
+    pdf = _pdf_with_a_printed_value()
+    dpi = 100
+    top, bottom, h = _printed_rows(pdf, dpi)
+    client = FakeClient(classify=ONE_PAGE, extract=_answer_a_box_above_the_value(top))
+    ext = SinglePassPipeline(client, "fake-vl", dpi=dpi, coord="pixel",
+                             ink_snap=ink_snap).extract(pdf, package_id="P", dms_doc_id="D")
+    return ext, {"top": top, "bottom": bottom, "h": h, "drawn": (top - 36, top - 16)}
+
+
+def test_the_snap_off_arm_delivers_the_box_the_model_drew():
+    """The A/B of R4-3c needs a run where nothing is corrected: the box the model drew, as drawn.
+
+    Without an off switch the only comparison available was engine-vs-harness (different pipeline, different
+    round), which the record already refuses to call an A/B.
+    """
+    ext, f = _run_snap_arm(ink_snap=False)
+    _x, y, _w, hh = ext.fields["grand_total"].region.bbox
+    drawn_y1, drawn_y2 = f["drawn"]
+    assert abs(y - drawn_y1 / f["h"]) < 2e-3 and abs(y + hh - drawn_y2 / f["h"]) < 2e-3, \
+        f"the box the model drew must survive untouched, got {ext.fields['grand_total'].region.bbox}"
+    assert y + hh < f["top"] / f["h"], "the off arm must not be corrected onto the value"
+    assert ext.fields["grand_total"].raw == "3,317.00"
+    assert ext.extra["ink_snap"] is False
+
+
+def test_the_snap_on_arm_moves_that_same_box_onto_the_printed_value():
+    """The other arm, on the same bytes and the same answer: the box ends up on the printed line."""
+    ext, f = _run_snap_arm(ink_snap=True)
+    _x, y, _w, hh = ext.fields["grand_total"].region.bbox
+    assert y >= f["top"] / f["h"] - 2e-3 and y + hh <= f["bottom"] / f["h"] + 2e-3, \
+        f"expected the box inside {f['top']}-{f['bottom']}, got {ext.fields['grand_total'].region.bbox}"
+    assert ext.extra["ink_snap"] is True, "the payload must say which arm produced it, or the two runs are deniable"
+
+
+def test_the_snap_is_on_by_default_and_the_environment_switches_it_off(monkeypatch):
+    """Production keeps the correction; a measurement run switches it off without touching code."""
+    assert SinglePassPipeline(FakeClient(), "fake-vl").ink_snap is True
+    monkeypatch.setenv("PERCEPTION_INK_SNAP", "0")
+    assert SinglePassPipeline(FakeClient(), "fake-vl").ink_snap is False
+    monkeypatch.setenv("PERCEPTION_INK_SNAP", "1")
+    assert SinglePassPipeline(FakeClient(), "fake-vl").ink_snap is True
+
+
+def test_the_two_snap_arms_may_not_share_a_perception_cache_entry():
+    """A cached on-arm payload served to an off-arm run would fake the entire A/B.
+
+    ``process_pdf.py`` keys the perception cache on model + prompt + options + ``pipeline=code_version``; the
+    snap changes the boxes stored in that payload and appears in none of them, so the arm has to be part of
+    the pipeline identity or one arm silently reads the other's answer.
+    """
+    on = SinglePassPipeline(FakeClient(), "fake-vl", ink_snap=True).code_version
+    off = SinglePassPipeline(FakeClient(), "fake-vl", ink_snap=False).code_version
+    assert on != off, "both arms claim the same pipeline identity - a cache hit would cross the arms"
 
 
 def test_select_invoice_pages_preserves_multipage_continuation():

@@ -2936,3 +2936,24 @@ def test_a_field_box_is_snapped_when_the_page_ink_is_known():
     reg = pa.region([200, 560, 400, 580], snap=True)
     assert reg is not None
     assert reg.bbox[1] >= 0.595, f"expected the box on the printed line ~0.60, got {reg.bbox}"
+
+
+def test_a_page_told_not_to_snap_returns_the_model_box_as_drawn():
+    """The switch lives on the page, not in the caller: an arm with snap off must not correct anything.
+
+    Asked at the page level because the arms are decided once per pipeline run and every box of that run -
+    header field or table cell - has to belong to the same arm.
+    """
+    import numpy as np
+    from system_a.perception.single_pass import PageAnswer
+    from system_a.perception.coords import ink_mask
+
+    page = np.full((1000, 1000, 3), 255, dtype=np.uint8)
+    page[600:630, 200:500] = 15
+    mask = ink_mask(page)
+    answer = {"fields": {"grand_total": {"raw": "1,234.00", "bbox_2d": [200, 560, 400, 580]}}}
+    pa = PageAnswer(1, 1000, 1000, mask=mask, answer=answer, coord="pixel", snap=False)
+    reg = pa.region([200, 560, 400, 580], snap=True)
+    assert reg is not None
+    assert abs(reg.bbox[1] - 0.56) < 1e-3 and abs(reg.bbox[3] - 0.02) < 1e-3, \
+        f"snap off must leave the box at 0.560/0.020, got {reg.bbox}"

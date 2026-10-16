@@ -337,11 +337,6 @@ def snap_box_to_ink(box: Sequence[float], mask: np.ndarray,
     return (int(x1), int(y1), int(x2), int(y2)), note
 
 
-
-    x1, y1, x2, y2 = xyxy_px(box, rot_w, rot_h, mode)
-    return rotate_px_box_back((x1, y1, x2, y2), rot_w, rot_h, orig_w, orig_h, M)
-
-
 def text_drop_reason(item: dict) -> str | None:
     """Why an item must not be used (``None`` = keep).  Mirrors the tested prototype rules."""
     b = item.get("bbox_2d")
