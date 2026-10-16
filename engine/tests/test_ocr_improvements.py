@@ -2773,3 +2773,72 @@ def test_the_audit_uses_the_engines_reprint_rule_too():
     from system_a.perception.single_pass import drop_reprint_pages
     mod = _audit_script()
     assert mod.drop_reprint_pages is drop_reprint_pages
+
+
+# ---------------------------------------------------------------- Round 4: the printed page count is the authority
+def _pg(page_no, hint="INV-2026-0802", marker=None, doc_type="invoice"):
+    """One classify entry; always pass the marker by keyword - it is what these tests are about."""
+    return {"page_no": page_no, "doc_type": doc_type, "copy_status": "original",
+            "doc_no_hint": hint, "page_marker": marker}
+
+
+def test_a_page_beyond_the_printed_page_count_is_not_part_of_the_invoice():
+    """The paper says the invoice is two pages, so a fifth sheet carrying the same number is not part of it.
+
+    Measured on DMS-159: pages 1-2 are printed ``Page 1 of 2`` / ``Page 2 of 2``, and page 6 - an unrelated
+    sheet carrying the same number - was kept because it printed no marker of its own.  Its one row added
+    16,500.00 on top of a printed ``sub_total`` the document had already closed.
+    """
+    from system_a.perception.single_pass import select_invoice_pages
+    pages = [_pg(1, marker="Page 1 of 2"), _pg(2, marker="Page 2 of 2"),
+             _pg(3, hint="446012495", marker="1/1", doc_type="po"), _pg(6)]
+    info = select_invoice_pages(pages)
+    assert info["selected"] == [1, 2], f"the printed page count must bound the document: {info['selected']}"
+    assert any(d["page"] == 6 and d["reason"] == "unmarked_page_beyond_printed_count" for d in info["dropped"])
+
+
+def test_an_unmarked_sheet_next_to_the_invoice_is_still_read():
+    """The opposite case, which is the reason the rule may not simply demand a marker: a continuation sheet
+    that prints the number but no ``x of y`` sits right behind the marked page and belongs to the invoice."""
+    from system_a.perception.single_pass import select_invoice_pages
+    pages = [_pg(1, marker="Page 1 of 2"), _pg(2), _pg(7)]
+    info = select_invoice_pages(pages)
+    assert info["selected"] == [1, 2], info["selected"]
+    assert [d["page"] for d in info["dropped"]] == [7]
+
+
+def test_a_document_that_prints_no_markers_is_not_bound_by_this_rule():
+    """No printed page count, no authority: every invoice page stays for the re-print check to judge."""
+    from system_a.perception.single_pass import select_invoice_pages
+    pages = [_pg(1), _pg(2), _pg(3)]
+    info = select_invoice_pages(pages)
+    assert info["selected"] == [1, 2, 3] and info["dropped"] == []
+
+
+def test_a_page_count_written_in_words_is_a_page_count():
+    """``Page 1 of 2`` and ``หน้า 2 จาก 2`` say exactly what ``2/2`` says.
+
+    The classify answer for DMS-159 carried the English word form; because only ``a/b`` was understood, the
+    engine read the document as having no printed length at all - so ``pages_complete`` said "complete" and
+    nothing bounded the document when page 6 turned up with the same number.
+    """
+    from system_a.perception.single_pass import parse_marker
+    assert parse_marker("Page 1 of 2") == (1, 2)
+    assert parse_marker("page 2 OF 2") == (2, 2)
+    assert parse_marker("หน้า 2 จาก 2") == (2, 2)
+    assert parse_marker("1/2") == (1, 2), "the original form keeps working"
+    assert parse_marker("8/9/2559") is None, "a date is not a page count"
+    assert parse_marker("2") is None
+
+
+def test_an_unmarked_page_inside_the_printed_range_is_still_read():
+    """The rule may only reject pages the paper says do not exist.
+
+    An invoice printed ``1/3`` whose middle page is a PO sheet still has its third page coming: it sits
+    inside the printed range, so a missing marker there is a gap to keep reading (and to report through
+    ``marker_gaps``), never a reason to throw rows away.
+    """
+    from system_a.perception.single_pass import select_invoice_pages
+    pages = [_pg(1, marker="1/3"), _pg(2, hint="PO-77", marker="1/1", doc_type="po"), _pg(3)]
+    info = select_invoice_pages(pages)
+    assert info["selected"] == [1, 3], info["selected"]

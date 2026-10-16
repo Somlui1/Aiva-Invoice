@@ -67,6 +67,10 @@ _HEADER_ROW = re.compile(r"DESCRIPTION|QUANTITY|UNIT\s*PRICE|AMOUNT|รายก
 _TOTAL_ROW = re.compile(r"SUB\s*-?\s*TOTAL|GRAND\s*TOTAL|TOTAL|VAT|รวม|ภาษี|ยอดยก|CARRIED|BROUGHT|ส่วนลด|DISCOUNT|"
                         r"ค่าขนส่ง|DELIVERY\s*CHARGE", re.I)
 _MARKER = re.compile(r"^\s*(\d+)\s*/\s*(\d+)\s*$")
+# The same page count the paper writes in words: "Page 1 of 2", "หน้า 2 จาก 2".  Read as no marker at all,
+# a document loses its printed length - pages_complete then says "complete" and nothing bounds it.
+_MARKER_WORD = re.compile(r"^\s*(?:page|หน้า|แผ่น|ฉบับ)?\s*(\d+)\s*(?:of|จาก)\s*"
+                         r"(?:page|หน้า|แผ่น|ฉบับ)?\s*(\d+)\s*$", re.IGNORECASE)
 
 
 # ============================================================================ small helpers (pure)
@@ -146,7 +150,7 @@ def validate_line_bbox(box: Optional[list[float]]) -> bool:
 
 
 def parse_marker(m) -> Optional[tuple[int, int]]:
-    hit = _MARKER.match(str(m or ""))
+    hit = _MARKER.match(str(m or "")) or _MARKER_WORD.match(str(m or ""))
     if not hit:
         return None
     a, b = int(hit.group(1)), int(hit.group(2))
@@ -191,6 +195,8 @@ def select_invoice_pages(pages: list[dict]) -> dict:
     * several different document numbers (after norm_key) -> ``multi_invoice``: the first number's pages are
       read; every other number stays an occurrence so Oracle arbitrates (ambiguous -> MANUAL_REVIEW)
     * printed markers that do not cover 1..b -> ``pages_complete = False`` (E01, never a silent pass)
+    * a page numbered past the printed length (``b``) is not this document, even when it quotes the same
+      document number; inside that range a page keeps its rows whether or not it printed a marker
     * no invoice page at all -> nothing is read, ``pages_complete = False`` (no guessing page 1)
     """
     taxes = [p for p in pages if p["doc_type"] == "tax_invoice"]
@@ -235,6 +241,26 @@ def select_invoice_pages(pages: list[dict]) -> dict:
             seen.add(key)
         kept.append(p["page_no"])
     kept.sort()
+
+    # What the paper prints about its own length is the authority on how long this document is.  A sheet
+    # numbered past that length cannot be part of it, even when it quotes the same document number - and a
+    # sheet inside the range keeps its rows even if it printed no marker of its own (that case is a marker
+    # gap, reported through ``marker_gaps``, not a reason to throw money away).  DMS-159: pages printed
+    # ``Page 1 of 2`` / ``Page 2 of 2``, page 6 quoted the same number and added a 16,500.00 row on top of
+    # a subtotal the paper had already closed.
+    printed = [m for m in (parse_marker(p.get("page_marker")) for p in target if p["page_no"] in kept) if m]
+    if printed:
+        beyond = max(b for _a, b in printed)
+        reading = []
+        for p in target:
+            if p["page_no"] not in kept:
+                continue
+            if p["page_no"] <= beyond or parse_marker(p.get("page_marker")):
+                reading.append(p["page_no"])
+            else:
+                info["dropped"].append({"page": p["page_no"], "reason": "unmarked_page_beyond_printed_count",
+                                        "printed_pages": beyond, "doc_no_hint": p.get("doc_no_hint")})
+        kept = sorted(reading)
 
     markers = [m for m in (parse_marker(p.get("page_marker")) for p in target if p["page_no"] in kept) if m]
     if markers:
