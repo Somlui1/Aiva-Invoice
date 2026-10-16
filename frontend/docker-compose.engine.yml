@@ -1,0 +1,44 @@
+# =============================================================================
+# AIVA System A Invoice Matching Engine - Standalone Worker Service
+# =============================================================================
+# Run standalone:
+#   docker compose -f docker-compose.engine.yml up -d
+# =============================================================================
+
+services:
+  engine:
+    build:
+      context: ../engine
+      dockerfile: Dockerfile.engine
+    image: aiva-matching-engine:latest
+    container_name: aiva-matching-engine
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - CACHE_DIR=/engine/cache
+      - PORTAL_CALLBACK_URL=${PORTAL_CALLBACK_URL:-http://127.0.0.1:3000/api/engine/ingest}
+    volumes:
+      - aiva_cache:/engine/cache
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:8080/health/ready || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+    networks:
+      - aiva-engine-net
+
+volumes:
+  aiva_cache:
+    driver: local
+
+networks:
+  aiva-engine-net:
+    driver: bridge

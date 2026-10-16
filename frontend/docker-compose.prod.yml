@@ -42,6 +42,7 @@ services:
       timeout: 5s
       retries: 3
       start_period: 15s
+    profiles: ["frontend", "full"]
     logging:
       driver: "json-file"
       options:
@@ -52,36 +53,36 @@ services:
 
   # ---------------------------------------------------------------------------
   # Engine: System A Python 3.11 Invoice Matching & Validation Service
-  # NOTE: Suspended temporarily per user instruction until engine is ready.
   # ---------------------------------------------------------------------------
-  # engine:
-  #   build:
-  #     context: ../engine
-  #     dockerfile: Dockerfile.engine
-  #   image: aiva-matching-engine:latest
-  #   container_name: aiva-matching-engine
-  #   restart: unless-stopped
-  #   ports:
-  #     - "8080:8080"
-  #   environment:
-  #     - PYTHONUNBUFFERED=1
-  #     - CACHE_DIR=/engine/cache
-  #     - PORTAL_CALLBACK_URL=http://frontend:3000/api/engine/ingest
-  #   volumes:
-  #     - aiva_cache:/engine/cache
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "curl -f http://127.0.0.1:8080/health/ready || exit 1"]
-  #     interval: 30s
-  #     timeout: 5s
-  #     retries: 3
-  #     start_period: 10s
-  #   logging:
-  #     driver: "json-file"
-  #     options:
-  #       max-size: "20m"
-  #       max-file: "5"
-  #   networks:
-  #     - aiva-network
+  engine:
+    profiles: ["engine", "full"]
+    build:
+      context: ../engine
+      dockerfile: Dockerfile.engine
+    image: aiva-matching-engine:latest
+    container_name: aiva-matching-engine
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - CACHE_DIR=/engine/cache
+      - PORTAL_CALLBACK_URL=${PORTAL_CALLBACK_URL:-http://frontend:3000/api/engine/ingest}
+    volumes:
+      - aiva_cache:/engine/cache
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:8080/health/ready || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+    networks:
+      - aiva-network
 
 # -----------------------------------------------------------------------------
 # Named Volumes for Persistent Storage
