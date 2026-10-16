@@ -2842,3 +2842,97 @@ def test_an_unmarked_page_inside_the_printed_range_is_still_read():
     pages = [_pg(1, marker="1/3"), _pg(2, hint="PO-77", marker="1/1", doc_type="po"), _pg(3)]
     info = select_invoice_pages(pages)
     assert info["selected"] == [1, 3], info["selected"]
+
+
+# ---------------------------------------------------------------- Round 4: put the box on the printed value
+def _sheet_mask(h=60, w=200):
+    import numpy as np
+    return np.zeros((h, w), dtype=np.uint8)
+
+
+def _draw_word(mask, r0, r1, c0, c1, step=3):
+    """A printed word: ink in every row between r0/r1, in strokes every ``step`` columns."""
+    for r in range(r0, r1):
+        for c in range(c0, c1, step):
+            mask[r, c] = 1
+
+
+def test_an_empty_box_lands_on_the_line_it_was_meant_to_cover():
+    """Round 3 counted 90 boxes that sat on blank paper, usually half a line above the value.
+
+    The box was drawn from the label, the value is one row below it, and the crop re-read then sampled
+    nothing.  A box with no ink inside the window moves onto the nearest printed line.
+    """
+    from system_a.perception.coords import snap_box_to_ink
+    mask = _sheet_mask()
+    _draw_word(mask, 30, 38, 40, 80)
+    box, note = snap_box_to_ink((40, 20, 80, 24), mask)
+    assert box[1] >= 30 and box[3] <= 38, f"the box must sit inside the printed line, got {box} ({note})"
+    assert "moved" in note
+
+
+def test_a_box_that_clips_the_value_grows_over_the_whole_number():
+    """154 boxes covered the value's top or left edge only - the run is right there to be read."""
+    from system_a.perception.coords import snap_box_to_ink
+    mask = _sheet_mask()
+    _draw_word(mask, 30, 38, 40, 80)
+    box, note = snap_box_to_ink((46, 31, 70, 37), mask)
+    assert box[0] <= 40 and box[2] >= 79, f"the value's ink run must be covered, got {box} ({note})"
+
+
+def test_a_box_never_grows_into_the_neighbouring_column():
+    """Growing over whitespace is how a total's box ends up eating the label next to it."""
+    from system_a.perception.coords import snap_box_to_ink
+    mask = _sheet_mask()
+    _draw_word(mask, 30, 38, 40, 60)
+    _draw_word(mask, 30, 38, 150, 175)
+    box, _ = snap_box_to_ink((42, 30, 58, 38), mask)
+    assert box[2] < 150, f"the next column starts at 150, got {box}"
+
+
+def test_a_box_with_no_ink_nearby_is_left_alone():
+    """No evidence, no move: snapping must never invent a position for a phantom box."""
+    from system_a.perception.coords import snap_box_to_ink
+    mask = _sheet_mask()
+    _draw_word(mask, 52, 58, 40, 80)
+    box, note = snap_box_to_ink((40, 4, 80, 8), mask)
+    assert box == (40, 4, 80, 8), box
+    assert note == "unchanged"
+
+
+def test_snapping_a_box_that_already_covers_its_value_changes_nothing():
+    """The 118 clean documents must stay clean - snapping is allowed to be a no-op, not a drift."""
+    from system_a.perception.coords import snap_box_to_ink
+    mask = _sheet_mask()
+    _draw_word(mask, 30, 38, 40, 80)
+    box, note = snap_box_to_ink((40, 30, 80, 38), mask)
+    assert box == (40, 30, 80, 38), box
+    assert note == "unchanged"
+
+
+def test_ink_mask_finds_print_and_only_print():
+    """The snap needs a truth map of the page: dark strokes yes, white paper no."""
+    import numpy as np
+    from system_a.perception.coords import ink_mask
+    page = np.full((60, 200, 3), 255, dtype=np.uint8)
+    page[30:38, 40:80] = 20                                  # a printed word
+    mask = ink_mask(page)
+    assert mask[33, 60] == 1 and mask[10, 60] == 0 and mask[33, 150] == 0
+    assert mask.shape == (60, 200)
+
+
+def test_a_field_box_is_snapped_when_the_page_ink_is_known():
+    """Wiring: an answer whose box missed the value is corrected against the page it was read from."""
+    import numpy as np
+    from system_a.perception.single_pass import PageAnswer
+    from system_a.perception.coords import ink_mask
+
+    page = np.full((1000, 1000, 3), 255, dtype=np.uint8)
+    page[600:630, 200:500] = 15                              # the value, printed lower than the box claims
+    mask = ink_mask(page)
+    # the model answered a box just above the value, in the pixel frame its coordinates are in
+    answer = {"fields": {"grand_total": {"raw": "1,234.00", "bbox_2d": [200, 560, 400, 580]}}}
+    pa = PageAnswer(1, 1000, 1000, mask=mask, answer=answer, coord="pixel")
+    reg = pa.region([200, 560, 400, 580], snap=True)
+    assert reg is not None
+    assert reg.bbox[1] >= 0.595, f"expected the box on the printed line ~0.60, got {reg.bbox}"

@@ -174,24 +174,14 @@ def rotate_image(img: Any, angle_cw: float) -> Tuple[Any, np.ndarray]:
     return rot_np, M
 
 
-def rotate_box_back(box: Sequence[float], rot_w: int, rot_h: int,
-                    orig_w: int, orig_h: int, M: Optional[np.ndarray],
-                    mode: str = "norm1000") -> Tuple[BBox, RBox]:
-    """Map a box predicted on rotated image back to original unrotated image coordinates.
+def rotate_px_box_back(rect_px: Sequence[float], rot_w: int, rot_h: int,
+                       orig_w: int, orig_h: int, M: Optional[np.ndarray]) -> Tuple[BBox, RBox]:
+    """A rectangle already measured in rotated-image pixels -> the two boxes in the original frame.
 
-    Args:
-        box: [x1, y1, x2, y2] predicted on rotated image.
-        rot_w, rot_h: pixel dimensions of rotated image.
-        orig_w, orig_h: pixel dimensions of 130 DPI image before rotation (never PDF points).
-        M: 2x3 forward transformation matrix used to rotate the image.
-        mode: coordinate frame ('norm1000', 'norm1', 'pixel').
-
-    Returns:
-        (bbox, rbox) where:
-          bbox: normalized [x, y, w, h] axis-aligned bounding box enclosing the rotated box.
-          rbox: normalized [cx, cy, w, h, angle] oriented box with angle in [-45°, +45°] (degrees clockwise).
+    Split out of :func:`rotate_box_back` so a box that was corrected against the page's own ink (see
+    :func:`snap_box_to_ink`) travels back through exactly the same maths as an untouched one.
     """
-    x1, y1, x2, y2 = xyxy_px(box, rot_w, rot_h, mode)
+    x1, y1, x2, y2 = (float(v) for v in rect_px[:4])
 
     if M is None or np.allclose(M, [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], atol=1e-4):
         bbox = px_to_xywh((x1, y1, x2, y2), orig_w, orig_h)
@@ -239,6 +229,117 @@ def rotate_box_back(box: Sequence[float], rot_w: int, rot_h: int,
 
     rbox = (cx, cy, round(edge_w, 4), round(edge_h, 4), round(angle, 2))
     return bbox, rbox
+
+
+def rotate_box_back(box: Sequence[float], rot_w: int, rot_h: int, orig_w: int, orig_h: int,
+                    M: Optional[np.ndarray], mode: str = "norm1000") -> Tuple[BBox, RBox]:
+    """Corner box predicted on the rotated image (any coordinate frame) -> the two boxes of the original page."""
+    return rotate_px_box_back(xyxy_px(box, rot_w, rot_h, mode), rot_w, rot_h, orig_w, orig_h, M)
+
+
+#: How far a box may be nudged onto a printed line, as a share of the page height (measured Round 3: the
+#: boxes drawn from a label sit 15-44 px off their value on a ~1500 px page; the ones 86-120 px off belong to
+#: no line at all and are left alone rather than teleported).
+INK_MOVE_RATIO = 0.03
+#: How much a box may stretch to cover the value it already sits on, as a multiple of its own width.
+#: Past that it would be reaching across whitespace into the next column.
+INK_GROW_RATIO = 1.8
+INK_GAP_PX = 3
+
+
+def ink_mask(img) -> np.ndarray:
+    """``1`` where the page carries ink, ``0`` on paper - Otsu over the page's own grey levels.
+
+    Every box correction is only as honest as this map, so it is derived from the page itself instead of a
+    fixed threshold: the same scan may be white paper, cream paper or a shaded form.
+    """
+    arr = np.asarray(img.convert("L") if hasattr(img, "convert") else img)
+    if arr.ndim == 3:
+        arr = cv2.cvtColor(np.ascontiguousarray(arr, dtype=np.uint8), cv2.COLOR_RGB2GRAY)
+    arr = np.ascontiguousarray(arr, dtype=np.uint8)
+    th, _ = cv2.threshold(arr, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    return (arr <= th).astype(np.uint8)   # the threshold level itself counts as ink (a two-level scan puts Otsu on the text)
+
+
+def _ink_bands(mask: np.ndarray, x0: int, x1: int) -> list[tuple[int, int]]:
+    """Row bands that carry ink between ``x0`` and ``x1`` - the printed lines under that span."""
+    col = mask[:, max(0, x0):max(x0 + 1, x1)].sum(axis=1) > 0
+    bands: list[tuple[int, int]] = []
+    start = None
+    for y, hit in enumerate(col):
+        if hit and start is None:
+            start = y
+        elif not hit and start is not None:
+            bands.append((start, y))
+            start = None
+    if start is not None:
+        bands.append((start, len(col)))
+    return bands
+
+
+def snap_box_to_ink(box: Sequence[float], mask: np.ndarray,
+                    max_move: Optional[float] = None) -> tuple[tuple[int, int, int, int], str]:
+    """Put a pixel box onto the printed line it was meant to cover, and over the whole value.
+
+    Round 3 measured the two ways a box misses: 90 boxes sat on blank paper (drawn from the label, the value
+    one row below) and 154 covered only the edge of the value.  Both have the answer written on the page -
+    the ink itself.  The box may travel at most ``INK_MOVE_RATIO`` of the page height, and may stretch at
+    most ``INK_GROW_RATIO`` times its own width, so a box with nothing under it is reported untouched rather
+    than moved somewhere plausible.
+
+    Returns ``((x1, y1, x2, y2), note)`` - ``note`` says what happened, for the evidence trail.
+    """
+    H, W = mask.shape[:2]
+    ax, ay, bx, by = (float(v) for v in box[:4])
+    x1, x2 = sorted((max(0.0, min(ax, W)), max(0.0, min(bx, W))))
+    y1, y2 = sorted((max(0.0, min(ay, H)), max(0.0, min(by, H))))
+    box_h = max(1.0, y2 - y1)
+    travel = max(2.0 * box_h, INK_MOVE_RATIO * H) if max_move is None else float(max_move)
+
+    bands = _ink_bands(mask, int(x1), int(x2))
+    if not bands:
+        return (int(x1), int(y1), int(x2), int(y2)), "unchanged"
+
+    own = next((b for b in bands if b[0] < y2 and b[1] > y1), None)
+    note = ""
+    if own is None:
+        near = min(bands, key=lambda b: min(abs(b[0] - y2), abs(b[1] - y1)))
+        gap = min(abs(near[0] - y2), abs(near[1] - y1))
+        if gap > travel:
+            return (int(x1), int(y1), int(x2), int(y2)), "unchanged"
+        own, note = near, f"moved_{int(gap)}px"
+        y1, y2 = float(own[0]), float(own[1])
+
+    grown = ""
+    inked = mask[max(0, own[0]):max(own[0] + 1, own[1]), :].sum(axis=0) > 0
+    runs, start, last = [], None, 0
+    for x in range(W):
+        if inked[x]:
+            if start is None:
+                start = x
+            last = x
+        elif start is not None and x - last > INK_GAP_PX:
+            runs.append((float(start), float(last + 1)))
+            start = None
+    if start is not None:
+        runs.append((float(start), float(last + 1)))
+    span = next(((a, b) for (a, b) in runs if a < x2 and b > x1), None)
+    if span:
+        nx1, nx2 = span
+        cap = INK_GROW_RATIO * max(1.0, x2 - x1)
+        if nx2 - nx1 > cap:                      # too wide to be this value: keep the middle over the box
+            cx = (x1 + x2) / 2.0
+            nx1, nx2 = cx - cap / 2.0, cx + cap / 2.0
+        if nx1 < x1 or nx2 > x2:
+            grown = f"grown_{int(nx1)}-{int(nx2)}"
+            x1, x2 = nx1, nx2
+    note = (note + ("+" if note and grown else "") + grown) or "unchanged"
+    return (int(x1), int(y1), int(x2), int(y2)), note
+
+
+
+    x1, y1, x2, y2 = xyxy_px(box, rot_w, rot_h, mode)
+    return rotate_px_box_back((x1, y1, x2, y2), rot_w, rot_h, orig_w, orig_h, M)
 
 
 def text_drop_reason(item: dict) -> str | None:

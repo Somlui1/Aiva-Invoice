@@ -36,7 +36,8 @@ from ..domain.contracts import (DocumentInfo, ExtractionResult, PageInfo, RawFie
                                 RegionNode, SignatureObs)
 from ..domain.normalize import thai_to_arabic
 from ..domain.standard import load_prompt
-from .coords import choose_coord_mode, rotate_box_back, rotate_image, sanitize_xyxy, xyxy_to_xywh
+from .coords import (choose_coord_mode, ink_mask, rotate_box_back, rotate_image, rotate_px_box_back,
+                    sanitize_xyxy, snap_box_to_ink, xyxy_px, xyxy_to_xywh)
 from .orientation import MODEL_SHA256, OrientationResult
 
 ENGINE = "single-pass/1.2.0"
@@ -324,7 +325,7 @@ class PageAnswer:
     def __init__(self, page_no: int, orig_w: int, orig_h: int,
                  rot_w: Optional[int] = None, rot_h: Optional[int] = None,
                  M: Optional[np.ndarray] = None, answer: Optional[dict] = None,
-                 coord: str = "norm1000"):
+                 coord: str = "norm1000", mask: Optional[np.ndarray] = None):
         self.page_no = page_no
         if answer is None and isinstance(rot_w, dict):
             # Backward compatibility with (page_no, w, h, answer, coord)
@@ -338,6 +339,7 @@ class PageAnswer:
         self.M = M
         self.w, self.h = orig_w, orig_h
         self.answer = answer or {}
+        self.mask = mask          # ink map of the page as it was sent, for box corrections
         boxes = [b for b in (_box(v) for v in (self.answer.get("fields") or {}).values()) if b]
         for r in self.answer.get("line_items") or []:
             if isinstance(r, dict):
@@ -345,11 +347,15 @@ class PageAnswer:
         boxes += [b for b in (_box(r) for r in self.answer.get("regions") or []) if b]
         self.coord = choose_coord_mode(boxes, rot_w, rot_h, None, coord) if coord in ("auto", "words") else coord
 
-    def region(self, b) -> Optional[Region]:
+    def region(self, b, snap: bool = False) -> Optional[Region]:
+        """A model box -> a page region.  ``snap`` corrects a field/cell box against the page's own ink."""
         if not b:
             return None
         mode = "norm1" if max(float(v) for v in b) <= 1.0 else self.coord
-        bbox, rbox = rotate_box_back(b, self.rot_w, self.rot_h, self.orig_w, self.orig_h, self.M, mode)
+        rect = xyxy_px(b, self.rot_w, self.rot_h, mode)
+        if snap and self.mask is not None:
+            rect, _ = snap_box_to_ink(rect, self.mask)
+        bbox, rbox = rotate_px_box_back(rect, self.rot_w, self.rot_h, self.orig_w, self.orig_h, self.M)
         if bbox[2] <= 0 or bbox[3] <= 0:
             return None
         return Region(page=self.page_no, bbox=bbox, rbox=rbox)
@@ -358,10 +364,12 @@ class PageAnswer:
 def _rf(cell, page: PageAnswer) -> RawField:
     raw = _raw(cell)
     if raw is None:
-        return RawField(raw=None, confidence=None, agreement=True, region=page.region(_box(cell)) if cell else None,
+        return RawField(raw=None, confidence=None, agreement=True,
+                        region=page.region(_box(cell), snap=True) if cell else None,
                         source="ocr", null_reason="NOT_PRESENT")
     # one reader: agreement False -> the domain needs independent evidence (arithmetic / Oracle) to accept it
-    return RawField(raw=raw, confidence=None, agreement=False, region=page.region(_box(cell)), source="vlm")
+    return RawField(raw=raw, confidence=None, agreement=False, region=page.region(_box(cell), snap=True),
+                    source="vlm")
 
 
 def _present(v) -> Optional[bool]:
@@ -685,7 +693,8 @@ class SinglePassPipeline:
                 except Exception as e:
                     page_errors[str(p)] = f"{type(e).__name__}: {str(e)[:200]}"
                     ans = {}
-                reads[p] = PageAnswer(p, orig_w, orig_h, rot_w, rot_h, M, ans, self.coord)
+                reads[p] = PageAnswer(p, orig_w, orig_h, rot_w, rot_h, M, ans, self.coord,
+                                      mask=ink_mask(rot_img))
             timings["extract_ms"] = round((time.time() - t0) * 1000)
             infos = []
             for i in range(len(doc)):
