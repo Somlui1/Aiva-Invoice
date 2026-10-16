@@ -2590,3 +2590,117 @@ def test_empty_page_extraction_gets_four_attempts_not_two():
         assert m.extract_empty_attempts() == 2
     finally:
         del os.environ["EXTRACT_EMPTY_ATTEMPTS"]
+
+
+# ---------------------------------------------------------------- Round 4: the audit harness must not invent pages
+def _audit_script():
+    """Load ``scripts/test_invoice_single_pass.py`` as a module (no package, ``main`` is guarded)."""
+    import importlib.util
+    from pathlib import Path
+    path = Path(__file__).resolve().parents[1] / "scripts" / "test_invoice_single_pass.py"
+    spec = importlib.util.spec_from_file_location("invoice_audit_script", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_audit_selector_invents_no_page_when_nothing_is_an_invoice():
+    """A document typed delivery-only selects NOTHING.
+
+    Round 3 measured the cost of inventing one: DMS-223 (both pages typed ``delivery``) had page 1 read by
+    fiat, which produced 2 of 4 rows *and full printed totals* - a document that looks extracted while 70%
+    of its rows (11,540.00 of 16,540.00) are missing.  The engine answers ``selected=[]`` and says why;
+    the audit has to report that same honest emptiness instead of scoring a half-read invoice.
+    """
+    mod = _audit_script()
+    pages = [
+        {"page_no": 1, "doc_type": "delivery", "copy_status": "original", "doc_no_hint": "TLP-IV-69-10-0007",
+         "page_marker": "2/2"},
+        {"page_no": 2, "doc_type": "delivery", "copy_status": "original", "doc_no_hint": "TLP-IV-69-10-0007",
+         "page_marker": "1/2"},
+        {"page_no": 3, "doc_type": "po", "copy_status": "original", "doc_no_hint": "42052868", "page_marker": "1/1"},
+    ]
+    selected, is_original, multi, rotations, info = mod.select_pages_for_audit(pages)
+    assert selected == [], f"nothing is an invoice, so nothing may be read, got {selected}"
+    assert info.get("no_invoice_page") is True
+
+
+def test_audit_selector_reports_exactly_what_the_engine_picks():
+    """One selection rule, not two.
+
+    The harness carried its own copy of the page-selection rules and they had already drifted: for two copy
+    sheets of one document number with no printed marker the engine keeps both pages, the harness dropped
+    the second.  Whatever the engine decides is what the audit must score.
+    """
+    from system_a.perception.single_pass import select_invoice_pages
+    mod = _audit_script()
+    pages = [
+        {"page_no": 1, "doc_type": "tax_invoice", "copy_status": "copy", "doc_no_hint": "INV-9", "page_marker": None},
+        {"page_no": 2, "doc_type": "tax_invoice", "copy_status": "copy", "doc_no_hint": "INV-9", "page_marker": None},
+    ]
+    selected, is_original, multi, rotations, info = mod.select_pages_for_audit(pages)
+    assert selected == select_invoice_pages(pages)["selected"], \
+        f"audit and engine disagree: audit={selected} engine={select_invoice_pages(pages)['selected']}"
+
+
+def test_audit_selector_carries_continuation_pages_and_rotations():
+    """``1/2`` + ``2/2`` of one document are both read, and each page keeps its own rotation.
+
+    DMS-227 shows what the rotation half is worth: classification came back with no pages at all, the
+    harness still read page 1 with an empty rotation map, so a page the model answered in an upright frame
+    was drawn on a sideways scan - all 15 boxes off.  The map therefore has to survive the refactor.
+    """
+    mod = _audit_script()
+    pages = [
+        {"page_no": 1, "doc_type": "invoice", "copy_status": "original", "doc_no_hint": "SLI2610000004",
+         "page_marker": "1/2", "rotate_degrees": 0},
+        {"page_no": 2, "doc_type": "invoice", "copy_status": "original", "doc_no_hint": "SLI2610000004",
+         "page_marker": "2/2", "rotate_degrees": 90},
+        {"page_no": 3, "doc_type": "po", "copy_status": "original", "doc_no_hint": "446012495",
+         "page_marker": "1/1", "rotate_degrees": 0},
+    ]
+    selected, is_original, multi, rotations, info = mod.select_pages_for_audit(pages)
+    assert selected == [1, 2], f"continuation sheet must not be dropped, got {selected}"
+    assert rotations == {1: 0, 2: 90, 3: 0}
+    assert is_original is True
+
+
+def test_page_debug_keeps_the_models_own_numbers():
+    """The rotated-page defect cannot be diagnosed from the payload as it stands.
+
+    DMS-224 and DMS-59 (page typed ``rotate_degrees=90``) show boxes whose y lands on the wrong line while
+    x stays right.  Every candidate explanation - coordinate mode, a square canvas inside the model, a
+    transposed frame, the inverse rotation - lives or dies on the numbers *the model itself* returned, and
+    the payload keeps only the box after our mapping.  So the audit has to record the raw answer per page.
+    """
+    mod = _audit_script()
+    answer = {"fields": {"grand_total": {"raw": "1.174,00", "bbox_2d": [711, 459, 754, 467]},
+                         "currency": {"raw": None, "bbox_2d": None}},
+              "line_items": [{"line_no": 1, "amount": {"raw": "5", "bbox_2d": [1, 2, 3, 4]},
+                              "line_bbox": [1, 2, 9, 4]}],
+              "regions": [{"type": "items_table", "bbox_2d": [0, 0, 1000, 900]}]}
+    dbg = mod.build_page_debug(page_no=1, classify_rotate=90, orig_size=(1521, 1075), sent_size=(1075, 1521),
+                              coord_mode="norm1000", answer=answer)
+    assert dbg["fields"]["grand_total"] == [711, 459, 754, 467], "raw numbers must survive untouched"
+    assert "currency" not in dbg["fields"], "a field that answered no box adds no evidence"
+    assert dbg["orig_size"] == [1521, 1075] and dbg["sent_size"] == [1075, 1521]
+    assert dbg["classify_rotate"] == 90 and dbg["coord_mode"] == "norm1000"
+    assert dbg["lines"][0]["amount"] == [1, 2, 3, 4]
+    assert dbg["regions"] == [[0, 0, 1000, 900]]
+
+
+def test_page_debug_survives_the_null_boxes_the_model_answers():
+    """``bbox_2d: [null, null, null, null]`` is a normal model answer - recording it must not kill the doc.
+
+    Round 4 proved the cost of assuming numbers: two of fifty documents died on ``float(None)`` inside the
+    debug recorder, which is a worse outcome than the missing evidence the recorder exists to capture.
+    """
+    mod = _audit_script()
+    answer = {"fields": {"invoice_num": {"raw": "7", "bbox_2d": [None, None, None, None]},
+                         "vat": {"raw": "7.00", "bbox_2d": [900, 800, 950, 812]}},
+              "line_items": [{"line_no": 1, "qty": {"raw": "1", "bbox_2d": [None, 2, None, 4]},
+                              "line_bbox": ["a", "b", "c", "d"]}]}
+    dbg = mod.build_page_debug(page_no=1, classify_rotate=0, orig_size=(1000, 1000), sent_size=(1000, 1000),
+                              coord_mode="norm1000", answer=answer)
+    assert dbg["fields"] == {"vat": [900.0, 800.0, 950.0, 812.0]}
+    assert dbg["lines"][0] == {"line_no": 1}
