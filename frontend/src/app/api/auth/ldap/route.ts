@@ -123,6 +123,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           samAccount: adUser.samAccount,
           empId: adUser.empId || undefined,
           unit: adUser.unit || undefined,
+          role: assignedRole,
         },
       })
     } catch {}
