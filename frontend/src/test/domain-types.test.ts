@@ -22,7 +22,8 @@ describe('Domain Models & Master Data Integrity', () => {
     const u1 = USERS.find(u => u.id === 'u1')
     expect(u1?.n).toBe('สมศักดิ์ ใจดี')
     expect(u1?.role).toBe('EU')
-    expect(u1?.rcvName).toBe('SOMSAK JAIDEE')
+    expect(u1?.rcvName).toBe('—')
+    expect(USERS.filter(u => u.role === 'EU').every(u => !u.rcvName || u.rcvName === '—')).toBe(true)
 
     const apr = USERS.find(u => u.role === 'APR')
     expect(apr?.n).toBe('สมชาย วงศ์ทอง')
@@ -41,7 +42,7 @@ describe('Domain Models & Master Data Integrity', () => {
     expect(supportUser?.n).toContain('กิตติศักดิ์ ซัพพอร์ต')
     expect(supportUser?.co).toContain('AH')
 
-    expect(INITIAL_MAPS.length).toBeGreaterThanOrEqual(6)
+    expect(INITIAL_MAPS.length).toBe(0)
   })
 
   it('contains Standard v6.10 exception codes E01-E15 with correct severities', () => {

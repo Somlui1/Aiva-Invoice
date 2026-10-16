@@ -3,6 +3,7 @@
 import { Icon } from '../common/Icon'
 import { FilterChip } from '../common/FilterChip'
 import { useAuth } from '../../context/AuthContext'
+import { useSettings } from '../../context/SettingsContext'
 import { useInvoices, perRange } from '../../context/InvoiceContext'
 import { COMPANIES } from '../../mock/companies'
 import { acctsOf } from '../../mock/users'
@@ -19,6 +20,7 @@ const PER_OPTIONS = [
 
 export function QueueToolbar() {
   const { currentUser } = useAuth()
+  const { accountMaps } = useSettings()
   const {
     visibleDocs,
     companyFilter,
@@ -36,7 +38,7 @@ export function QueueToolbar() {
   } = useInvoices()
 
   const isEu = currentUser.role === 'EU'
-  const userAccts = acctsOf(currentUser)
+  const userAccts = acctsOf(currentUser, accountMaps)
   const accounts = userAccts.join(', ') || '— ยังไม่ถูกผูก'
 
   const hasActiveFilters =

@@ -6,10 +6,16 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import { AuthProvider, useAuth } from '../context/AuthContext'
 import { InvoiceProvider, useInvoices } from '../context/InvoiceContext'
-import { SettingsProvider } from '../context/SettingsContext'
+import { SettingsProvider, useSettings } from '../context/SettingsContext'
 import { ToastModalProvider } from '../context/ToastModalContext'
 import { QueueToolbar } from '../components/queue/QueueToolbar'
 import { useEffect } from 'react'
+
+const TEST_MAPS = [
+  { id: 'm1', user: 'u8', acct: 'SOMSAK JAIDEE', by: 'admin', at: '2026-10-02', req: 'ticket INC-1021' },
+  { id: 'm2', user: 'u8', acct: 'WILAIWAN SRISUK', by: 'admin', at: '2026-10-02', req: 'ticket INC-1021' },
+  { id: 'm3', user: 'u8', acct: 'THANAKORN MANKONG', by: 'admin', at: '2026-10-02', req: 'ticket INC-1021' }
+]
 
 function QueueTestHarness({ targetUserId }: { targetUserId: string }) {
   const { currentUser, switchUser } = useAuth()
@@ -34,7 +40,7 @@ describe('Queue Receiver Filtering for EU Role', () => {
   it('renders receiver filter chips for EU user with multiple Oracle accounts and filters queue', async () => {
     render(
       <AuthProvider>
-        <SettingsProvider>
+        <SettingsProvider initialMaps={TEST_MAPS}>
           <ToastModalProvider>
             <InvoiceProvider>
               <QueueTestHarness targetUserId="u8" />

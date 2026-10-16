@@ -83,7 +83,7 @@ describe('InvoiceContext Server Action Integration', () => {
       },
     })
 
-    const res = await getAuditLogs()
+    const res = await getAuditLogs(new Request('http://localhost/api/audit-logs'))
     expect(res.status).toBe(200)
     const data = await res.json()
     expect(data.ok).toBe(true)

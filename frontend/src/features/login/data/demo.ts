@@ -254,32 +254,7 @@ export const PERM: Record<string, string> = {
 };
 
 /** การผูก AD user ↔ Oracle account (RECEIVER) · เอกสารเป็นของ Oracle account */
-export const MAPS: { user: string; acct: string }[] = [
-  {
-    "user": "u1",
-    "acct": "SOMSAK JAIDEE"
-  },
-  {
-    "user": "u2",
-    "acct": "WILAIWAN SRISUK"
-  },
-  {
-    "user": "u3",
-    "acct": "THANAKORN MANKONG"
-  },
-  {
-    "user": "u8",
-    "acct": "SOMSAK JAIDEE"
-  },
-  {
-    "user": "u8",
-    "acct": "WILAIWAN SRISUK"
-  },
-  {
-    "user": "u8",
-    "acct": "THANAKORN MANKONG"
-  }
-];
+export const MAPS: { user: string; acct: string }[] = [];
 
 export const COMPANY_NAME: Record<string, string> = {
   "AH": "อาปิโก ไฮเทค (มหาชน)",

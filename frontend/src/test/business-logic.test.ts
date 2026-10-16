@@ -13,8 +13,11 @@ describe('Business Logic & Access Control Tests', () => {
     const doc1 = INITIAL_DOCS.find(d => d.receiver === 'SOMSAK JAIDEE' && d.company === 'AH')!
     expect(doc1).toBeDefined()
 
-    // EU can see their own doc in their company
-    const euAccounts = acctsOf(euUser)
+    // EU can see their own doc in their company when mapped
+    const sampleMaps = [
+      { id: 'm1', user: 'u1', acct: 'SOMSAK JAIDEE', by: 'admin', at: '2026-10-01', req: 'ticket-101' }
+    ]
+    const euAccounts = acctsOf(euUser, sampleMaps)
     expect(euAccounts).toContain('SOMSAK JAIDEE')
     expect(euUser.co).toContain(doc1.company)
 
@@ -33,12 +36,15 @@ describe('Business Logic & Access Control Tests', () => {
   })
 
   it('correctly maps Oracle receiver accounts to users (bound check)', () => {
-    // Somsak Jaidee is bound to an active EU user
-    expect(bound('SOMSAK JAIDEE')).toBe(true)
+    const sampleMaps = [
+      { id: 'm1', user: 'u1', acct: 'SOMSAK JAIDEE', by: 'admin', at: '2026-10-01', req: 'ticket-101' }
+    ]
+    // Somsak Jaidee is bound when mapped
+    expect(bound('SOMSAK JAIDEE', sampleMaps)).toBe(true)
     // Non-existent receiver account is not bound
-    expect(bound('UNBOUND_UNKNOWN_USER')).toBe(false)
+    expect(bound('UNBOUND_UNKNOWN_USER', sampleMaps)).toBe(false)
     // Empty receiver is treated as bound or unassigned
-    expect(bound(undefined as any)).toBe(true)
+    expect(bound(undefined as any, sampleMaps)).toBe(true)
   })
 
   it('validates aiva.portal.ingest/1.0 payloads correctly', () => {

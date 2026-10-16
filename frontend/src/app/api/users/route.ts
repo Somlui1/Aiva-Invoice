@@ -18,7 +18,7 @@ const USER_SAVE_SCHEMA = z.object({
   receivers: z.array(z.string()).default([]),
 })
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(_req: NextRequest): Promise<NextResponse> {
   try {
     let dbUsers = await prisma.user.findMany({
       include: {

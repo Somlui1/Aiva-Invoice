@@ -90,9 +90,9 @@ export const PERMISSION_DESCRIPTIONS: Record<string, string> = {
 }
 
 export const USERS: User[] = [
-  { id: 'u1', n: 'สมศักดิ์ ใจดี', email: 'somsak.j@aapico.com', role: 'EU', rcvName: 'SOMSAK JAIDEE', emp: 10231, co: ['AH'], unit: 'คลังวัตถุดิบ' },
-  { id: 'u2', n: 'วิไลวรรณ ศรีสุข', email: 'wilaiwan.s@aapico.com', role: 'EU', rcvName: 'WILAIWAN SRISUK', emp: 20417, co: ['AHT'], unit: 'ฝ่ายซ่อมบำรุง' },
-  { id: 'u3', n: 'ธนากร มั่นคง', email: 'thanakorn.m@aapico.com', role: 'EU', rcvName: 'THANAKORN MANKONG', emp: 30552, co: ['AM'], unit: 'คลังอะไหล่' },
+  { id: 'u1', n: 'สมศักดิ์ ใจดี', email: 'somsak.j@aapico.com', role: 'EU', rcvName: '—', emp: 10231, co: ['AH'], unit: 'คลังวัตถุดิบ' },
+  { id: 'u2', n: 'วิไลวรรณ ศรีสุข', email: 'wilaiwan.s@aapico.com', role: 'EU', rcvName: '—', emp: 20417, co: ['AHT'], unit: 'ฝ่ายซ่อมบำรุง' },
+  { id: 'u3', n: 'ธนากร มั่นคง', email: 'thanakorn.m@aapico.com', role: 'EU', rcvName: '—', emp: 30552, co: ['AM'], unit: 'คลังอะไหล่' },
   { id: 'u4', n: 'ปณิดา รักงาน', email: 'panida.r@aapico.com', role: 'ACC', rcvName: '—', emp: 11020, co: ['AH', 'AHA', 'AHT'], unit: 'ฝ่ายบัญชี AH/AHA/AHT' },
   { id: 'u5', n: 'กมลวรรณ ใจงาม', email: 'kamonwan.j@aapico.com', role: 'ACC', rcvName: '—', emp: 31005, co: ['AM', 'AHP'], unit: 'ฝ่ายบัญชี AM/AHP' },
   { id: 'u6', n: 'สมชาย วงศ์ทอง', email: 'somchai.w@aapico.com', role: 'APR', rcvName: '—', emp: 11001, co: ['AH', 'AHA', 'AHT', 'AHP', 'AM', '?'], unit: 'หัวหน้าฝ่ายบัญชี' },
@@ -101,14 +101,7 @@ export const USERS: User[] = [
   { id: 'itsupport', n: 'กิตติศักดิ์ ซัพพอร์ต (IT Support)', email: 'itsupport@aapico.com', role: 'SA', rcvName: '—', emp: 99999, co: ['AH', 'AHA', 'AHT', 'AHP', 'AM'], unit: 'IT Support' }
 ]
 
-export const INITIAL_MAPS: AccountMapping[] = [
-  { id: 'm1', user: 'u1', acct: 'SOMSAK JAIDEE', by: 'อนุชา ไอที', at: '2026-09-20', req: 'INC-0998' },
-  { id: 'm2', user: 'u2', acct: 'WILAIWAN SRISUK', by: 'อนุชา ไอที', at: '2026-09-20', req: 'INC-0998' },
-  { id: 'm3', user: 'u3', acct: 'THANAKORN MANKONG', by: 'อนุชา ไอที', at: '2026-09-20', req: 'INC-0998' },
-  { id: 'm4', user: 'u8', acct: 'SOMSAK JAIDEE', by: 'อนุชา ไอที', at: '2026-10-02', req: 'ticket INC-1021' },
-  { id: 'm5', user: 'u8', acct: 'WILAIWAN SRISUK', by: 'อนุชา ไอที', at: '2026-10-02', req: 'ticket INC-1021' },
-  { id: 'm6', user: 'u8', acct: 'THANAKORN MANKONG', by: 'อนุชา ไอที', at: '2026-10-02', req: 'ticket INC-1021' }
-]
+export const INITIAL_MAPS: AccountMapping[] = []
 
 export function acctsOf(u: User, maps: AccountMapping[] = INITIAL_MAPS): string[] {
   return maps.filter(m => m.user === u.id).map(m => m.acct)
