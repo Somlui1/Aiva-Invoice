@@ -3075,6 +3075,52 @@ def test_a_box_is_never_delivered_as_a_crop_swallowed_by_a_shaded_block():
     assert np.count_nonzero(mask) > 0
 
 
+def test_a_line_split_by_a_hairline_valley_is_still_one_line():
+    """Print is not a solid rectangle: a row of text often has a row of paper through it.
+
+    DMS-224's ``invoice_date`` was delivered as a 6 px crop for this reason.  Its line reads as two bands -
+    rows 241-244 (4 px, the ascenders) and rows 246-254 (9 px, the body) - separated by one blank row, and the
+    snap takes the *nearest* band, so the box landed on the top sliver of a line and covered half of every
+    digit in it.  The ruler called it a defect; the correction had made it worse.
+
+    So a band the snap may act on is a band merged across a hairline valley, and the crop that gets delivered
+    covers the printed line rather than the tallest piece of it.
+    """
+    from system_a.perception.coords import snap_box_to_ink
+    mask = _sheet_mask(h=120, w=200)
+    _draw_word(mask, 40, 44, 40, 80)            # ascenders
+    _draw_word(mask, 46, 54, 40, 80)            # the body of the same line: one row of paper between
+    box, note = snap_box_to_ink((40, 30, 80, 38), mask, grow=False)    # box drawn just above it, on paper
+    assert box[1] >= 40 and box[3] <= 54, f"the crop must cover the line, got {box} ({note})"
+    assert box[3] - box[1] >= 10, f"a sliver is not a line: delivered {box[3] - box[1]} px ({box} {note})"
+
+
+def test_two_lines_of_print_are_not_merged_into_one():
+    """The merge is for a hairline inside one line, not for the gap between two rows of a table.
+
+    Merging across a real row gap would deliver crops covering two values at once, which is how a correction
+    turns one wrong field into two.
+    """
+    from system_a.perception.coords import snap_box_to_ink
+    mask = _sheet_mask(h=120, w=200)
+    _draw_word(mask, 40, 48, 40, 80)
+    _draw_word(mask, 56, 64, 40, 80)            # the next row of the table: 8 px of paper below it
+    box, note = snap_box_to_ink((40, 30, 80, 38), mask, grow=False)
+    assert box[1] >= 40 and box[3] <= 48, f"only the nearer line may be taken, got {box} ({note})"
+def test_a_placeholder_value_is_recognised_and_a_real_zero_is_not():
+    """What the snap must refuse to chase: a value that says "there is nothing printed here".
+
+    "0" and "0.00" are values, and a table full of them is where the empty-box correction earned its keep;
+    "-", "/" and "N/A" are the model saying the cell is empty.  Getting these two mixed up either throws away
+    the correction's whole win or sends boxes onto their neighbours.
+    """
+    from system_a.perception.coords import is_placeholder
+    for nothing in ("-", " -- ", "\u2013", "\u2014", "/", "N/A", "n/a", "", None, "none"):
+        assert is_placeholder(nothing), f"{nothing!r} is not a value"
+    for something in ("0", "0.00", "1,000.00", "30/09/2026", "-1,234.00", "12-34", "7 %"):
+        assert not is_placeholder(something), f"{something!r} is a value, not a placeholder"
+
+
 def test_a_box_that_already_overlaps_its_line_is_left_exactly_as_drawn():
     """A box with ink under it is not touched at all - not resized, not requantised.
 

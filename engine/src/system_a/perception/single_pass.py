@@ -37,7 +37,8 @@ from ..domain.contracts import (DocumentInfo, ExtractionResult, PageInfo, RawFie
                                 RegionNode, SignatureObs)
 from ..domain.normalize import thai_to_arabic
 from ..domain.standard import load_prompt
-from .coords import (choose_coord_mode, ink_mask, rotate_box_back, rotate_image, rotate_px_box_back, strip_rules,
+from .coords import (choose_coord_mode, INK_RULES_VERSION, ink_mask, is_placeholder, rotate_box_back, rotate_image,
+                     rotate_px_box_back, strip_rules,
                     sanitize_xyxy, snap_box_to_ink, xyxy_px, xyxy_to_xywh)
 from .orientation import MODEL_SHA256, OrientationResult
 
@@ -400,12 +401,16 @@ class PageAnswer:
 
 def _rf(cell, page: PageAnswer) -> RawField:
     raw = _raw(cell)
+    # A box only deserves correcting if it carries something to recover.  A cell that read "-" (or nothing) is
+    # delivered with its region, and correcting that region walks the crop onto a neighbour's digits - which
+    # is how R4-13's only regression happened (DMS-159 vat, raw "-", moved 11 px onto another value's line).
+    snap = not is_placeholder(raw)
     if raw is None:
         return RawField(raw=None, confidence=None, agreement=True,
-                        region=page.region(_box(cell), snap=True) if cell else None,
+                        region=page.region(_box(cell), snap=snap) if cell else None,
                         source="ocr", null_reason="NOT_PRESENT")
     # one reader: agreement False -> the domain needs independent evidence (arithmetic / Oracle) to accept it
-    return RawField(raw=raw, confidence=None, agreement=False, region=page.region(_box(cell), snap=True),
+    return RawField(raw=raw, confidence=None, agreement=False, region=page.region(_box(cell), snap=snap),
                     source="vlm")
 
 
@@ -680,7 +685,7 @@ class SinglePassPipeline:
             # the snap arm is part of the identity: it changes the boxes this pipeline delivers, and
             # process_pdf.py hashes code_version into the perception cache key
             self.code_version = hashlib.sha256(fh.read() + MODEL_SHA256.encode()
-                                               + f"|ink_snap={self.snap_mode}".encode()).hexdigest()[:12]
+                                               + f"|ink_snap={self.snap_mode}|ink_rules={INK_RULES_VERSION}".encode()).hexdigest()[:12]
         self.calls: list[dict] = []
         self.stats: dict = {}
 

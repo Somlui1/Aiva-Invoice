@@ -587,6 +587,48 @@ def test_a_box_between_a_rule_and_its_value_is_delivered_on_the_value_not_the_ru
          f"(the rule it would otherwise land on is at {rule[0] / h:.4f})")
 
 
+def test_a_box_carrying_no_value_is_left_where_the_model_drew_it():
+    """The correction's customer is a box that carries a value; a box holding "-" has none to recover.
+
+    DMS-159's ``vat`` is the only box the whole R4-13 measurement made worse: the model read ``-`` (nothing
+    printed there), its box fell on blank paper, and the snap walked it 11 px down onto a real line - a line
+    holding somebody else's digits.  Re-cutting that crop does not recover a value; it hands the reader a
+    number that was never in the field, a worse failure than the empty box it "fixed".
+
+    The engine already refuses to deliver a field that read "-" (`_raw` nullifies it), so the field half of
+    this is a pin against someone changing that.  The cell half is the live hazard: a NOT_PRESENT cell keeps
+    its region in the delivered payload, and today it keeps a *corrected* region - a box moved onto print that
+    does not belong to it.  The control at the end is the point of the whole feature: a box with a real number
+    in it is still corrected, on the same page, from the same model answer.
+    """
+    pdf = _pdf_with_a_printed_value()
+    dpi = 100
+    top, bottom, h = _printed_rows(pdf, dpi)
+    drawn = [100, top - 36, 400, top - 16]
+    answer = {"fields": {"grand_total": {"raw": "-", "bbox_2d": list(drawn)}},
+              "line_items": [{"line_no": 1,
+                              "item_code": {"raw": "A1", "bbox_2d": list(drawn)},
+                              "description": {"raw": "thing"},
+                              "qty": {"raw": "-", "bbox_2d": list(drawn)},
+                              "uom": {"raw": "ea"},
+                              "unit_price": {"raw": "1.00", "bbox_2d": list(drawn)},
+                              "amount": {"raw": "1.00", "bbox_2d": list(drawn)}}],
+              "regions": [], "handwritten_refs": []}
+    client = FakeClient(classify=ONE_PAGE, extract=answer)
+    ext = SinglePassPipeline(client, "fake-vl", dpi=dpi, coord="pixel", ink_snap="move").extract(
+        pdf, package_id="P", dms_doc_id="D")
+
+    assert "grand_total" not in ext.fields, "a field that read '-' is not a value the engine delivers"
+    cell = ext.lines[0].cells["qty"]
+    assert cell.raw is None and cell.region is not None, "a NOT_PRESENT cell keeps its region in the payload"
+    y, hh = cell.region.bbox[1], cell.region.bbox[3]
+    assert abs(y - (top - 36) / h) < 2e-3 and abs(y + hh - (top - 16) / h) < 2e-3, \
+        f"a box with no value in it must not be walked onto a line, got {cell.region.bbox} (drawn {drawn})"
+    money = ext.lines[0].cells["unit_price"]
+    assert money.raw == "1.00" and money.region.bbox[1] >= top / h - 2e-3, \
+        f"a cell that carries a number is still corrected, got {money.region.bbox}"
+
+
 def _contained(cell, row) -> float:
     ix = max(0.0, min(cell[0] + cell[2], row[0] + row[2]) - max(cell[0], row[0]))
     iy = max(0.0, min(cell[1] + cell[3], row[1] + row[3]) - max(cell[1], row[1]))

@@ -334,24 +334,56 @@ def _bands(indices: list[int]) -> list[tuple[int, int]]:
 #: correction made worse in that whole measurement was one of them.
 MIN_LINE_HEIGHT_PX = 4.0
 MIN_LINE_HEIGHT_RATIO = 0.0035          # the same floor as a fraction of page height, for large scans
+#: Bumped whenever the rules above change what the snap delivers.  ``single_pass`` hashes its own file into
+#: ``code_version``, which ``process_pdf.py`` folds into the perception cache key - but these rules live here,
+#: so without this marker a cached payload from the old rules could be served as if it were measured by the
+#: new ones.  2 = height floor + height ceiling + valley merge (R4-13, R4-14), placeholder boxes left alone.
+INK_RULES_VERSION = 2
+#: What the model writes when there is nothing printed to read.
+PLACEHOLDER_VALUES = {"", "-", "--", "---", "\u2013", "\u2014", "/", "n/a", "na", "none", "null", "nil"}
+
+
+def is_placeholder(value: Any) -> bool:
+    """Is this "value" the model's way of saying the box is empty?
+
+    A box carrying one of these has no value to recover, so the snap has no business moving it: DMS-159's
+    ``vat`` read ``-``, its box landed on blank paper, and the correction walked it onto a neighbouring line -
+    a crop of digits that were never in the field, which the re-read step can only turn into a wrong number.
+    ``"0"`` and ``"0.00"`` are deliberately not here: a table of zeros is where the correction earned its keep.
+    """
+    text = str(value if value is not None else "").strip().lower()
+    return text in PLACEHOLDER_VALUES
+
 #: ... and no taller than a line can plausibly be.  A move delivers a crop as tall as the band it lands on, so
 #: one 306 px ink region (a stamp, a shaded block, a scan blob) turns an 8 px box into a 306 px crop: DMS-171
 #: ``currency``, and DMS-59's three header fields on a 192 px region.  The gap the note reports was 13 px.
 MAX_LINE_HEIGHT_PX = 24.0
 MAX_LINE_HEIGHT_RATIO = 0.03            # 35 px at the engine's 150 DPI, 46 px on the audit render
-
-
+#: Rows of blank paper that still belong inside one printed line.  Type is not a solid rectangle: an ascender
+#: row, a Thai vowel row, an anti-aliased valley through the middle of the digits all leave an empty row, and
+#: a band cut in half fails both tests above - too short to be a line, and the wrong thing to land a box on.
+#: Measured on DMS-224 ``invoice_date``, whose line reads as rows 241-244 plus 246-254: the snap took the
+#: 4 px top piece and delivered a crop covering half of every digit in the date.
+VALLEY_MERGE_PX = 2
 def line_bands(mask: np.ndarray, x0: int, x1: int) -> list[tuple[int, int]]:
-    """Row bands between ``x0`` and ``x1`` that could be a line of print - and nothing else the ink map holds.
+    """Bands between ``x0`` and ``x1`` that could be a line of print - and nothing else the ink map holds.
 
-    Too short is a scratch (a broken rule, a leader dot, a speck); too tall is a region (shading, a stamp, a
-    scan blob).  Neither may be a box's own line nor a box's destination: see :data:`MIN_LINE_HEIGHT_PX` and
-    :data:`MAX_LINE_HEIGHT_PX` for what each of them did to real documents.
+    Bands are first joined across a hairline valley (:data:`VALLEY_MERGE_PX` rows), because a line torn in two
+    is still the line a box belongs on; then a band must be tall enough to be print and no taller than a line
+    can plausibly be.  Too short is a scratch (a broken rule, a leader dot, a speck); too tall is a region
+    (shading, a stamp, a scan blob).  None of them may be a box's own line or a box's destination - see
+    :data:`MIN_LINE_HEIGHT_PX` and :data:`MAX_LINE_HEIGHT_PX` for what each did to real documents.
     """
     H = mask.shape[0]
     floor = max(MIN_LINE_HEIGHT_PX, MIN_LINE_HEIGHT_RATIO * H)
     ceiling = max(MAX_LINE_HEIGHT_PX, MAX_LINE_HEIGHT_RATIO * H)
-    return [b for b in _ink_bands(mask, x0, x1) if floor <= b[1] - b[0] <= ceiling]
+    merged: list[list[int]] = []
+    for start, end in _ink_bands(mask, x0, x1):
+        if merged and start - merged[-1][1] <= VALLEY_MERGE_PX:
+            merged[-1][1] = end
+        else:
+            merged.append([start, end])
+    return [(a, b) for a, b in merged if floor <= b - a <= ceiling]
 
 
 def snap_box_to_ink(box: Sequence[float], mask: np.ndarray,
