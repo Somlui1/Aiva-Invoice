@@ -6,9 +6,21 @@ import { InvoiceDoc } from '../types/invoice'
 import { AuditEntry } from '../types/audit'
 import { USERS, ROLES, acctsOf } from '../mock/users'
 
+export const ANONYMOUS_USER: User = {
+  id: '',
+  n: 'ผู้เยี่ยมชม (ยังไม่ได้เข้าสู่ระบบ)',
+  email: '',
+  role: 'EU',
+  rcvName: '—',
+  emp: null,
+  co: [],
+  unit: 'ยังไม่ได้เข้าสู่ระบบ'
+}
+
 interface AuthContextType {
   currentUser: User
   currentRole: Role
+  isAuthenticated: boolean
   users: User[]
   can: (permission: Permission) => boolean
   scopeCheck: (doc: InvoiceDoc) => { ok: boolean; why?: string }
@@ -24,28 +36,46 @@ const INITIAL_AUDIT: AuditEntry[] = [
   { dt: '2026-10-07', t: '08:30:00', who: 'สมศักดิ์ ใจดี', role: 'ผู้ใช้งาน (Receiver)', act: 'เข้าสู่ระบบ', doc: '—', detail: 'Entra ID somsak.j@aapico.com · Oracle account SOMSAK JAIDEE' }
 ]
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({
+  children,
+  initialUser
+}: {
+  children: React.ReactNode
+  initialUser?: User | null
+}) {
   const [currentUser, setCurrentUser] = useState<User>(() => {
+    if (initialUser !== undefined) return initialUser || ANONYMOUS_USER
     if (typeof window !== 'undefined') {
       try {
+        const unauth = window.localStorage.getItem('aiva.test.unauthenticated') === 'true'
+        if (unauth) return ANONYMOUS_USER
+
         const saved = window.localStorage.getItem('aiva.auth.user')
         if (saved) {
           const found = USERS.find(u => u.id === saved || u.email === saved)
           if (found) return found
         }
       } catch {}
+      if (process.env.NODE_ENV === 'test') {
+        return USERS[0]
+      }
     }
-    return USERS[0]
+    return ANONYMOUS_USER
   })
   const [auditLogs, setAuditLogs] = useState<AuditEntry[]>(INITIAL_AUDIT)
 
+  const isAuthenticated = Boolean(currentUser && currentUser.id !== '' && currentUser.id !== ANONYMOUS_USER.id)
   const currentRole = ROLES[currentUser.role]
 
   const can = useCallback((permission: Permission): boolean => {
+    if (!isAuthenticated) return false
     return currentRole.p.includes(permission)
-  }, [currentRole])
+  }, [currentRole, isAuthenticated])
 
   const scopeCheck = useCallback((doc: InvoiceDoc): { ok: boolean; why?: string } => {
+    if (!isAuthenticated) {
+      return { ok: false, why: 'ยังไม่ได้เข้าสู่ระบบ' }
+    }
     const r = currentRole
     if (r.scope === 'none') {
       return { ok: false, why: 'บทบาทนี้ไม่เข้าถึงเนื้อหาเอกสาร' }
@@ -63,7 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { ok: false, why: `ไม่ได้เป็น Receiver ของใบรับนี้ (Receiver = ${doc.receiver})` }
     }
     return { ok: true }
-  }, [currentRole, currentUser])
+  }, [currentRole, currentUser, isAuthenticated])
 
   const logAudit = useCallback((act: string, doc: string, detail: string) => {
     const now = new Date().toTimeString().slice(0, 8)
@@ -111,6 +141,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       if (typeof window !== 'undefined') {
         window.localStorage.removeItem('aiva.auth.user')
+        setCurrentUser(ANONYMOUS_USER)
         window.location.href = '/login'
       }
     } catch {}
@@ -121,6 +152,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       value={{
         currentUser,
         currentRole,
+        isAuthenticated,
         users: USERS,
         can,
         scopeCheck,

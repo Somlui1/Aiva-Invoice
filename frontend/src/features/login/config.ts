@@ -10,8 +10,8 @@ const bypassEnv = process.env.NEXT_PUBLIC_AUTH_BYPASS;
 export const LOGIN_CONFIG = {
   /** true = ใช้ข้อมูลจำลอง + แสดงแถบ MOCK */
   mock: mockEnv ? mockEnv === "true" : process.env.NODE_ENV !== "production",
-  /** true = ข้ามการตรวจรหัสผ่าน ยอมรับการเข้าสู่ระบบทันที */
-  bypass: bypassEnv ? bypassEnv === "true" : true,
+  /** true = ข้ามการตรวจรหัสผ่าน ยอมรับการเข้าสู่ระบบทันที (ปิดเป็นค่าเริ่มต้นใน production) */
+  bypass: bypassEnv ? bypassEnv === "true" : process.env.NODE_ENV !== "production",
   appName: "AIVA Portal",
   orgName: "AAPICO AP Hub · ระบบตรวจใบแจ้งหนี้อัตโนมัติ",
   versionLabel: "AIVA Portal v4.20 · SRS v1.1",

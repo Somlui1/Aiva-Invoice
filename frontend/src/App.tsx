@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import type { User } from './types/auth'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { SettingsProvider } from './context/SettingsContext'
 import { ToastModalProvider } from './context/ToastModalContext'
@@ -20,7 +21,7 @@ import { StdPage } from './components/governance/StdPage'
 import { SimPage } from './components/governance/SimPage'
 
 export function PortalShell({ initialPage = 'queue' }: { initialPage?: PageKey }) {
-  const { currentUser } = useAuth()
+  const { currentUser, isAuthenticated } = useAuth()
   const { isEvidenceDockOpen, closeEvidenceDock } = useInvoices()
   const [currentPage, setCurrentPage] = useState<PageKey>(initialPage)
   const [isNavCollapsed, setIsNavCollapsed] = useState<boolean>(() => {
@@ -31,12 +32,42 @@ export function PortalShell({ initialPage = 'queue' }: { initialPage?: PageKey }
     }
   })
 
+  // Redirect unauthenticated visitors to /login immediately
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !isAuthenticated) {
+      window.location.href = '/login'
+    }
+  }, [isAuthenticated])
+
   // Switch default page if ADM (has scope 'none') and no specific initialPage was given
   useEffect(() => {
-    if (initialPage === 'queue' && currentUser.role === 'ADM') {
+    if (isAuthenticated && initialPage === 'queue' && currentUser.role === 'ADM') {
       setCurrentPage('rbac')
     }
-  }, [currentUser.id, currentUser.role, initialPage])
+  }, [isAuthenticated, currentUser.id, currentUser.role, initialPage])
+
+  if (!isAuthenticated) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100vh',
+          fontFamily: 'sans-serif',
+          color: 'var(--s-600, #475569)',
+          gap: 12,
+        }}
+        data-testid="auth-redirect-guard"
+      >
+        <div style={{ fontWeight: 600, fontSize: 16 }}>กำลังนำทางไปหน้าเข้าสู่ระบบ...</div>
+        <a href="/login" style={{ fontSize: 14, color: 'var(--teal-d, #0D9488)' }}>
+          คลิกที่นี่หากเบราว์เซอร์ไม่นำทางโดยอัตโนมัติ
+        </a>
+      </div>
+    )
+  }
 
   const handleNavigate = (page: PageKey) => {
     setCurrentPage(page)
@@ -124,9 +155,15 @@ export function PortalShell({ initialPage = 'queue' }: { initialPage?: PageKey }
   )
 }
 
-export function App({ initialPage = 'queue' }: { initialPage?: PageKey }) {
+export function App({
+  initialPage = 'queue',
+  initialUser,
+}: {
+  initialPage?: PageKey
+  initialUser?: User | null
+}) {
   return (
-    <AuthProvider>
+    <AuthProvider initialUser={initialUser}>
       <SettingsProvider>
         <ToastModalProvider>
           <InvoiceProvider>
