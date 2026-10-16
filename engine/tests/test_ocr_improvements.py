@@ -2953,10 +2953,14 @@ def _sheet_with_a_rule(h=60, w=200):
 
     The gap is inside the snap's own travel budget (twice the box height) on purpose, so the only thing
     deciding where the box lands is which ink the map admits.
+
+    The rule is drawn 4 px tall - the height at which a band is thick enough that the height floor alone would
+    take it for a line of print (see ``MIN_LINE_HEIGHT_PX``), so this fixture keeps testing the furniture strip
+    rather than the floor, which has a fixture of its own.
     """
     mask = _sheet_mask(h=h, w=w)
     _draw_word(mask, 34, 42, 40, 80)
-    mask[28:30, 5:195] = 1                      # the rule the form prints under every label
+    mask[26:30, 5:195] = 1                      # the rule the form prints under every label: 4 px of solid ink
     return mask
 
 
@@ -3001,6 +3005,90 @@ def test_stripping_rules_leaves_printed_text_alone():
     assert np.array_equal(clean, mask), "a text row was erased from the ink map"
     assert not np.array_equal(strip_rules(_sheet_with_a_rule()), _sheet_with_a_rule()), \
         "the rule was not stripped either"
+
+
+def _sheet_with_a_rule_fragment(h=60, w=200):
+    """A printed value, plus a short thin scrap of rule in the same columns - too short to be furniture.
+
+    ``strip_rules`` clears only lines that run across the sheet, and a scrap like this (one pixel tall,
+    eighteen wide, sitting in a cell's own columns) survives that - asserted below, because the first version
+    of this fixture drew the scrap on top of a full-width rule and the strip deleted both.
+
+    It is what the one broken box of R4-12 landed on: 13 of the 29 moves in that measurement went to an ink
+    band 3 px tall or less, which is not a line of print at any DPI this engine renders at - 10pt text is
+    11 px tall at 150 DPI, 12 px at the audit render.
+    """
+    import numpy as np
+
+    from system_a.perception.coords import strip_rules
+    mask = _sheet_mask(h=h, w=w)
+    _draw_word(mask, 34, 42, 40, 80)
+    mask[28:29, 42:60] = 1                      # a broken scrap: thin, and far too short to be a rule
+    assert np.array_equal(strip_rules(mask), mask), "the scrap must survive the furniture strip"
+    return mask
+
+
+def test_a_box_is_not_moved_onto_a_scrap_too_thin_to_be_a_line_of_print():
+    """A scrap of rule is nearer than the value; it must not win the box.
+
+    Today the correction takes the nearest band whatever it is, so the crop lands on one pixel of broken line
+    and re-reads the same nothing - the box looks corrected and is still useless.
+    """
+    from system_a.perception.coords import snap_box_to_ink, strip_rules
+    sheet = strip_rules(_sheet_with_a_rule_fragment())
+    box, note = snap_box_to_ink((40, 20, 80, 26), sheet, grow=False)
+    assert box[1] >= 34 and box[3] <= 42, f"the box belongs on the printed value, got {box} ({note})"
+
+
+def test_a_scrap_is_not_read_as_the_box_own_line():
+    """The blindness half again, at scrap size: a box whose only ink is a broken rule read "already correct".
+
+    ``strip_rules`` handles a rule that crosses the page; this one does not, so the height of the band is the
+    only thing left that can tell a line of print from a scratch.
+    """
+    from system_a.perception.coords import snap_box_to_ink, strip_rules
+    sheet = strip_rules(_sheet_with_a_rule_fragment())
+    box, note = snap_box_to_ink((40, 27, 80, 31), sheet, grow=False)
+    assert "moved" in note, f"a 1 px scrap is not a line of its own: {box} ({note})"
+    assert box[1] >= 34 and box[3] <= 42, f"it should travel to the value, got {box} ({note})"
+
+
+def test_a_box_is_never_delivered_as_a_crop_swallowed_by_a_shaded_block():
+    """The box a move delivers is as tall as the band it lands on - so a giant band delivers a giant crop.
+
+    Found while measuring the line-height floor, on real documents: DMS-171's ``currency`` box (8 px tall)
+    came back 306 px tall, and DMS-59's ``invoice_num`` / ``customer_name`` / ``customer_address`` landed on
+    one 192 px ink region and travelled 195-248 px.  The note said ``moved_13px`` - the gap it crossed - while
+    the crop had gone 320 px and covered most of the page.  A shaded block, a stamp, a scan blob answers
+    "nearest ink" the same way a line of print does, and it has no business being a box's line.
+    """
+    import numpy as np
+
+    from system_a.perception.coords import snap_box_to_ink
+    mask = _sheet_mask(h=120, w=200)
+    mask[4:36, 30:70] = 1                       # a shaded block / scan blob: nearer than any text
+    _draw_word(mask, 56, 64, 40, 80)            # the line the value is actually printed on
+    box, note = snap_box_to_ink((40, 40, 80, 50), mask, grow=False)     # drawn on blank paper between them
+    assert note.startswith("moved"), f"the value is inside the travel budget: {box} ({note})"
+    assert box[3] - box[1] <= 2.5 * 10 + 2, f"the crop must stay a crop, got rows {box[1]}..{box[3]} ({note})"
+    assert box[1] >= 56 and box[3] <= 64, f"it belongs on the printed line, got {box} ({note})"
+    assert np.count_nonzero(mask) > 0
+
+
+def test_a_box_that_already_overlaps_its_line_is_left_exactly_as_drawn():
+    """A box with ink under it is not touched at all - not resized, not requantised.
+
+    Pinned because it is the half of the rule that must not break while the other half gets stricter, and
+    because R4-9 measured that re-emitting an untouched box through float -> px -> float drifts it by up to a
+    pixel and flips verdicts in the ruler.  A correction that "improves" a box the model already got right is
+    the most expensive kind of correction: it costs the boxes nobody complained about.
+    """
+    from system_a.perception.coords import snap_box_to_ink
+    drawn = (40, 43, 80, 52)
+    mask = _sheet_mask(h=120, w=200)
+    _draw_word(mask, 40, 48, 40, 80)            # the box straddles a real line: 3 px of it hang below
+    box, note = snap_box_to_ink(drawn, mask, grow=False)
+    assert tuple(box) == drawn and note == "unchanged", f"untouched means untouched: {box} ({note})"
 
 
 def test_ink_mask_finds_print_and_only_print():

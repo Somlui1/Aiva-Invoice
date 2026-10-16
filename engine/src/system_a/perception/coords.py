@@ -327,6 +327,33 @@ def _bands(indices: list[int]) -> list[tuple[int, int]]:
     return out
 
 
+#: How tall a band of ink must be to count as a line of print.  Anything shorter is a scratch: a broken rule,
+#: a leader dot, a speck - the snap neither calls it a box's own line nor moves a box onto it.  10pt text is
+#: 11 px tall at the engine's 150 DPI and 12 px at the audit render, so this sits far below any real line and
+#: well above the 1-3 px scraps R4-12 counted: 13 of its 29 moves landed on one, and the single box the
+#: correction made worse in that whole measurement was one of them.
+MIN_LINE_HEIGHT_PX = 4.0
+MIN_LINE_HEIGHT_RATIO = 0.0035          # the same floor as a fraction of page height, for large scans
+#: ... and no taller than a line can plausibly be.  A move delivers a crop as tall as the band it lands on, so
+#: one 306 px ink region (a stamp, a shaded block, a scan blob) turns an 8 px box into a 306 px crop: DMS-171
+#: ``currency``, and DMS-59's three header fields on a 192 px region.  The gap the note reports was 13 px.
+MAX_LINE_HEIGHT_PX = 24.0
+MAX_LINE_HEIGHT_RATIO = 0.03            # 35 px at the engine's 150 DPI, 46 px on the audit render
+
+
+def line_bands(mask: np.ndarray, x0: int, x1: int) -> list[tuple[int, int]]:
+    """Row bands between ``x0`` and ``x1`` that could be a line of print - and nothing else the ink map holds.
+
+    Too short is a scratch (a broken rule, a leader dot, a speck); too tall is a region (shading, a stamp, a
+    scan blob).  Neither may be a box's own line nor a box's destination: see :data:`MIN_LINE_HEIGHT_PX` and
+    :data:`MAX_LINE_HEIGHT_PX` for what each of them did to real documents.
+    """
+    H = mask.shape[0]
+    floor = max(MIN_LINE_HEIGHT_PX, MIN_LINE_HEIGHT_RATIO * H)
+    ceiling = max(MAX_LINE_HEIGHT_PX, MAX_LINE_HEIGHT_RATIO * H)
+    return [b for b in _ink_bands(mask, x0, x1) if floor <= b[1] - b[0] <= ceiling]
+
+
 def snap_box_to_ink(box: Sequence[float], mask: np.ndarray,
                     max_move: Optional[float] = None, *,
                     move: bool = True, grow: bool = True) -> tuple[tuple[int, int, int, int], str]:
@@ -354,7 +381,7 @@ def snap_box_to_ink(box: Sequence[float], mask: np.ndarray,
     box_h = max(1.0, y2 - y1)
     travel = max(2.0 * box_h, INK_MOVE_RATIO * H) if max_move is None else float(max_move)
 
-    bands = _ink_bands(mask, int(x1), int(x2))
+    bands = line_bands(mask, int(x1), int(x2))
     if not bands:
         return (int(x1), int(y1), int(x2), int(y2)), "unchanged"
 
