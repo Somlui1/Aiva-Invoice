@@ -135,13 +135,28 @@
 
 ## Plan: Autonomous OCR & BBox Refinement Loop (2026-10-15-ocr-bbox-autonomous-improvement-loop.md)
 
+**Plan status: DONE (2026-10-16)** - closed on System Owner order after the final full-corpus census.
+
+* Stopping condition reached, plan section 11: **"never declare done without at least one Full Corpus run"** -
+  satisfied twice (`ffr/run1`, then `final/run1` under the shipped config, 223/223 documents, 0 errors).
+* The plan's ideal end state (**every document PASS or MODEL_LIMIT**) was **not** reached: the box defect rate
+  sits at **11.4%** (616/5,384, unchanged inside the 0.1-1.3 pp noise floor) and 26 action-queue documents were
+  never visually audited. Closure is therefore by owner decision, with the remaining faults listed rather than
+  averaged away - `bbox_testing/round_06/FINAL_SCORECARD.md` section 5.
+* Final config: `single-pass/1.4.0` + `classify@1.3.0` + `extract@1.6.0` + `adjudicate@1.0.0`, `ink_snap=move`
+  (`INK_RULES_VERSION=2`), adjudication on, targeted 300 DPI tax-id retry on. `pytest`: **263 passed**.
+* Carried forward to the next plan: `docs/plans/2026-10-16-ocr-bbox-backlog.md` (B-1 geometry-less cause,
+  B-2 rotated pages outside the ruler / R6-5, B-3 orientation oracle / R6-7, B-4 DMS-227 `4224`,
+  B-5 DMS-175 unverified + "stable and wrong", B-6 the 26-document audit / R6-4, B-7 name spelling policy,
+  B-8 two paired runs to tighten rates, B-9 owner policy still owed).
+
 | Task | Status | Description |
 |---|---|---|
 | Task 1: Autonomous Loop Specification & Benchmark Protocol | Done | Created plan & PI Agent prompt for all Paperless invoices, image visual audit, copy separation, and OCR field completeness |
-| Task 2: Batch Invoice Extraction & Image BBox Rendering | Pending | Run scripts/test_invoice_single_pass.py --tag invoice to render overlay images and extract payloads |
-| Task 3: Classification & Separation Audit | Pending | Audit selected pages to ensure original invoices only (filter copies and delivery notes) |
-| Task 4: Visual BBox Alignment & Field Completeness Iteration | Pending | Iteratively patch prompts/coords/single_pass.py until BBoxes align and fields are complete |
-| Task 5: Final Acceptance Gates & Model Limitation Report | Pending | Verify 100% test pass, clean BBoxes across invoices, and log model ceiling cases |
+| Task 2: Batch Invoice Extraction & Image BBox Rendering | Done | Full corpus extracted and overlaid: 223/223 documents, 793 rendered pages (130 DPI coverage == Paperless page_count), payloads under `bbox_testing/round_06/{repA,repB,ffr/run1,final/run1}`; scored with the unchanged ruler `bbox_testing/round_03/align.py` called as a subprocess |
+| Task 3: Classification & Separation Audit | Done | R6-2 forensics on every gate-dropped document (true loss **5/223 = 2.2%**; forced-extract fallback rejected after it fabricated invoices from pages printing "mitai baapikamapha see"), and the R6-6 second look shipped - it rescued DMS-56/195/226/227 while inventing **0** false invoices across 8 control documents |
+| Task 4: Visual BBox Alignment & Field Completeness Iteration | Done (alignment bar not reached) | Loop ran R4-9..R4-15 and R6-2..R6-16. **Fields improved**: a tax id the Thai rule rejects 6.7-9.4% -> **3.6%**, buyer-id-in-issuer-field **0/223**, ambiguity rulings landed in a real run. **Boxes did not move**: 11.3% -> 11.4% = no change inside noise, and this is reported as no change. Cause unknown for 4 geometry-less documents (B-1); rotated pages are outside the ruler (B-2) |
+| Task 5: Final Acceptance Gates & Model Limitation Report | Done (one clause unmet) | 263 tests pass; every fault class logged with evidence in `FINAL_SCORECARD.md` + `r69_diagnosis.md` + `r69_class5_evidence.md`. Class 5 was **refused the MODEL_LIMIT label** on evidence (7/7 pages legible; 150 DPI -> 14/14 correct at 300 DPI). **Unmet clause: "clean BBoxes" - 11.4% still flagged** |
 
 
 ### Plan: Autonomous OCR & BBox Loop — Round 0 (prep & tooling)
