@@ -108,6 +108,47 @@ def empty_ratio(items, doc: int, rots: dict):
     return empty, total
 
 
+def empty_of_print(items, doc: int, rots: dict):
+    """A second empty-box rule, sitting next to the historical one instead of replacing it.
+
+    The rule above asks for *any* dark pixel, so a box parked on a table rule or a dotted leader counts as not
+    empty - while the crop it describes reads back a printed line with no value in it, which is the failure
+    Round 3 counted 90 of and which this metric reported as 0.0%.  Here a box is empty unless the ink under it
+    could actually be a line of type: a band between the snap's own height floor and ceiling, made of more than
+    one mark.  Furniture is allowed to be ink; it is not allowed to count as an answer.
+
+    Deliberately a measurement and not a shipped rule - it never moves a box - so the numbers recorded for
+    rounds 1-4 stay what they were and the two series can be compared on the same payloads.
+    """
+    from system_a.perception.coords import _bands, line_bands, strip_rules
+    masks, empty, total = {}, 0, 0
+    for page, box in items:
+        x, y, w, h = box
+        if w <= 0 or h <= 0:
+            continue
+        total += 1
+        if page not in masks:
+            base = render(doc, page, rots.get(page, 0))
+            if base is None:
+                return None
+            masks[page] = (base, strip_rules(base))
+        raw, clean = masks[page]
+        H, W = raw.shape
+        x1, y1 = max(0, int(x * W)), max(0, int(y * H))
+        x2, y2 = min(W, int((x + w) * W)), min(H, int((y + h) * H))
+        if x2 <= x1 or y2 <= y1:
+            continue
+        line = next((b for b in line_bands(clean, x1, x2) if b[0] < y2 and b[1] > y1), None)
+        if line is None:
+            empty += 1
+            continue
+        strip = raw[max(line[0], y1):max(line[0] + 1, min(line[1], y2)), x1:x2]
+        runs = _bands(list(np.flatnonzero(strip.any(axis=0))))
+        if len(runs) < 2:                                # one solid mark under the line = a rule, not an answer
+            empty += 1
+    return empty, total
+
+
 def main() -> None:
     docs = [int(v) for v in sys.argv[1:]]
     print(f"left  = {ENGINE}\nright = {AUDIT}")

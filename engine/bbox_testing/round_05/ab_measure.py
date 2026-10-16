@@ -34,6 +34,14 @@ sys.path.insert(0, str(HERE))
 
 import ink_check as IC                                            # noqa: E402
 
+# These reports quote payload values and page notes (Thai text, degree signs, arrows). The console on this
+# box is cp874, and one unencodable character in a note used to kill the run *after* the measurement had
+# already been printed - the numbers were fine and the exit status said otherwise.
+try:
+    sys.stdout.reconfigure(errors="replace")
+except (AttributeError, ValueError):                              # pragma: no cover - depends on the console
+    pass
+
 # The two arms of R4-3c; overridable so the same ruler can compare the arm that ships now ("move") against
 # the arm that shipped before it, without editing the measurement.
 ARMS = tuple(os.environ.get("AB_ARMS", "snap_on,snap_off").split(","))
