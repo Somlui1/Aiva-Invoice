@@ -27,6 +27,11 @@ export async function ensureProductionSampleData(): Promise<void> {
     }
 
     // 2. Ensure sample invoices from paperless_invoices_v5 are populated
+    if (process.env.AIVA_DISABLE_AUTO_SEED === 'true' || fs.existsSync(path.resolve(process.cwd(), '.cleared'))) {
+      console.log('[AIVA Bootstrap] Auto-seed disabled by configuration or .cleared marker.')
+      return
+    }
+
     const docCount = await prisma.document.count().catch(() => -1)
     if (docCount > 0) {
       return // Already populated
