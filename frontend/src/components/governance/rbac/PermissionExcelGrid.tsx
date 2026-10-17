@@ -23,40 +23,77 @@ export interface ManagedUser {
   isDeleted?: boolean
 }
 
+export interface PermissionExcelGridProps {
+  users?: ManagedUser[]
+  diffs?: UserDiff[]
+  selectedUserId?: string | null
+  onSelectUser?: (user: ManagedUser) => void
+  onRoleChange?: (id: string, newRole: RoleKey) => void
+  onRemoveCompany?: (id: string, co: string) => void
+  onAddCompany?: (id: string, co: string) => void
+  onRemoveReceiver?: (id: string, rcv: string) => void
+  onAddReceiver?: (id: string, rcv: string) => void
+  onDeleteUser?: (id: string) => void
+  onOpenAddModal?: () => void
+  onOpenDiffModal?: () => void
+  onAddFromAd?: (newUser: {
+    name: string
+    email: string
+    samAccount: string
+    empId: string
+    unit: string
+    role: RoleKey
+    companies: string[]
+    receivers: string[]
+  }) => void
+  onSaveAll?: () => Promise<void>
+  isSaving?: boolean
+  isLoading?: boolean
+}
+
 const AVAILABLE_COMPANIES = ['AH', 'AHT', 'AHP', 'AM']
 
-export function PermissionExcelGrid() {
+export function PermissionExcelGrid(props: PermissionExcelGridProps) {
   const { toast } = useToastModal()
-  const [initialUsers, setInitialUsers] = useState<ManagedUser[]>([])
-  const [users, setUsers] = useState<ManagedUser[]>([])
+  const [internalInitialUsers, setInternalInitialUsers] = useState<ManagedUser[]>([])
+  const [internalUsers, setInternalUsers] = useState<ManagedUser[]>([])
+  const [internalSelectedId, setInternalSelectedId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [isDiffModalOpen, setIsDiffModalOpen] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
+  const [internalSaving, setInternalSaving] = useState(false)
+  const [internalLoading, setInternalLoading] = useState(true)
 
-  // Load users from backend
+  const isControlled = props.users !== undefined
+  const users = isControlled ? props.users! : internalUsers
+  const isLoading = isControlled ? props.isLoading ?? false : internalLoading
+  const isSaving = isControlled ? props.isSaving ?? false : internalSaving
+  const selectedUserId = props.selectedUserId !== undefined ? props.selectedUserId : internalSelectedId
+
+  // Load users from backend if uncontrolled
   const loadUsers = async () => {
-    setIsLoading(true)
+    setInternalLoading(true)
     try {
       const res = await fetch('/api/users')
       if (res.ok) {
         const data = await res.json()
         if (data.ok && Array.isArray(data.users)) {
-          setInitialUsers(JSON.parse(JSON.stringify(data.users)))
-          setUsers(data.users)
+          setInternalInitialUsers(JSON.parse(JSON.stringify(data.users)))
+          setInternalUsers(data.users)
         }
       }
     } catch (err) {
       console.warn('Failed to load users:', err)
     } finally {
-      setIsLoading(false)
+      setInternalLoading(false)
     }
   }
 
   useEffect(() => {
-    loadUsers()
-  }, [])
+    if (!isControlled) {
+      loadUsers()
+    }
+  }, [isControlled])
 
   // Filtered users
   const filteredUsers = useMemo(() => {
@@ -75,16 +112,16 @@ export function PermissionExcelGrid() {
     })
   }, [users, search])
 
-  // Track differences
-  const diffs = useMemo<UserDiff[]>(() => {
+  // Track differences if uncontrolled
+  const internalDiffs = useMemo<UserDiff[]>(() => {
     const res: UserDiff[] = []
-    for (const u of users) {
+    for (const u of internalUsers) {
       if (u.isNew) {
         res.push({ user: u, type: 'added' })
       } else if (u.isDeleted) {
         res.push({ user: u, type: 'deleted' })
       } else {
-        const orig = initialUsers.find(o => o.email === u.email)
+        const orig = internalInitialUsers.find(o => o.email === u.email)
         if (
           orig &&
           (orig.role !== u.role ||
@@ -96,64 +133,89 @@ export function PermissionExcelGrid() {
       }
     }
     return res
-  }, [users, initialUsers])
+  }, [internalUsers, internalInitialUsers])
 
+  const diffs = isControlled && props.diffs ? props.diffs : internalDiffs
   const hasDirtyChanges = diffs.length > 0
 
   const handleRoleChange = (id: string, newRole: RoleKey) => {
-    setUsers(prev =>
-      prev.map(u => {
-        if (u.id !== id) return u
-        return { ...u, role: newRole, isDirty: true }
-      })
-    )
+    if (props.onRoleChange) {
+      props.onRoleChange(id, newRole)
+    } else {
+      setInternalUsers(prev =>
+        prev.map(u => {
+          if (u.id !== id) return u
+          return { ...u, role: newRole, isDirty: true }
+        })
+      )
+    }
   }
 
   const handleRemoveCompany = (id: string, co: string) => {
-    setUsers(prev =>
-      prev.map(u => {
-        if (u.id !== id) return u
-        return { ...u, companies: u.companies.filter(c => c !== co), isDirty: true }
-      })
-    )
+    if (props.onRemoveCompany) {
+      props.onRemoveCompany(id, co)
+    } else {
+      setInternalUsers(prev =>
+        prev.map(u => {
+          if (u.id !== id) return u
+          return { ...u, companies: u.companies.filter(c => c !== co), isDirty: true }
+        })
+      )
+    }
   }
 
   const handleAddCompany = (id: string, co: string) => {
-    setUsers(prev =>
-      prev.map(u => {
-        if (u.id !== id || u.companies.includes(co)) return u
-        return { ...u, companies: [...u.companies, co], isDirty: true }
-      })
-    )
+    if (props.onAddCompany) {
+      props.onAddCompany(id, co)
+    } else {
+      setInternalUsers(prev =>
+        prev.map(u => {
+          if (u.id !== id || u.companies.includes(co)) return u
+          return { ...u, companies: [...u.companies, co], isDirty: true }
+        })
+      )
+    }
   }
 
   const handleRemoveReceiver = (id: string, rcv: string) => {
-    setUsers(prev =>
-      prev.map(u => {
-        if (u.id !== id) return u
-        return { ...u, receivers: u.receivers.filter(r => r !== rcv), isDirty: true }
-      })
-    )
+    if (props.onRemoveReceiver) {
+      props.onRemoveReceiver(id, rcv)
+    } else {
+      setInternalUsers(prev =>
+        prev.map(u => {
+          if (u.id !== id) return u
+          return { ...u, receivers: u.receivers.filter(r => r !== rcv), isDirty: true }
+        })
+      )
+    }
   }
 
   const handleAddReceiver = (id: string, rcv: string) => {
     const trimmed = rcv.trim().toUpperCase()
     if (!trimmed) return
-    setUsers(prev =>
-      prev.map(u => {
-        if (u.id !== id || u.receivers.includes(trimmed)) return u
-        return { ...u, receivers: [...u.receivers, trimmed], isDirty: true }
-      })
-    )
+    if (props.onAddReceiver) {
+      props.onAddReceiver(id, trimmed)
+    } else {
+      setInternalUsers(prev =>
+        prev.map(u => {
+          if (u.id !== id || u.receivers.includes(trimmed)) return u
+          return { ...u, receivers: [...u.receivers, trimmed], isDirty: true }
+        })
+      )
+    }
   }
 
   const handleDeleteUser = (id: string) => {
-    setUsers(prev =>
-      prev.map(u => {
-        if (u.id !== id) return u
-        return { ...u, isDeleted: true, isDirty: true }
-      })
-    )
+    if (props.onDeleteUser) {
+      props.onDeleteUser(id)
+    } else {
+      setInternalUsers(prev =>
+        prev.map(u => {
+          if (u.id !== id) return u
+          return { ...u, isDeleted: true, isDirty: true }
+        })
+      )
+    }
   }
 
   const handleAddFromAd = (newUser: {
@@ -166,6 +228,11 @@ export function PermissionExcelGrid() {
     companies: string[]
     receivers: string[]
   }) => {
+    if (props.onAddFromAd) {
+      props.onAddFromAd(newUser)
+      return
+    }
+
     // Check if user already exists
     if (users.some(u => u.email === newUser.email && !u.isDeleted)) {
       toast(`ผู้ใช้ ${newUser.email} มีอยู่ในระบบแล้ว`, true)
@@ -179,12 +246,17 @@ export function PermissionExcelGrid() {
       isDirty: true,
     }
 
-    setUsers(prev => [created, ...prev])
+    setInternalUsers(prev => [created, ...prev])
     toast(`เพิ่ม ${newUser.name} เรียบร้อยแล้ว (รอยืนยันบันทึก)`)
   }
 
   const handleSaveAll = async () => {
-    setIsSaving(true)
+    if (props.onSaveAll) {
+      await props.onSaveAll()
+      return
+    }
+
+    setInternalSaving(true)
     try {
       for (const diff of diffs) {
         if (diff.type === 'added' || diff.type === 'modified') {
@@ -210,7 +282,15 @@ export function PermissionExcelGrid() {
     } catch (err: any) {
       toast(err.message || 'บันทึกไม่สำเร็จ', true)
     } finally {
-      setIsSaving(false)
+      setInternalSaving(false)
+    }
+  }
+
+  const handleRowClick = (u: ManagedUser) => {
+    if (props.onSelectUser) {
+      props.onSelectUser(u)
+    } else {
+      setInternalSelectedId(u.id)
     }
   }
 
@@ -220,7 +300,7 @@ export function PermissionExcelGrid() {
       <div className="perm-bar">
         <div className="perm-ttl">
           <span>สิทธิ์และการเชื่อมบัญชี (Admin Grid)</span>
-          <span style={{ fontSize: 11, background: '#E2E8F0', padding: '2px 8px', borderRadius: 999 }}>
+          <span style={{ fontSize: 11, background: 'var(--s-200)', padding: '2px 8px', borderRadius: 999 }}>
             {filteredUsers.length} คน
           </span>
         </div>
@@ -238,7 +318,7 @@ export function PermissionExcelGrid() {
           <button
             type="button"
             className="btn-xl-add"
-            onClick={() => setIsAddModalOpen(true)}
+            onClick={() => (props.onOpenAddModal ? props.onOpenAddModal() : setIsAddModalOpen(true))}
           >
             + เพิ่มผู้ใช้จาก AD (LDAP)
           </button>
@@ -247,7 +327,7 @@ export function PermissionExcelGrid() {
             type="button"
             className="btn-xl-save"
             disabled={!hasDirtyChanges || isSaving}
-            onClick={() => setIsDiffModalOpen(true)}
+            onClick={() => (props.onOpenDiffModal ? props.onOpenDiffModal() : setIsDiffModalOpen(true))}
           >
             บันทึกการเปลี่ยนแปลง {hasDirtyChanges && `(${diffs.length})`}
           </button>
@@ -257,7 +337,7 @@ export function PermissionExcelGrid() {
       {/* Excel Sheet */}
       <div className="perm-sheet">
         {isLoading ? (
-          <div style={{ padding: 32, textAlign: 'center', color: '#64748B' }}>กำลังโหลดข้อมูลผู้ใช้…</div>
+          <div style={{ padding: 32, textAlign: 'center', color: 'var(--s-400)' }}>กำลังโหลดข้อมูลผู้ใช้…</div>
         ) : (
           <table className="xl-grid">
             <thead>
@@ -274,20 +354,26 @@ export function PermissionExcelGrid() {
             <tbody>
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: 24, color: '#64748B' }}>
+                  <td colSpan={7} style={{ textAlign: 'center', padding: 24, color: 'var(--s-400)' }}>
                     ไม่พบผู้ใช้ที่ตรงกับเงื่อนไข
                   </td>
                 </tr>
               ) : (
                 filteredUsers.map((u, idx) => {
                   const isRowDirty = u.isNew || u.isDirty
+                  const isSelected = selectedUserId === u.id
                   return (
-                    <tr key={u.id} className={u.isNew ? 'newr' : isRowDirty ? 'dirty' : ''}>
+                    <tr
+                      key={u.id}
+                      className={`${u.isNew ? 'newr' : isRowDirty ? 'dirty' : ''} ${isSelected ? 'sel' : ''}`}
+                      onClick={() => handleRowClick(u)}
+                      style={{ cursor: 'pointer' }}
+                    >
                       <td className="n">{idx + 1}</td>
                       <td style={{ fontWeight: 600 }}>{u.name}</td>
-                      <td style={{ fontFamily: 'monospace', color: '#475569' }}>{u.samAccount}</td>
-                      <td style={{ fontFamily: 'monospace', color: '#2563EB' }}>{u.email}</td>
-                      <td>
+                      <td style={{ fontFamily: 'monospace', color: 'var(--s-600)' }}>{u.samAccount}</td>
+                      <td style={{ fontFamily: 'monospace', color: 'var(--accent-text)' }}>{u.email}</td>
+                      <td onClick={e => e.stopPropagation()}>
                         <select
                           className="perm-rin"
                           value={u.role}
@@ -300,7 +386,7 @@ export function PermissionExcelGrid() {
                           ))}
                         </select>
                       </td>
-                      <td>
+                      <td onClick={e => e.stopPropagation()}>
                         <div className="chip-wrap">
                           {u.role === 'EU' ? (
                             <>
@@ -319,6 +405,7 @@ export function PermissionExcelGrid() {
                                   fontSize: 11,
                                   width: 140,
                                   background: 'transparent',
+                                  color: 'inherit',
                                 }}
                                 onKeyDown={e => {
                                   if (e.key === 'Enter') {
@@ -340,15 +427,16 @@ export function PermissionExcelGrid() {
                               {AVAILABLE_COMPANIES.filter(c => !u.companies.includes(c)).map(c => (
                                 <button
                                   key={c}
+                                  type="button"
                                   onClick={() => handleAddCompany(u.id, c)}
                                   style={{
-                                    border: '1px dashed #B8C0CC',
+                                    border: '1px dashed var(--s-300)',
                                     borderRadius: 4,
-                                    background: '#fff',
+                                    background: 'var(--surface)',
                                     fontSize: 10,
                                     padding: '1px 5px',
                                     cursor: 'pointer',
-                                    color: '#64748B',
+                                    color: 'var(--s-600)',
                                   }}
                                 >
                                   + {c}
@@ -356,15 +444,15 @@ export function PermissionExcelGrid() {
                               ))}
                             </>
                           ) : (
-                            <span style={{ fontSize: 11, color: '#94A3B8' }}>ไม่ใช้ขอบเขต (Admin ทั้งระบบ)</span>
+                            <span style={{ fontSize: 11, color: 'var(--s-400)' }}>ไม่ใช้ขอบเขต (Admin ทั้งระบบ)</span>
                           )}
                         </div>
                       </td>
-                      <td style={{ textAlign: 'center' }}>
+                      <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
                         <button
                           type="button"
-                          className="perm-del-btn"
-                          title="ลบผู้ใช้"
+                          className="perm-del"
+                          title="ลบสิทธิ์ผู้ใช้นี้"
                           onClick={() => handleDeleteUser(u.id)}
                         >
                           ✕
@@ -380,20 +468,23 @@ export function PermissionExcelGrid() {
       </div>
 
       {/* Add User Modal */}
-      <AdUserSearchModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        onAddUser={handleAddFromAd}
-      />
+      {!isControlled && (
+        <>
+          <AdUserSearchModal
+            isOpen={isAddModalOpen}
+            onClose={() => setIsAddModalOpen(false)}
+            onAddUser={handleAddFromAd}
+          />
 
-      {/* Save Diff Modal */}
-      <SaveDiffModal
-        isOpen={isDiffModalOpen}
-        diffs={diffs}
-        isSaving={isSaving}
-        onClose={() => setIsDiffModalOpen(false)}
-        onConfirm={handleSaveAll}
-      />
+          <SaveDiffModal
+            isOpen={isDiffModalOpen}
+            diffs={diffs}
+            isSaving={isSaving}
+            onClose={() => setIsDiffModalOpen(false)}
+            onConfirm={handleSaveAll}
+          />
+        </>
+      )}
     </div>
   )
 }

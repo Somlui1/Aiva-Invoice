@@ -100,5 +100,5 @@
 | v5-task-4 | Command Palette & Splash Screen (Round 2) | completed | CommandPalette (Ctrl+K, 4 tabs, search & navigate), SplashScreen (#splash animation); 7/7 tests pass |
 | v5-task-5 | Queue Experience, PDF Dock Focus & .qrail (Round 3) | completed | 60:40 work.pdf-open split, 32px vertical .qrail with peek overlay, dock-rz & navpn; 4/4 tests pass |
 | v5-task-6 | Granular Column Filters in Table View (Round 3) | completed | ColumnFilterPopover (.cfp) and cfbar active filter summary bar in QueueTableView; 3/3 tests pass |
-| v5-task-7 | 4-Tab Admin Permission Console (v4.22) in /rbac (Round 4) | in_progress | 4 tabs (Users, Role Matrix, Company Matrix, Visibility Tester), Inspector pane, Draft Changes banner, Undo, Diff Modal |
-| v5-task-8 | Governance Pages Polish & Full Regression Verification (Round 4) | pending | Polish ApPage, AuditPage, CasesPage, SettingsPage, StdPage, SimPage, LoginPage; full Vitest, TSC, Next build pass |
+| v5-task-7 | 4-Tab Admin Permission Console (v4.22) in /rbac (Round 4) | completed | 4 tabs (Users, Role Matrix, Company Matrix, Visibility Tester), UserInspectorPane, Draft Changes banner, Undo, Diff Modal (4/4 tests pass, commit pending) |
+| v5-task-8 | Governance Pages Polish & Full Regression Verification (Round 4) | in_progress | Polish ApPage, AuditPage, CasesPage, SettingsPage, StdPage, SimPage, LoginPage; full Vitest, TSC, Next build pass |
