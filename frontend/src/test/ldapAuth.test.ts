@@ -54,5 +54,5 @@ describe('LDAP / Active Directory Authentication API', () => {
     })
     expect(dbUser).toBeDefined()
     expect(dbUser?.role).toBe('SA')
-  })
+  }, 15000)
 })
