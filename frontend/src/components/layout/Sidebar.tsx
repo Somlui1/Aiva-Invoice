@@ -137,8 +137,12 @@ export function Sidebar({ currentPage, onNavigate, onToggleNav }: SidebarProps) 
   return (
     <aside className="nav" aria-label="เมนูหลัก">
       <div className="nav-org">
-        <span className="av">AP</span>
-        <div>
+        <span className="brand-tile">
+          <span className="logo-mark" role="img" aria-label="AIVA">
+            A
+          </span>
+        </span>
+        <div className="tx">
           <b>AAPICO AP Hub</b>
           <span>ระบบตรวจสอบใบแจ้งหนี้อัตโนมัติ</span>
         </div>

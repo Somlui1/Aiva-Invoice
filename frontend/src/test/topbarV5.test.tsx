@@ -14,7 +14,10 @@ describe('Topbar v5.2 Component', () => {
     n: 'ทดสอบ ผู้ใช้งาน',
     role: 'EU' as const,
     email: 'test@aapico.com',
-    companies: ['AH'],
+    rcvName: 'TEST USER',
+    emp: 11111,
+    co: ['AH'],
+    unit: 'ฝ่ายบัญชี',
   }
 
   beforeEach(() => {

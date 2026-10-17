@@ -21,11 +21,15 @@ import { SettingsPage } from './components/governance/SettingsPage'
 import { StdPage } from './components/governance/StdPage'
 import { SimPage } from './components/governance/SimPage'
 import { DocumentAlertHost } from './features/notifications/DocumentAlertHost'
+import { SplashScreen } from './components/layout/SplashScreen'
+import { CommandPalette } from './components/layout/CommandPalette'
 
 export function PortalShell({ initialPage = 'queue' }: { initialPage?: PageKey }) {
   const { currentUser, isAuthenticated } = useAuth()
   const { isEvidenceDockOpen, closeEvidenceDock } = useInvoices()
   const [currentPage, setCurrentPage] = useState<PageKey>(initialPage)
+  const [isCmdkOpen, setIsCmdkOpen] = useState(false)
+  const [showSplash, setShowSplash] = useState(true)
   const [isNavCollapsed, setIsNavCollapsed] = useState<boolean>(() => {
     try {
       return typeof window !== 'undefined' && window.localStorage.getItem('aiva.nav') === 'c'
@@ -97,6 +101,12 @@ export function PortalShell({ initialPage = 'queue' }: { initialPage?: PageKey }
   // Keyboard shortcut listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault()
+        setIsCmdkOpen(prev => !prev)
+        return
+      }
+
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement).tagName)) {
         return
       }
@@ -140,7 +150,12 @@ export function PortalShell({ initialPage = 'queue' }: { initialPage?: PageKey }
       className={`shell ${isNavCollapsed ? 'nav-c' : ''} ${isEvidenceDockOpen ? 'nav-auto' : ''}`}
       id="shell"
     >
-      <Topbar isNavCollapsed={isNavCollapsed} onToggleNav={toggleNav} />
+      {showSplash && <SplashScreen onDismiss={() => setShowSplash(false)} />}
+      <Topbar
+        isNavCollapsed={isNavCollapsed}
+        onToggleNav={toggleNav}
+        onOpenCmdk={() => setIsCmdkOpen(true)}
+      />
       <div className="body">
         <Sidebar
           currentPage={currentPage}
@@ -151,6 +166,11 @@ export function PortalShell({ initialPage = 'queue' }: { initialPage?: PageKey }
           {renderCurrentPage()}
         </main>
       </div>
+      <CommandPalette
+        isOpen={isCmdkOpen}
+        onClose={() => setIsCmdkOpen(false)}
+        onNavigate={handleNavigate}
+      />
       <Modal />
       <Toast />
       <DocumentAlertHost onNavigateQueue={() => handleNavigate('queue')} />

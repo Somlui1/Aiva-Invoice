@@ -94,11 +94,11 @@
 | task-audit-company-full-verify | Full Regression Verification & Integration Pass | completed | Full vitest suite 53/53 files (289/289 tests) pass; tsc --noEmit exit 0 (0 errors); Next.js 15 standalone build 19/19 routes exit 0 |
 | v5-brainstorm | Complete Brainstorming & Architecture Design | completed | Approved by user; saved to docs/plans/2026-10-17-aiva-v5-2-ui-ux-upgrade-design.md; commit eb10276 |
 | v5-plan | Generate Detailed Implementation Plan | completed | Written to docs/plans/2026-10-17-aiva-v5-2-ui-ux-upgrade.md |
-| v5-task-1 | CSS Foundation & Design Tokens (Round 1) | pending | Extract tokens/css from HTML v5.2 (aivacss, aivacss52, cfcss, pmcss), update tokens/base/layout/components/queue/evidence, add cf.css, pm.css, fx.css |
-| v5-task-2 | ThemeContext & Layout 100dvh Integration (Round 1) | pending | ThemeContext (dark default, localStorage, toggle), update layout.tsx fonts & App.tsx shell 2x2 grid |
-| v5-task-3 | Topbar & Theme Switcher Component (Round 2) | pending | Breadcrumb pill, cmdk button, theme-sw toggle, profile pill |
-| v5-task-4 | Command Palette & Splash Screen (Round 2) | pending | CommandPalette (Ctrl+K, 4 tabs, search & navigate), SplashScreen (#splash animation) |
-| v5-task-5 | Queue Experience, PDF Dock Focus & .qrail (Round 3) | pending | 60:40 work.pdf-open split, 32px vertical .qrail with peek overlay, fit-to-width PDF scaling, dock-rz & navpn |
+| v5-task-1 | CSS Foundation & Design Tokens (Round 1) | completed | Upgraded tokens.css (dark/light), base.css (100dvh, 12.5px), layout.css (2x2 grid, display: contents), queue.css badges, added cf.css, pm.css, fx.css; commit 8a1e670 |
+| v5-task-2 | ThemeContext & Layout 100dvh Integration (Round 1) | completed | ThemeContext (dark default, localStorage, view transitions), updated layout.tsx fonts/styles, App.tsx wrapped; commit 52052e0 |
+| v5-task-3 | Topbar & Theme Switcher Component (Round 2) | completed | Breadcrumb pill, cmdk button, theme-sw toggle, profile pill; commit ef42cae |
+| v5-task-4 | Command Palette & Splash Screen (Round 2) | completed | CommandPalette (Ctrl+K, 4 tabs, search & navigate), SplashScreen (#splash animation); 7/7 tests pass |
+| v5-task-5 | Queue Experience, PDF Dock Focus & .qrail (Round 3) | in_progress | 60:40 work.pdf-open split, 32px vertical .qrail with peek overlay, fit-to-width PDF scaling, dock-rz & navpn |
 | v5-task-6 | Granular Column Filters in Table View (Round 3) | pending | ColumnFilterPopover (.cfp) and cfbar active filter summary bar in QueueTableView |
 | v5-task-7 | 4-Tab Admin Permission Console (v4.22) in /rbac (Round 4) | pending | 4 tabs (Users, Role Matrix, Company Matrix, Visibility Tester), Inspector pane, Draft Changes banner, Undo, Diff Modal |
 | v5-task-8 | Governance Pages Polish & Full Regression Verification (Round 4) | pending | Polish ApPage, AuditPage, CasesPage, SettingsPage, StdPage, SimPage, LoginPage; full Vitest, TSC, Next build pass |
