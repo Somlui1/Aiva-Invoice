@@ -31,12 +31,14 @@ export function QueuePage() {
   } = useInvoices()
 
   const [modalAction, setModalAction] = useState<ActionType | null>(null)
+  const [isQueuePeeked, setIsQueuePeeked] = useState(false)
 
   // The dock column is the grid's fourth track, and `queue.css` sizes it from
   // `--dc` (default `0fr`, i.e. zero width). Until the same condition that mounts
   // `<EvidenceViewerDock/>` also opens that track, the dock renders into a
   // 0-pixel column: the button flips to "ปิด PDF" and nothing appears.
   const dockVisible = isEvidenceDockOpen && !!selectedDoc
+  const isQHidden = dockVisible
 
   return (
     <div className="pg" data-pg="queue">
@@ -71,17 +73,43 @@ export function QueuePage() {
         <QueueTableView />
       ) : (
         <div
-          className={`work${dockVisible ? ' pdf-open' : ''}`}
+          className={`work${dockVisible ? ' pdf-open q-hide' : ''}${isQueuePeeked ? ' q-peek' : ''}`}
           id="work"
           style={
             {
-              '--rc': '0px',
-              '--qc': dockVisible ? '0px' : 'var(--q-w)',
+              '--rc': isQHidden ? '32px' : '0px',
+              '--qc': isQHidden ? '0px' : 'var(--q-w)',
               '--mc': dockVisible ? `${((1 - dockSplitRatio) * 100).toFixed(1)}fr` : '100fr',
               '--dc': dockVisible ? `${(dockSplitRatio * 100).toFixed(1)}fr` : '0fr',
             } as React.CSSProperties
           }
         >
+          {/* Vertical Queue Rail (when dock is open) */}
+          {isQHidden && (
+            <button
+              type="button"
+              className="qrail"
+              id="qrail"
+              onClick={() => setIsQueuePeeked(prev => !prev)}
+              aria-label="แสดงรายการคิว (peek)"
+              title="แสดงรายการคิว"
+            >
+              <span className="n" id="qrailN">
+                {filteredDocs.length}
+              </span>
+              <span className="vt">คิวตรวจสอบ</span>
+            </button>
+          )}
+
+          {/* Scrim to close peek overlay */}
+          {isQHidden && isQueuePeeked && (
+            <div
+              className="qscrim"
+              id="qscrim"
+              onClick={() => setIsQueuePeeked(false)}
+            />
+          )}
+
           {/* Left Column: Queue List */}
           <aside className="col q47" aria-label="คิวเอกสาร">
             <div className="ph">

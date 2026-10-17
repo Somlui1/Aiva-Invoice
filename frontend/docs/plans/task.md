@@ -98,7 +98,7 @@
 | v5-task-2 | ThemeContext & Layout 100dvh Integration (Round 1) | completed | ThemeContext (dark default, localStorage, view transitions), updated layout.tsx fonts/styles, App.tsx wrapped; commit 52052e0 |
 | v5-task-3 | Topbar & Theme Switcher Component (Round 2) | completed | Breadcrumb pill, cmdk button, theme-sw toggle, profile pill; commit ef42cae |
 | v5-task-4 | Command Palette & Splash Screen (Round 2) | completed | CommandPalette (Ctrl+K, 4 tabs, search & navigate), SplashScreen (#splash animation); 7/7 tests pass |
-| v5-task-5 | Queue Experience, PDF Dock Focus & .qrail (Round 3) | in_progress | 60:40 work.pdf-open split, 32px vertical .qrail with peek overlay, fit-to-width PDF scaling, dock-rz & navpn |
-| v5-task-6 | Granular Column Filters in Table View (Round 3) | pending | ColumnFilterPopover (.cfp) and cfbar active filter summary bar in QueueTableView |
+| v5-task-5 | Queue Experience, PDF Dock Focus & .qrail (Round 3) | completed | 60:40 work.pdf-open split, 32px vertical .qrail with peek overlay, dock-rz & navpn; 4/4 tests pass |
+| v5-task-6 | Granular Column Filters in Table View (Round 3) | in_progress | ColumnFilterPopover (.cfp) and cfbar active filter summary bar in QueueTableView |
 | v5-task-7 | 4-Tab Admin Permission Console (v4.22) in /rbac (Round 4) | pending | 4 tabs (Users, Role Matrix, Company Matrix, Visibility Tester), Inspector pane, Draft Changes banner, Undo, Diff Modal |
 | v5-task-8 | Governance Pages Polish & Full Regression Verification (Round 4) | pending | Polish ApPage, AuditPage, CasesPage, SettingsPage, StdPage, SimPage, LoginPage; full Vitest, TSC, Next build pass |

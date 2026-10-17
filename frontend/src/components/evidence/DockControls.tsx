@@ -34,6 +34,10 @@ export interface DockControlsProps {
   onRunTests?: () => void
   onOpenNewTab?: () => void
   onPrint?: () => void
+  docIndex?: number
+  docTotal?: number
+  onPrevDoc?: () => void
+  onNextDoc?: () => void
 }
 
 /** Human label for proxy source fallback display */
@@ -59,6 +63,10 @@ export function DockControls({
   onRunTests,
   onOpenNewTab,
   onPrint,
+  docIndex,
+  docTotal,
+  onPrevDoc,
+  onNextDoc,
 }: DockControlsProps) {
   const { currentUser } = useAuth()
 
@@ -173,6 +181,30 @@ export function DockControls({
         </button>
 
         <span className="sep" aria-hidden="true" />
+
+        {typeof docIndex === 'number' && typeof docTotal === 'number' && (
+          <span className="navpn" role="group" aria-label="เลื่อนเอกสาร">
+            <button
+              type="button"
+              disabled={docIndex <= 0}
+              onClick={onPrevDoc}
+              title="เอกสารก่อนหน้า (K / ↑)"
+              aria-label="ฉบับก่อนหน้า"
+            >
+              <Icon name="chevL" size="sm" />
+            </button>
+            <span>{docIndex >= 0 ? `${docIndex + 1} / ${docTotal}` : '–'}</span>
+            <button
+              type="button"
+              disabled={docIndex < 0 || docIndex >= docTotal - 1}
+              onClick={onNextDoc}
+              title="เอกสารถัดไป (J / ↓)"
+              aria-label="ฉบับถัดไป"
+            >
+              <Icon name="chevR" size="sm" />
+            </button>
+          </span>
+        )}
 
         <button
           type="button"

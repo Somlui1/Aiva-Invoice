@@ -60,7 +60,14 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
     dockSplitRatio,
     setDockSplitRatio,
     setIsPdfLoading,
+    filteredDocs,
+    selectDoc,
   } = useInvoices()
+
+  const docIndex = filteredDocs.findIndex(d => d.doc === doc.doc)
+  const docTotal = filteredDocs.length
+  const handlePrevDoc = docIndex > 0 ? () => selectDoc(filteredDocs[docIndex - 1]?.doc) : undefined
+  const handleNextDoc = docIndex >= 0 && docIndex < docTotal - 1 ? () => selectDoc(filteredDocs[docIndex + 1]?.doc) : undefined
 
   const [currentPage, setCurrentPage] = useState<number>(evidenceDockFocus?.page || 1)
   const [zoom, setZoom] = useState<number>(1)
@@ -379,6 +386,10 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
         boxCount={mockMode ? mockOverlayBoxes.length : pdfOverlayBoxes.length}
         activeRuleId={focusRuleId}
         onSelectRule={handleSelectRule}
+        docIndex={docIndex}
+        docTotal={docTotal}
+        onPrevDoc={handlePrevDoc}
+        onNextDoc={handleNextDoc}
       />
 
       <div className="dock-body evd" ref={bodyRef}>
