@@ -7,6 +7,7 @@ import { SettingsProvider } from './context/SettingsContext'
 import { ToastModalProvider } from './context/ToastModalContext'
 import { InvoiceProvider, useInvoices } from './context/InvoiceContext'
 import { SimProvider } from './context/SimContext'
+import { ThemeProvider } from './context/ThemeContext'
 import { Topbar } from './components/layout/Topbar'
 import { Sidebar, PageKey } from './components/layout/Sidebar'
 import { Modal } from './components/layout/Modal'
@@ -165,17 +166,19 @@ export function App({
   initialUser?: User | null
 }) {
   return (
-    <AuthProvider initialUser={initialUser}>
-      <SettingsProvider>
-        <ToastModalProvider>
-          <InvoiceProvider>
-            <SimProvider>
-              <PortalShell initialPage={initialPage} />
-            </SimProvider>
-          </InvoiceProvider>
-        </ToastModalProvider>
-      </SettingsProvider>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider initialUser={initialUser}>
+        <SettingsProvider>
+          <ToastModalProvider>
+            <InvoiceProvider>
+              <SimProvider>
+                <PortalShell initialPage={initialPage} />
+              </SimProvider>
+            </InvoiceProvider>
+          </ToastModalProvider>
+        </SettingsProvider>
+      </AuthProvider>
+    </ThemeProvider>
   )
 }
 
