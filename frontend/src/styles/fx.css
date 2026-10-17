@@ -80,31 +80,65 @@
 
 #splash .emb {
   position: relative;
-  width: 96px;
-  height: 96px;
-  display: grid;
-  place-items: center;
+  width: 14rem;
+  height: 10rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: spFloat 3.2s ease-in-out infinite;
   margin-bottom: 18px;
 }
 
-#splash .ring {
+#splash .emb .ring {
   position: absolute;
-  inset: -12px;
+  left: 50%;
+  top: 50%;
   border-radius: 50%;
-  border: 2px solid transparent;
-  border-top-color: var(--teal, #2dd4c4);
-  border-right-color: var(--navy-600, #5b9bff);
-  animation: ringSpin 2s linear infinite;
+  border: 1.3px solid;
+  pointer-events: none;
 }
 
-#splash .ring.r2 {
-  inset: -22px;
-  border-width: 1px;
-  border-top-color: var(--vio, #b49cff);
-  border-right-color: transparent;
-  animation-duration: 3.5s;
-  animation-direction: reverse;
-  opacity: .6;
+#splash .emb .r1 {
+  width: 13.4rem;
+  height: 6.4rem;
+  margin: -3.2rem 0 0 -6.7rem;
+  border-color: rgba(45, 212, 196, .65);
+  box-shadow: 0 0 12px rgba(45, 212, 196, .4);
+  transform: rotate(-24deg);
+  animation: spR1 7s linear infinite;
+}
+
+#splash .emb .r2 {
+  width: 13.6rem;
+  height: 4.6rem;
+  margin: -2.3rem 0 0 -6.8rem;
+  border-color: rgba(129, 140, 248, .7);
+  box-shadow: 0 0 12px rgba(129, 140, 248, .4);
+  transform: rotate(12deg);
+  animation: spR2 9s linear infinite;
+}
+
+@keyframes spR1 {
+  to { transform: rotate(336deg); }
+}
+
+@keyframes spR2 {
+  to { transform: rotate(-348deg); }
+}
+
+@keyframes spFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes spPulse {
+  0% { opacity: .6; transform: scale(.9); }
+  100% { opacity: 1; transform: scale(1.1); }
+}
+
+@keyframes spBeam {
+  0% { left: -50%; }
+  100% { left: 150%; }
 }
 
 @keyframes ringSpin {

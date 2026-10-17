@@ -8,16 +8,24 @@ export interface SplashScreenProps {
   statusText?: string
 }
 
+const PHASES = ['Initializing workspace…', 'Preparing workspace…', 'Almost ready…', 'Ready']
+
 export function SplashScreen({
-  autoDismissMs = 700,
+  autoDismissMs = 1200,
   onDismiss,
-  statusText = 'Initializing workspace…',
+  statusText,
 }: SplashScreenProps) {
   const [isFading, setIsFading] = useState(false)
   const [isDestroyed, setIsDestroyed] = useState(false)
+  const [phaseIndex, setPhaseIndex] = useState(0)
 
   useEffect(() => {
     if (!autoDismissMs || autoDismissMs <= 0) return
+
+    const stepMs = Math.max(150, Math.floor(autoDismissMs / 4))
+    const interval = setInterval(() => {
+      setPhaseIndex(prev => Math.min(prev + 1, PHASES.length - 1))
+    }, stepMs)
 
     const fadeTimer = setTimeout(() => {
       setIsFading(true)
@@ -29,6 +37,7 @@ export function SplashScreen({
     }, autoDismissMs + 450)
 
     return () => {
+      clearInterval(interval)
       clearTimeout(fadeTimer)
       clearTimeout(destroyTimer)
     }
@@ -99,9 +108,7 @@ export function SplashScreen({
             }}
           />
           <span className="brand-tile">
-            <span className="logo-mark" role="img" aria-label="AIVA">
-              A
-            </span>
+            <span className="logo-mark" role="img" aria-label="AIVA" />
           </span>
         </div>
         <h1>AIVA</h1>
@@ -121,7 +128,7 @@ export function SplashScreen({
           <b />
         </div>
         <div className="st" id="spSt">
-          {statusText}
+          {statusText || PHASES[phaseIndex]}
         </div>
       </div>
     </div>

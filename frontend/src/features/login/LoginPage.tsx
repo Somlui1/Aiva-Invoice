@@ -14,6 +14,7 @@ import { ProgressBar } from "./ProgressBar";
 import { Toasts, useToasts } from "./Toasts";
 import { safeRedirect } from "./utils";
 import { useLogin } from "./useLogin";
+import { FX } from "../../lib/fxEngine";
 import "./login.css";
 
 export interface LoginPageProps {
@@ -52,6 +53,8 @@ export function LoginPage({ redirectTo, initialError = null, adapter, mock, show
           localStorage.setItem("aiva.auth.user", user.id);
           localStorage.setItem("aiva.auth.profile", JSON.stringify(user));
           localStorage.removeItem("aiva.test.unauthenticated");
+          FX.warp(window.innerWidth * 0.5, window.innerHeight * 0.4);
+          FX.welcome({ n: user.name || user.id, role: user.role });
         }
       } catch {}
       if (onSuccess) return onSuccess(user, method);
