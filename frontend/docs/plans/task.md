@@ -112,10 +112,10 @@
 | restore-task-7 | Comprehensive Regression Verification & Production Build | completed | Full Vitest test suite (67/67 files, 335/335 tests passed), TypeScript compile (tsc --noEmit exit 0), Next.js production build (19/19 routes generated exit 0) |
 | defect-fix-brainstorm | Brainstorming & Architecture Design for 6 UI/UX Defects (v5.2 Parity) | completed | Design approved & written to docs/plans/2026-10-17-six-defects-v5-2-parity-design.md |
 | defect-fix-plan | Implementation Plan for 6 UI/UX Defects Resolution | completed | Written to docs/plans/2026-10-17-six-defects-v5-2-parity.md |
-| defect-task-1 | Theme Clashing Fix (Table Panels, KPI Cards, Excel Grid) | pending | Remove hardcoded white, bind .panel, .tbl-wrap, rows to var(--surface) |
-| defect-task-2 | Profile Modal React Portal Mount & Glassmorphic Floating Card | pending | Render via createPortal on document.body, remove inline white styles |
-| defect-task-3 | Auto-Seed 125 Invoices Ingestion & Topbar Role Quick Switcher | pending | Remove .cleared, fix docCount >= 125, seed 125 docs, add Role Switcher |
-| defect-task-4 | FX Animation Engine Core & Theme Transition Integration | pending | Create fxEngine.ts, fx.css animations, bloom/sparks/ring/sweep/hud |
-| defect-task-5 | Login Page Warp & Welcome FX + Splash Screen Orbital Rings Animation | pending | Login exit split #lg.out, warp, welcome card, splash .r1/.r2 orbital spin |
-| defect-task-6 | Brand Tile Logo Assets & Prism v2 Duotone Icon Component | pending | Remove letter 'A', bind logo.png with --logo-big & mark-glow, Prism v2 Icon |
-| defect-task-7 | Comprehensive Regression Verification & Production Build Validation | pending | Full Vitest test suite, TypeScript compile, Next.js production build |
+| defect-task-1 | Theme Clashing Fix (Table Panels, KPI Cards, Excel Grid) | completed | Removed hardcoded white, bound .panel, .tbl-wrap, tr even/hover, .kpi.on to var(--surface); commit fe4eb7f |
+| defect-task-2 | Profile Modal React Portal Mount & Glassmorphic Floating Card | completed | Rendered via createPortal on document.body, glassmorphic design tokens; commit 0eefe8a |
+| defect-task-3 | Auto-Seed 125 Invoices Ingestion & Topbar Role Quick Switcher | completed | Removed .cleared, docCount >= 125, seeded 125 docs, added Topbar Role Switcher; commit d995956 |
+| defect-task-4 | FX Animation Engine Core & Theme Transition Integration | completed | Created fxEngine.ts, fx.css animations, bloom/sparks/ring/sweep/hud; commit fb5a686 |
+| defect-task-5 | Login Page Warp & Welcome FX + Splash Screen Orbital Rings Animation | completed | Login exit split, warp, welcome card, splash .r1/.r2 orbital spin; commit f8b846a |
+| defect-task-6 | Brand Tile Logo Assets & Prism v2 Duotone Icon Component | completed | Removed letter 'A', bound logo.png with --logo-big & mark-glow, Prism v2 Icon duotone layers; commit a191782 |
+| defect-task-7 | Comprehensive Regression Verification & Production Build Validation | completed | Vitest 73/73 test files (355/355 passed), tsc --noEmit (0 errors), Next.js 15 production build (19/19 routes exit 0) |
