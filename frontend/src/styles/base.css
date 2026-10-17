@@ -1,4 +1,4 @@
-/* Reset & Typography */
+/* Reset & Typography — AIVA v5.2 */
 * {
   box-sizing: border-box;
   margin: 0;
@@ -7,14 +7,16 @@
 
 html, body {
   height: 100%;
+  height: 100dvh;
+  background: var(--canvas);
+  color: var(--s-900);
 }
 
 body {
   font-family: var(--font);
   font-size: 12.5px;
   line-height: 1.45;
-  color: var(--s-900);
-  background: var(--canvas);
+  letter-spacing: .004em;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
 }
@@ -23,6 +25,11 @@ body {
   body {
     overflow: auto;
   }
+}
+
+::selection {
+  background: var(--sel-bg, rgba(45, 212, 196, .25));
+  color: inherit;
 }
 
 .mono, .num {
@@ -42,8 +49,14 @@ button, input, select, textarea {
 
 :focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px #fff, 0 0 0 4px #2563EB !important;
+  box-shadow: 0 0 0 2px var(--canvas), 0 0 0 4px var(--focus-bd) !important;
   border-radius: var(--r-sm);
+}
+
+/* Custom Scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll) transparent;
 }
 
 ::-webkit-scrollbar {
@@ -51,28 +64,47 @@ button, input, select, textarea {
   height: 8px;
 }
 
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 ::-webkit-scrollbar-thumb {
-  background: var(--s-300);
+  background: var(--scroll);
   border-radius: 8px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--s-400);
+  background: var(--scroll-h);
   background-clip: padding-box;
   border: 2px solid transparent;
 }
 
+/* Icons */
 .ico {
   width: 16px;
   height: 16px;
   flex: none;
   stroke: currentColor;
   fill: none;
-  stroke-width: 1.8;
+  stroke-width: 1.75;
   stroke-linecap: round;
   stroke-linejoin: round;
+  transition: transform .18s var(--ease), filter .2s, color .15s;
+}
+
+.ico .f {
+  fill: currentColor;
+  fill-opacity: var(--ico-f, .2);
+  stroke: none;
+  transition: fill-opacity .2s;
+}
+
+.ico .a {
+  fill: currentColor;
+  stroke: none;
 }
 
 .ico.sm {
@@ -115,6 +147,19 @@ button, input, select, textarea {
 
 [hidden] {
   display: none !important;
+}
+
+input[type="checkbox"], input[type="radio"] {
+  accent-color: #2563eb;
+}
+
+::placeholder {
+  color: var(--s-400);
+}
+
+select, option {
+  background: var(--surface-2);
+  color: var(--s-800);
 }
 
 @media (prefers-reduced-motion: reduce) {

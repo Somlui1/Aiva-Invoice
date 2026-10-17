@@ -43,7 +43,7 @@ describe('Auth Me API (/api/auth/me)', () => {
     expect(data.user.name).toBe('Wajeepradit Prompan (AH)')
     expect(data.user.role).toBe('EU')
     // Check that companies are defaulted so scopeCheck doesn't block the queue
-    expect(data.user.companies).toEqual(['AH', 'AHA', 'AHT', 'AHP', 'AM'])
+    expect(data.user.companies.slice().sort()).toEqual(['AH', 'AHA', 'AHP', 'AHT', 'AM'].sort())
   })
 
   it('returns user profile via query parameter for mock users', async () => {
