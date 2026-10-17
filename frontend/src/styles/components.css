@@ -146,12 +146,13 @@ kbd {
   border-radius: 4px;
   padding: 0 4px;
   color: var(--s-500);
-  background: #fff;
+  background: var(--inp, var(--surface));
 }
 
 /* ================= Panels & Form Controls ================= */
 .panel {
-  background: #fff;
+  background: var(--surface);
+  color: var(--s-900);
   border: 1px solid var(--line);
   border-radius: 8px;
   margin-bottom: 14px;
