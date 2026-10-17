@@ -110,4 +110,4 @@
 | restore-task-5 | Verify Oracle Receipts & Evidence BBox in InvoiceDetailPane.tsx with 125 Real Invoices | completed | Verified ใบรับ Oracle tab, PO chips, variance diff, BBox evidence linking, and 125 real documents distribution (51 Auto-pass, 23 Review, 12 Hold, 39 Manual Review); src/test/oracle-receipts-pane.test.tsx (2/2 passed) |
 | restore-task-6 | Preserve 100% Business Logic & Document Status State Machine | completed | Guaranteed 100% role permissions, scope rules, and state machine transitions (Confirm, Review, Hold, Reject, Unconfirm); src/test/status-state-machine-regression.test.ts (3/3 passed) |
 | restore-task-7 | Comprehensive Regression Verification & Production Build | completed | Full Vitest test suite (67/67 files, 335/335 tests passed), TypeScript compile (tsc --noEmit exit 0), Next.js production build (19/19 routes generated exit 0) |
-
+| defect-fix-brainstorm | Brainstorming & Architecture Design for 6 UI/UX Defects (v5.2 Parity) | in_progress | Exploring context, root causes & aligning architecture design |
