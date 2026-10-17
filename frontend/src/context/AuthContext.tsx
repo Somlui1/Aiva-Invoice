@@ -25,6 +25,7 @@ interface AuthContextType {
   can: (permission: Permission) => boolean
   scopeCheck: (doc: InvoiceDoc) => { ok: boolean; why?: string }
   switchUser: (userId: string) => void
+  switchRole: (role: RoleKey) => void
   logout: () => void
   auditLogs: AuditEntry[]
   logAudit: (act: string, doc: string, detail: string) => void
@@ -223,6 +224,25 @@ export function AuthProvider({
     } catch {}
   }, [])
 
+  const switchRole = useCallback((role: RoleKey) => {
+    setCurrentUser(prev => {
+      const updated = {
+        ...prev,
+        role,
+        rcvName: role === 'EU' ? (prev.rcvName && prev.rcvName !== '—' ? prev.rcvName : 'SOMSAK JAIDEE') : '—',
+        co: prev.co && prev.co.length > 0 ? prev.co : ['AH', 'AHA', 'AHT', 'AHP', 'AM']
+      }
+      try {
+        if (typeof window !== 'undefined') {
+          const profile = JSON.parse(window.localStorage.getItem('aiva.auth.profile') || '{}')
+          profile.role = role
+          window.localStorage.setItem('aiva.auth.profile', JSON.stringify(profile))
+        }
+      } catch {}
+      return updated
+    })
+  }, [])
+
   return (
     <AuthContext.Provider
       value={{
@@ -233,6 +253,7 @@ export function AuthProvider({
         can,
         scopeCheck,
         switchUser,
+        switchRole,
         logout,
         auditLogs,
         logAudit

@@ -73,7 +73,7 @@ export async function ensureProductionSampleData(): Promise<void> {
     }
 
     const docCount = await prisma.document.count().catch(() => -1)
-    if (docCount > 0) {
+    if (docCount >= 125) {
       return // Already populated
     }
 

@@ -16,7 +16,7 @@ interface TopbarProps {
 }
 
 export function Topbar({ onToggleNav, onOpenCmdk, currentPageTitle }: TopbarProps) {
-  const { currentUser, currentRole, logout } = useAuth()
+  const { currentUser, currentRole, switchRole, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const [backendStatus, setBackendStatus] = useState<BackendHealth | null>(null)
   const [checking, setChecking] = useState<boolean>(false)
@@ -138,6 +138,31 @@ export function Topbar({ onToggleNav, onOpenCmdk, currentPageTitle }: TopbarProp
       </button>
 
       <div className="who">
+        <select
+          className="role-quick-switcher"
+          aria-label="สลับบทบาทอย่างรวดเร็ว"
+          value={currentUser.role}
+          onChange={e => switchRole(e.target.value as any)}
+          style={{
+            height: 28,
+            fontSize: 11.5,
+            fontWeight: 700,
+            borderRadius: 6,
+            border: '1px solid var(--line-strong)',
+            background: 'var(--surface-2)',
+            color: 'var(--s-900)',
+            padding: '0 6px',
+            cursor: 'pointer',
+            marginRight: 6
+          }}
+          title="สลับบทบาทเพื่อทดสอบมุมมอง (SA / ACC / APR / EU)"
+        >
+          <option value="SA">SA · Super Admin</option>
+          <option value="ACC">ACC · ฝ่ายบัญชี AP</option>
+          <option value="APR">APR · ผู้อนุมัติ</option>
+          <option value="EU">EU · ผู้ตรวจรับ (Receiver)</option>
+        </select>
+
         <button
           type="button"
           className="user-profile-btn"
