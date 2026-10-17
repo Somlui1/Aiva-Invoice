@@ -1,6 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { triggerThemeFx } from '../lib/fxEngine'
 
 export type Theme = 'dark' | 'light'
 
@@ -80,6 +81,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
           Math.max(y, window.innerHeight - y)
         ) + 40
 
+        triggerThemeFx(triggerEl, nextTheme === 'light')
+
         try {
           const transition = doc.startViewTransition(() => {
             applyThemeToDom(nextTheme)
@@ -104,6 +107,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
           applyThemeToDom(nextTheme)
         }
       } else {
+        triggerThemeFx(triggerEl, nextTheme === 'light')
         applyThemeToDom(nextTheme)
       }
 
