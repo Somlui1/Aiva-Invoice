@@ -1,4 +1,5 @@
 import React from 'react'
+import { PRISM_ICONS } from './prismIcons'
 
 export const ICONS = {
   menu: 'M4 6h16M4 12h16M4 18h16',
@@ -48,11 +49,13 @@ export const ICONS = {
   minus: 'M5 12h14',
   rotate: 'M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67',
   save: 'M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2zM17 21v-8H7v8M7 3v5h8',
-  logout: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9'
+  logout: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9',
+  sun: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42',
+  moon: 'M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z',
+  sparkle: 'M12 3l1.9 5.1 5.1 1.9-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z'
 } as const
 
-
-export type IconName = keyof typeof ICONS
+export type IconName = keyof typeof ICONS | string
 
 export interface IconProps {
   name: IconName
@@ -63,7 +66,25 @@ export interface IconProps {
 
 export function Icon({ name, className = '', size = 'md', style }: IconProps) {
   const sizeClass = size === 'sm' ? 'sm' : size === 'lg' ? 'lg' : ''
-  const path = ICONS[name] || ''
+  const prism = (PRISM_ICONS as Record<string, [string, string?, string?]>)[name]
+
+  if (prism) {
+    const [stroke, fill, accent] = prism
+    return (
+      <svg
+        className={`ico ${sizeClass} ${className}`.trim()}
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+        style={style}
+      >
+        {fill && <path className="f" d={fill} />}
+        <path d={stroke} />
+        {accent && <path className="a" d={accent} />}
+      </svg>
+    )
+  }
+
+  const legacyPath = (ICONS as Record<string, string>)[name] || ''
 
   return (
     <svg
@@ -72,7 +93,7 @@ export function Icon({ name, className = '', size = 'md', style }: IconProps) {
       aria-hidden="true"
       style={style}
     >
-      <path d={path} />
+      <path d={legacyPath} />
     </svg>
   )
 }

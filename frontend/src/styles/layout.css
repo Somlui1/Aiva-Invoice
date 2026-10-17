@@ -233,16 +233,18 @@
   isolation: isolate;
 }
 
+.logo-mark {
+  display: inline-block;
+  flex: none;
+  background: var(--logo-sm) center/contain no-repeat;
+  aspect-ratio: 975/625;
+}
+
 .brand-tile .logo-mark {
-  width: calc(var(--bt, 32px) * .75);
-  height: calc(var(--bt, 32px) * .75);
-  background: var(--teal);
-  border-radius: 4px;
-  display: grid;
-  place-items: center;
-  font-weight: 900;
-  font-size: 12px;
-  color: #0b192c;
+  width: calc(var(--bt, 44px) * .82);
+  height: auto;
+  background-image: var(--logo-big);
+  filter: var(--mark-glow);
 }
 
 .brand-tile.md {
