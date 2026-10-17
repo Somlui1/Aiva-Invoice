@@ -1,10 +1,34 @@
 'use client'
 
+import { useState, useMemo } from 'react'
 import { Icon } from '../common/Icon'
 import { StatusBadge } from '../common/StatusBadge'
 import { useInvoices, TODAY } from '../../context/InvoiceContext'
 import { useSettings } from '../../context/SettingsContext'
 import { SEVERITY_OF_CODE } from '../../mock/rules'
+import { ColumnFilterPopover, ColumnFilterValue, ColumnFilterType } from './ColumnFilterPopover'
+
+interface ColumnDef {
+  key: string
+  label: string
+  type: ColumnFilterType
+  isNum?: boolean
+}
+
+const COLUMNS: ColumnDef[] = [
+  { key: 'inv', label: 'เลขที่ใบแจ้งหนี้', type: 'text' },
+  { key: 'company', label: 'บริษัท', type: 'select' },
+  { key: 'vendor', label: 'ผู้ขาย', type: 'text' },
+  { key: 'stax', label: 'Tax ID ผู้ขาย', type: 'text' },
+  { key: 'po', label: 'PO', type: 'text' },
+  { key: 'receiver', label: 'Receiver', type: 'text' },
+  { key: 'total', label: 'ยอดรวม', type: 'range', isNum: true },
+  { key: 'status', label: 'สถานะ', type: 'select' },
+  { key: 'codes', label: 'รหัส', type: 'text' },
+  { key: 'assigned', label: 'ผู้รับผิดชอบ', type: 'select' },
+  { key: 'up', label: 'เข้าระบบ', type: 'text' },
+  { key: 'age', label: 'อายุ', type: 'range', isNum: true },
+]
 
 export function QueueTableView() {
   const {
@@ -18,6 +42,10 @@ export function QueueTableView() {
   } = useInvoices()
   const { orgSettings } = useSettings()
 
+  const [colFilters, setColFilters] = useState<Record<string, ColumnFilterValue>>({})
+  const [activeColKey, setActiveColKey] = useState<string | null>(null)
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
+
   const calcAge = (upDate: string): number => {
     return Math.max(
       0,
@@ -26,6 +54,74 @@ export function QueueTableView() {
       )
     )
   }
+
+  // Filtered docs after applying column filters
+  const displayedDocs = useMemo(() => {
+    return filteredDocs.filter(d => {
+      for (const [key, filter] of Object.entries(colFilters)) {
+        if (!filter) continue
+
+        if (filter.type === 'text' && filter.text) {
+          const q = filter.text.toLowerCase()
+          if (key === 'codes') {
+            const hasMatch = (d.codes || []).some(c => c.toLowerCase().includes(q))
+            if (!hasMatch) return false
+          } else {
+            const val = String((d as any)[key] ?? '').toLowerCase()
+            if (!val.includes(q)) return false
+          }
+        }
+
+        if (filter.type === 'select' && filter.selected && filter.selected.length > 0) {
+          const val = String((d as any)[key] ?? '')
+          if (!filter.selected.includes(val)) return false
+        }
+
+        if (filter.type === 'range') {
+          const numVal = key === 'age' ? calcAge(d.up) : Number((d as any)[key] ?? 0)
+          if (filter.min != null && numVal < filter.min) return false
+          if (filter.max != null && numVal > filter.max) return false
+        }
+      }
+      return true
+    })
+  }, [filteredDocs, colFilters])
+
+  // Active filter chip list
+  const activeChips = useMemo(() => {
+    return Object.entries(colFilters)
+      .filter(([_, f]) => {
+        if (!f) return false
+        if (f.type === 'text') return Boolean(f.text)
+        if (f.type === 'select') return Boolean(f.selected && f.selected.length > 0)
+        if (f.type === 'range') return f.min != null || f.max != null
+        return false
+      })
+      .map(([key, f]) => {
+        const col = COLUMNS.find(c => c.key === key)
+        const label = col?.label || key
+        let display = ''
+        if (f.type === 'text') display = `มีคำว่า "${f.text}"`
+        else if (f.type === 'select') display = f.selected?.join(', ') || ''
+        else if (f.type === 'range') {
+          if (f.min != null && f.max != null) display = `${f.min} – ${f.max}`
+          else if (f.min != null) display = `≥ ${f.min}`
+          else if (f.max != null) display = `≤ ${f.max}`
+        }
+        return { key, label, display }
+      })
+  }, [colFilters])
+
+  // Get distinct values for active column in select mode
+  const activeDistinctValues = useMemo(() => {
+    if (!activeColKey) return []
+    const counts = new Map<string, number>()
+    for (const d of filteredDocs) {
+      const val = String((d as any)[activeColKey] ?? '')
+      counts.set(val, (counts.get(val) || 0) + 1)
+    }
+    return Array.from(counts.entries()).map(([value, count]) => ({ value, count }))
+  }, [activeColKey, filteredDocs])
 
   const dmy = (isoStr: string): string => {
     if (!isoStr || isoStr.length < 10) return '…'
@@ -44,13 +140,16 @@ export function QueueTableView() {
     }
   }
 
+  const activeColDef = COLUMNS.find(c => c.key === activeColKey)
+
   return (
     <div className="tview" id="tview">
       <div className="panel">
         <div className="panel-h">
           <h3>ตารางสรุปคิวเอกสาร</h3>
           <span className="muted sm" id="tcount">
-            {filteredDocs.length} ฉบับ
+            {displayedDocs.length} ฉบับ
+            {displayedDocs.length !== filteredDocs.length && ` (จากทั้งหมด ${filteredDocs.length})`}
           </span>
           <span className="grow" />
           <div className="tsrch">
@@ -70,27 +169,92 @@ export function QueueTableView() {
           </span>
         </div>
 
+        {/* Active Column Filters Chip Bar (.cfbar) */}
+        {activeChips.length > 0 && (
+          <div className="cfbar">
+            <span className="cfl">
+              <Icon name="sliders" size="sm" />
+              ตัวกรองคอลัมน์:
+            </span>
+            {activeChips.map(chip => (
+              <span key={chip.key} className="cfchip">
+                <button
+                  type="button"
+                  className="cfchip-t"
+                  onClick={() => {
+                    setActiveColKey(chip.key)
+                    setAnchorEl(null)
+                  }}
+                >
+                  {chip.label}: {chip.display}
+                </button>
+                <button
+                  type="button"
+                  className="cfchip-x"
+                  onClick={() => {
+                    setColFilters(prev => {
+                      const next = { ...prev }
+                      delete next[chip.key]
+                      return next
+                    })
+                  }}
+                  aria-label={`ลบตัวกรอง ${chip.label}`}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+            <button
+              type="button"
+              className="btn btn-ghost sm"
+              onClick={() => setColFilters({})}
+              style={{ fontSize: 11.5, marginLeft: 'auto' }}
+            >
+              ล้างทั้งหมด
+            </button>
+          </div>
+        )}
+
         <div className="tbl-wrap">
           <table className="t">
             <thead>
               <tr>
-                <th>เลขที่ใบแจ้งหนี้</th>
-                <th>บริษัท</th>
-                <th>ผู้ขาย</th>
-                <th>Tax ID ผู้ขาย</th>
-                <th>PO</th>
-                <th>Receiver</th>
-                <th className="num">ยอดรวม</th>
-                <th>สถานะ</th>
-                <th>รหัส</th>
-                <th>ผู้รับผิดชอบ</th>
-                <th>เข้าระบบ</th>
-                <th className="num">อายุ</th>
+                {COLUMNS.map(col => {
+                  const hasFilter = Boolean(colFilters[col.key])
+                  const isOpen = activeColKey === col.key
+                  return (
+                    <th
+                      key={col.key}
+                      className={`${col.isNum ? 'num' : ''} ${hasFilter ? 'cf-on' : ''}`}
+                    >
+                      <div className="th-in">
+                        <span className="th-t">{col.label}</span>
+                        <button
+                          type="button"
+                          className="cf-btn"
+                          aria-label={`กรองคอลัมน์ ${col.label}`}
+                          aria-expanded={isOpen}
+                          onClick={e => {
+                            if (activeColKey === col.key) {
+                              setActiveColKey(null)
+                              setAnchorEl(null)
+                            } else {
+                              setActiveColKey(col.key)
+                              setAnchorEl(e.currentTarget)
+                            }
+                          }}
+                        >
+                          <Icon name="sliders" size="sm" />
+                        </button>
+                      </div>
+                    </th>
+                  )
+                })}
               </tr>
             </thead>
             <tbody id="tbody">
-              {filteredDocs.length > 0 ? (
-                filteredDocs.map(d => {
+              {displayedDocs.length > 0 ? (
+                displayedDocs.map(d => {
                   const isSelected = d.doc === selectedDocId
                   const age = calcAge(d.up)
                   const isOld = ['Review', 'Hold', 'Manual Review', 'Duplicate'].includes(d.status) && age > orgSettings.staleDays
@@ -171,6 +335,37 @@ export function QueueTableView() {
           </table>
         </div>
       </div>
+
+      {activeColDef && (
+        <ColumnFilterPopover
+          isOpen={Boolean(activeColKey)}
+          onClose={() => {
+            setActiveColKey(null)
+            setAnchorEl(null)
+          }}
+          columnKey={activeColDef.key}
+          columnLabel={activeColDef.label}
+          type={activeColDef.type}
+          initialValue={colFilters[activeColDef.key]}
+          distinctValues={activeDistinctValues}
+          totalCount={filteredDocs.length}
+          matchingCount={displayedDocs.length}
+          anchorEl={anchorEl}
+          onApply={val => {
+            setColFilters(prev => ({
+              ...prev,
+              [activeColDef.key]: val,
+            }))
+          }}
+          onClear={() => {
+            setColFilters(prev => {
+              const next = { ...prev }
+              delete next[activeColDef.key]
+              return next
+            })
+          }}
+        />
+      )}
     </div>
   )
 }
