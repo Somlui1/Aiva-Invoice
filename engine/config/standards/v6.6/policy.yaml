@@ -58,7 +58,14 @@ validation:
   v09_compare_matched_only: false    # AIVA-SYSA-ORA-01 — waiting for the Standard owner's approval
   # v4 (ORA-02 Q4): milestone billing.  The invoice prints 1 SET x 42,000 while EBS received 0.7 SET x 60,000;
   # the amounts are equal.  Not E09/E14, but not proven either -> manual_review until the Standard owner rules.
-  milestone_installment: exact_amount_pass   # off = previous behaviour (E09 + E14)
+  # v5 (2026-10-12): price differs but the line amount equals the receipt -> E12 (REVIEW), never AUTO_PASS.
+  milestone_installment: review              # off = E09 + E14 · manual_review · exact_amount_pass (v4)
+  installment_requires_lower_qty: false      # true = v4 milestone-only reading (receipt qty < invoice qty)
+  # v5: unit rules.  Different unit groups + equal line amount -> E10 (REVIEW); + different amount -> E10 + E09
+  # (HOLD).  A unit missing on either side -> the unit is not compared, the price decides.
+  uom_mismatch:
+    amount_check: true
+    unknown_unit_uses_price: true
   v08_uom_mismatch: delegate         # delegate = V-07 E10 (REVIEW), manual_review = legacy override
 required_fields: [invoice_num, po_number, customer_name, customer_address, customer_tax_id, sub_total, vat, grand_total]
 required_line_cells: [qty, uom, unit_price, amount]
@@ -74,6 +81,7 @@ ai:
   v05_name_min_confidence: 0.85
   v05_address_ai_enabled: true
   v07_min_confidence: 0.80     # Table 6 part 2: < 0.80 = E13
+  v08_mode: logic              # v5: logic = verdict from COMPUTED_FACTS (no LLM) · ai = 3-vote judge
   v08_votes: 3
   v08_consistency_guard: true
 

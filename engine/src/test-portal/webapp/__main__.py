@@ -45,6 +45,25 @@ def cmd_check(s: Settings) -> int:
     return 0
 
 
+def _wildcard(host: str) -> bool:
+    """True when uvicorn binds to every interface instead of one address."""
+    return host in ("0.0.0.0", "::", "*")
+
+
+def _reachable(s: Settings) -> str:
+    """An address worth typing in a browser: 0.0.0.0 is a binding, not a destination."""
+    if not _wildcard(s.host):
+        return s.host
+    import socket
+
+    try:                                                # this machine's LAN address (UDP associate = no packet sent)
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.connect(("8.8.8.8", 80))
+            return sock.getsockname()[0]
+    except OSError:
+        return "127.0.0.1"                              # no route (offline) - loopback still works here
+
+
 def cmd_serve(s: Settings) -> int:
     import uvicorn
 
@@ -56,7 +75,10 @@ def cmd_serve(s: Settings) -> int:
     except (CatalogError, SystemAUnavailable) as e:
         print(f"cannot start: {e}", file=sys.stderr)
         return 2
-    print(f"AIVA System A test portal: http://{s.host}:{s.port}/   (engine={s.engine}, mode={s.mode})")
+    print(f"AIVA System A test portal: http://{_reachable(s)}:{s.port}/   (engine={s.engine}, mode={s.mode})")
+    if _wildcard(s.host):
+        print(f"  listening on {s.host}:{s.port} - every interface: the portal has no login, so anyone "
+              f"who can reach this machine on port {s.port} can use it")
     # ws="none": this application is plain HTTP + polling (the screen never opens a WebSocket), and uvicorn's
     # default "auto" imports the `websockets` package at startup - which stops the whole application when the
     # interpreter it runs under has a `websockets` build that does not match it.  See agent/errors-and-solutions.md.

@@ -19,7 +19,8 @@ SET:   [SET, SETS, ST, ชุด]
 # BOX: กล่อง = box/carton (คนละหน่วยกับ CAN — ไม่ได้เทียบกัน)
 BOX:   [BOX, BOXES, CTN, CARTON, กล่อง]
 # PACK: PK/PACK คือหน่วยเดียวกัน (ห่อ) · 4 บรรทัดบนใบแจ้งหนี้ใช้ PK
-PACK:  [PACK, PACKS, PK, ห่อ]
+# v5: PAC = ตัวย่อของ PACK ที่ใบกำกับพิมพ์จริง (2026-10)
+PACK:  [PACK, PACKS, PK, PAC, ห่อ]
 # ROLL: ฝั่งใบรับใช้ Roll, ใบแจ้งหนี้ใช้ ROLL, คำไทย ม้วน
 ROLL:  [ROLL, ROLLS, ม้วน]
 # LOT: ล็อต = lot (3 บรรทัด)

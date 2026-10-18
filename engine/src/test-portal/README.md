@@ -38,7 +38,7 @@ Paperless (real DMS, tag=invoice) ──► catalog.py  ── list of documents
 copy .env.example .env         # then set PAPERLESS_*, SYSTEM_A_HOME (+ keep SYSTEM_A_* as you need them)
 python -m pip install -r requirements.txt
 python -m webapp check         # what System A will load (mode, Standard, models) and which DMS/documents
-python -m webapp serve         # http://127.0.0.1:8090/
+python -m webapp serve         # http://127.0.0.1:8090/  (WEBAPP_HOST=0.0.0.0 -> the whole LAN)
 ```
 
 `run.bat` (Windows) / `run.sh` do the same.  **Run `check` first** — it uses the same code path the application
@@ -96,7 +96,7 @@ API app mounted in-process.
 | `SYSTEM_A_ENGINE` | `inprocess` | `inprocess` or `http`. |
 | `SYSTEM_A_URL`, `SYSTEM_A_API_KEY`, `SYSTEM_A_HTTP_TIMEOUT` | `http://127.0.0.1:8080`, – , `300` | `http` only. |
 | `SYSTEM_A_MODE`, `SYSTEM_A_AI_MODE` | `production`, – | `production` = real Oracle + real VLM; `sandbox` = simulators (no VLM, no Oracle). |
-| `WEBAPP_HOST`, `WEBAPP_PORT` | `127.0.0.1`, `8090` | where the screen listens. |
+| `WEBAPP_HOST`, `WEBAPP_PORT` | `127.0.0.1`, `8090` | where the screen listens (`0.0.0.0` = every interface). |
 | `WEBAPP_WORKERS` | `4` | documents processed at the same time. |
 | `WEBAPP_RENDER_DPI` | `150` | DPI of the page images shown under the boxes (System A reads the PDF at its own DPI). |
 | `WEBAPP_PERSIST`, `WEBAPP_DATA_DIR` | `true`, `./data` | keep results per document on the server. |
@@ -193,7 +193,8 @@ be hidden by the *เฉพาะที่ต้องตรวจ* filter.
 
 ## Known limits
 
-* **Security:** no authentication; it binds to `127.0.0.1`. Do not expose it as is.
+* **Security:** no authentication.  It binds to `127.0.0.1` by default; `WEBAPP_HOST=0.0.0.0` opens it to every
+  interface, so anyone who can reach that machine and port can process documents and spend VLM/Oracle calls.
 * **Process costs money/time**: one VLM call per page plus the real Oracle, per document, per run. Use
   `SYSTEM_A_MODE=sandbox` + `SYSTEM_A_AI_MODE=sim` for a free (weaker) run: the AI-judged rules come back
   `not_evaluated`.
