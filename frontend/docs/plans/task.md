@@ -133,6 +133,6 @@
 | zero-trust-task-1 | Strict Zero-Trust `scopeCheck` & Purge Fallback Companies in `AuthContext` | completed | Strict co.length > 0 check, rejects unassigned, purged 5-company fallbacks (4/4 vitest pass); commit pending |
 | zero-trust-task-2 | Zero-Trust Empty State Banner & Notice in Queue UI | completed | Informative zero-trust empty notices in QueuePage and QueueTableView (2/2 tests pass); commit pending |
 | zero-trust-task-3 | 26 AAPICO Companies Binding & Quick Select in RBAC Console | completed | Bound all 26 AAPICO entities with select all/clear all quick actions in UserInspectorPane (2/2 tests pass); commit pending |
-| zero-trust-task-4 | Fix Test Parity & Remove Stale Mock User Expectations | pending | Update authMe.test.ts, ldapAuth.test.ts to verify zero-trust invariants |
+| zero-trust-task-4 | Fix Test Parity & Remove Stale Mock User Expectations | completed | Updated authMe, ldapAuth, domain-types to verify zero-trust invariants (13/13 tests pass); commit pending |
 | zero-trust-task-5 | Comprehensive Regression Verification & Next.js Production Build | pending | Full vitest suite (81+ files), tsc clean, next build clean |
 

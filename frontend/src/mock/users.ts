@@ -97,8 +97,7 @@ export const USERS: User[] = [
   { id: 'u5', n: 'กมลวรรณ ใจงาม', email: 'kamonwan.j@aapico.com', role: 'ACC', rcvName: '—', emp: 31005, co: ['AM', 'AHP'], unit: 'ฝ่ายบัญชี AM/AHP' },
   { id: 'u6', n: 'สมชาย วงศ์ทอง', email: 'somchai.w@aapico.com', role: 'APR', rcvName: '—', emp: 11001, co: ['AH', 'AHA', 'AHT', 'AHP', 'AM', '?'], unit: 'หัวหน้าฝ่ายบัญชี' },
   { id: 'u7', n: 'อนุชา ไอที', email: 'anucha.i@aapico.com', role: 'ADM', rcvName: '—', emp: null, co: [], unit: 'IT' },
-  { id: 'u8', n: 'กิตติ สมบูรณ์', email: 'kitti.s@aapico.com', role: 'EU', rcvName: '—', emp: null, co: ['AH', 'AHT', 'AM'], unit: 'หัวหน้าคลัง (ดูแลหลาย account)' },
-  { id: 'itsupport', n: 'กิตติศักดิ์ ซัพพอร์ต (IT Support)', email: 'itsupport@aapico.com', role: 'SA', rcvName: '—', emp: 99999, co: ['AH', 'AHA', 'AHT', 'AHP', 'AM'], unit: 'IT Support' }
+  { id: 'u8', n: 'กิตติ สมบูรณ์', email: 'kitti.s@aapico.com', role: 'EU', rcvName: '—', emp: null, co: ['AH', 'AHT', 'AM'], unit: 'หัวหน้าคลัง (ดูแลหลาย account)' }
 ]
 
 export const INITIAL_MAPS: AccountMapping[] = []

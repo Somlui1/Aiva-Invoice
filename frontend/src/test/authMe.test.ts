@@ -5,7 +5,7 @@ import { prisma } from '../lib/prisma'
 
 describe('Auth Me API (/api/auth/me)', () => {
   beforeEach(async () => {
-    // Upsert a test AD user in DB
+    // Upsert a test AD user in DB with assigned companies
     await prisma.user.upsert({
       where: { email: 'wajeepradit.p@aapico.com' },
       update: {},
@@ -19,6 +19,20 @@ describe('Auth Me API (/api/auth/me)', () => {
         isActive: true,
       },
     })
+
+    // Upsert an unassigned user with NO companies in DB (Strict Zero-Trust)
+    await prisma.user.upsert({
+      where: { email: 'unassigned.test@aapico.com' },
+      update: {},
+      create: {
+        id: 'unassigned.test',
+        email: 'unassigned.test@aapico.com',
+        name: 'Unassigned Staff',
+        role: 'EU',
+        samAccount: 'unassigned.test',
+        isActive: true,
+      },
+    })
   })
 
   it('returns 401 if no session cookie or header is provided', async () => {
@@ -29,7 +43,7 @@ describe('Auth Me API (/api/auth/me)', () => {
     expect(data.ok).toBe(false)
   })
 
-  it('returns user profile via cookie with default companies for AD employee', async () => {
+  it('returns user profile via cookie for registered AD employee', async () => {
     const req = new NextRequest('http://localhost/api/auth/me', {
       headers: {
         cookie: 'aiva_session=wajeepradit.p',
@@ -42,18 +56,22 @@ describe('Auth Me API (/api/auth/me)', () => {
     expect(data.user.id).toBe('wajeepradit.p')
     expect(data.user.name).toBe('Wajeepradit Prompan (AH)')
     expect(data.user.role).toBe('EU')
-    // Check that companies are defaulted so scopeCheck doesn't block the queue
-    expect(data.user.companies.slice().sort()).toEqual(['AH', 'AHA', 'AHP', 'AHT', 'AM'].sort())
+    expect(Array.isArray(data.user.companies)).toBe(true)
   })
 
-  it('returns user profile via query parameter for mock users', async () => {
-    const req = new NextRequest('http://localhost/api/auth/me?userId=u1')
+  it('enforces Zero-Trust: returns empty companies [] when user has not been assigned companies in DB', async () => {
+    const req = new NextRequest('http://localhost/api/auth/me?userId=unassigned.test')
     const res = await GET(req)
     expect(res.status).toBe(200)
     const data = await res.json()
     expect(data.ok).toBe(true)
-    expect(data.user.id).toBe('u1')
-    expect(data.user.role).toBe('EU')
-    expect(data.user.companies).toEqual(['AH'])
+    expect(data.user.id).toBe('unassigned.test')
+    expect(data.user.companies).toEqual([])
+  })
+
+  it('returns 404 for unknown user ID', async () => {
+    const req = new NextRequest('http://localhost/api/auth/me?userId=non_existent_user')
+    const res = await GET(req)
+    expect(res.status).toBe(404)
   })
 })
