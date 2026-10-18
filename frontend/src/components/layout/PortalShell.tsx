@@ -25,13 +25,16 @@ export function PortalShell({ initialPage = 'queue' }: { initialPage?: PageKey }
   const [currentPage, setCurrentPage] = useState<PageKey>(initialPage)
   const [isCmdkOpen, setIsCmdkOpen] = useState(false)
   const [showSplash, setShowSplash] = useState(true)
-  const [isNavCollapsed, setIsNavCollapsed] = useState<boolean>(() => {
+  const [isNavCollapsed, setIsNavCollapsed] = useState<boolean>(false)
+
+  // Sync nav collapse preference from localStorage
+  useEffect(() => {
     try {
-      return typeof window !== 'undefined' && window.localStorage.getItem('aiva.nav') === 'c'
-    } catch {
-      return false
-    }
-  })
+      if (typeof window !== 'undefined' && window.localStorage.getItem('aiva.nav') === 'c') {
+        setIsNavCollapsed(true)
+      }
+    } catch {}
+  }, [])
 
   // Redirect unauthenticated visitors to /login immediately
   useEffect(() => {

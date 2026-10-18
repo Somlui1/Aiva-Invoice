@@ -46,59 +46,72 @@ export function AuthProvider({
 }) {
   const [currentUser, setCurrentUser] = useState<User>(() => {
     if (initialUser !== undefined) return initialUser || ANONYMOUS_USER
-    if (typeof window !== 'undefined') {
-      try {
-        const unauth = window.localStorage.getItem('aiva.test.unauthenticated') === 'true'
-        if (unauth) return ANONYMOUS_USER
-
-        // 1. Try restoring rich session profile (stored by LoginPage)
-        const savedProfileStr = window.localStorage.getItem('aiva.auth.profile')
-        if (savedProfileStr) {
-          try {
-            const p = JSON.parse(savedProfileStr)
-            if (p && p.id && p.role) {
-              const companies = Array.isArray(p.companies) && p.companies.length > 0 ? p.companies : ['AH', 'AHA', 'AHT', 'AHP', 'AM']
-              const rcv = Array.isArray(p.oracleAccounts) && p.oracleAccounts.length > 0 ? p.oracleAccounts[0] : (p.rcvName || '—')
-              return {
-                id: p.id,
-                n: p.name || p.n || p.id,
-                email: p.email || `${p.id}@aapico.com`,
-                role: p.role,
-                rcvName: rcv,
-                emp: p.empId ? parseInt(String(p.empId).replace(/\D/g, ''), 10) || null : (p.emp || null),
-                co: companies,
-                unit: p.unit || 'AH',
-              }
-            }
-          } catch {}
-        }
-
-        // 2. Try restoring user ID string
-        const saved = window.localStorage.getItem('aiva.auth.user')
-        if (saved) {
-          const found = USERS.find(u => u.id === saved || u.email === saved)
-          if (found) return found
-
-          // Support any genuine AD employee outside the mock roster
-          return {
-            id: saved,
-            n: saved,
-            email: saved.includes('@') ? saved : `${saved}@aapico.com`,
-            role: (saved.toLowerCase() === 'itsupport' ? 'SA' : 'EU') as RoleKey,
-            rcvName: '—',
-            emp: null,
-            co: ['AH', 'AHA', 'AHT', 'AHP', 'AM'],
-            unit: 'AH',
-          }
-        }
-      } catch {}
-      if (process.env.NODE_ENV === 'test') {
-        return USERS.find(u => u.role === 'ACC') || USERS[0]
-      }
+    if (typeof window === 'undefined') return ANONYMOUS_USER
+    if (process.env.NODE_ENV === 'test') {
+      return USERS.find(u => u.role === 'ACC') || USERS[0]
     }
     return ANONYMOUS_USER
   })
   const [auditLogs, setAuditLogs] = useState<AuditEntry[]>(INITIAL_AUDIT)
+
+  // Restore session from localStorage on client mount (avoids SSR hydration mismatch)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (initialUser !== undefined) return
+
+    try {
+      const unauth = window.localStorage.getItem('aiva.test.unauthenticated') === 'true'
+      if (unauth) {
+        setCurrentUser(ANONYMOUS_USER)
+        return
+      }
+
+      // 1. Try restoring rich session profile (stored by LoginPage)
+      const savedProfileStr = window.localStorage.getItem('aiva.auth.profile')
+      if (savedProfileStr) {
+        try {
+          const p = JSON.parse(savedProfileStr)
+          if (p && p.id && p.role) {
+            const companies = Array.isArray(p.companies) && p.companies.length > 0 ? p.companies : ['AH', 'AHA', 'AHT', 'AHP', 'AM']
+            const rcv = Array.isArray(p.oracleAccounts) && p.oracleAccounts.length > 0 ? p.oracleAccounts[0] : (p.rcvName || '—')
+            setCurrentUser({
+              id: p.id,
+              n: p.name || p.n || p.id,
+              email: p.email || `${p.id}@aapico.com`,
+              role: p.role,
+              rcvName: rcv,
+              emp: p.empId ? parseInt(String(p.empId).replace(/\D/g, ''), 10) || null : (p.emp || null),
+              co: companies,
+              unit: p.unit || 'AH',
+            })
+            return
+          }
+        } catch {}
+      }
+
+      // 2. Try restoring user ID string
+      const saved = window.localStorage.getItem('aiva.auth.user')
+      if (saved) {
+        const found = USERS.find(u => u.id === saved || u.email === saved)
+        if (found) {
+          setCurrentUser(found)
+          return
+        }
+
+        // Support any genuine AD employee outside the mock roster
+        setCurrentUser({
+          id: saved,
+          n: saved,
+          email: saved.includes('@') ? saved : `${saved}@aapico.com`,
+          role: (saved.toLowerCase() === 'itsupport' ? 'SA' : 'EU') as RoleKey,
+          rcvName: '—',
+          emp: null,
+          co: ['AH', 'AHA', 'AHT', 'AHP', 'AM'],
+          unit: 'AH',
+        })
+      }
+    } catch {}
+  }, [initialUser])
 
   // Sync latest user profile & permissions from /api/auth/me
   useEffect(() => {
