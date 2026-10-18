@@ -123,3 +123,11 @@
 | login-fix-task-2 | Authentic Login Hero Brand Tile, Wordmark & Theme Switcher in LoginForm.tsx | completed | .lg-hero with .brand-tile.md, .logo-mark, wordmark AIVA, and ThemeSwitcher; commit 453b4e1 |
 | login-fix-task-3 | Login Page Splash Screen, .lg-enter Entry Animations & Ambient Backdrop | completed | SplashScreen on /login, FX.loginIn() on dismiss, .lg-orb, .lg-grid; commit 92ec117 |
 | login-fix-task-4 | Comprehensive Regression Verification & Next.js Production Build Validation | completed | Vitest 76/76 test files (358/358 passed), tsc clean, Next.js 15 build clean (19/19 routes exit 0) |
+| login-theme-brainstorm | Brainstorm & Design for Login Theme, Hook Order, and Zero-Trust RBAC | completed | Design approved & written to docs/plans/2026-10-18-login-theme-hooks-and-strict-rbac-design.md; commit 1e3dbd6 |
+| login-theme-plan | Generate Implementation Plan | completed | Written to docs/plans/2026-10-18-login-theme-hooks-and-strict-rbac.md; commit e424bc1 |
+| task-hook-integrity | Resolve Hook Order Violation in PortalShell.tsx | pending | Move conditional auth guard after all hooks |
+| task-theme-hydration | Fix Dark Theme SSR Hydration & Two-Pass State Sync in ThemeContext & ThemeSwitcher | pending | Dark default on SSR & client mount sync |
+| task-login-blank-auth | Purge Fake Mock Users & Enforce Blank Initial State on /login | pending | Blank credentials, no default itsupport |
+| task-zero-trust-rbac | Enforce Zero-Trust RBAC & Purge Fake Seed Users from Database Ingestion | pending | Unassigned users see 0 docs, no auto-seed itsupport |
+| task-explainer-archetypes | Refactor Explainer Role Scene (No Fake Employee Names) & Full E2E Regression Pass | pending | Role archetypes, full vitest + tsc + build pass |
+
