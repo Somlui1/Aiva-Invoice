@@ -5,6 +5,7 @@ import { Icon } from '../common/Icon'
 import { StatusBadge } from '../common/StatusBadge'
 import { useInvoices, TODAY } from '../../context/InvoiceContext'
 import { useSettings } from '../../context/SettingsContext'
+import { useAuth } from '../../context/AuthContext'
 import { SEVERITY_OF_CODE } from '../../mock/rules'
 import { ColumnFilterPopover, ColumnFilterValue, ColumnFilterType } from './ColumnFilterPopover'
 
@@ -31,6 +32,8 @@ const COLUMNS: ColumnDef[] = [
 ]
 
 export function QueueTableView() {
+  const { currentUser, currentRole } = useAuth()
+  const isUnassigned = (!currentUser.co || currentUser.co.length === 0) && currentRole.scope !== 'all'
   const {
     filteredDocs,
     selectedDocId,
@@ -323,10 +326,18 @@ export function QueueTableView() {
               ) : (
                 <tr>
                   <td colSpan={12}>
-                    <div className="empty">
-                      <Icon name="inbox" />
-                      ไม่มีเอกสารในขอบเขตสิทธิ์และตัวกรองนี้
-                      {staleDocs.length > 0 && ' · มีเอกสารค้างนอกช่วงที่เลือก'}
+                    <div className="empty" style={{ padding: '48px 16px', textAlign: 'center' }}>
+                      <Icon name={isUnassigned ? 'shield' : 'inbox'} size="lg" />
+                      <div style={{ fontWeight: 700, marginTop: 8, fontSize: 14, color: 'var(--text)' }}>
+                        {isUnassigned
+                          ? 'ยังไม่ได้รับการกำหนดสิทธิ์เข้าถึงข้อมูลบริษัท (Zero-Trust Security)'
+                          : 'ไม่มีเอกสารในขอบเขตสิทธิ์และตัวกรองนี้'}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--s-400)', marginTop: 4, maxWidth: 420, marginInline: 'auto', lineHeight: 1.5 }}>
+                        {isUnassigned
+                          ? 'บัญชีของคุณเข้าสู่ระบบสำเร็จแล้ว แต่ยังไม่ได้รับการกำหนดขอบเขตบริษัทหรือบทบาท กรุณาติดต่อผู้ดูแลระบบ (IT Administrator) เพื่อกำหนดสิทธิ์ในหน้า RBAC Console'
+                          : (staleDocs.length > 0 ? 'มีเอกสารค้างนอกช่วงที่เลือก' : 'ไม่พบรายการที่ตรงกับเงื่อนไขการค้นหา')}
+                      </div>
                     </div>
                   </td>
                 </tr>

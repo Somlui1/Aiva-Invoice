@@ -14,7 +14,8 @@ import { useAuth } from '../../context/AuthContext'
 import { ActionType } from '../../mock/rules'
 
 export function QueuePage() {
-  const { currentUser } = useAuth()
+  const { currentUser, currentRole } = useAuth()
+  const isUnassigned = (!currentUser.co || currentUser.co.length === 0) && currentRole.scope !== 'all'
   const {
     viewMode,
     setViewMode,
@@ -150,6 +151,16 @@ export function QueuePage() {
                     onClick={() => selectDoc(d.doc)}
                   />
                 ))
+              ) : isUnassigned ? (
+                <div className="empty" style={{ padding: '32px 16px', textAlign: 'center' }}>
+                  <Icon name="shield" size="lg" />
+                  <div style={{ fontWeight: 700, marginTop: 8, fontSize: 13, color: 'var(--text)' }}>
+                    ยังไม่ได้รับการกำหนดสิทธิ์เข้าถึงข้อมูลบริษัท
+                  </div>
+                  <div style={{ fontSize: 11.5, color: 'var(--s-400)', marginTop: 4, lineHeight: 1.5 }}>
+                    กรุณาติดต่อผู้ดูแลระบบ (IT Administrator) ในหน้า RBAC เพื่อกำหนดสิทธิ์เข้าถึง
+                  </div>
+                </div>
               ) : (
                 <div className="empty">
                   <Icon name="inbox" />
@@ -167,9 +178,18 @@ export function QueuePage() {
             />
           ) : (
             <section className="col detail" id="detail">
-              <div className="empty" style={{ margin: 'auto' }}>
-                <Icon name="file" />
-                เลือกเอกสารจากคิวด้านซ้าย
+              <div className="empty" style={{ padding: '48px 24px', textAlign: 'center', margin: 'auto' }}>
+                <Icon name={isUnassigned ? 'shield' : 'file'} size="lg" />
+                <h3 style={{ fontSize: 15, fontWeight: 700, marginTop: 12 }}>
+                  {isUnassigned
+                    ? 'ยังไม่ได้รับการกำหนดสิทธิ์เข้าถึงข้อมูลบริษัท (Zero-Trust Security)'
+                    : 'เลือกเอกสารจากคิวด้านซ้าย'}
+                </h3>
+                <p style={{ fontSize: 12, color: 'var(--s-400)', marginTop: 6, maxWidth: 360, marginInline: 'auto', lineHeight: 1.5 }}>
+                  {isUnassigned
+                    ? 'บัญชีของคุณเข้าสู่ระบบสำเร็จแล้ว แต่ยังไม่ได้รับการมอบหมายขอบเขตบริษัทหรือบทบาท กรุณาติดต่อผู้ดูแลระบบ (IT Administrator) เพื่อดำเนินการกำหนดสิทธิ์ในหน้า RBAC'
+                    : 'คลิกเอกสารจากคิวตรวจสอบด้านซ้ายเพื่อเปิดตรวจสอบรายละเอียด'}
+                </p>
               </div>
             </section>
           )}
