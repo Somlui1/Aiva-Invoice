@@ -298,3 +298,15 @@
 | Task | Status | Description |
 |---|---|---|
 | v5.5 release: verify + note + tag | Done | verify ใน session ที่ release: engine `263 passed` (PYTHONPATH=src python -m pytest -q), test-portal `153 passed`, sandbox 68/68 scenarios (S63-S68 ของ v5 โหลดผ่าน `all_scenarios()`) / รัน `system_a.cli scenarios` ผ่าน · เขียน note ที่ `docs/RELEASE_NOTES.md` + banner ใน `README.md` · annotated tag `engine-v5.5` push ขึ้น `origin` (GitLab) + GitHub mirror พร้อม branch `engine` |
+
+## Plan: Brainstorming & Transitioning to AIVA React (`frontend/temp/aiva-react`)
+
+| Task | Status | Description |
+|---|---|---|
+| Brainstorm Task 1: Explore project context & gap analysis | Done | Explored aiva-react structure, Vite setup, runtime code, compared with current frontend requirements |
+| Brainstorm Task 2: Ask clarifying questions (one at a time) | In Progress | Clarify core requirements, connection points, menu hierarchy, and success criteria |
+| Brainstorm Task 3: Propose 2-3 approaches | Pending | Detail approaches with trade-offs and recommendation for transitioning aiva-react to production |
+| Brainstorm Task 4: Present design in sections | Pending | Present architectural design, menu map, integration points, and component roadmap |
+| Brainstorm Task 5: Write design doc & commit | Pending | Save to `docs/plans/2026-10-18-aiva-react-production-transition-design.md` and commit |
+| Brainstorm Task 6: Transition to implementation | Pending | Invoke writing-plans skill to create bite-sized tasks |
+
