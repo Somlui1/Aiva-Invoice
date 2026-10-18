@@ -50,29 +50,6 @@ export function PortalShell({ initialPage = 'queue' }: { initialPage?: PageKey }
     }
   }, [isAuthenticated, currentUser.id, currentUser.role, initialPage])
 
-  if (!isAuthenticated) {
-    return (
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100vh',
-          fontFamily: 'sans-serif',
-          color: 'var(--s-600, #475569)',
-          gap: 12,
-        }}
-        data-testid="auth-redirect-guard"
-      >
-        <div style={{ fontWeight: 600, fontSize: 16 }}>กำลังนำทางไปหน้าเข้าสู่ระบบ...</div>
-        <a href="/login" style={{ fontSize: 14, color: 'var(--teal-d, #0D9488)' }}>
-          คลิกที่นี่หากเบราว์เซอร์ไม่นำทางโดยอัตโนมัติ
-        </a>
-      </div>
-    )
-  }
-
   const handleNavigate = (page: PageKey) => {
     setCurrentPage(page)
     try {
@@ -142,6 +119,30 @@ export function PortalShell({ initialPage = 'queue' }: { initialPage?: PageKey }
         return <QueuePage />
     }
   }
+
+  if (!isAuthenticated) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100vh',
+          fontFamily: 'sans-serif',
+          color: 'var(--s-600, #475569)',
+          gap: 12,
+        }}
+        data-testid="auth-redirect-guard"
+      >
+        <div style={{ fontWeight: 600, fontSize: 16 }}>กำลังนำทางไปหน้าเข้าสู่ระบบ...</div>
+        <a href="/login" style={{ fontSize: 14, color: 'var(--teal-d, #0D9488)' }}>
+          คลิกที่นี่หากเบราว์เซอร์ไม่นำทางโดยอัตโนมัติ
+        </a>
+      </div>
+    )
+  }
+
 
   return (
     <div
