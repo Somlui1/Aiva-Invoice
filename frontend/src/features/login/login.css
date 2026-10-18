@@ -561,8 +561,8 @@
    ===================================================================== */
 .aiva-login .d3-l{position:relative}
 .aiva-login .lg-hero{display:flex;align-items:center;gap:16px;margin-bottom:1.5rem}
-.aiva-login .lg-hero .brand-tile.md{width:54px;height:54px;border-radius:14px;background:var(--tile);border:1px solid var(--tile-bd);box-shadow:var(--tile-shadow);display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.aiva-login .lg-hero .brand-tile.md .logo-mark{width:36px;height:36px;background-size:contain;background-repeat:no-repeat;background-position:center;filter:drop-shadow(var(--mark-glow));background-image:var(--logo-big)}
+.aiva-login .lg-hero .brand-tile.md{--bt:84px;width:var(--bt);height:var(--bt);border-radius:calc(var(--bt)*.29);background:var(--tile);border:1px solid var(--tile-bd);box-shadow:var(--tile-glow);display:grid;place-items:center;flex-shrink:0;isolation:isolate}
+.aiva-login .lg-hero .brand-tile.md .logo-mark{width:calc(var(--bt)*.82);height:auto;aspect-ratio:975/625;background-size:contain;background-repeat:no-repeat;background-position:center;filter:var(--mark-glow);background-image:var(--logo-big)}
 .aiva-login .lg-hero .wm{font-size:36px;line-height:1;font-weight:800;letter-spacing:.2em;color:var(--s-900)}
 .aiva-login .lg-hero .tg{margin-top:8px;font-size:10px;font-weight:700;letter-spacing:.24em;text-transform:uppercase;color:var(--wm-sub, var(--s-500))}
 .aiva-login .lg-hero .pp2{margin-top:10px;display:inline-flex;align-items:center;gap:7px;font-size:9.5px;font-weight:700;letter-spacing:.14em;color:var(--s-500);text-transform:uppercase}

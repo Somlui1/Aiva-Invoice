@@ -157,8 +157,58 @@
 }
 
 #splash .emb .brand-tile {
-  --bt: 64px;
+  z-index: 2;
+  --bt: 6.4rem;
   box-shadow: 0 0 30px rgba(45, 212, 196, .4);
+}
+
+#splash .emb .pt {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: spTw 2.4s ease-in-out infinite;
+}
+
+@keyframes spTw {
+  50% { opacity: .25; transform: scale(.6); }
+}
+
+#splash.resume .bd {
+  padding: .28rem .9rem .28rem .3rem;
+  gap: .55rem;
+  letter-spacing: .04em;
+  text-transform: none;
+}
+
+#splash.resume .bd .uav {
+  display: grid;
+  place-items: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  border-radius: .55rem;
+  font-weight: 800;
+  font-size: .8rem;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 35%, transparent);
+}
+
+#splash.resume .bd b {
+  font-size: .74rem;
+  font-weight: 800;
+  color: var(--sp-pill-fg, #fff);
+}
+
+#splash.resume .bd em {
+  font-style: normal;
+  font-size: .6rem;
+  font-weight: 800;
+  padding: .05rem .5rem;
+  border-radius: 999px;
+  background: var(--sp-pill, rgba(255, 255, 255, .08));
+  border: 1px solid var(--sp-pill-bd, rgba(255, 255, 255, .15));
+}
+
+#splash.resume .sub {
+  letter-spacing: .34em;
 }
 
 #splash h1 {

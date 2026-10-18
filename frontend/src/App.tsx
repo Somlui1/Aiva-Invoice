@@ -21,19 +21,17 @@ export function App({
   initialUser?: User | null
 }) {
   return (
-    <ThemeProvider>
-      <AuthProvider initialUser={initialUser}>
-        <SettingsProvider>
-          <ToastModalProvider>
-            <InvoiceProvider>
-              <SimProvider>
-                <PortalShell initialPage={initialPage as PageKey} />
-              </SimProvider>
-            </InvoiceProvider>
-          </ToastModalProvider>
-        </SettingsProvider>
-      </AuthProvider>
-    </ThemeProvider>
+    <AuthProvider initialUser={initialUser}>
+      <SettingsProvider>
+        <ToastModalProvider>
+          <InvoiceProvider>
+            <SimProvider>
+              <PortalShell initialPage={initialPage as PageKey} />
+            </SimProvider>
+          </InvoiceProvider>
+        </ToastModalProvider>
+      </SettingsProvider>
+    </AuthProvider>
   )
 }
 

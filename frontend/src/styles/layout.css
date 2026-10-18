@@ -247,8 +247,20 @@
   filter: var(--mark-glow);
 }
 
+.brand-tile.sm {
+  --bt: 38px;
+}
+
 .brand-tile.md {
   --bt: 84px;
+}
+
+.brand-tile.lg {
+  --bt: 104px;
+}
+
+.brand-tile.xl {
+  --bt: 132px;
 }
 
 .nav-org .tx {

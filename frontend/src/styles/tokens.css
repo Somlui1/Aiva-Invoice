@@ -39,8 +39,8 @@
   --me: cubic-bezier(.2, 0, 0, 1);
 
   /* Brand Logos */
-  --logo-sm: url('/logo.png');
-  --logo-big: url('/logo.png');
+  --logo-sm: url('/assets/logo-sm.webp');
+  --logo-big: url('/assets/logo-big.webp');
 }
 
 /* ───────────────────────── DARK THEME · "Graphite" (Default) ───────────────────────── */

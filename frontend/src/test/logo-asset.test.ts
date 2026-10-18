@@ -12,11 +12,11 @@ describe('Logo Assets', () => {
     expect(fs.statSync(publicLogo).size).toBeGreaterThan(100000)
   })
 
-  it('defines --logo-sm and --logo-big pointing to /logo.png in tokens.css', () => {
+  it('defines --logo-sm and --logo-big pointing to authentic WebP logo assets in tokens.css', () => {
     const tokensPath = path.resolve(__dirname, '../styles/tokens.css')
     const content = fs.readFileSync(tokensPath, 'utf-8')
 
-    expect(content).toContain("--logo-sm: url('/logo.png')")
-    expect(content).toContain("--logo-big: url('/logo.png')")
+    expect(content).toMatch(/--logo-sm:\s*url\(['"]?\/assets\/logo-sm\.webp['"]?\)/)
+    expect(content).toMatch(/--logo-big:\s*url\(['"]?\/assets\/logo-big\.webp['"]?\)/)
   })
 })
