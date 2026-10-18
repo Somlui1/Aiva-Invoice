@@ -17,7 +17,8 @@ const sampleAhDoc: InvoiceDoc = {
   assigned: 'eu',
   receiver: 'SOMSAK JAIDEE',
   po: 'PO-001',
-  items: 1,
+  dt: '2026-10-01',
+  total: 1070,
   diff: 0,
   cur: 'THB',
   base: 1000,
@@ -34,7 +35,7 @@ const sampleAhDoc: InvoiceDoc = {
   ocrConfidence: 99,
   rawStatus: 'Auto-pass',
   progressSteps: [],
-}
+} as unknown as InvoiceDoc
 
 const sampleAhtDoc: InvoiceDoc = {
   ...sampleAhDoc,

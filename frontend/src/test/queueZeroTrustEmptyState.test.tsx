@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import React from 'react'
 import { render, screen } from '@testing-library/react'
 import { AuthProvider } from '../context/AuthContext'
@@ -30,7 +30,8 @@ beforeEach(() => {
               assigned: 'eu',
               receiver: 'SOMSAK',
               po: 'PO-001',
-              items: 1,
+              dt: '2026-10-01',
+              total: 107,
               diff: 0,
               cur: 'THB',
               base: 100,
