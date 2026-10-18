@@ -45,8 +45,8 @@ export function LoginPage({ redirectTo, initialError = null, adapter, mock, show
   mockRef.current = mockCtl;
 
   const auth = useMemo<AuthAdapter>(
-    () => adapter ?? (isMock ? createMockAuth(() => mockRef.current) : createHttpAuth()),
-    [adapter, isMock],
+    () => adapter ?? (mock === true ? createMockAuth(() => mockRef.current) : createHttpAuth()),
+    [adapter, mock],
   );
 
   const success = useCallback(

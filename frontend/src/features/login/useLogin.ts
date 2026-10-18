@@ -85,9 +85,11 @@ export function useLogin({ adapter, onSuccess, defaultMethod = "m365", initialEr
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem(LOGIN_CONFIG.rememberKey);
-      if (saved) {
+      if (saved && saved !== 'itsupport' && !saved.startsWith('u')) {
         setUsername(saved);
         setKeep(true);
+      } else if (saved === 'itsupport' || (saved && /^u\d+$/.test(saved))) {
+        window.localStorage.removeItem(LOGIN_CONFIG.rememberKey);
       }
     } catch {
       /* private mode: ไม่จำ */
