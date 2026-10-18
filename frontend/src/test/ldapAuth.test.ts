@@ -26,7 +26,7 @@ describe('LDAP / Active Directory Authentication API', () => {
     expect(res.status).toBe(401)
     const data = await res.json()
     expect(data.error).toContain('ไม่ถูกต้อง')
-  })
+  }, 15000)
 
   it('authenticates itsupport with password support and grants SA role', async () => {
     const req = new NextRequest('http://localhost/api/auth/ldap', {

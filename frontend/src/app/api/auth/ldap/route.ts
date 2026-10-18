@@ -23,28 +23,44 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     // Fallback for offline dev/test environments
     if (!adResult.ok && adResult.kind === 'timeout') {
-      const isItsupport = (cleanUser === 'itsupport' || cleanUser === 'itsupport@aapico.com') && password === 'support'
+      const isItsupport = (cleanUser === 'itsupport' || cleanUser === 'itsupport@aapico.com')
       const matchedMock = USERS.find(u => u.id.toLowerCase() === sam || u.email.toLowerCase().startsWith(sam))
       if (isItsupport) {
-        adResult = {
-          ok: true,
-          user: {
-            samAccount: 'itsupport',
-            name: 'IT Support',
-            email: 'itsupport@aapico.com',
-            unit: 'IT Support',
-            title: 'IT Admin',
-          },
+        if (password === 'support') {
+          adResult = {
+            ok: true,
+            user: {
+              samAccount: 'itsupport',
+              name: 'IT Support',
+              email: 'itsupport@aapico.com',
+              unit: 'IT Support',
+              title: 'IT Admin',
+            },
+          }
+        } else {
+          adResult = {
+            ok: false,
+            kind: 'cred',
+            error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง',
+          }
         }
-      } else if (matchedMock && password === 'support') {
-        adResult = {
-          ok: true,
-          user: {
-            samAccount: matchedMock.id,
-            name: matchedMock.n,
-            email: matchedMock.email,
-            unit: matchedMock.unit,
-          },
+      } else if (matchedMock) {
+        if (password === 'support') {
+          adResult = {
+            ok: true,
+            user: {
+              samAccount: matchedMock.id,
+              name: matchedMock.n,
+              email: matchedMock.email,
+              unit: matchedMock.unit,
+            },
+          }
+        } else {
+          adResult = {
+            ok: false,
+            kind: 'cred',
+            error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง',
+          }
         }
       }
     }
