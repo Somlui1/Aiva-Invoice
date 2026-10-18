@@ -317,8 +317,8 @@
 | Task 1: API Service Layer & Real 125 Documents Dataset | Done | Bundled 125 documents from Engine v5.5, Oracle receipts mock, and implemented `src/services/api.js` (CP-1..CP-4); tests pass; committed `dd02a35` |
 | Task 2: React Context Providers (Auth, Theme, Invoice) | Done | Pure React Contexts managing active role, dark/light theme, and active document state; tests pass; committed `b9d83ee` |
 | Task 3: Menu & Layout Shell Components (Sidebar, Topbar) | Done | Implemented all 8 menu items with active states and badge counts in pure React; tests pass; committed `68148e3` |
-| Task 4: Interactive Queue Management Component (QueuePage) | In Progress | Filter chips, search bar, and interactive 125 documents table |
-| Task 5: PDF Canvas Viewer with Interactive BBox Overlays | Pending | PDF page rendering with dynamic BBox overlay mapping and tooltip badges |
+| Task 4: Interactive Queue Management Component (QueuePage) | Done | Filter chips, search bar, and interactive 125 documents table; tests pass; committed `3f074bf` |
+| Task 5: PDF Canvas Viewer with Interactive BBox Overlays | In Progress | PDF page rendering with dynamic BBox overlay mapping and tooltip badges |
 | Task 6: Invoice Detail Pane & Oracle Receipts Tab | Pending | Validation summary (V-01..V-08), Line items, and Oracle receipts reconciliation tab |
 | Task 7: End-to-End Integration, Verification, and Build Test | Pending | Wire all components in App.jsx, run vitest suite, and verify `npm run build` succeeds |
 
