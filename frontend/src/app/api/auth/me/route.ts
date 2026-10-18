@@ -42,26 +42,8 @@ export async function GET(req: NextRequest) {
           role: dbUser.role,
           empId: dbUser.empId,
           unit: dbUser.unit,
-          companies: companies.length > 0 ? companies : ['AH', 'AHA', 'AHT', 'AHP', 'AM'],
+          companies: companies, // Strict zero-trust: empty array if unassigned by Admin
           oracleAccounts: dbUser.receivers.map(r => r.receiverName),
-        },
-      })
-    }
-
-    // Fallback to mock users if not yet in database
-    const mock = USERS.find(u => u.id === targetId || u.email === targetId)
-    if (mock) {
-      return NextResponse.json({
-        ok: true,
-        user: {
-          id: mock.id,
-          name: mock.n,
-          email: mock.email,
-          role: mock.role,
-          empId: mock.emp ? String(mock.emp) : null,
-          unit: mock.unit,
-          companies: mock.co || ['AH'],
-          oracleAccounts: mock.rcvName && mock.rcvName !== '—' ? [mock.rcvName] : [],
         },
       })
     }

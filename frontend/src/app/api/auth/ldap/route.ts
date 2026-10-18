@@ -21,44 +21,27 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // 1. Authenticate against real Active Directory (10.10.10.250:389)
     let adResult = await authenticateWithAd(cleanUser, password)
 
-    // Fallback for offline dev/test environments or mock demo accounts
+    // Fallback for offline dev/test environments (real database users only, e.g. wajeepradit.p)
     if (!adResult.ok) {
-      const isItsupport = (cleanUser === 'itsupport' || cleanUser === 'itsupport@aapico.com')
-      const matchedMock = USERS.find(u => u.id.toLowerCase() === sam || u.email.toLowerCase().startsWith(sam))
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { samAccount: sam },
+            { email: cleanUser },
+            { id: sam },
+          ],
+        },
+      })
       const isAcceptedDevPassword = password === 'support' || password === '1234' || password === 'password'
-
-      if (isAcceptedDevPassword) {
-        if (isItsupport) {
-          adResult = {
-            ok: true,
-            user: {
-              samAccount: 'itsupport',
-              name: 'IT Support (AH)',
-              email: 'itsupport@aapico.com',
-              unit: 'IT Support',
-              title: 'IT Admin',
-            },
-          }
-        } else if (matchedMock) {
-          adResult = {
-            ok: true,
-            user: {
-              samAccount: matchedMock.id,
-              name: matchedMock.n,
-              email: matchedMock.email,
-              unit: matchedMock.unit,
-            },
-          }
-        } else {
-          adResult = {
-            ok: true,
-            user: {
-              samAccount: sam,
-              name: sam,
-              email: cleanUser.includes('@') ? cleanUser : `${sam}@aapico.com`,
-              unit: 'General',
-            },
-          }
+      if (existingUser && isAcceptedDevPassword) {
+        adResult = {
+          ok: true,
+          user: {
+            samAccount: existingUser.samAccount || existingUser.id,
+            name: existingUser.name,
+            email: existingUser.email,
+            unit: existingUser.unit || 'General',
+          },
         }
       }
     }
@@ -86,8 +69,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const adUser = adResult.user
 
     // 2. Map user role and scope in Portal DB
-    const isItsupport = adUser.samAccount.toLowerCase() === 'itsupport' || adUser.email.toLowerCase() === 'itsupport@aapico.com'
-    
     // Check if user already exists in DB
     const existingDbUser = await prisma.user.findFirst({
       where: {
@@ -102,31 +83,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       },
     })
 
-    // Check mock fallback users if not in DB
-    const matchedMock = USERS.find(
-      u => u.id.toLowerCase() === adUser.samAccount.toLowerCase() || u.email.toLowerCase() === adUser.email.toLowerCase()
-    )
-
-    const assignedRole = isItsupport
-      ? 'SA'
-      : (existingDbUser?.role || matchedMock?.role || 'EU') as 'EU' | 'ACC' | 'APR' | 'ADM' | 'SA'
-
+    const assignedRole = (existingDbUser?.role || 'EU') as 'EU' | 'ACC' | 'APR' | 'ADM' | 'SA'
     const dbCompanies = (existingDbUser?.companies || []).map(c => c.companyCode)
-    const assignedCompanies = isItsupport
-      ? ['AH', 'AHA', 'AHT', 'AHP', 'AM']
-      : dbCompanies.length > 0
-        ? dbCompanies
-        : (matchedMock?.co && matchedMock.co.length > 0 ? matchedMock.co : ['AH', 'AHA', 'AHT', 'AHP', 'AM'])
 
-    const assignedReceivers = isItsupport
-      ? []
-      : existingDbUser?.receivers.map(r => r.receiverName) || (matchedMock?.rcvName && matchedMock?.rcvName !== '—' ? [matchedMock.rcvName] : [])
+    // Strict Zero-Trust: If not assigned in DB by Admin, assigned companies is EMPTY [] (user sees 0 docs)
+    const assignedCompanies = dbCompanies
+    const assignedReceivers = (existingDbUser?.receivers || []).map(r => r.receiverName)
+    const resolvedUserId = existingDbUser?.id || adUser.samAccount
 
-    const resolvedUserId = existingDbUser?.id || matchedMock?.id || adUser.samAccount
-
-    // Ensure user record is updated in prisma.user and default companies are linked
+    // Ensure user record is created/updated in prisma.user
     try {
-      const savedUser = await prisma.user.upsert({
+      await prisma.user.upsert({
         where: { email: adUser.email },
         create: {
           id: resolvedUserId,
@@ -136,9 +103,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           empId: adUser.empId || null,
           unit: adUser.unit || null,
           role: assignedRole,
-          companies: {
-            create: assignedCompanies.map(c => ({ companyCode: c })),
-          },
         },
         update: {
           name: adUser.name,
@@ -148,17 +112,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           role: assignedRole,
         },
       })
-
-      // If user in database has no companies linked, link assigned companies now
-      if (!existingDbUser || existingDbUser.companies.length === 0) {
-        for (const code of assignedCompanies) {
-          await prisma.userCompany.upsert({
-            where: { userId_companyCode: { userId: savedUser.id, companyCode: code } },
-            create: { userId: savedUser.id, companyCode: code },
-            update: {},
-          }).catch(() => {})
-        }
-      }
     } catch {}
 
     // Audit log successful AD login
