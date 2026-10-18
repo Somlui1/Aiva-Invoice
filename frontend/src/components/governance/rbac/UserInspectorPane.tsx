@@ -6,21 +6,25 @@ import { ROLES, PERMISSION_DESCRIPTIONS } from '@/mock/users'
 import { ManagedUser } from './PermissionExcelGrid'
 import { Icon } from '@/components/common/Icon'
 
+import { COMPANIES_26 } from '@/mock/companies26'
+
 interface UserInspectorPaneProps {
   user: ManagedUser | null
   onRoleChange: (newRole: RoleKey) => void
   onToggleCompany: (company: string) => void
+  onSetCompanies?: (companies: string[]) => void
   onAddReceiver?: (receiver: string) => void
   onRemoveReceiver?: (receiver: string) => void
   availableCompanies?: string[]
 }
 
-const DEFAULT_COMPANIES = ['AH', 'AHT', 'AHP', 'AM']
+const DEFAULT_COMPANIES = Object.keys(COMPANIES_26)
 
 export function UserInspectorPane({
   user,
   onRoleChange,
   onToggleCompany,
+  onSetCompanies,
   onAddReceiver,
   onRemoveReceiver,
   availableCompanies = DEFAULT_COMPANIES,
@@ -132,7 +136,31 @@ export function UserInspectorPane({
       <div className="pm-sec">
         <div className="pm-sh">
           <h4>ขอบเขตบริษัท (Company Scope)</h4>
-          <span>{user.companies.length} บริษัท</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span>{user.companies.length} / {availableCompanies.length} บริษัท</span>
+            {onSetCompanies && (
+              <>
+                <button
+                  type="button"
+                  className="btn btn-ghost sm"
+                  style={{ fontSize: 11, padding: '2px 6px', height: 'auto' }}
+                  onClick={() => onSetCompanies(availableCompanies)}
+                  aria-label="เลือกทั้งหมด"
+                >
+                  เลือกทั้งหมด
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost sm"
+                  style={{ fontSize: 11, padding: '2px 6px', height: 'auto', color: 'var(--s-400)' }}
+                  onClick={() => onSetCompanies([])}
+                  aria-label="ล้างทั้งหมด"
+                >
+                  ล้างทั้งหมด
+                </button>
+              </>
+            )}
+          </span>
         </div>
         <div className="pm-sb2">
           <div className="pm-tgs">

@@ -143,6 +143,15 @@ export function RbacPage() {
     )
   }
 
+  const handleSetUserCompanies = (id: string, cos: string[]) => {
+    setUsers(prev =>
+      prev.map(u => {
+        if (u.id !== id) return u
+        return { ...u, companies: cos, isDirty: true }
+      })
+    )
+  }
+
   const handleRemoveCompany = (id: string, co: string) => {
     setUsers(prev =>
       prev.map(u => {
@@ -448,12 +457,16 @@ export function RbacPage() {
                 if (selectedUserId) handleRoleChange(selectedUserId, newRole)
               }}
               onToggleCompany={handleToggleCompany}
+              onSetCompanies={cos => {
+                if (selectedUserId) handleSetUserCompanies(selectedUserId, cos)
+              }}
               onAddReceiver={rcv => {
                 if (selectedUserId) handleAddReceiver(selectedUserId, rcv)
               }}
               onRemoveReceiver={rcv => {
                 if (selectedUserId) handleRemoveReceiver(selectedUserId, rcv)
               }}
+              availableCompanies={companiesList.map(c => c.code)}
             />
           </div>
         )}
