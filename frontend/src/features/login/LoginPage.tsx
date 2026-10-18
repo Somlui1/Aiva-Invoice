@@ -15,6 +15,7 @@ import { Toasts, useToasts } from "./Toasts";
 import { safeRedirect } from "./utils";
 import { useLogin } from "./useLogin";
 import { FX } from "../../lib/fxEngine";
+import { SplashScreen } from "@/components/layout/SplashScreen";
 import "./login.css";
 
 export interface LoginPageProps {
@@ -36,6 +37,8 @@ export function LoginPage({ redirectTo, initialError = null, adapter, mock, show
   const router = useRouter();
   const isMock = mock ?? LOGIN_CONFIG.mock;
   const toasts = useToasts();
+  const [showSplash, setShowSplash] = useState(true);
+  const [isEntering, setIsEntering] = useState(false);
 
   const [mockCtl, setMockCtl] = useState<MockControls>({ sim: "auto", acct: "u1" });
   const mockRef = useRef(mockCtl);
@@ -69,6 +72,15 @@ export function LoginPage({ redirectTo, initialError = null, adapter, mock, show
     else toasts.push("เปิดแบบฟอร์มแจ้ง IT Support");
   }, [toasts]);
 
+  const handleSplashDismiss = useCallback(() => {
+    setShowSplash(false);
+    setIsEntering(true);
+    if (typeof window !== "undefined") {
+      FX.loginIn();
+      setTimeout(() => setIsEntering(false), 1500);
+    }
+  }, []);
+
   const c = useLogin({
     adapter: auth,
     defaultMethod: isMock ? "m365" : "ldap",
@@ -79,9 +91,19 @@ export function LoginPage({ redirectTo, initialError = null, adapter, mock, show
   });
 
   return (
-    <div className="aiva-login" role="main" aria-label="เข้าสู่ระบบ AIVA Portal" data-busy={c.busy ? "1" : "0"} data-exiting={c.exiting ? "1" : "0"}>
+    <div
+      className={`aiva-login ${isEntering ? "lg-enter" : ""}`}
+      id="lg"
+      role="main"
+      aria-label="เข้าสู่ระบบ AIVA Portal"
+      data-busy={c.busy ? "1" : "0"}
+      data-exiting={c.exiting ? "1" : "0"}
+    >
+      {showSplash && <SplashScreen onDismiss={handleSplashDismiss} />}
+      <span className="lg-orb" aria-hidden="true" />
+      <i className="lg-grid" aria-hidden="true" />
       <ProgressBar p={c.progress} />
-      <div className="lg-stage">
+      <div className="lg-stage" id="lgStage">
         <div className="d3">
           <LoginForm c={c} mock={isMock} onSupport={support} />
           {showExplainer && <HowItWorks />}

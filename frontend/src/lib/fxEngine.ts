@@ -246,4 +246,16 @@ export const FX = {
   cascade() {
     this.appIn({ lite: true })
   },
+
+  loginIn() {
+    if (typeof document === 'undefined' || isNoFx()) return
+    const l = document.getElementById('lg') || document.querySelector('.aiva-login')
+    if (!l) return
+    l.classList.remove('lg-enter')
+    void (l as HTMLElement).offsetWidth
+    l.classList.add('lg-enter')
+    setTimeout(() => {
+      l.classList.remove('lg-enter')
+    }, 1500)
+  },
 }

@@ -45,12 +45,19 @@ export function SplashScreen({
 
   if (isDestroyed) return null
 
+  const handleImmediateDismiss = () => {
+    setIsDestroyed(true)
+    onDismiss?.()
+  }
+
   return (
     <div
       id="splash"
       className={isFading ? 'fade-out' : ''}
       role="status"
       aria-label="กำลังเริ่มระบบ AIVA"
+      onClick={handleImmediateDismiss}
+      style={{ cursor: 'pointer' }}
     >
       <div className="au a1" />
       <div className="au a2" />
