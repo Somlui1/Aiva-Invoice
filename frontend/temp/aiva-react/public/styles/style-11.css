@@ -1,0 +1,58 @@
+/* =====================================================================
+   v4.21 — ตัวกรองรายคอลัมน์ (Column Filters) ในตารางสรุปคิวเอกสาร
+   แนวคิด UX (อ้างอิง Outlook Rules & Filters): ภาษาอธิบายเป็นประโยค · เห็นผลลัพธ์ก่อนกดตกลง
+   · ยังไม่ใช้จนกว่าจะกดตกลง · เห็นตัวกรองที่ใช้อยู่ตลอด · ล้าง/เลิกทำได้ทุกขั้น
+   ===================================================================== */
+.tview table.t{min-width:1240px}
+.th-in{display:flex;align-items:center;justify-content:space-between;gap:4px;min-width:0}
+table.t th.num .th-in{justify-content:flex-end}
+.th-t{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.cf-btn{flex:none;display:inline-grid;place-items:center;width:22px;height:22px;border:1px solid transparent;border-radius:5px;background:none;color:var(--s-400);cursor:pointer;transition:background-color .08s,border-color .08s,color .08s}
+.cf-btn .ico{width:13px;height:13px}
+table.t th:hover .cf-btn,.cf-btn:focus-visible,.cf-btn[aria-expanded=true]{color:var(--s-700);background:#fff;border-color:var(--line-strong)}
+table.t th.cf-on{background:#E3F4F3;box-shadow:inset 0 -2px 0 var(--teal-d)}
+table.t th.cf-on .cf-btn{color:#fff;background:var(--teal-d);border-color:var(--teal-d)}
+/* แถบสรุปตัวกรองที่ใช้อยู่ */
+.cfbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:6px 12px;background:#F2FAFA;border-bottom:1px solid var(--line)}
+.cfbar .cfl{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:var(--teal-d);margin-right:2px;white-space:nowrap}
+.cfchip{display:inline-flex;align-items:stretch;height:24px;border:1px solid #9AD6D2;border-radius:999px;background:#fff;overflow:hidden;max-width:420px}
+.cfchip-t,.cfchip-x{border:0;background:none;cursor:pointer;color:var(--s-800);font-size:12px;font-weight:600}
+.cfchip-t{padding:0 8px 0 10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:380px}
+.cfchip-x{display:grid;place-items:center;width:24px;color:var(--s-500);border-left:1px solid #D5ECEA}
+.cfchip-t:hover{background:#EEF8F8}.cfchip-x:hover{background:var(--err-bg);color:var(--err)}
+/* กล่องตัวกรอง (popover) */
+.cfp{position:fixed;z-index:320;width:332px;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px);display:flex;flex-direction:column;background:#fff;border:1px solid var(--line-strong);border-radius:10px;box-shadow:var(--e-3);overflow:hidden;font-size:12.5px}
+.cfp-h{display:flex;align-items:center;gap:8px;padding:8px 8px 8px 12px;background:var(--head);border-bottom:1px solid var(--line);flex:none}
+.cfp-h .t{font-weight:800;font-size:13px}
+.cfp-h .ibtn{width:26px;height:26px;color:var(--s-500)}
+.cfp-sent{padding:8px 12px;background:var(--info-bg);color:#1E3A8A;border-bottom:1px solid var(--info-bd);font-size:12px;line-height:1.5;flex:none}
+.cfp-sent b{color:#172554}
+.cfp-b{padding:10px 12px;overflow:auto;display:flex;flex-direction:column;gap:8px;min-height:0;flex:1 1 auto}
+.cfp-f{flex:none;display:flex;flex-direction:column;gap:6px;padding:9px 12px 10px;border-top:1px solid var(--line-strong);background:var(--sunken)}
+.cfp-pv{font-size:12px;color:var(--s-700)}
+.cfp-err{display:flex;gap:5px;align-items:center;font-size:12px;font-weight:600;color:var(--err)}
+.cfp-err:empty{display:none}
+.cfp-ac{display:flex;align-items:center;gap:8px}
+.cfp-safe{font-size:11px;color:var(--s-500)}
+.cfp .inp,.cfp .sel{height:30px;width:100%}
+.cf-seg{display:flex;width:100%}.cf-seg button{flex:1;justify-content:center}
+.cf-search{position:relative}
+.cf-search .ico{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--s-400);pointer-events:none}
+.cf-search input{width:100%;height:30px;padding:0 10px 0 30px;border:1px solid var(--line-strong);border-radius:6px;background:#fff}
+.cf-search input:focus{outline:none;border-color:var(--teal-d);box-shadow:0 0 0 3px rgba(0,181,175,.18)}
+.cf-all{display:flex;align-items:center;gap:8px;padding:2px 8px;cursor:pointer}
+.cf-all input,.cf-it input{width:15px;height:15px;flex:none;accent-color:var(--teal-d)}
+.cf-list{border:1px solid var(--line);border-radius:6px;max-height:228px;overflow:auto;background:#fff}
+.cf-it{display:flex;align-items:center;gap:8px;padding:5px 8px;border-bottom:1px solid var(--line-soft);cursor:pointer}
+.cf-it:last-child{border-bottom:0}
+.cf-it:hover{background:#F5F8FB}
+.cf-lab{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.cf-n{margin-left:auto;flex:none;font:700 10.5px var(--mono);color:var(--s-500);background:var(--s-100);border-radius:999px;padding:0 7px;line-height:17px}
+.cf-f label{display:block;font-size:11.5px;font-weight:600;color:var(--s-600);margin-bottom:3px}
+.cf-range{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:8px;align-items:end}
+.cf-to{font-size:12px;color:var(--s-500);padding-bottom:6px}
+.cf-pre{display:flex;gap:5px;flex-wrap:wrap}
+.cf-dur{font-size:12px;color:var(--s-700);background:var(--sunken);border:1px solid var(--line);border-radius:6px;padding:6px 9px;min-height:30px}
+.toast.tu{pointer-events:auto}
+.toast .tu-b{margin-left:10px;background:none;border:0;color:#7DD3FC;font-weight:700;font-size:12.5px;cursor:pointer;text-decoration:underline;padding:0}
+@media (max-width:899px){.cfp{left:8px!important;right:8px;width:auto}}

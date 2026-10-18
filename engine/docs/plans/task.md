@@ -304,9 +304,22 @@
 | Task | Status | Description |
 |---|---|---|
 | Brainstorm Task 1: Explore project context & gap analysis | Done | Explored aiva-react structure, Vite setup, runtime code, compared with current frontend requirements |
-| Brainstorm Task 2: Ask clarifying questions (one at a time) | In Progress | Clarify core requirements, connection points, menu hierarchy, and success criteria |
-| Brainstorm Task 3: Propose 2-3 approaches | Pending | Detail approaches with trade-offs and recommendation for transitioning aiva-react to production |
-| Brainstorm Task 4: Present design in sections | Pending | Present architectural design, menu map, integration points, and component roadmap |
-| Brainstorm Task 5: Write design doc & commit | Pending | Save to `docs/plans/2026-10-18-aiva-react-production-transition-design.md` and commit |
-| Brainstorm Task 6: Transition to implementation | Pending | Invoke writing-plans skill to create bite-sized tasks |
+| Brainstorm Task 2: Ask clarifying questions (one at a time) | Done | Clarified Vite SPA architecture, connection points, and Queue/PDF priority |
+| Brainstorm Task 3: Propose 2-3 approaches | Done | Presented 3 approaches; user selected Approach 1 (Vite + Pure React) |
+| Brainstorm Task 4: Present design in sections | Done | Presented architectural design, menu map, integration points, and component roadmap |
+| Brainstorm Task 5: Write design doc & commit | Done | Saved to `docs/plans/2026-10-18-aiva-react-production-transition-design.md` and committed `23bcb1c` |
+| Brainstorm Task 6: Transition to implementation | Done | Created plan `2026-10-18-aiva-react-production-transition.md` and committed `0f6f572` |
+
+## Plan: AIVA React Production Transition (`frontend/temp/aiva-react`)
+
+| Task | Status | Description |
+|---|---|---|
+| Task 1: API Service Layer & Real 125 Documents Dataset | In Progress | Bundle 125 documents from Engine v5.5, Oracle receipts mock, and implement `src/services/api.js` (CP-1..CP-4) with tests |
+| Task 2: React Context Providers (Auth, Theme, Invoice) | Pending | Pure React Contexts managing active role, dark/light theme, and active document state with tests |
+| Task 3: Menu & Layout Shell Components (Sidebar, Topbar) | Pending | Implement all 8 menu items with active states and badge counts in pure React |
+| Task 4: Interactive Queue Management Component (QueuePage) | Pending | Filter chips, search bar, and interactive 125 documents table |
+| Task 5: PDF Canvas Viewer with Interactive BBox Overlays | Pending | PDF page rendering with dynamic BBox overlay mapping and tooltip badges |
+| Task 6: Invoice Detail Pane & Oracle Receipts Tab | Pending | Validation summary (V-01..V-08), Line items, and Oracle receipts reconciliation tab |
+| Task 7: End-to-End Integration, Verification, and Build Test | Pending | Wire all components in App.jsx, run vitest suite, and verify `npm run build` succeeds |
+
 
