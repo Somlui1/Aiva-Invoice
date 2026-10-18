@@ -130,7 +130,7 @@
 | task-login-blank-auth | Purge Fake Mock Users & Enforce Blank Initial State on /login | completed | Blank credentials, no itsupport default, real HTTP auth; 6/6 tests pass; commit 663b9b5 |
 | task-zero-trust-rbac | Enforce Zero-Trust RBAC & Purge Fake Seed Users from Database Ingestion | completed | Zero-trust empty companies, purged itsupport auto-seed; 2/2 vitest pass; commit ff8cac7 |
 | task-explainer-archetypes | Refactor Explainer Role Scene (No Fake Employee Names) & Full E2E Regression Pass | completed | Pure organizational archetypes, no fake employee names |
-| zero-trust-task-1 | Strict Zero-Trust `scopeCheck` & Purge Fallback Companies in `AuthContext` | pending | Enforce co.length > 0 check, reject unassigned users, purge 5-company fallbacks |
+| zero-trust-task-1 | Strict Zero-Trust `scopeCheck` & Purge Fallback Companies in `AuthContext` | completed | Strict co.length > 0 check, rejects unassigned, purged 5-company fallbacks (4/4 vitest pass); commit pending |
 | zero-trust-task-2 | Zero-Trust Empty State Banner & Notice in Queue UI | pending | Clear empty state notice instructing unassigned users to contact Admin for RBAC setup |
 | zero-trust-task-3 | 26 AAPICO Companies Binding & Quick Select in RBAC Console | pending | Bind full 26 AAPICO companies list and Select All/Clear All in UserInspectorPane |
 | zero-trust-task-4 | Fix Test Parity & Remove Stale Mock User Expectations | pending | Update authMe.test.ts, ldapAuth.test.ts to verify zero-trust invariants |

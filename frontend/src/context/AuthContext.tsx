@@ -72,7 +72,7 @@ export function AuthProvider({
         try {
           const p = JSON.parse(savedProfileStr)
           if (p && p.id && p.role) {
-            const companies = Array.isArray(p.companies) && p.companies.length > 0 ? p.companies : ['AH', 'AHA', 'AHT', 'AHP', 'AM']
+            const companies = Array.isArray(p.companies) ? p.companies : []
             const rcv = Array.isArray(p.oracleAccounts) && p.oracleAccounts.length > 0 ? p.oracleAccounts[0] : (p.rcvName || '—')
             setCurrentUser({
               id: p.id,
@@ -98,7 +98,7 @@ export function AuthProvider({
           return
         }
 
-        // Support any genuine AD employee outside the mock roster
+        // Support any genuine AD employee outside the mock roster (Zero-Trust: companies empty by default)
         setCurrentUser({
           id: saved,
           n: saved,
@@ -106,7 +106,7 @@ export function AuthProvider({
           role: (saved.toLowerCase() === 'itsupport' ? 'SA' : 'EU') as RoleKey,
           rcvName: '—',
           emp: null,
-          co: ['AH', 'AHA', 'AHT', 'AHP', 'AM'],
+          co: [],
           unit: 'AH',
         })
       }
@@ -129,7 +129,7 @@ export function AuthProvider({
       .then(data => {
         if (data?.ok && data.user) {
           const u = data.user
-          const companies = Array.isArray(u.companies) && u.companies.length > 0 ? u.companies : ['AH', 'AHA', 'AHT', 'AHP', 'AM']
+          const companies = Array.isArray(u.companies) ? u.companies : []
           const rcv = Array.isArray(u.oracleAccounts) && u.oracleAccounts.length > 0 ? u.oracleAccounts[0] : '—'
           setCurrentUser(prev => ({
             id: u.id,
@@ -163,21 +163,26 @@ export function AuthProvider({
     if (r.scope === 'none') {
       return { ok: false, why: 'บทบาทนี้ไม่เข้าถึงเนื้อหาเอกสาร' }
     }
-    if (r.scope === 'all' || currentUser.co.includes('ALL')) {
+    if (r.scope === 'all' || (currentUser.co && currentUser.co.includes('ALL'))) {
       return { ok: true }
     }
-    if (currentUser.co.length > 0 && !currentUser.co.includes(doc.company)) {
+    // Strict Zero-Trust: If user has no companies assigned by Admin, reject immediately
+    if (!currentUser.co || currentUser.co.length === 0) {
+      return { ok: false, why: 'ผู้ใช้งานยังไม่ได้รับการกำหนดสิทธิ์บริษัทในระบบ (กรุณาติดต่อผู้ดูแลระบบในหน้า RBAC)' }
+    }
+    if (!currentUser.co.includes(doc.company)) {
       return { ok: false, why: `เอกสารอยู่นอกบริษัทที่ได้รับมอบหมาย (${doc.company})` }
     }
     if (r.scope === 'receiver') {
       const myAccts = acctsOf(currentUser)
-      if (myAccts.length > 0) {
-        if (!doc.receiver) {
-          return { ok: false, why: 'เอกสารยังไม่มี Receiver ในใบรับ · ฝ่ายบัญชีดำเนินการ' }
-        }
-        if (!myAccts.includes(doc.receiver)) {
-          return { ok: false, why: `ไม่ได้เป็น Receiver ของใบรับนี้ (Receiver = ${doc.receiver})` }
-        }
+      if (!myAccts || myAccts.length === 0) {
+        return { ok: false, why: 'ยังไม่ได้รับการผูกบัญชี Oracle Receiver ในระบบ (กรุณาติดต่อผู้ดูแลระบบ)' }
+      }
+      if (!doc.receiver) {
+        return { ok: false, why: 'เอกสารยังไม่มี Receiver ในใบรับ · ฝ่ายบัญชีดำเนินการ' }
+      }
+      if (!myAccts.includes(doc.receiver)) {
+        return { ok: false, why: `ไม่ได้เป็น Receiver ของใบรับนี้ (Receiver = ${doc.receiver})` }
       }
     }
     return { ok: true }
@@ -243,7 +248,7 @@ export function AuthProvider({
         ...prev,
         role,
         rcvName: role === 'EU' ? (prev.rcvName && prev.rcvName !== '—' ? prev.rcvName : 'SOMSAK JAIDEE') : '—',
-        co: prev.co && prev.co.length > 0 ? prev.co : ['AH', 'AHA', 'AHT', 'AHP', 'AM']
+        co: prev.co || []
       }
       try {
         if (typeof window !== 'undefined') {
