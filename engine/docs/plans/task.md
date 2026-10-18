@@ -320,6 +320,6 @@
 | Task 4: Interactive Queue Management Component (QueuePage) | Done | Filter chips, search bar, and interactive 125 documents table; tests pass; committed `3f074bf` |
 | Task 5: PDF Canvas Viewer with Interactive BBox Overlays | Done | PDF page rendering with dynamic BBox overlay mapping and tooltip badges; tests pass; committed `205390b` |
 | Task 6: Invoice Detail Pane & Oracle Receipts Tab | Done | Validation summary (V-01..V-08), Line items, and Oracle receipts reconciliation tab; tests pass; committed `952d458` |
-| Task 7: End-to-End Integration, Verification, and Build Test | In Progress | Wire all components in App.jsx, run vitest suite, and verify `npm run build` succeeds |
+| Task 7: End-to-End Integration, Verification, and Build Test | Done | Wired all components in App.jsx; all 17 tests pass; production build succeeds in 2.28s; committed `c5e5407` |
 
 
