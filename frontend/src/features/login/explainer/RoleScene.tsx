@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { scopeCheck, whyShort, fmtBaht } from "../data/access";
-import { APR_POST_MAX, DEMO_DOCS, PERM, ROLES, USERS } from "../data/demo";
-import { RO_NOTE, RO_USERS } from "../data/explainer";
+import { APR_POST_MAX, DEMO_DOCS, PERM, ROLES, type DemoUser } from "../data/demo";
+import { RO_NOTE, RO_ROLES } from "../data/explainer";
 import { Badge } from "../ui/Badge";
 import { Icon } from "../ui/Icon";
 
@@ -12,9 +12,22 @@ interface Props {
 
 /** แท็บ 4 · เลือกบทบาท → เห็นเอกสารที่ “เห็นได้” และสิทธิ์ที่ทำได้ */
 export function RoleScene({ ri, onRole }: Props) {
-  const [uid, role] = RO_USERS[ri];
-  const user = USERS.find((u) => u.id === uid)!;
-  const rows = useMemo(() => DEMO_DOCS.map((d) => ({ d, r: scopeCheck(d, user) })), [user]);
+  const safeRi = ri >= 0 && ri < RO_ROLES.length ? ri : 0;
+  const currentArchetype = RO_ROLES[safeRi];
+  const role = currentArchetype.role;
+
+  // Illustrative role-based scope check (organizational archetypes, no fake employee names)
+  const illustrativeUser = useMemo<DemoUser>(() => ({
+    id: role.toLowerCase(),
+    n: ROLES[role].n,
+    email: `${role.toLowerCase()}@aapico.com`,
+    role: role,
+    emp: null,
+    co: role === 'EU' ? ['AH'] : ['AH', 'AHA', 'AHT', 'AHP', 'AM'],
+    unit: role === 'EU' ? 'ผู้ตรวจรับ (Receiver)' : role === 'ADM' ? 'IT' : 'AP Hub',
+  }), [role]);
+
+  const rows = useMemo(() => DEMO_DOCS.map((d) => ({ d, r: scopeCheck(d, illustrativeUser) })), [illustrativeUser]);
   const visible = rows.filter((x) => x.r.ok).length;
   const perms = Object.keys(PERM);
   const have = perms.filter((k) => ROLES[role].p.includes(k)).length;
@@ -22,17 +35,18 @@ export function RoleScene({ ri, onRole }: Props) {
   return (
     <>
       <div className="ro-sel">
-        {RO_USERS.map(([id, r], i) => {
-          const u = USERS.find((x) => x.id === id)!;
-          return (
-            <button key={id} type="button" className={`ro-b ${i === ri ? "on" : ""}`} aria-pressed={i === ri} onClick={() => onRole(i)}>
-              <b>{ROLES[r].n}</b>
-              <span>
-                {u.n} · {u.co.join(", ") || "—"}
-              </span>
-            </button>
-          );
-        })}
+        {RO_ROLES.map((archetype, i) => (
+          <button
+            key={archetype.role}
+            type="button"
+            className={`ro-b ${i === safeRi ? "on" : ""}`}
+            aria-pressed={i === safeRi}
+            onClick={() => onRole(i)}
+          >
+            <b>{ROLES[archetype.role].n}</b>
+            <span>{archetype.scopeDesc}</span>
+          </button>
+        ))}
       </div>
 
       <div className="ro-grid">

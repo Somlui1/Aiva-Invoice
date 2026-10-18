@@ -125,9 +125,14 @@
 | login-fix-task-4 | Comprehensive Regression Verification & Next.js Production Build Validation | completed | Vitest 76/76 test files (358/358 passed), tsc clean, Next.js 15 build clean (19/19 routes exit 0) |
 | login-theme-brainstorm | Brainstorm & Design for Login Theme, Hook Order, and Zero-Trust RBAC | completed | Design approved & written to docs/plans/2026-10-18-login-theme-hooks-and-strict-rbac-design.md; commit 1e3dbd6 |
 | login-theme-plan | Generate Implementation Plan | completed | Written to docs/plans/2026-10-18-login-theme-hooks-and-strict-rbac.md; commit e424bc1 |
-| task-hook-integrity | Resolve Hook Order Violation in PortalShell.tsx | pending | Move conditional auth guard after all hooks |
-| task-theme-hydration | Fix Dark Theme SSR Hydration & Two-Pass State Sync in ThemeContext & ThemeSwitcher | pending | Dark default on SSR & client mount sync |
-| task-login-blank-auth | Purge Fake Mock Users & Enforce Blank Initial State on /login | pending | Blank credentials, no default itsupport |
-| task-zero-trust-rbac | Enforce Zero-Trust RBAC & Purge Fake Seed Users from Database Ingestion | pending | Unassigned users see 0 docs, no auto-seed itsupport |
-| task-explainer-archetypes | Refactor Explainer Role Scene (No Fake Employee Names) & Full E2E Regression Pass | pending | Role archetypes, full vitest + tsc + build pass |
+| task-hook-integrity | Resolve Hook Order Violation in PortalShell.tsx | completed | Moved conditional auth guard after all hooks; 1/1 vitest pass; commit e5daf94 |
+| task-theme-hydration | Fix Dark Theme SSR Hydration & Two-Pass State Sync in ThemeContext & ThemeSwitcher | completed | Dark default on SSR & client mount sync; 2/2 vitest pass; commit 6a87e7e |
+| task-login-blank-auth | Purge Fake Mock Users & Enforce Blank Initial State on /login | completed | Blank credentials, no itsupport default, real HTTP auth; 6/6 tests pass; commit 663b9b5 |
+| task-zero-trust-rbac | Enforce Zero-Trust RBAC & Purge Fake Seed Users from Database Ingestion | completed | Zero-trust empty companies, purged itsupport auto-seed; 2/2 vitest pass; commit ff8cac7 |
+| task-explainer-archetypes | Refactor Explainer Role Scene (No Fake Employee Names) & Full E2E Regression Pass | completed | Pure organizational archetypes, no fake employee names |
+| zero-trust-task-1 | Strict Zero-Trust `scopeCheck` & Purge Fallback Companies in `AuthContext` | pending | Enforce co.length > 0 check, reject unassigned users, purge 5-company fallbacks |
+| zero-trust-task-2 | Zero-Trust Empty State Banner & Notice in Queue UI | pending | Clear empty state notice instructing unassigned users to contact Admin for RBAC setup |
+| zero-trust-task-3 | 26 AAPICO Companies Binding & Quick Select in RBAC Console | pending | Bind full 26 AAPICO companies list and Select All/Clear All in UserInspectorPane |
+| zero-trust-task-4 | Fix Test Parity & Remove Stale Mock User Expectations | pending | Update authMe.test.ts, ldapAuth.test.ts to verify zero-trust invariants |
+| zero-trust-task-5 | Comprehensive Regression Verification & Next.js Production Build | pending | Full vitest suite (81+ files), tsc clean, next build clean |
 

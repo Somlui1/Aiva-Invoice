@@ -254,8 +254,20 @@ export const STATE_LANES: { h: string; items: string[] }[] = [
 ];
 
 /* ------------------------------------------------- แท็บ 4 · สิทธิ์และบทบาท ---- */
-/** [id ผู้ใช้ตัวอย่าง, บทบาท] */
-export const RO_USERS: [string, Role][] = [["u1", "EU"], ["u4", "ACC"], ["u6", "APR"], ["u7", "ADM"], ["itsupport", "SA"]];
+export interface RoleArchetype {
+  role: Role;
+  scopeDesc: string;
+}
+
+export const RO_ROLES: RoleArchetype[] = [
+  { role: "EU", scopeDesc: "ขอบเขต: ตรวจรับเฉพาะรายการที่ตนเป็น Receiver" },
+  { role: "ACC", scopeDesc: "ขอบเขต: ดูแลเอกสารบริษัทที่ได้รับมอบหมาย" },
+  { role: "APR", scopeDesc: "ขอบเขต: อนุมัติ ตัดสิน Manual Review และส่ง AP" },
+  { role: "ADM", scopeDesc: "ขอบเขต: จัดการการผูกบัญชีและสิทธิ์ในระบบ" },
+];
+
+/** [id ตัวแทนบทบาท, บทบาท] */
+export const RO_USERS: [string, Role][] = RO_ROLES.map(r => [r.role.toLowerCase(), r.role]);
 
 export const RO_NOTE: Record<Role, string> = {
   EU: "เห็นเฉพาะใบรับที่ Receiver ตรงกับ Oracle account ของคุณ และอยู่ในบริษัทที่ได้รับมอบหมาย · ไม่เห็นเอกสารที่ไม่มี Receiver · ตรวจสถานะเองและอัปโหลดเอกสารใหม่ได้เท่านั้น",
