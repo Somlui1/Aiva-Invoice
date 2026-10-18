@@ -555,3 +555,35 @@
 
 /* ตัวเลข/ข้อความเน้นกลางประโยคในกล่องแจ้งผล (ไม่ขึ้นบรรทัดใหม่เหมือน <b> หัวข้อ) */
 .aiva-login .lg-alert strong{font-weight:700}
+
+/* =====================================================================
+   AIVA v5.2 Login Hero, Theme Switcher & Ambient Backdrop Styles
+   ===================================================================== */
+.aiva-login .d3-l{position:relative}
+.aiva-login .lg-hero{display:flex;align-items:center;gap:16px;margin-bottom:1.5rem}
+.aiva-login .lg-hero .brand-tile.md{width:54px;height:54px;border-radius:14px;background:var(--tile);border:1px solid var(--tile-bd);box-shadow:var(--tile-shadow);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.aiva-login .lg-hero .brand-tile.md .logo-mark{width:36px;height:36px;background-size:contain;background-repeat:no-repeat;background-position:center;filter:drop-shadow(var(--mark-glow));background-image:var(--logo-big)}
+.aiva-login .lg-hero .wm{font-size:36px;line-height:1;font-weight:800;letter-spacing:.2em;color:var(--s-900)}
+.aiva-login .lg-hero .tg{margin-top:8px;font-size:10px;font-weight:700;letter-spacing:.24em;text-transform:uppercase;color:var(--wm-sub, var(--s-500))}
+.aiva-login .lg-hero .pp2{margin-top:10px;display:inline-flex;align-items:center;gap:7px;font-size:9.5px;font-weight:700;letter-spacing:.14em;color:var(--s-500);text-transform:uppercase}
+.aiva-login .lg-hero .pp2 svg{width:10px;height:10px;stroke:var(--teal);fill:none;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+.aiva-login .lg-hero .pp2 em{font-style:normal;color:var(--s-700)}
+.aiva-login .lg-theme{position:absolute;z-index:6;top:24px;right:22px}
+
+/* Ambient Backdrop Orbs & Grid */
+.aiva-login .lg-orb{position:absolute;z-index:0;width:420px;height:420px;left:46%;top:30%;border-radius:50%;background:radial-gradient(circle,var(--au3, rgba(59,130,246,0.3)),transparent 68%);filter:blur(80px);pointer-events:none;animation:auC 25s ease-in-out infinite alternate}
+@keyframes auC{to{transform:translate(-160px,90px) scale(1.25)}}
+.aiva-login .lg-grid{position:absolute;inset:0;z-index:0;pointer-events:none;background-image:radial-gradient(var(--grid-dot, rgba(255,255,255,0.08)) 1px,transparent 1.2px);background-size:26px 26px;
+  -webkit-mask-image:radial-gradient(ellipse 70% 70% at 60% 40%,#000 25%,transparent 85%);mask-image:radial-gradient(ellipse 70% 70% at 60% 40%,#000 25%,transparent 85%)}
+
+/* Login Entry Animations (.lg-enter) */
+.aiva-login.lg-enter .d3-l{animation:lgInL .75s var(--ease, cubic-bezier(.45,.05,.2,1)) backwards}
+.aiva-login.lg-enter .d3-r{animation:lgInR .75s var(--ease, cubic-bezier(.45,.05,.2,1)) .1s backwards}
+.aiva-login.lg-enter .d3-l .brand-tile{animation:fxPop .85s var(--ease, cubic-bezier(.45,.05,.2,1)) .25s backwards}
+.aiva-login.lg-enter .lg-theme{animation:fxDrop .5s var(--ease, cubic-bezier(.45,.05,.2,1)) .5s backwards}
+
+@keyframes lgInL{from{opacity:0;transform:translateX(-28px)}}
+@keyframes lgInR{from{opacity:0;transform:translateX(28px)}}
+@keyframes fxPop{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
+@keyframes fxDrop{from{opacity:0;transform:translateY(-16px)}to{opacity:1;transform:translateY(0)}}
+
