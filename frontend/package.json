@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "postinstall": "node scripts/copy-pdfjs-worker.mjs",
-    "predev": "node scripts/copy-pdfjs-worker.mjs",
+    "predev": "node scripts/clean-stale-build.mjs && node scripts/copy-pdfjs-worker.mjs",
     "prebuild": "node scripts/copy-pdfjs-worker.mjs",
     "dev": "next dev",
     "build": "next build",
