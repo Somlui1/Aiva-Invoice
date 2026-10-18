@@ -15,6 +15,7 @@ export function ThemeSwitcher({ className = '' }: { className?: string }) {
       aria-label="สลับโหมดสว่าง / มืด"
       title={theme === 'light' ? 'โหมดสว่าง · คลิกเพื่อสลับเป็นโหมดมืด' : 'โหมดมืด · คลิกเพื่อสลับเป็นโหมดสว่าง'}
       onClick={e => toggleTheme(e.currentTarget)}
+      suppressHydrationWarning
     >
       <svg className="ico i-sun" viewBox="0 0 24 24" aria-hidden="true">
         <circle cx="12" cy="12" r="5" />

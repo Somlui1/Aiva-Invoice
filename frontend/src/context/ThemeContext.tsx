@@ -17,17 +17,8 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
 const STORAGE_KEY = 'aiva.theme'
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = window.localStorage.getItem(STORAGE_KEY) as Theme
-        if (saved === 'dark' || saved === 'light') {
-          return saved
-        }
-      } catch {}
-    }
-    return 'dark'
-  })
+  const [theme, setThemeState] = useState<Theme>('dark')
+  const [mounted, setMounted] = useState<boolean>(false)
 
   // Synchronize with DOM attributes and meta tags
   const applyThemeToDom = useCallback((t: Theme) => {
@@ -42,9 +33,28 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  // Synchronize from localStorage or path post-mount to eliminate hydration mismatch
   useEffect(() => {
-    applyThemeToDom(theme)
-  }, [theme, applyThemeToDom])
+    setMounted(true)
+    try {
+      const isLoginPath = typeof window !== 'undefined' && window.location.pathname.startsWith('/login')
+      if (isLoginPath) {
+        setThemeState('dark')
+        applyThemeToDom('dark')
+        return
+      }
+
+      const saved = window.localStorage.getItem(STORAGE_KEY) as Theme
+      if (saved === 'dark' || saved === 'light') {
+        setThemeState(saved)
+        applyThemeToDom(saved)
+      } else {
+        applyThemeToDom('dark')
+      }
+    } catch {
+      applyThemeToDom('dark')
+    }
+  }, [applyThemeToDom])
 
   const setTheme = useCallback((newTheme: Theme) => {
     setThemeState(newTheme)

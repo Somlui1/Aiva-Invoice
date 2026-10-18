@@ -47,7 +47,8 @@ export default function RootLayout({
             __html: `/* เลือกชุดสไตล์ก่อนวาดหน้าแรก (กันหน้ากะพริบ) */
 (function(){
   try {
-    var t = localStorage.getItem("aiva.theme") || "dark";
+    var isLogin = window.location.pathname.indexOf("/login") !== -1;
+    var t = isLogin ? "dark" : (localStorage.getItem("aiva.theme") || "dark");
     if (t !== "light") t = "dark";
     document.documentElement.setAttribute("data-theme", t);
   } catch(e) {}
