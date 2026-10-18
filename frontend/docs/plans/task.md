@@ -119,3 +119,7 @@
 | defect-task-5 | Login Page Warp & Welcome FX + Splash Screen Orbital Rings Animation | completed | Login exit split, warp, welcome card, splash .r1/.r2 orbital spin; commit f8b846a |
 | defect-task-6 | Brand Tile Logo Assets & Prism v2 Duotone Icon Component | completed | Removed letter 'A', bound logo.png with --logo-big & mark-glow, Prism v2 Icon duotone layers; commit a191782 |
 | defect-task-7 | Comprehensive Regression Verification & Production Build Validation | completed | Vitest 73/73 test files (355/355 passed), tsc --noEmit (0 errors), Next.js 15 production build (19/19 routes exit 0) |
+| login-fix-task-1 | Resolve SSR/Client Hydration Mismatch in PortalShell.tsx | pending | Two-pass mounting guard in PortalShell |
+| login-fix-task-2 | Authentic Login Hero Brand Tile, Wordmark & Theme Switcher in LoginForm.tsx | pending | .lg-hero with .brand-tile.md, .logo-mark, wordmark AIVA, and ThemeSwitcher |
+| login-fix-task-3 | Login Page Splash Screen, .lg-enter Entry Animations & Ambient Backdrop | pending | SplashScreen on /login, FX.loginIn() on dismiss, .lg-orb, .lg-grid |
+| login-fix-task-4 | Comprehensive Regression Verification & Next.js Production Build Validation | pending | Vitest full suite, tsc, Next.js build |
