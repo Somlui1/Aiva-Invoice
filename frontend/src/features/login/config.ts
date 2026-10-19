@@ -15,7 +15,7 @@ export const LOGIN_CONFIG = {
   bypass: bypassEnv ? bypassEnv === "true" : env.NODE_ENV !== "production",
   appName: "AIVA Portal",
   orgName: "AAPICO AP Hub · ระบบตรวจใบแจ้งหนี้อัตโนมัติ",
-  versionLabel: "AIVA Portal v4.20 · SRS v1.1",
+  versionLabel: "AIVA Portal v5.2 · React 19 SPA",
   /** ลิงก์ติดต่อ IT Support (production) · ว่าง = ไม่ทำอะไร */
   supportUrl: env.NEXT_PUBLIC_SUPPORT_URL ?? "",
   /** เส้นทางหลังเข้าสู่ระบบสำเร็จ (ถ้าไม่มี ?next=) */
