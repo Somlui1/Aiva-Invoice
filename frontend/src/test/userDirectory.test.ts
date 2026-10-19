@@ -25,7 +25,7 @@ describe('Directory Search and User Provisioning API', () => {
       samAccount: expect.any(String),
       unit: expect.any(String),
     })
-  }, 15000)
+  })
 
   it('provisions new user into database and retrieves user list with relations', async () => {
     const saveReq = new NextRequest('http://localhost/api/users', {

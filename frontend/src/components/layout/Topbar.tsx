@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { Icon } from '../common/Icon'
 import { useAuth } from '../../context/AuthContext'
-import { useTheme } from '../../context/ThemeContext'
 import { checkBackendHealth, BackendHealth } from '../../lib/backendApi'
 import { isSoundMuted, toggleSoundMuted } from '../../lib/soundEffects'
 import { MyProfileModal } from './MyProfileModal'
@@ -11,13 +10,10 @@ import { MyProfileModal } from './MyProfileModal'
 interface TopbarProps {
   isNavCollapsed: boolean
   onToggleNav: () => void
-  onOpenCmdk?: () => void
-  currentPageTitle?: string
 }
 
-export function Topbar({ onToggleNav, onOpenCmdk, currentPageTitle }: TopbarProps) {
-  const { currentUser, currentRole, switchRole, logout } = useAuth()
-  const { theme, toggleTheme } = useTheme()
+export function Topbar({ onToggleNav }: TopbarProps) {
+  const { currentUser, currentRole, logout } = useAuth()
   const [backendStatus, setBackendStatus] = useState<BackendHealth | null>(null)
   const [checking, setChecking] = useState<boolean>(false)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
@@ -48,36 +44,15 @@ export function Topbar({ onToggleNav, onOpenCmdk, currentPageTitle }: TopbarProp
         <Icon name="menu" size="lg" />
       </button>
 
-      {/* Breadcrumb Pill (v5.2) */}
-      <div className="crumb" title="AIVA · Auto Invoice Matching">
-        <i className="d" />
-        <b>AIVA</b>
-        <svg className="sep ico" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M9 6l6 6-6 6" />
-        </svg>
-        <span className="pg-t" id="crumbT">
-          {currentPageTitle || 'คิวตรวจสอบ'}
-        </span>
+      <div className="brand">
+        <span className="brand-mark">AI</span>
+        <div>
+          <div className="brand-name">
+            AIVA Portal <span className="brand-ver">v4.18 Next.js</span>
+          </div>
+          <div className="brand-sub">System A Engine · Next.js Edition</div>
+        </div>
       </div>
-
-      {/* Command Palette Trigger Button (v5.2) */}
-      <button
-        type="button"
-        className="cmdk-btn"
-        id="cmdkBtn"
-        aria-label="ค้นหา / คำสั่ง"
-        title="ค้นหา / คำสั่ง (Ctrl K)"
-        onClick={onOpenCmdk}
-      >
-        <svg className="ico" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.35-4.35" />
-        </svg>
-        <span>ค้นหาเอกสาร / คำสั่ง…</span>
-        <span className="kk">
-          <kbd>Ctrl</kbd>
-          <kbd>K</kbd>
-        </span>
-      </button>
 
       <span className="grow" />
 
@@ -91,29 +66,9 @@ export function Topbar({ onToggleNav, onOpenCmdk, currentPageTitle }: TopbarProp
         }}
         title={soundMuted ? 'เปิดเสียงแจ้งเตือนเอกสารใหม่' : 'ปิดเสียงแจ้งเตือนเอกสารใหม่'}
         aria-label={soundMuted ? 'เปิดเสียงแจ้งเตือน' : 'ปิดเสียงแจ้งเตือน'}
-        style={{ marginRight: 2 }}
+        style={{ marginRight: 4 }}
       >
-        <span style={{ fontSize: 15 }}>{soundMuted ? '🔇' : '🔔'}</span>
-      </button>
-
-      {/* Dark / Light Theme Switcher (v5.2) */}
-      <button
-        type="button"
-        className="theme-sw"
-        role="switch"
-        aria-checked={theme === 'light'}
-        aria-label="สลับโหมดสว่าง / มืด"
-        title={theme === 'light' ? 'โหมดสว่าง · คลิกเพื่อสลับเป็นโหมดมืด' : 'โหมดมืด · คลิกเพื่อสลับเป็นโหมดสว่าง'}
-        onClick={e => toggleTheme(e.currentTarget)}
-      >
-        <svg className="ico i-sun" viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="12" cy="12" r="5" />
-          <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-        </svg>
-        <svg className="ico i-moon" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-        </svg>
-        <i className="kn" />
+        <span style={{ fontSize: 16 }}>{soundMuted ? '🔇' : '🔔'}</span>
       </button>
 
       {/* Backend Engine Status Indicator */}
@@ -121,13 +76,18 @@ export function Topbar({ onToggleNav, onOpenCmdk, currentPageTitle }: TopbarProp
         type="button"
         className="env"
         onClick={verifyBackend}
-        style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
+        style={{ cursor: 'pointer', background: 'transparent', border: 'none', display: 'flex', alignItems: 'center' }}
         title={`คลิกเพื่อตรวจสอบสถานะ Engine ใหม่\nโหมด: ${backendStatus?.mode || 'sandbox'}\nเซอร์วิส: ${backendStatus?.service || 'System A'}`}
       >
         <i
           style={{
-            background: backendStatus?.mode === 'live' ? 'var(--ok, #10b981)' : 'var(--warn, #f59e0b)',
-            boxShadow: backendStatus?.mode === 'live' ? '0 0 6px var(--ok)' : 'none',
+            background: backendStatus?.mode === 'live' ? 'var(--clr-ok, #10b981)' : 'var(--clr-warn, #f59e0b)',
+            boxShadow: backendStatus?.mode === 'live' ? '0 0 6px rgba(16, 185, 129, 0.6)' : 'none',
+            display: 'inline-block',
+            width: 8,
+            height: 8,
+            borderRadius: '50%',
+            marginRight: 6
           }}
         />
         {checking
@@ -138,31 +98,6 @@ export function Topbar({ onToggleNav, onOpenCmdk, currentPageTitle }: TopbarProp
       </button>
 
       <div className="who">
-        <select
-          className="role-quick-switcher"
-          aria-label="สลับบทบาทอย่างรวดเร็ว"
-          value={currentUser.role}
-          onChange={e => switchRole(e.target.value as any)}
-          style={{
-            height: 28,
-            fontSize: 11.5,
-            fontWeight: 700,
-            borderRadius: 6,
-            border: '1px solid var(--line-strong)',
-            background: 'var(--surface-2)',
-            color: 'var(--s-900)',
-            padding: '0 6px',
-            cursor: 'pointer',
-            marginRight: 6
-          }}
-          title="สลับบทบาทเพื่อทดสอบมุมมอง (SA / ACC / APR / EU)"
-        >
-          <option value="SA">SA · Super Admin</option>
-          <option value="ACC">ACC · ฝ่ายบัญชี AP</option>
-          <option value="APR">APR · ผู้อนุมัติ</option>
-          <option value="EU">EU · ผู้ตรวจรับ (Receiver)</option>
-        </select>
-
         <button
           type="button"
           className="user-profile-btn"
@@ -172,15 +107,15 @@ export function Topbar({ onToggleNav, onOpenCmdk, currentPageTitle }: TopbarProp
             display: 'inline-flex',
             alignItems: 'center',
             gap: 8,
-            background: 'var(--surface-2)',
-            border: '1px solid var(--line-strong)',
+            background: 'transparent',
+            border: '1px solid rgba(0, 0, 0, 0.08)',
             borderRadius: 999,
-            padding: '3px 12px',
-            cursor: 'pointer',
+            padding: '4px 12px',
+            cursor: 'pointer'
           }}
           title="คลิกเพื่อดูข้อมูลผู้ใช้และสิทธิ์การใช้งานของฉัน"
         >
-          <span className="user-name" style={{ fontWeight: 600, fontSize: 12.5, color: 'var(--s-900)' }}>
+          <span className="user-name" style={{ fontWeight: 600, fontSize: 13, color: 'var(--s-800, #1E293B)' }}>
             {currentUser.n}
           </span>
           <span
@@ -197,7 +132,7 @@ export function Topbar({ onToggleNav, onOpenCmdk, currentPageTitle }: TopbarProp
           onClick={logout}
           title="ออกจากระบบ (ไปหน้าเข้าสู่ระบบ)"
           aria-label="ออกจากระบบ"
-          style={{ marginLeft: 4 }}
+          style={{ marginLeft: 6 }}
         >
           <Icon name="logout" size="md" />
         </button>

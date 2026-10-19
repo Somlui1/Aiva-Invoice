@@ -298,28 +298,3 @@
 | Task | Status | Description |
 |---|---|---|
 | v5.5 release: verify + note + tag | Done | verify ใน session ที่ release: engine `263 passed` (PYTHONPATH=src python -m pytest -q), test-portal `153 passed`, sandbox 68/68 scenarios (S63-S68 ของ v5 โหลดผ่าน `all_scenarios()`) / รัน `system_a.cli scenarios` ผ่าน · เขียน note ที่ `docs/RELEASE_NOTES.md` + banner ใน `README.md` · annotated tag `engine-v5.5` push ขึ้น `origin` (GitLab) + GitHub mirror พร้อม branch `engine` |
-
-## Plan: Brainstorming & Transitioning to AIVA React (`frontend/temp/aiva-react`)
-
-| Task | Status | Description |
-|---|---|---|
-| Brainstorm Task 1: Explore project context & gap analysis | Done | Explored aiva-react structure, Vite setup, runtime code, compared with current frontend requirements |
-| Brainstorm Task 2: Ask clarifying questions (one at a time) | Done | Clarified Vite SPA architecture, connection points, and Queue/PDF priority |
-| Brainstorm Task 3: Propose 2-3 approaches | Done | Presented 3 approaches; user selected Approach 1 (Vite + Pure React) |
-| Brainstorm Task 4: Present design in sections | Done | Presented architectural design, menu map, integration points, and component roadmap |
-| Brainstorm Task 5: Write design doc & commit | Done | Saved to `docs/plans/2026-10-18-aiva-react-production-transition-design.md` and committed `23bcb1c` |
-| Brainstorm Task 6: Transition to implementation | Done | Created plan `2026-10-18-aiva-react-production-transition.md` and committed `0f6f572` |
-
-## Plan: AIVA React Production Transition (`frontend/temp/aiva-react`)
-
-| Task | Status | Description |
-|---|---|---|
-| Task 1: API Service Layer & Real 125 Documents Dataset | Done | Bundled 125 documents from Engine v5.5, Oracle receipts mock, and implemented `src/services/api.js` (CP-1..CP-4); tests pass; committed `dd02a35` |
-| Task 2: React Context Providers (Auth, Theme, Invoice) | Done | Pure React Contexts managing active role, dark/light theme, and active document state; tests pass; committed `b9d83ee` |
-| Task 3: Menu & Layout Shell Components (Sidebar, Topbar) | Done | Implemented all 8 menu items with active states and badge counts in pure React; tests pass; committed `68148e3` |
-| Task 4: Interactive Queue Management Component (QueuePage) | Done | Filter chips, search bar, and interactive 125 documents table; tests pass; committed `3f074bf` |
-| Task 5: PDF Canvas Viewer with Interactive BBox Overlays | Done | PDF page rendering with dynamic BBox overlay mapping and tooltip badges; tests pass; committed `205390b` |
-| Task 6: Invoice Detail Pane & Oracle Receipts Tab | Done | Validation summary (V-01..V-08), Line items, and Oracle receipts reconciliation tab; tests pass; committed `952d458` |
-| Task 7: End-to-End Integration, Verification, and Build Test | Done | Wired all components in App.jsx; all 17 tests pass; production build succeeds in 2.28s; committed `c5e5407` |
-
-

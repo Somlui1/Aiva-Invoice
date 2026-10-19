@@ -5,7 +5,6 @@ import { LoginAlert } from "./LoginAlert";
 import { LOGIN_CONFIG } from "./config";
 import { Icon } from "./ui/Icon";
 import { MicrosoftLogo } from "./ui/MicrosoftLogo";
-import { ThemeSwitcher } from "@/components/common/ThemeSwitcher";
 import type { LoginController } from "./useLogin";
 
 interface Props {
@@ -31,29 +30,12 @@ export function LoginForm({ c, mock, onSupport }: Props) {
 
   return (
     <section className="d3-l" id="lp">
-      <div className="lg-hero">
-        <span className="brand-tile md">
-          <span className="logo-mark" role="img" aria-label="AIVA" />
-        </span>
+      <div className="lg-brand">
+        <span className="brand-mark">AI</span>
         <div>
-          <div className="wm wordmark">AIVA</div>
-          <div className="tg">Auto Invoice Matching</div>
-          <div className="pp2">
-            <em>OCR</em>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M9 6l6 6-6 6" />
-            </svg>
-            <em>Match</em>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M9 6l6 6-6 6" />
-            </svg>
-            <em>Post to Oracle</em>
-          </div>
+          <b>{LOGIN_CONFIG.appName}</b>
+          <span className="s">{LOGIN_CONFIG.orgName}</span>
         </div>
-      </div>
-
-      <div className="lg-theme">
-        <ThemeSwitcher />
       </div>
 
       <div className="mid">

@@ -1,7 +1,7 @@
-/* Excel-Grid Style for Permission Management (Adapted from Mockup v3 & v5.2) */
+/* Excel-Grid Style for Permission Management (Adapted from Mockup v3) */
 :root {
-  --grid: var(--line, #C9CFD8);
-  --gh: var(--surface-2, #E9ECF0);
+  --grid: #C9CFD8;
+  --gh: #E9ECF0;
   --xl-green: #217346;
 }
 
@@ -9,8 +9,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: var(--surface);
-  color: var(--s-900);
+  background: #fff;
 }
 
 /* Toolbar */
@@ -20,7 +19,7 @@
   gap: 8px 10px;
   flex-wrap: wrap;
   padding: 8px 14px;
-  background: var(--surface-2);
+  background: #F6F7F9;
   border-bottom: 1px solid var(--grid);
 }
 
@@ -30,7 +29,7 @@
   gap: 6px;
   font-size: 14px;
   font-weight: 800;
-  color: var(--s-900, #0D274D);
+  color: #0D274D;
   white-space: nowrap;
 }
 
@@ -43,10 +42,9 @@
   width: 100%;
   height: 30px;
   padding: 0 10px;
-  border: 1px solid var(--line-strong, #B8C0CC);
+  border: 1px solid #B8C0CC;
   border-radius: 5px;
-  background: var(--inp, var(--surface));
-  color: var(--s-900);
+  background: #fff;
   font-size: 12.5px;
 }
 .perm-srch input:focus {
@@ -81,9 +79,9 @@
   height: 30px;
   padding: 0 12px;
   border-radius: 5px;
-  background: var(--t-navy, #0D274D);
+  background: #0D274D;
   color: #fff;
-  border: 1px solid var(--line-strong, #0B192C);
+  border: 1px solid #0B192C;
   font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
@@ -97,7 +95,7 @@
 .perm-sheet {
   flex: 1;
   overflow: auto;
-  background: var(--surface);
+  background: #fff;
 }
 
 table.xl-grid {
@@ -114,8 +112,7 @@ table.xl-grid td {
   border-bottom: 1px solid var(--grid);
   padding: 4px 8px;
   vertical-align: middle;
-  background: var(--surface);
-  color: var(--s-900);
+  background: #fff;
   overflow: hidden;
 }
 
@@ -123,32 +120,32 @@ table.xl-grid th {
   position: sticky;
   top: 0;
   z-index: 5;
-  background: var(--surface-2);
+  background: linear-gradient(#F4F5F7, var(--gh));
   font-weight: 700;
   font-size: 11.5px;
-  color: var(--s-700, #334155);
+  color: #334155;
   text-align: left;
   height: 28px;
-  box-shadow: inset 0 -1px 0 var(--line-strong, #A9B1BD);
+  box-shadow: inset 0 -1px 0 #A9B1BD;
 }
 
 table.xl-grid td.n,
 table.xl-grid th.n {
   padding: 0;
   text-align: center;
-  background: var(--surface-2, #E9ECF0);
-  color: var(--s-500, #64748B);
+  background: var(--gh);
+  color: #64748B;
   font-size: 11px;
   font-weight: 600;
   width: 40px;
 }
 
 table.xl-grid td.chg {
-  background: var(--t-warn-bg, #FFF9DB) !important;
+  background: #FFF9DB !important;
 }
 
 table.xl-grid tr.newr td:not(.n) {
-  background: var(--t-ok-bg, #F1FAF4) !important;
+  background: #F1FAF4 !important;
 }
 
 table.xl-grid tr.newr td.n {
@@ -166,7 +163,6 @@ table.xl-grid tr.dirty td.n {
   border: 1px solid transparent;
   border-radius: 4px;
   background: transparent;
-  color: var(--s-900);
   font-weight: 700;
   font-size: 12px;
   cursor: pointer;
@@ -174,7 +170,7 @@ table.xl-grid tr.dirty td.n {
 }
 .perm-rin:focus {
   border-color: var(--xl-green);
-  background: var(--inp, #fff);
+  background: #fff;
 }
 
 /* Chip Styles */
@@ -193,9 +189,9 @@ table.xl-grid tr.dirty td.n {
   height: 22px;
   padding: 0 4px 0 7px;
   border-radius: 4px;
-  background: var(--surface-2, #E2E8F0);
-  border: 1px solid var(--line, #CBD5E1);
-  color: var(--s-900, #1E293B);
+  background: #E2E8F0;
+  border: 1px solid #CBD5E1;
+  color: #1E293B;
   font-size: 11px;
   font-weight: 700;
   font-family: var(--mono, monospace);
@@ -205,7 +201,7 @@ table.xl-grid tr.dirty td.n {
 .perm-chip button {
   border: 0;
   background: none;
-  color: var(--s-500, #64748B);
+  color: #64748B;
   cursor: pointer;
   display: grid;
   place-items: center;
@@ -221,9 +217,9 @@ table.xl-grid tr.dirty td.n {
 .perm-chip.co {
   font-family: var(--font, sans-serif);
   font-size: 11px;
-  background: var(--t-blue-bg, #EFF6FF);
-  border-color: var(--info-bd, #BFDBFE);
-  color: var(--t-blue, #1D4ED8);
+  background: #EFF6FF;
+  border-color: #BFDBFE;
+  color: #1D4ED8;
 }
 
 .perm-del-btn {
@@ -231,23 +227,23 @@ table.xl-grid tr.dirty td.n {
   place-items: center;
   width: 22px;
   height: 22px;
-  border: 1px solid var(--line, #B8C0CC);
+  border: 1px solid #B8C0CC;
   border-radius: 4px;
-  background: var(--surface, #fff);
-  color: var(--s-500, #64748B);
+  background: #fff;
+  color: #64748B;
   cursor: pointer;
 }
 .perm-del-btn:hover {
-  background: var(--t-err-bg, #FEF2F2);
-  border-color: var(--err-bd, #FCA5A5);
-  color: var(--err, #B91C1C);
+  background: #FEF2F2;
+  border-color: #FCA5A5;
+  color: #B91C1C;
 }
 
 /* Modal styles */
 .modal-ov {
   position: fixed;
   inset: 0;
-  background: var(--ovl, rgba(15, 23, 42, 0.55));
+  background: rgba(15, 23, 42, 0.55);
   display: grid;
   place-items: center;
   z-index: 100;
@@ -255,15 +251,14 @@ table.xl-grid tr.dirty td.n {
 }
 
 .modal-box {
-  background: var(--surface, #fff);
-  color: var(--s-900);
-  border: 1px solid var(--line, #E2E8F0);
+  background: #fff;
+  border: 1px solid #E2E8F0;
   border-radius: 12px;
   width: min(650px, 100%);
   max-height: 90vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.24);
   overflow: hidden;
 }
 
@@ -272,16 +267,13 @@ table.xl-grid tr.dirty td.n {
   align-items: center;
   justify-content: space-between;
   padding: 12px 18px;
-  border-bottom: 1px solid var(--line, #E2E8F0);
-  background: var(--surface-2, #F3F5F8);
-  color: var(--s-900);
+  border-bottom: 1px solid #E2E8F0;
+  background: #F3F5F8;
 }
 
 .modal-b {
   padding: 16px 18px;
   overflow: auto;
-  background: var(--surface, #fff);
-  color: var(--s-900);
 }
 
 .modal-f {
@@ -289,8 +281,8 @@ table.xl-grid tr.dirty td.n {
   justify-content: flex-end;
   gap: 8px;
   padding: 10px 18px;
-  border-top: 1px solid var(--line, #E2E8F0);
-  background: var(--surface-2, #F3F5F8);
+  border-top: 1px solid #E2E8F0;
+  background: #F3F5F8;
 }
 
 /* Role Radio Cards */
@@ -306,20 +298,19 @@ table.xl-grid tr.dirty td.n {
   align-items: flex-start;
   gap: 8px;
   padding: 8px 10px;
-  border: 1px solid var(--line, #B8C0CC);
+  border: 1px solid #B8C0CC;
   border-radius: 7px;
-  background: var(--surface, #fff);
-  color: var(--s-900);
+  background: #fff;
   cursor: pointer;
   text-align: left;
 }
 .role-card:hover {
-  background: var(--hov-2, #F8FAFC);
+  background: #F8FAFC;
 }
 .role-card.on {
-  border-color: var(--pri-a, #0D274D);
-  background: var(--sel, #F5F9FE);
-  box-shadow: inset 0 0 0 1px var(--pri-a, #0D274D);
+  border-color: #0D274D;
+  background: #F5F9FE;
+  box-shadow: inset 0 0 0 1px #0D274D;
 }
 .role-card b {
   display: block;
@@ -328,6 +319,6 @@ table.xl-grid tr.dirty td.n {
 .role-card small {
   display: block;
   font-size: 11px;
-  color: var(--s-500, #64748B);
+  color: #64748B;
   line-height: 1.3;
 }

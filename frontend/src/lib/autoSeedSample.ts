@@ -49,7 +49,22 @@ export async function ensureProductionSampleData(): Promise<void> {
     // 0. Ensure 26 master companies are seeded
     await autoSeedCompanies()
 
-    // 1. Do not auto-seed fake users; authentic users are provisioned via AD or RBAC admin
+    // 1. Ensure default Super Admin account exists
+    const userCount = await prisma.user.count().catch(() => -1)
+    if (userCount === 0) {
+      console.log('[AIVA Bootstrap] No users found. Initializing Super Admin user (itsupport)...')
+      await prisma.user.create({
+        data: {
+          id: 'itsupport',
+          email: 'itsupport@aapico.com',
+          name: 'IT Support (AH)',
+          role: 'SA',
+          companies: {
+            create: [{ companyCode: 'ALL' }],
+          },
+        },
+      }).catch(err => console.warn('[AIVA Bootstrap] Could not seed user:', err.message))
+    }
 
     // 2. Ensure sample invoices from paperless_invoices_v5 are populated
     if (process.env.AIVA_DISABLE_AUTO_SEED === 'true' || fs.existsSync(path.resolve(process.cwd(), '.cleared'))) {
@@ -58,7 +73,7 @@ export async function ensureProductionSampleData(): Promise<void> {
     }
 
     const docCount = await prisma.document.count().catch(() => -1)
-    if (docCount >= 125) {
+    if (docCount > 0) {
       return // Already populated
     }
 

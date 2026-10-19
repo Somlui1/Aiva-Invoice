@@ -15,38 +15,36 @@ import { InvoiceProvider } from '../context/InvoiceContext'
 import { useEffect } from 'react'
 import { Sidebar } from '../components/layout/Sidebar'
 
-import { USERS } from '../mock/users'
-import { User } from '../types/auth'
+function SidebarHarness({ targetUserId }: { targetUserId: string }) {
+  const { currentUser, switchUser } = useAuth()
+  useEffect(() => {
+    if (currentUser.id !== targetUserId) {
+      switchUser(targetUserId)
+    }
+  }, [currentUser.id, targetUserId, switchUser])
 
-async function renderSidebarFor(userOrId: string | User) {
-  const user: User = typeof userOrId === 'string'
-    ? (USERS.find(u => u.id === userOrId) || {
-        id: userOrId,
-        n: userOrId,
-        email: `${userOrId}@aapico.com`,
-        role: (userOrId === 'itsupport' ? 'SA' : 'EU'),
-        rcvName: '—',
-        emp: null,
-        co: ['AH', 'AHA', 'AHT', 'AHP', 'AM'],
-        unit: 'IT',
-      })
-    : userOrId
+  if (currentUser.id !== targetUserId) {
+    return <div>loading...</div>
+  }
 
+  return <Sidebar currentPage="queue" onNavigate={() => {}} onToggleNav={() => {}} />
+}
+
+async function renderSidebarFor(userId: string) {
   render(
-    <AuthProvider initialUser={user}>
+    <AuthProvider>
       <SettingsProvider>
         <ToastModalProvider>
           <InvoiceProvider>
-            <Sidebar currentPage="queue" onNavigate={() => {}} onToggleNav={() => {}} />
+            <SidebarHarness targetUserId={userId} />
           </InvoiceProvider>
         </ToastModalProvider>
       </SettingsProvider>
     </AuthProvider>,
   )
-
-  if (user.role === 'ADM') {
+  if (userId === 'u7') {
     await screen.findByText('เครื่องมือทดสอบและพัฒนา')
-  } else if (user.role === 'APR' || user.role === 'SA') {
+  } else if (userId === 'u6' || userId === 'itsupport') {
     await screen.findByText('คิวตรวจสอบ')
   } else {
     await screen.findByText('งานของฉัน')

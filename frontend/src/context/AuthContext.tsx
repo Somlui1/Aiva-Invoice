@@ -25,7 +25,6 @@ interface AuthContextType {
   can: (permission: Permission) => boolean
   scopeCheck: (doc: InvoiceDoc) => { ok: boolean; why?: string }
   switchUser: (userId: string) => void
-  switchRole: (role: RoleKey) => void
   logout: () => void
   auditLogs: AuditEntry[]
   logAudit: (act: string, doc: string, detail: string) => void
@@ -46,72 +45,59 @@ export function AuthProvider({
 }) {
   const [currentUser, setCurrentUser] = useState<User>(() => {
     if (initialUser !== undefined) return initialUser || ANONYMOUS_USER
-    if (typeof window === 'undefined') return ANONYMOUS_USER
-    if (process.env.NODE_ENV === 'test') {
-      return USERS.find(u => u.role === 'ACC') || USERS[0]
+    if (typeof window !== 'undefined') {
+      try {
+        const unauth = window.localStorage.getItem('aiva.test.unauthenticated') === 'true'
+        if (unauth) return ANONYMOUS_USER
+
+        // 1. Try restoring rich session profile (stored by LoginPage)
+        const savedProfileStr = window.localStorage.getItem('aiva.auth.profile')
+        if (savedProfileStr) {
+          try {
+            const p = JSON.parse(savedProfileStr)
+            if (p && p.id && p.role) {
+              const companies = Array.isArray(p.companies) && p.companies.length > 0 ? p.companies : ['AH', 'AHA', 'AHT', 'AHP', 'AM']
+              const rcv = Array.isArray(p.oracleAccounts) && p.oracleAccounts.length > 0 ? p.oracleAccounts[0] : (p.rcvName || '—')
+              return {
+                id: p.id,
+                n: p.name || p.n || p.id,
+                email: p.email || `${p.id}@aapico.com`,
+                role: p.role,
+                rcvName: rcv,
+                emp: p.empId ? parseInt(String(p.empId).replace(/\D/g, ''), 10) || null : (p.emp || null),
+                co: companies,
+                unit: p.unit || 'AH',
+              }
+            }
+          } catch {}
+        }
+
+        // 2. Try restoring user ID string
+        const saved = window.localStorage.getItem('aiva.auth.user')
+        if (saved) {
+          const found = USERS.find(u => u.id === saved || u.email === saved)
+          if (found) return found
+
+          // Support any genuine AD employee outside the mock roster
+          return {
+            id: saved,
+            n: saved,
+            email: saved.includes('@') ? saved : `${saved}@aapico.com`,
+            role: (saved.toLowerCase() === 'itsupport' ? 'SA' : 'EU') as RoleKey,
+            rcvName: '—',
+            emp: null,
+            co: ['AH', 'AHA', 'AHT', 'AHP', 'AM'],
+            unit: 'AH',
+          }
+        }
+      } catch {}
+      if (process.env.NODE_ENV === 'test') {
+        return USERS.find(u => u.role === 'ACC') || USERS[0]
+      }
     }
     return ANONYMOUS_USER
   })
   const [auditLogs, setAuditLogs] = useState<AuditEntry[]>(INITIAL_AUDIT)
-
-  // Restore session from localStorage on client mount (avoids SSR hydration mismatch)
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    if (initialUser !== undefined) return
-
-    try {
-      const unauth = window.localStorage.getItem('aiva.test.unauthenticated') === 'true'
-      if (unauth) {
-        setCurrentUser(ANONYMOUS_USER)
-        return
-      }
-
-      // 1. Try restoring rich session profile (stored by LoginPage)
-      const savedProfileStr = window.localStorage.getItem('aiva.auth.profile')
-      if (savedProfileStr) {
-        try {
-          const p = JSON.parse(savedProfileStr)
-          if (p && p.id && p.role) {
-            const companies = Array.isArray(p.companies) ? p.companies : []
-            const rcv = Array.isArray(p.oracleAccounts) && p.oracleAccounts.length > 0 ? p.oracleAccounts[0] : (p.rcvName || '—')
-            setCurrentUser({
-              id: p.id,
-              n: p.name || p.n || p.id,
-              email: p.email || `${p.id}@aapico.com`,
-              role: p.role,
-              rcvName: rcv,
-              emp: p.empId ? parseInt(String(p.empId).replace(/\D/g, ''), 10) || null : (p.emp || null),
-              co: companies,
-              unit: p.unit || 'AH',
-            })
-            return
-          }
-        } catch {}
-      }
-
-      // 2. Try restoring user ID string
-      const saved = window.localStorage.getItem('aiva.auth.user')
-      if (saved) {
-        const found = USERS.find(u => u.id === saved || u.email === saved)
-        if (found) {
-          setCurrentUser(found)
-          return
-        }
-
-        // Support any genuine AD employee outside the mock roster (Zero-Trust: companies empty by default)
-        setCurrentUser({
-          id: saved,
-          n: saved,
-          email: saved.includes('@') ? saved : `${saved}@aapico.com`,
-          role: (saved.toLowerCase() === 'itsupport' ? 'SA' : 'EU') as RoleKey,
-          rcvName: '—',
-          emp: null,
-          co: [],
-          unit: 'AH',
-        })
-      }
-    } catch {}
-  }, [initialUser])
 
   // Sync latest user profile & permissions from /api/auth/me
   useEffect(() => {
@@ -129,7 +115,7 @@ export function AuthProvider({
       .then(data => {
         if (data?.ok && data.user) {
           const u = data.user
-          const companies = Array.isArray(u.companies) ? u.companies : []
+          const companies = Array.isArray(u.companies) && u.companies.length > 0 ? u.companies : ['AH', 'AHA', 'AHT', 'AHP', 'AM']
           const rcv = Array.isArray(u.oracleAccounts) && u.oracleAccounts.length > 0 ? u.oracleAccounts[0] : '—'
           setCurrentUser(prev => ({
             id: u.id,
@@ -163,26 +149,21 @@ export function AuthProvider({
     if (r.scope === 'none') {
       return { ok: false, why: 'บทบาทนี้ไม่เข้าถึงเนื้อหาเอกสาร' }
     }
-    if (r.scope === 'all' || (currentUser.co && currentUser.co.includes('ALL'))) {
+    if (r.scope === 'all' || currentUser.co.includes('ALL')) {
       return { ok: true }
     }
-    // Strict Zero-Trust: If user has no companies assigned by Admin, reject immediately
-    if (!currentUser.co || currentUser.co.length === 0) {
-      return { ok: false, why: 'ผู้ใช้งานยังไม่ได้รับการกำหนดสิทธิ์บริษัทในระบบ (กรุณาติดต่อผู้ดูแลระบบในหน้า RBAC)' }
-    }
-    if (!currentUser.co.includes(doc.company)) {
+    if (currentUser.co.length > 0 && !currentUser.co.includes(doc.company)) {
       return { ok: false, why: `เอกสารอยู่นอกบริษัทที่ได้รับมอบหมาย (${doc.company})` }
     }
     if (r.scope === 'receiver') {
       const myAccts = acctsOf(currentUser)
-      if (!myAccts || myAccts.length === 0) {
-        return { ok: false, why: 'ยังไม่ได้รับการผูกบัญชี Oracle Receiver ในระบบ (กรุณาติดต่อผู้ดูแลระบบ)' }
-      }
-      if (!doc.receiver) {
-        return { ok: false, why: 'เอกสารยังไม่มี Receiver ในใบรับ · ฝ่ายบัญชีดำเนินการ' }
-      }
-      if (!myAccts.includes(doc.receiver)) {
-        return { ok: false, why: `ไม่ได้เป็น Receiver ของใบรับนี้ (Receiver = ${doc.receiver})` }
+      if (myAccts.length > 0) {
+        if (!doc.receiver) {
+          return { ok: false, why: 'เอกสารยังไม่มี Receiver ในใบรับ · ฝ่ายบัญชีดำเนินการ' }
+        }
+        if (!myAccts.includes(doc.receiver)) {
+          return { ok: false, why: `ไม่ได้เป็น Receiver ของใบรับนี้ (Receiver = ${doc.receiver})` }
+        }
       }
     }
     return { ok: true }
@@ -242,25 +223,6 @@ export function AuthProvider({
     } catch {}
   }, [])
 
-  const switchRole = useCallback((role: RoleKey) => {
-    setCurrentUser(prev => {
-      const updated = {
-        ...prev,
-        role,
-        rcvName: role === 'EU' ? (prev.rcvName && prev.rcvName !== '—' ? prev.rcvName : 'SOMSAK JAIDEE') : '—',
-        co: prev.co || []
-      }
-      try {
-        if (typeof window !== 'undefined') {
-          const profile = JSON.parse(window.localStorage.getItem('aiva.auth.profile') || '{}')
-          profile.role = role
-          window.localStorage.setItem('aiva.auth.profile', JSON.stringify(profile))
-        }
-      } catch {}
-      return updated
-    })
-  }, [])
-
   return (
     <AuthContext.Provider
       value={{
@@ -271,7 +233,6 @@ export function AuthProvider({
         can,
         scopeCheck,
         switchUser,
-        switchRole,
         logout,
         auditLogs,
         logAudit

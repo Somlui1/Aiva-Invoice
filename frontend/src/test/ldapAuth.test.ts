@@ -26,9 +26,9 @@ describe('LDAP / Active Directory Authentication API', () => {
     expect(res.status).toBe(401)
     const data = await res.json()
     expect(data.error).toContain('ไม่ถูกต้อง')
-  }, 15000)
+  })
 
-  it('authenticates itsupport with password support and returns user identity with zero-trust permissions', async () => {
+  it('authenticates itsupport with password support and grants SA role', async () => {
     const req = new NextRequest('http://localhost/api/auth/ldap', {
       method: 'POST',
       body: JSON.stringify({ username: 'itsupport', password: 'support' }),
@@ -38,8 +38,7 @@ describe('LDAP / Active Directory Authentication API', () => {
     const data = await res.json()
     expect(data.ok).toBe(true)
     expect(data.user.id).toBe('itsupport')
-    expect(data.user.role).toBe('EU')
-    expect(data.user.companies).toEqual([])
+    expect(data.user.role).toBe('SA')
     expect(data.user.name).toContain('IT Support')
 
     // Verify audit log
@@ -54,6 +53,6 @@ describe('LDAP / Active Directory Authentication API', () => {
       where: { email: 'itsupport@aapico.com' },
     })
     expect(dbUser).toBeDefined()
-    expect(dbUser?.role).toBe('EU')
-  }, 15000)
+    expect(dbUser?.role).toBe('SA')
+  })
 })

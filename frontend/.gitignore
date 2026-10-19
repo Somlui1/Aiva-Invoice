@@ -9,9 +9,6 @@ dist-ssr
 temp/*
 !temp/paperless_invoices_v5/
 !temp/schemas/
-!temp/aiva-react/
-temp/aiva-react/node_modules/
-temp/aiva-react/dist/
 temp/paperless_invoices_v5/.cache/
 /src/generated/prisma
 

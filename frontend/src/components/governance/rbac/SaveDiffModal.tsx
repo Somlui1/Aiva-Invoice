@@ -39,8 +39,8 @@ export function SaveDiffModal({ isOpen, diffs, isSaving, onClose, onConfirm }: P
         </div>
 
         <div className="modal-b">
-          <p style={{ fontSize: 12.5, color: 'var(--s-600)', marginBottom: 12 }}>
-            ตรวจสอบรายการแก้ไขสิทธิ์ก่อนบันทึก (พบรายการที่มีการเปลี่ยนแปลงทั้งหมด <b>{diffs.length}</b> รายการ ดังนี้):
+          <p style={{ fontSize: 12.5, color: '#475569', marginBottom: 12 }}>
+            พบรายการที่มีการเปลี่ยนแปลงทั้งหมด <b>{diffs.length}</b> รายการ ดังนี้:
           </p>
 
           <div style={{ maxHeight: 240, overflow: 'auto', border: '1px solid #E2E8F0', borderRadius: 6 }}>

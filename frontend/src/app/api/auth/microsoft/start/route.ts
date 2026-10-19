@@ -8,29 +8,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const clientSecret = process.env.AZURE_AD_CLIENT_SECRET
   const tenantId = process.env.AZURE_AD_TENANT_ID
 
-  // If Azure AD / Microsoft 365 is not yet configured, seamlessly log in as real corporate user in dev mode
+  // If Azure AD / Microsoft 365 is not yet configured, redirect back to login with notice
   if (!clientId || !clientSecret || !tenantId) {
-    const nextPath = req.nextUrl.searchParams.get('next') || '/'
-    const redirectUrl = new URL(nextPath, req.url)
-    const response = NextResponse.redirect(redirectUrl)
-    const isHttps =
-      req.headers.get('x-forwarded-proto') === 'https' ||
-      req.nextUrl.protocol === 'https:'
-
-    // Use active session if present, or genuine corporate employee (e.g. wajeepradit.p), never fake u1 or itsupport
-    const existingSession = req.cookies.get('aiva_session')?.value
-    const targetUserId = (existingSession && existingSession !== 'u1' && existingSession !== 'itsupport')
-      ? existingSession
-      : (process.env.DEV_AUTH_USER || 'wajeepradit.p')
-
-    response.cookies.set('aiva_session', targetUserId, {
-      httpOnly: false,
-      secure: isHttps,
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 86400 * 7,
-    })
-    return response
+    const loginUrl = new URL('/login', req.url)
+    loginUrl.searchParams.set('error', 'timeout')
+    return NextResponse.redirect(loginUrl)
   }
 
   // If configured in the future, redirect to Microsoft OAuth authorization endpoint
