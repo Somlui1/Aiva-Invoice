@@ -17,16 +17,12 @@ describe('Domain Models & Master Data Integrity', () => {
     expect(companyOfTax('unknown')).toBe('?')
   })
 
-  it('contains valid mock users with assigned roles and initial mappings', () => {
-    expect(USERS).toHaveLength(9)
-    const u1 = USERS.find(u => u.id === 'u1')
-    expect(u1?.n).toBe('สมศักดิ์ ใจดี')
-    expect(u1?.role).toBe('EU')
-    expect(u1?.rcvName).toBe('—')
-    expect(USERS.filter(u => u.role === 'EU').every(u => !u.rcvName || u.rcvName === '—')).toBe(true)
-
-    const apr = USERS.find(u => u.role === 'APR')
-    expect(apr?.n).toBe('สมชาย วงศ์ทอง')
+  it('contains valid authentic users with assigned roles and initial mappings', () => {
+    expect(USERS).toHaveLength(2)
+    const sa = USERS.find(u => u.id === 'wajeepradit.p')
+    expect(sa?.n).toBe('Wajeepradit Prompan (AH)')
+    expect(sa?.role).toBe('SA')
+    expect(sa?.rcvName).toBe('—')
 
     expect(ROLES.EU.p).toContain('VIEW_OWN')
     expect(ROLES.APR.p).toContain('POST')
@@ -36,10 +32,10 @@ describe('Domain Models & Master Data Integrity', () => {
     expect(ROLES.SA.p).toContain('VIEW_AP')
     expect(ROLES.SA.p).toContain('AUDIT')
 
-    const supportUser = USERS.find(u => u.role === 'SA')
+    const supportUser = USERS.find(u => u.id === 'itsupport')
     expect(supportUser).toBeDefined()
     expect(supportUser?.id).toBe('itsupport')
-    expect(supportUser?.n).toContain('กิตติศักดิ์ ซัพพอร์ต')
+    expect(supportUser?.n).toContain('IT Support')
     expect(supportUser?.co).toContain('AH')
 
     expect(INITIAL_MAPS.length).toBe(0)

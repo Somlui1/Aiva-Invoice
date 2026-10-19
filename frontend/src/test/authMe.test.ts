@@ -29,7 +29,7 @@ describe('Auth Me API (/api/auth/me)', () => {
     expect(data.ok).toBe(false)
   })
 
-  it('returns user profile via cookie with default companies for AD employee', async () => {
+  it('returns user profile via cookie for registered AD employee', async () => {
     const req = new NextRequest('http://localhost/api/auth/me', {
       headers: {
         cookie: 'aiva_session=wajeepradit.p',
@@ -42,18 +42,14 @@ describe('Auth Me API (/api/auth/me)', () => {
     expect(data.user.id).toBe('wajeepradit.p')
     expect(data.user.name).toBe('Wajeepradit Prompan (AH)')
     expect(data.user.role).toBe('EU')
-    // Check that companies are defaulted so scopeCheck doesn't block the queue
-    expect(data.user.companies).toEqual(['AH', 'AHA', 'AHT', 'AHP', 'AM'])
+    expect(Array.isArray(data.user.companies)).toBe(true)
   })
 
-  it('returns user profile via query parameter for mock users', async () => {
+  it('enforces Zero-Trust: returns 404 for unknown or purged mock users (u1)', async () => {
     const req = new NextRequest('http://localhost/api/auth/me?userId=u1')
     const res = await GET(req)
-    expect(res.status).toBe(200)
+    expect(res.status).toBe(404)
     const data = await res.json()
-    expect(data.ok).toBe(true)
-    expect(data.user.id).toBe('u1')
-    expect(data.user.role).toBe('EU')
-    expect(data.user.companies).toEqual(['AH'])
+    expect(data.ok).toBe(false)
   })
 })

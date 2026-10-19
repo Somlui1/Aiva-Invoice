@@ -29,8 +29,8 @@ describe('Topbar Production Profile & MyProfileModal', () => {
     )
 
     // Check user info displayed
-    expect(screen.getByText('สมศักดิ์ ใจดี')).not.toBeNull()
-    expect(screen.getByText('ผู้ใช้งาน (Receiver)')).not.toBeNull()
+    expect(screen.getByText('Wajeepradit Prompan (AH)')).not.toBeNull()
+    expect(screen.getByText(/Super Admin/)).not.toBeNull()
 
     // Modal should initially be closed
     expect(screen.queryByText('ข้อมูลและสิทธิ์การใช้งานของฉัน')).toBeNull()
@@ -41,12 +41,12 @@ describe('Topbar Production Profile & MyProfileModal', () => {
 
     // Modal should now be open
     expect(screen.getByText('ข้อมูลและสิทธิ์การใช้งานของฉัน')).not.toBeNull()
-    expect(screen.getByText('somsak.j@aapico.com')).not.toBeNull()
-    expect(screen.getByText('คลังวัตถุดิบ')).not.toBeNull()
+    expect(screen.getByText('wajeepradit.p@aapico.com')).not.toBeNull()
+    expect(screen.getByText('IT Support')).not.toBeNull()
 
     // Verify permission list rendered
     expect(screen.getByText(/สิทธิ์ที่ได้รับอนุญาต/i)).not.toBeNull()
-    expect(screen.getByText('ดูเอกสารที่ตนเป็น Receiver')).not.toBeNull()
+    expect(screen.getByText('ดูบันทึกการเข้าถึง')).not.toBeNull()
 
     // Close modal
     const closeBtn = screen.getByRole('button', { name: /ปิดหน้าต่างโปรไฟล์/i })

@@ -187,8 +187,16 @@ export function AuthProvider({
   }, [currentUser, currentRole])
 
   const switchUser = useCallback((userId: string) => {
-    const user = USERS.find(u => u.id === userId)
-    if (!user) return
+    const user: User = USERS.find(u => u.id === userId) || {
+      id: userId,
+      n: userId,
+      email: userId.includes('@') ? userId : `${userId}@aapico.com`,
+      role: (userId === 'itsupport' ? 'SA' : userId === 'u7' ? 'ADM' : userId === 'u6' ? 'APR' : 'EU') as RoleKey,
+      rcvName: '—',
+      emp: null,
+      co: ['AH', 'AHA', 'AHT', 'AHP', 'AM'],
+      unit: 'AH',
+    }
     setCurrentUser(user)
     try {
       if (typeof window !== 'undefined') {

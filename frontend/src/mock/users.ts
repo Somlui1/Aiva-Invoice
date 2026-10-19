@@ -90,15 +90,8 @@ export const PERMISSION_DESCRIPTIONS: Record<string, string> = {
 }
 
 export const USERS: User[] = [
-  { id: 'u1', n: 'สมศักดิ์ ใจดี', email: 'somsak.j@aapico.com', role: 'EU', rcvName: '—', emp: 10231, co: ['AH'], unit: 'คลังวัตถุดิบ' },
-  { id: 'u2', n: 'วิไลวรรณ ศรีสุข', email: 'wilaiwan.s@aapico.com', role: 'EU', rcvName: '—', emp: 20417, co: ['AHT'], unit: 'ฝ่ายซ่อมบำรุง' },
-  { id: 'u3', n: 'ธนากร มั่นคง', email: 'thanakorn.m@aapico.com', role: 'EU', rcvName: '—', emp: 30552, co: ['AM'], unit: 'คลังอะไหล่' },
-  { id: 'u4', n: 'ปณิดา รักงาน', email: 'panida.r@aapico.com', role: 'ACC', rcvName: '—', emp: 11020, co: ['AH', 'AHA', 'AHT'], unit: 'ฝ่ายบัญชี AH/AHA/AHT' },
-  { id: 'u5', n: 'กมลวรรณ ใจงาม', email: 'kamonwan.j@aapico.com', role: 'ACC', rcvName: '—', emp: 31005, co: ['AM', 'AHP'], unit: 'ฝ่ายบัญชี AM/AHP' },
-  { id: 'u6', n: 'สมชาย วงศ์ทอง', email: 'somchai.w@aapico.com', role: 'APR', rcvName: '—', emp: 11001, co: ['AH', 'AHA', 'AHT', 'AHP', 'AM', '?'], unit: 'หัวหน้าฝ่ายบัญชี' },
-  { id: 'u7', n: 'อนุชา ไอที', email: 'anucha.i@aapico.com', role: 'ADM', rcvName: '—', emp: null, co: [], unit: 'IT' },
-  { id: 'u8', n: 'กิตติ สมบูรณ์', email: 'kitti.s@aapico.com', role: 'EU', rcvName: '—', emp: null, co: ['AH', 'AHT', 'AM'], unit: 'หัวหน้าคลัง (ดูแลหลาย account)' },
-  { id: 'itsupport', n: 'กิตติศักดิ์ ซัพพอร์ต (IT Support)', email: 'itsupport@aapico.com', role: 'SA', rcvName: '—', emp: 99999, co: ['AH', 'AHA', 'AHT', 'AHP', 'AM'], unit: 'IT Support' }
+  { id: 'wajeepradit.p', n: 'Wajeepradit Prompan (AH)', email: 'wajeepradit.p@aapico.com', role: 'SA', rcvName: '—', emp: null, co: ['AH', 'AHA', 'AHT', 'AHP', 'AM'], unit: 'IT Support' },
+  { id: 'itsupport', n: 'IT Support (AH)', email: 'itsupport@aapico.com', role: 'SA', rcvName: '—', emp: null, co: ['AH', 'AHA', 'AHT', 'AHP', 'AM'], unit: 'IT Support' }
 ]
 
 export const INITIAL_MAPS: AccountMapping[] = []

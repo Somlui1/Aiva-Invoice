@@ -1,13 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import { USERS, ROLES, acctsOf, bound } from '../mock/users'
+import { ROLES, acctsOf, bound } from '../mock/users'
+import { User } from '../types/auth'
 import { INITIAL_DOCS } from '../mock/initialDocs'
 import { validatePayload } from '../context/SimContext'
 
 describe('Business Logic & Access Control Tests', () => {
   it('correctly checks scope for different roles (SEC-10)', () => {
-    const euUser = USERS.find(u => u.id === 'u1')! // somsak, receiver SOMSAK JAIDEE in AH
-    const accUser = USERS.find(u => u.id === 'u4')! // panida in AH, AHT
-    const admUser = USERS.find(u => u.id === 'u7')! // IT Admin (scope: none)
+    const euUser: User = { id: 'u1', n: 'EU Test User', email: 'eu@aapico.com', role: 'EU', rcvName: '—', emp: 10231, co: ['AH'], unit: 'คลังวัตถุดิบ' }
+    const accUser: User = { id: 'u4', n: 'ACC Test User', email: 'acc@aapico.com', role: 'ACC', rcvName: '—', emp: 11020, co: ['AH', 'AHT'], unit: 'ฝ่ายบัญชี AH/AHT' }
+    const admUser: User = { id: 'u7', n: 'ADM Test User', email: 'adm@aapico.com', role: 'ADM', rcvName: '—', emp: null, co: [], unit: 'IT' }
 
     // Document for receiver in AH
     const doc1 = INITIAL_DOCS.find(d => Boolean(d.receiver) && d.company === 'AH')!
@@ -36,15 +37,16 @@ describe('Business Logic & Access Control Tests', () => {
   })
 
   it('correctly maps Oracle receiver accounts to users (bound check)', () => {
+    const testEuUser: User = { id: 'u1', n: 'EU Test User', email: 'eu@aapico.com', role: 'EU', rcvName: '—', emp: 10231, co: ['AH'], unit: 'คลังสินค้า' }
     const sampleMaps = [
       { id: 'm1', user: 'u1', acct: 'SOMSAK JAIDEE', by: 'admin', at: '2026-10-01', req: 'ticket-101' }
     ]
     // Mapped account is bound
-    expect(bound('SOMSAK JAIDEE', sampleMaps)).toBe(true)
+    expect(bound('SOMSAK JAIDEE', sampleMaps, [testEuUser])).toBe(true)
     // Non-existent receiver account is not bound
-    expect(bound('UNBOUND_UNKNOWN_USER', sampleMaps)).toBe(false)
+    expect(bound('UNBOUND_UNKNOWN_USER', sampleMaps, [testEuUser])).toBe(false)
     // Empty receiver is treated as bound or unassigned
-    expect(bound(undefined as any, sampleMaps)).toBe(true)
+    expect(bound(undefined as any, sampleMaps, [testEuUser])).toBe(true)
   })
 
   it('validates aiva.portal.ingest/1.0 payloads correctly', () => {

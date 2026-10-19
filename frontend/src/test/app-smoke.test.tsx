@@ -18,7 +18,7 @@ import { EvidenceViewerDock } from '../components/evidence/EvidenceViewerDock'
 import { initialDocs } from '../mock/initialDocs'
 import { USERS } from '../mock/users'
 
-const smokeUser = USERS.find(u => u.role === 'ACC') || USERS[3]
+const smokeUser = USERS[0]
 
 function Wrapper({ children }: { children: React.ReactNode }) {
   return (

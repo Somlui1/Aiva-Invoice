@@ -5,12 +5,13 @@ import { InvoiceProvider, useInvoices } from '../context/InvoiceContext'
 import { AuthProvider } from '../context/AuthContext'
 import { SettingsProvider } from '../context/SettingsContext'
 import { ToastModalProvider } from '../context/ToastModalContext'
+import { USERS } from '../mock/users'
 import React from 'react'
 
 describe('InvoiceContext Server Action Integration', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
-    window.localStorage.setItem('aiva.auth.user', 'u4')
+    window.localStorage.setItem('aiva.auth.user', USERS[0].id)
   })
 
   it('calls POST /api/documents/[id]/actions when executeAction is invoked', async () => {
@@ -39,7 +40,7 @@ describe('InvoiceContext Server Action Integration', () => {
     })
 
     const wrapper = ({ children }: { children: React.ReactNode }) => (
-      <AuthProvider>
+      <AuthProvider initialUser={USERS[0]}>
         <SettingsProvider>
           <ToastModalProvider>
             <InvoiceProvider>{children}</InvoiceProvider>
@@ -76,7 +77,7 @@ describe('InvoiceContext Server Action Integration', () => {
     const testAudit = await prisma.auditLog.create({
       data: {
         docId: 'DMS-AUDIT-TEST',
-        who: 'สมชาย วงศ์ทอง',
+        who: 'Wajeepradit Prompan',
         role: 'APR',
         act: 'Confirm',
         detail: 'ทดสอบดึง log จากฐานข้อมูล',

@@ -36,7 +36,7 @@ export function LoginPage({ redirectTo, initialError = null, adapter, mock, show
   const isMock = mock ?? LOGIN_CONFIG.mock;
   const toasts = useToasts();
 
-  const [mockCtl, setMockCtl] = useState<MockControls>({ sim: "auto", acct: "u1" });
+  const [mockCtl, setMockCtl] = useState<MockControls>({ sim: "auto", acct: "wajeepradit.p" });
   const mockRef = useRef(mockCtl);
   mockRef.current = mockCtl;
 

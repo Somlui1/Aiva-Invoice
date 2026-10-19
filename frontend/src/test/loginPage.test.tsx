@@ -80,7 +80,7 @@ describe('LoginPage Component', () => {
     expect(passwordInput).toBeTruthy()
 
     await act(async () => {
-      fireEvent.change(usernameInput, { target: { value: 'somsak.j' } })
+      fireEvent.change(usernameInput, { target: { value: 'wajeepradit.p' } })
       fireEvent.change(passwordInput, { target: { value: 'anypassword' } })
     })
 
@@ -96,7 +96,7 @@ describe('LoginPage Component', () => {
     )
 
     const [user, method] = onSuccess.mock.calls[0]
-    expect(user.email).toContain('somsak.j')
+    expect(user.email).toContain('wajeepradit.p')
     expect(method).toBe('ldap')
   })
 

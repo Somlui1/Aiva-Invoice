@@ -65,6 +65,7 @@ import {
 } from '../features/pdf-viewer/lib/coordinateTransform'
 import { viewerBoxesFromInvoiceDoc } from '../features/pdf-viewer/lib/overlayModel'
 import { USERS, ROLES } from '../mock/users'
+import type { User } from '../types/auth'
 import { EU_CODES, EXCEPTION_RULES } from '../mock/rules'
 
 // ---------------------------------------------------------------------------
@@ -694,12 +695,12 @@ describe('GET /api/documents — live database connection', () => {
 // 4. The mockup's queue logic still holds on live rows
 // ===========================================================================
 
-const ACC = USERS.find(u => u.role === 'ACC')!
-const APR = USERS.find(u => u.role === 'APR')!
-const EU = USERS.find(u => u.role === 'EU')!
+const ACC: User = { id: 'test-acc', n: 'Test ACC', email: 'acc@aapico.com', role: 'ACC', rcvName: '—', emp: 11020, co: ['AH', 'AHA', 'AHT'], unit: 'Accounting' }
+const APR: User = { id: 'test-apr', n: 'Test APR', email: 'apr@aapico.com', role: 'APR', rcvName: '—', emp: 11001, co: ['AH', 'AHA', 'AHT', 'AHP', 'AM', '?'], unit: 'Accounting Head' }
+const EU: User = { id: 'test-eu', n: 'Test EU', email: 'eu@aapico.com', role: 'EU', rcvName: 'SOMSAK JAIDEE', emp: 10231, co: ['AH'], unit: 'Warehouse' }
 const canAll = () => true
 
-const scopeOf = (user: (typeof USERS)[number]) => (d: InvoiceDoc) =>
+const scopeOf = (user: User) => (d: InvoiceDoc) =>
   scopeCheckFor(d, user, ROLES[user.role])
 
 const baseInput = (over: Partial<Parameters<typeof filterDocsFor>[0]> = {}) => ({
@@ -781,13 +782,13 @@ describe('queue logic — the mockup rules, applied to live rows', () => {
     expect(why.ok).toBe(false)
     expect(why.why).toContain('ZZZ')
 
-    const admin = USERS.find(u => u.role === 'ADM')!
+    const admin: User = { id: 'test-adm', n: 'Test Admin', email: 'adm@aapico.com', role: 'ADM', rcvName: '—', emp: null, co: [], unit: 'IT' }
     expect(scopeCheckFor(live[0], admin, ROLES.ADM).ok).toBe(false)
   })
 
   it('never strands a live document outside every accountant company list', () => {
     const reach = new Set<string>()
-    for (const u of USERS) {
+    for (const u of [ACC, APR, ...USERS]) {
       if (ROLES[u.role].scope === 'none' || ROLES[u.role].scope === 'receiver') continue
       for (const c of u.co) reach.add(c)
     }
