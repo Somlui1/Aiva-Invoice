@@ -143,16 +143,6 @@ export async function POST(req: NextRequest) {
           completedAt,
         },
       })
-      await tx.auditLog.create({
-        data: {
-          docId: doc.id,
-          who: 'OCR Matching Engine',
-          role: 'SYSTEM',
-          act: 'INGEST',
-          detail: `[${doc.companyCode}] เอกสารใหม่ ${doc.invoiceNum} (${doc.supplierName}) รับเข้าสู่ระบบ สถานะ: ${doc.status}`,
-          createdAt: new Date(),
-        },
-      })
     })
   } catch (e) {
     // Lost a race against a concurrent identical push: treat as a replay.

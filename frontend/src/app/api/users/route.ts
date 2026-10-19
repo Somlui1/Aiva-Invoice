@@ -103,16 +103,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   try {
     const user = await prisma.$transaction(async tx => {
-      // 0. Find existing user to compute diff
-      const existingUser = await tx.user.findUnique({
-        where: { email: data.email },
-        include: {
-          companies: true,
-          receivers: true,
-        },
-      })
-      const isNew = !existingUser
-
       // 1. Upsert User
       const u = await tx.user.upsert({
         where: { email: data.email },
@@ -154,70 +144,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         })
       }
 
-      // 4. Calculate diff
-      const prevCompanies = existingUser ? existingUser.companies.map(c => c.companyCode) : []
-      const newCompanies = data.companies
-      const addedCompanies = newCompanies.filter(c => !prevCompanies.includes(c))
-      const removedCompanies = prevCompanies.filter(c => !newCompanies.includes(c))
-
-      const prevReceivers = existingUser ? existingUser.receivers.map(r => r.receiverName) : []
-      const newReceivers = data.receivers
-      const addedReceivers = newReceivers.filter(r => !prevReceivers.includes(r))
-      const removedReceivers = prevReceivers.filter(r => !newReceivers.includes(r))
-
-      const prevRole = existingUser ? existingUser.role : null
-      const roleChanged = existingUser ? existingUser.role !== data.role : false
-
-      const category = isNew ? 'RBAC_USER' : 'RBAC_PERMISSION'
-      const action = isNew ? 'CREATE_USER' : 'UPDATE_PERMISSIONS'
-      const act = isNew ? 'สร้างผู้ใช้ใหม่' : 'แก้ไขสิทธิ์ผู้ใช้'
-
-      let diffDesc = ''
-      if (isNew) {
-        diffDesc = `สร้างผู้ใช้ใหม่: ${u.name} (${u.email}) · Role: ${u.role} · Scope: ${
-          u.role === 'EU' ? data.receivers.join(', ') : data.companies.join(', ')
-        }`
-      } else {
-        const parts: string[] = []
-        if (roleChanged) parts.push(`เปลี่ยนบทบาท ${prevRole} -> ${data.role}`)
-        if (addedCompanies.length > 0) parts.push(`เพิ่มบริษัท [${addedCompanies.join(', ')}]`)
-        if (removedCompanies.length > 0) parts.push(`ลดบริษัท [${removedCompanies.join(', ')}]`)
-        if (addedReceivers.length > 0) parts.push(`เพิ่มผู้รับ [${addedReceivers.join(', ')}]`)
-        if (removedReceivers.length > 0) parts.push(`ลดผู้รับ [${removedReceivers.join(', ')}]`)
-        if (parts.length === 0) parts.push('อัปเดตข้อมูลทั่วไป')
-        diffDesc = `แก้ไขสิทธิ์ผู้ใช้ ${u.name} (${u.email}): ${parts.join(' · ')}`
-      }
-
-      const metadata = isNew
-        ? {
-            isNew: true,
-            role: data.role,
-            companies: data.companies,
-            receivers: data.receivers,
-          }
-        : {
-            isNew: false,
-            prevRole,
-            newRole: data.role,
-            roleChanged,
-            addedCompanies,
-            removedCompanies,
-            addedReceivers,
-            removedReceivers,
-          }
-
-      // 5. Audit Log
+      // 4. Audit Log
       await tx.auditLog.create({
         data: {
-          category,
           docId: 'USER_MANAGEMENT',
           whoId: adminId,
           who: 'IT Admin',
           role: 'ADM',
-          act,
-          action,
-          detail: diffDesc,
-          metadataJson: JSON.stringify(metadata),
+          act: 'บันทึกสิทธิ์ผู้ใช้',
+          action: 'SAVE_USER',
+          detail: `บันทึกผู้ใช้ ${u.name} (${u.email}) · Role: ${u.role} · Scope: ${
+            u.role === 'EU' ? data.receivers.join(', ') : data.companies.join(', ')
+          }`,
         },
       })
 

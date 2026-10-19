@@ -19,7 +19,6 @@ import { AuditPage } from './components/governance/AuditPage'
 import { SettingsPage } from './components/governance/SettingsPage'
 import { StdPage } from './components/governance/StdPage'
 import { SimPage } from './components/governance/SimPage'
-import { DocumentAlertHost } from './features/notifications/DocumentAlertHost'
 
 export function PortalShell({ initialPage = 'queue' }: { initialPage?: PageKey }) {
   const { currentUser, isAuthenticated } = useAuth()
@@ -152,7 +151,6 @@ export function PortalShell({ initialPage = 'queue' }: { initialPage?: PageKey }
       </div>
       <Modal />
       <Toast />
-      <DocumentAlertHost onNavigateQueue={() => handleNavigate('queue')} />
     </div>
   )
 }

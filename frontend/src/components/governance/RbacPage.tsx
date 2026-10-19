@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { PERMISSION_DESCRIPTIONS, ROLES, USERS, acctsOf } from '../../mock/users'
-import { COMPANIES_26, CompanyMasterInfo } from '../../mock/companies26'
+import { COMPANIES, CompanyInfo, ORG_NAMES } from '../../mock/companies'
 import { Permission } from '../../types/auth'
 import { useAuth } from '../../context/AuthContext'
 import { PermissionExcelGrid } from './rbac/PermissionExcelGrid'
@@ -17,22 +17,10 @@ export function RbacPage() {
   const canManage = can('MAP')
 
   const [activeTab, setActiveTab] = useState<RbacTab>('users')
-  const [companiesList, setCompaniesList] = useState<CompanyMasterInfo[]>(Object.values(COMPANIES_26))
-  const [companySearch, setCompanySearch] = useState('')
+  const [companiesData, setCompaniesData] = useState<Record<string, CompanyInfo>>(COMPANIES)
   const [isSyncing, setIsSyncing] = useState(false)
   const [syncStatus, setSyncStatus] = useState<string | null>(null)
   const [syncedAt, setSyncedAt] = useState<string | null>(null)
-
-  useEffect(() => {
-    fetch('/api/companies')
-      .then(res => res.json())
-      .then(data => {
-        if (data.ok && Array.isArray(data.companies) && data.companies.length > 0) {
-          setCompaniesList(data.companies)
-        }
-      })
-      .catch(() => {})
-  }, [])
 
   const handleSyncCompanies = async () => {
     setIsSyncing(true)
@@ -45,16 +33,11 @@ export function RbacPage() {
       })
       const data = await res.json()
       if (data.ok && Array.isArray(data.companies)) {
-        const nextList: CompanyMasterInfo[] = data.companies.map((c: any) => ({
-          code: c.code,
-          name: c.name,
-          taxId: c.taxId || c.tax || '',
-          ouName: c.ouName || '',
-          ledgerName: c.ledgerName || '',
-          orgId: c.orgId || (Array.isArray(c.orgs) && c.orgs.length > 0 ? c.orgs[0] : 0),
-          isActive: c.isActive !== false,
-        }))
-        setCompaniesList(nextList)
+        const nextMap: Record<string, CompanyInfo> = { ...COMPANIES }
+        for (const c of data.companies) {
+          nextMap[c.code] = { name: c.name, tax: c.tax, orgs: c.orgs }
+        }
+        setCompaniesData(nextMap)
         setSyncStatus(`ซิงค์ข้อมูลสำเร็จ จาก ${data.source === 'oracle_mcp' ? 'Oracle ERP' : 'ระบบสำรอง'}`)
         setSyncedAt(new Date().toLocaleTimeString('th-TH'))
       } else {
@@ -66,19 +49,6 @@ export function RbacPage() {
       setIsSyncing(false)
     }
   }
-
-  const filteredCompanies = companiesList.filter(c => {
-    if (!companySearch.trim()) return true
-    const q = companySearch.toLowerCase().trim()
-    return (
-      c.code.toLowerCase().includes(q) ||
-      c.name.toLowerCase().includes(q) ||
-      (c.ouName && c.ouName.toLowerCase().includes(q)) ||
-      (c.taxId && c.taxId.toLowerCase().includes(q)) ||
-      (c.ledgerName && c.ledgerName.toLowerCase().includes(q)) ||
-      String(c.orgId).includes(q)
-    )
-  })
 
   return (
     <div className="pg">
@@ -125,7 +95,7 @@ export function RbacPage() {
         >
           <Icon name="building" size="sm" />
           <span>บริษัทและ ORG_ID</span>
-          <span className="c">{companiesList.length}</span>
+          <span className="c">{Object.keys(companiesData).filter(k => k !== '?').length}</span>
         </button>
       </div>
 
@@ -254,63 +224,16 @@ export function RbacPage() {
         {/* Tab 3: Companies & ORG_ID (Table 4) */}
         {activeTab === 'companies' && (
           <div className="panel">
-            <div className="panel-h" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+            <div className="panel-h" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <h3>บริษัทและ ORG_ID (ตารางที่ 4)</h3>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                  <span style={{ fontSize: 12, color: 'var(--s-500)' }}>
-                    แสดง {filteredCompanies.length} จาก {companiesList.length} บริษัท
+                {syncedAt && (
+                  <span style={{ fontSize: 11, color: 'var(--s-500)', marginLeft: 8 }}>
+                    (อัปเดตล่าสุด: {syncedAt})
                   </span>
-                  {syncedAt && (
-                    <span style={{ fontSize: 11, color: 'var(--s-500)' }}>
-                      (อัปเดตล่าสุด: {syncedAt})
-                    </span>
-                  )}
-                </div>
+                )}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <div style={{ position: 'relative', width: 320 }}>
-                  <input
-                    type="text"
-                    role="searchbox"
-                    aria-label="ค้นหาบริษัท"
-                    placeholder="ค้นหาตามรหัสย่อ, ชื่อบริษัท, Tax ID หรือ ORG_ID..."
-                    value={companySearch}
-                    onChange={e => setCompanySearch(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '6px 12px 6px 30px',
-                      fontSize: 12.5,
-                      border: '1px solid var(--b-300)',
-                      borderRadius: 6,
-                      background: 'var(--bg-card)',
-                      color: 'inherit',
-                    }}
-                  />
-                  <span style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', opacity: 0.5, pointerEvents: 'none' }}>
-                    <Icon name="search" size="sm" />
-                  </span>
-                  {companySearch && (
-                    <button
-                      type="button"
-                      onClick={() => setCompanySearch('')}
-                      style={{
-                        position: 'absolute',
-                        right: 8,
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        color: 'var(--s-400)',
-                        fontSize: 12,
-                      }}
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 {syncStatus && (
                   <span style={{ fontSize: 12, color: syncStatus.includes('สำเร็จ') ? 'var(--ok)' : 'var(--err)' }}>
                     {syncStatus}
@@ -348,52 +271,27 @@ export function RbacPage() {
               <table className="t">
                 <thead>
                   <tr>
-                    <th style={{ width: 80 }}>รหัสย่อ</th>
-                    <th>ชื่อบริษัท (Legal Entity)</th>
-                    <th>Operating Unit (OU Name)</th>
-                    <th style={{ width: 140 }}>Tax ID</th>
-                    <th style={{ width: 90 }}>ORG_ID</th>
-                    <th>Ledger</th>
-                    <th style={{ width: 80, textAlign: 'center' }}>สถานะ</th>
+                    <th>บริษัท</th>
+                    <th>ชื่อ</th>
+                    <th>Tax ID</th>
+                    <th>ORG_ID</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredCompanies.map(c => (
-                    <tr key={`${c.code}-${c.orgId}`}>
+                  {Object.entries(companiesData).map(([k, c]) => (
+                    <tr key={k}>
                       <td>
                         <span className="co" style={{ margin: 0 }}>
-                          {c.code}
+                          {k}
                         </span>
                       </td>
                       <td>{c.name}</td>
-                      <td>{c.ouName || '—'}</td>
-                      <td className="mono">{c.taxId || '—'}</td>
-                      <td className="mono">{c.orgId || '—'}</td>
-                      <td className="mono" style={{ fontSize: 12 }}>{c.ledgerName || '—'}</td>
-                      <td style={{ textAlign: 'center' }}>
-                        <span
-                          style={{
-                            display: 'inline-block',
-                            padding: '2px 8px',
-                            borderRadius: 10,
-                            fontSize: 11,
-                            fontWeight: 600,
-                            background: c.isActive ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                            color: c.isActive ? '#10b981' : '#ef4444',
-                          }}
-                        >
-                          {c.isActive ? 'ใช้งาน' : 'ระงับ'}
-                        </span>
+                      <td className="mono">{c.tax}</td>
+                      <td className="mono">
+                        {c.orgs.map(o => `${o} ${ORG_NAMES[o] || ''}`).join(', ')}
                       </td>
                     </tr>
                   ))}
-                  {filteredCompanies.length === 0 && (
-                    <tr>
-                      <td colSpan={7} style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--s-400)' }}>
-                        ไม่พบบริษัทที่ตรงกับคำค้นหา &ldquo;{companySearch}&rdquo;
-                      </td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
             </div>

@@ -17,9 +17,7 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "seed:engine": "tsx scripts/simulate-engine-push.ts",
-    "seed:v5": "tsx scripts/seed-invoices-v5.ts",
-    "db:clear:data": "tsx scripts/clear-database.ts --mode=data",
-    "db:clear:logs": "tsx scripts/clear-database.ts --mode=logs"
+    "seed:v5": "tsx scripts/seed-invoices-v5.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

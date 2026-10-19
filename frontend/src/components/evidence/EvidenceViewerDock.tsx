@@ -65,7 +65,7 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
   const [currentPage, setCurrentPage] = useState<number>(evidenceDockFocus?.page || 1)
   const [zoom, setZoom] = useState<number>(1)
   const [rotation, setRotation] = useState<number>(0)
-  const [showEvidence, setShowEvidence] = useState<boolean>(Boolean(evidenceDockFocus))
+  const [showEvidence, setShowEvidence] = useState<boolean>(true)
   const [showAllFields, setShowAllFields] = useState<boolean>(false)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -113,7 +113,7 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
   const fit = mockPageFitScale(bodyWidth)
   const surfaceStyle = mockSurfaceStyle({ fit, zoom, rotation })
 
-  const { status, canvasRef, pageSize, reload, pdfDoc } = usePdfViewer({
+  const { status, canvasRef, pageSize, reload } = usePdfViewer({
     documentId: doc.doc,
     containerWidth: Math.max(0, bodyWidth - DOCK_BODY_INSET),
     page: currentPage,
@@ -362,11 +362,7 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
         currentPage={currentPage}
         totalPages={totalPages}
         zoom={zoom}
-        onPageChange={p => {
-          setCurrentPage(p)
-          const targetEl = document.getElementById(`pdf-page-${p}`)
-          targetEl?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-        }}
+        onPageChange={p => setCurrentPage(p)}
         onZoomChange={setZoom}
         onRotate={handleRotate}
         onClose={closeEvidenceDock}
@@ -394,24 +390,6 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
           onRetry={reload}
           onClose={closeEvidenceDock}
           placeholder={mockSurface}
-          pdfDoc={pdfDoc}
-          containerWidth={Math.max(0, bodyWidth - DOCK_BODY_INSET)}
-          rotation={rotation}
-          zoom={zoom}
-          onPageVisible={p => setCurrentPage(p)}
-          renderOverlayForPage={(pageNum, size) =>
-            projectOverlayBoxes(pdfBoxes, {
-              page: pageNum,
-              pageSize: size,
-              rotation,
-              padding: 2,
-              focusRuleId,
-              focusId: selectedId,
-              activeRuleId: focusRuleId,
-              activeExceptionCode: evidenceSelection?.exceptionCode,
-              onlyEvidence: !showAllFields,
-            })
-          }
         />
       </div>
 

@@ -96,7 +96,6 @@ interface InvoiceContextType {
   precheckPost: (doc: InvoiceDoc) => { ok: boolean; code?: string; why: string }
   batchPost: (docIds: string[]) => { ok: boolean; count: number; msg: string }
   ingestResultToQueue: (payload: any) => void
-  refreshFromBackend: () => Promise<void>
 }
 
 const InvoiceContext = createContext<InvoiceContextType | null>(null)
@@ -124,50 +123,57 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
   const [evidenceDockFocus, setEvidenceDockFocus] = useState<{ page: number; ruleId?: string; nonce?: number } | null>(null)
   const [evidenceSelection, setEvidenceSelection] = useState<EvidenceSelection | null>(null)
 
-  const refreshFromBackend = useCallback(async () => {
-    try {
-      const res = await fetch('/api/documents?include=boxes')
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}))
-        setDocs(prev => {
-          const applied = applyLiveDocs({
-            prevDocs: prev,
-            liveDocs: [],
-            selectedDocId,
-            error: errData.error || `HTTP ${res.status}`,
-          })
-          return applied.docs
-        })
-        return
-      }
-      const data = await res.json()
-      if (data.ok && Array.isArray(data.documents)) {
-        setSelectedDocId(prevSelected => {
-          const applied = applyLiveDocs({
-            prevDocs: [],
-            liveDocs: data.documents,
-            selectedDocId: prevSelected,
-          })
-          return applied.selectedDocId
-        })
-        setDocs(data.documents)
-      }
-    } catch (err: any) {
-      setDocs(prev => {
-        const applied = applyLiveDocs({
-          prevDocs: prev,
-          liveDocs: [],
-          selectedDocId,
-          error: err?.message || 'Network error',
-        })
-        return applied.docs
-      })
-    }
-  }, [selectedDocId])
-
   useEffect(() => {
-    refreshFromBackend()
-  }, [refreshFromBackend])
+    let active = true
+    async function loadLiveQueue() {
+      try {
+        const res = await fetch('/api/documents?include=boxes')
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}))
+          if (active) {
+            setDocs(prev => {
+              const applied = applyLiveDocs({
+                prevDocs: prev,
+                liveDocs: [],
+                selectedDocId,
+                error: errData.error || `HTTP ${res.status}`,
+              })
+              return applied.docs
+            })
+          }
+          return
+        }
+        const data = await res.json()
+        if (active && data.ok && Array.isArray(data.documents)) {
+          setSelectedDocId(prevSelected => {
+            const applied = applyLiveDocs({
+              prevDocs: [],
+              liveDocs: data.documents,
+              selectedDocId: prevSelected,
+            })
+            return applied.selectedDocId
+          })
+          setDocs(data.documents)
+        }
+      } catch (err: any) {
+        if (active) {
+          setDocs(prev => {
+            const applied = applyLiveDocs({
+              prevDocs: prev,
+              liveDocs: [],
+              selectedDocId,
+              error: err?.message || 'Network error',
+            })
+            return applied.docs
+          })
+        }
+      }
+    }
+    loadLiveQueue()
+    return () => {
+      active = false
+    }
+  }, [])
 
   const openEvidenceDock = useCallback((page = 1, ruleId?: string) => {
     setViewMode('split')
@@ -691,8 +697,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
         executeAction,
         precheckPost,
         batchPost,
-        ingestResultToQueue,
-        refreshFromBackend
+        ingestResultToQueue
       }}
     >
       {children}
