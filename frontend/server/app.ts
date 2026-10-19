@@ -5,6 +5,7 @@ import path from 'node:path'
 import fs from 'node:fs'
 import { sessionMiddleware } from './middleware/session'
 import { errorHandler } from './middleware/errorHandler'
+import { authRouter } from './routes/auth'
 import { prisma } from '../src/lib/prisma'
 
 export function createExpressApp(): Express {
@@ -15,6 +16,9 @@ export function createExpressApp(): Express {
   app.use(express.json({ limit: '50mb' }))
   app.use(express.urlencoded({ extended: true, limit: '50mb' }))
   app.use(sessionMiddleware)
+
+  // Auth routes
+  app.use('/api/auth', authRouter)
 
   // Preflight healthcheck
   app.get('/api/health', async (_req, res) => {
