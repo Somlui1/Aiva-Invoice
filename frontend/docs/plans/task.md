@@ -79,6 +79,16 @@
 | react-adapter-brainstorm-clarify | Ask clarifying questions (one at a time, constraints & expectations) | completed | Aligned on TypeScript Node.js (Express) adapter service + single concurrently command dev workflow |
 | react-adapter-brainstorm-propose | Propose 2-3 approaches with trade-offs & recommendation | completed | User approved Approach 1: Integrated Express Host (Vite React + Express Adapter Service) |
 | react-adapter-brainstorm-design | Present design in sections and get user approval | completed | All 3 design sections approved by user |
-| react-adapter-brainstorm-doc | Write design doc to docs/plans/2026-10-19-react-adapter-service-architecture-design.md & commit | in_progress | Writing comprehensive design document and committing to git |
-| react-adapter-brainstorm-transition | Transition to implementation planning (invoke writing-plans) | pending | |
+| react-adapter-brainstorm-doc | Write design doc to docs/plans/2026-10-19-react-adapter-service-architecture-design.md & commit | completed | Committed design doc (7b8bd82) |
+| react-adapter-brainstorm-transition | Transition to implementation planning (invoke writing-plans) | completed | Invoked writing-plans skill to draft detailed task-by-task implementation plan |
+| react-adapter-plan-created | Create detailed implementation plan (Vite React + Express Adapter Service) | completed | Implementation plan saved to docs/plans/2026-10-19-react-adapter-service-architecture.md |
+| react-adapter-task-1 | Project Scaffolding, Dependencies & Vite Configuration | pending | package.json, vite.config.ts, index.html, main.tsx |
+| react-adapter-task-2 | Express Adapter Service Entrypoint & Middlewares | pending | server/index.ts, server/app.ts, session & error middleware |
+| react-adapter-task-3 | Authentication & Identity Routes Migration | pending | server/routes/auth.ts (LDAP, session cookie, /api/auth/me) |
+| react-adapter-task-4 | Documents & State Machine Mutation Endpoints Migration | pending | server/routes/documents.ts (list, actions, locking) |
+| react-adapter-task-5 | PDF Streaming Proxy & Engine Webhook Ingestion Migration | pending | server/routes/pdfProxy.ts & engineIngest.ts (Zod normalization) |
+| react-adapter-task-6 | Governance Routes Migration (Batches, Users, AD, Audit, Health) | pending | server/routes/governance.ts (AP batches, RBAC, health) |
+| react-adapter-task-7 | Frontend SPA Root & Routing Adaptation | pending | src/App.tsx, LoginPage.tsx, retire next packages & src/app/ |
+| react-adapter-task-8 | Full Verification, Build & Parity Regression Pass | pending | vitest 42 files, tsc clean, vite build & engine pytest 263 pass |
+
 
