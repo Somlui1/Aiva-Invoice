@@ -91,7 +91,7 @@ export function AuthProvider({
           }
         }
       } catch {}
-      if (process.env.NODE_ENV === 'test') {
+      if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
         return USERS.find(u => u.role === 'ACC') || USERS[0]
       }
     }
@@ -102,7 +102,7 @@ export function AuthProvider({
   // Sync latest user profile & permissions from /api/auth/me
   useEffect(() => {
     if (typeof window === 'undefined') return
-    if (process.env.NODE_ENV === 'test') return
+    if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') return
 
     const unauth = window.localStorage.getItem('aiva.test.unauthenticated') === 'true'
     if (unauth) return

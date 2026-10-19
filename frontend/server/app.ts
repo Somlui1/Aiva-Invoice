@@ -3,6 +3,10 @@ import cors from 'cors'
 import cookieParser from 'cookie-parser'
 import path from 'node:path'
 import fs from 'node:fs'
+import { fileURLToPath } from 'node:url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 import { sessionMiddleware } from './middleware/session'
 import { errorHandler } from './middleware/errorHandler'
 import { authRouter } from './routes/auth'
