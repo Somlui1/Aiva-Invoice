@@ -89,6 +89,6 @@
 | react-adapter-task-5 | PDF Streaming Proxy & Engine Webhook Ingestion Migration | completed | server/routes/pdfProxy.ts & engineIngest.ts (Zod normalization, Paperless streaming); tests pass; commit 783880d |
 | react-adapter-task-6 | Governance Routes Migration (Batches, Users, AD, Audit, Health) | completed | server/routes/governance.ts (users, AD search, audit logs, AP batches & callbacks, Oracle sync); 5/5 tests pass |
 | react-adapter-task-7 | Frontend SPA Root & Routing Adaptation | completed | src/App.tsx SPA routing, LoginPage & StandaloneViewerRoute, vite.config.ts alias, package.json scripts; tests pass |
-| react-adapter-task-8 | Full Verification, Build & Parity Regression Pass | in_progress | vitest 42 files, tsc clean, vite build & engine pytest 263 pass |
+| react-adapter-task-8 | Full Verification, Build & Parity Regression Pass | completed | Full vitest 49/49 files (277/277 tests) pass; tsc clean (0 errors); vite build dist/ clean; engine 263 pytest pass |
 
 
