@@ -428,7 +428,7 @@ apRouter.post('/batches', async (req: Request, res: Response) => {
 
 apRouter.post('/batches/:id/callback', async (req: Request, res: Response) => {
   try {
-    const batchId = req.params.id
+    const batchId = String(req.params.id)
     const body = req.body || {}
     const results = body.results
 

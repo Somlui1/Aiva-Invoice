@@ -71,7 +71,7 @@ documentsRouter.get('/', async (req, res) => {
       .filter((d) => (q.to ? d.up <= q.to : true))
       .filter((d) => matchesSearchQuery(d, q.q ?? ''))
 
-    const sorted = sortDocsFor(filtered)
+    const sorted = sortDocsFor(filtered, q.status ?? 'all')
     const page = sorted.slice(q.offset, q.offset + q.limit)
 
     return res.json({
@@ -120,7 +120,7 @@ documentsRouter.get('/:id', async (req, res) => {
         status: doc.status,
         isLocked: doc.isLocked,
         apStatus: doc.apStatus,
-        validationRuns: doc.validationRuns,
+        validationRuns: doc.runs,
       },
     })
   } catch (err: any) {

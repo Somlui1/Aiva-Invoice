@@ -117,7 +117,7 @@ authRouter.post('/ldap', async (req, res) => {
             create: assignedCompanies.map((c) => ({ companyCode: c })),
           },
           receivers: {
-            create: assignedReceivers.map((r) => ({ receiverName: r })),
+            create: assignedReceivers.map((r) => ({ receiverName: r, assignedBy: 'SYSTEM' })),
           },
         },
         update: {

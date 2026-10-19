@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter } from "../../lib/router";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { createHttpAuth } from "./auth/http";
 import { createMockAuth, toSessionUser, type MockControls } from "./auth/mock";

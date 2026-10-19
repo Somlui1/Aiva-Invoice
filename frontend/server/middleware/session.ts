@@ -47,6 +47,10 @@ export async function sessionMiddleware(req: Request, _res: Response, next: Next
       where: {
         OR: [{ id: userId }, { email: userId }, { samAccount: userId }],
       },
+      include: {
+        companies: true,
+        receivers: true,
+      },
     })
 
     if (dbUser) {
@@ -55,8 +59,8 @@ export async function sessionMiddleware(req: Request, _res: Response, next: Next
         name: dbUser.name,
         email: dbUser.email,
         role: dbUser.role,
-        companies: dbUser.companies ? JSON.parse(dbUser.companies) : ['AH', 'AHA', 'AHT', 'AHP', 'AM'],
-        receivers: dbUser.receivers ? JSON.parse(dbUser.receivers) : [],
+        companies: dbUser.companies.map(c => c.companyCode),
+        receivers: dbUser.receivers.map(r => r.receiverName),
       }
       return next()
     }
