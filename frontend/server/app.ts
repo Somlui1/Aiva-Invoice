@@ -7,6 +7,8 @@ import { sessionMiddleware } from './middleware/session'
 import { errorHandler } from './middleware/errorHandler'
 import { authRouter } from './routes/auth'
 import { documentsRouter } from './routes/documents'
+import { pdfProxyRouter } from './routes/pdfProxy'
+import { engineIngestRouter } from './routes/engineIngest'
 import { prisma } from '../src/lib/prisma'
 
 export function createExpressApp(): Express {
@@ -20,7 +22,9 @@ export function createExpressApp(): Express {
 
   // API routes
   app.use('/api/auth', authRouter)
+  app.use('/api/documents', pdfProxyRouter)
   app.use('/api/documents', documentsRouter)
+  app.use('/api/engine', engineIngestRouter)
 
   // Preflight healthcheck
   app.get('/api/health', async (_req, res) => {
