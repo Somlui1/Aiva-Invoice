@@ -9,6 +9,13 @@ import { authRouter } from './routes/auth'
 import { documentsRouter } from './routes/documents'
 import { pdfProxyRouter } from './routes/pdfProxy'
 import { engineIngestRouter } from './routes/engineIngest'
+import {
+  usersRouter,
+  adRouter,
+  auditLogsRouter,
+  apRouter,
+  oracleRouter,
+} from './routes/governance'
 import { prisma } from '../src/lib/prisma'
 
 export function createExpressApp(): Express {
@@ -25,6 +32,11 @@ export function createExpressApp(): Express {
   app.use('/api/documents', pdfProxyRouter)
   app.use('/api/documents', documentsRouter)
   app.use('/api/engine', engineIngestRouter)
+  app.use('/api/users', usersRouter)
+  app.use('/api/ad', adRouter)
+  app.use('/api/audit-logs', auditLogsRouter)
+  app.use('/api/ap', apRouter)
+  app.use('/api/oracle', oracleRouter)
 
   // Preflight healthcheck
   app.get('/api/health', async (_req, res) => {

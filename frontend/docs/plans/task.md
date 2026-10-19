@@ -82,13 +82,13 @@
 | react-adapter-brainstorm-doc | Write design doc to docs/plans/2026-10-19-react-adapter-service-architecture-design.md & commit | completed | Committed design doc (7b8bd82) |
 | react-adapter-brainstorm-transition | Transition to implementation planning (invoke writing-plans) | completed | Invoked writing-plans skill to draft detailed task-by-task implementation plan |
 | react-adapter-plan-created | Create detailed implementation plan (Vite React + Express Adapter Service) | completed | Implementation plan saved to docs/plans/2026-10-19-react-adapter-service-architecture.md |
-| react-adapter-task-1 | Project Scaffolding, Dependencies & Vite Configuration | pending | package.json, vite.config.ts, index.html, main.tsx |
-| react-adapter-task-2 | Express Adapter Service Entrypoint & Middlewares | pending | server/index.ts, server/app.ts, session & error middleware |
-| react-adapter-task-3 | Authentication & Identity Routes Migration | pending | server/routes/auth.ts (LDAP, session cookie, /api/auth/me) |
-| react-adapter-task-4 | Documents & State Machine Mutation Endpoints Migration | pending | server/routes/documents.ts (list, actions, locking) |
-| react-adapter-task-5 | PDF Streaming Proxy & Engine Webhook Ingestion Migration | pending | server/routes/pdfProxy.ts & engineIngest.ts (Zod normalization) |
-| react-adapter-task-6 | Governance Routes Migration (Batches, Users, AD, Audit, Health) | pending | server/routes/governance.ts (AP batches, RBAC, health) |
-| react-adapter-task-7 | Frontend SPA Root & Routing Adaptation | pending | src/App.tsx, LoginPage.tsx, retire next packages & src/app/ |
+| react-adapter-task-1 | Project Scaffolding, Dependencies & Vite Configuration | completed | Installed express, cors, cookie-parser, concurrently; index.html, main.tsx, vite.config.ts with /api proxy; tests pass; commit 8bc78ea |
+| react-adapter-task-2 | Express Adapter Service Entrypoint & Middlewares | completed | server/app.ts, server/index.ts, session & error middleware, /api/health; tests pass; commit 41a15b2 |
+| react-adapter-task-3 | Authentication & Identity Routes Migration | completed | server/routes/auth.ts (LDAP, session cookie, /api/auth/me, logout); tests pass; commit 0b69877 |
+| react-adapter-task-4 | Documents & State Machine Mutation Endpoints Migration | completed | server/routes/documents.ts (list, detail, actions, locking); tests pass; commit c8baca0 |
+| react-adapter-task-5 | PDF Streaming Proxy & Engine Webhook Ingestion Migration | completed | server/routes/pdfProxy.ts & engineIngest.ts (Zod normalization, Paperless streaming); tests pass; commit 783880d |
+| react-adapter-task-6 | Governance Routes Migration (Batches, Users, AD, Audit, Health) | completed | server/routes/governance.ts (users, AD search, audit logs, AP batches & callbacks, Oracle sync); 5/5 tests pass |
+| react-adapter-task-7 | Frontend SPA Root & Routing Adaptation | in_progress | src/App.tsx, LoginPage.tsx, retire next packages & src/app/ |
 | react-adapter-task-8 | Full Verification, Build & Parity Regression Pass | pending | vitest 42 files, tsc clean, vite build & engine pytest 263 pass |
 
 
