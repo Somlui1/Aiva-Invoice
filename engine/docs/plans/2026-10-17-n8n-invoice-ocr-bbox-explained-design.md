@@ -195,3 +195,77 @@ probe เพิ่มเพื่อบอกขอบเขตที่แท�
 **นัยสำคัญ:** flow อธิบายนี้ (1 หน้า : 1 request) กำลังทำงานได้ *ดีกว่า* engine บน gateway วันนี้ —
 เป็น defect ของ engine/`src` ที่ควรแก้แยกเป็นอีกงาน (ไม่ใช่บั๊กของ flow) และมี pattern เดิมใน `src` อยู่แล้วคือ retry บันไดของ
 `litellm_client.py:136-160` (repair → ปิด thinking → salvage JSON)
+
+## 12. Task 6 + การวัด "flow == engine 5.5?" (ทำต่อ 2026-10-19, session นี้)
+
+### 12.1 ground truth ที่ไม่ใช่ VLM (ปิดช่องที่ §9/§10 เทียบกับ "reference" อย่างเดียว)
+
+ปัญหาของ §9/§10: ทุกผู้อ่านภาพหน้า DMS-23 คือ **โมเดลตัวเดียวกัน** (`nvidia/Qwen3.8-Flash-Next` บน gateway
+`10.10.3.112:4000`) ทั้ง engine, flow และ vision MCP — การอ่านของโมเดลจึงตัดสินการอ่านของโมเดลเองไม่ได้
+(พิสูจน์แล้ว: ให้ vision MCP อ่าน `exec334/invoice_p1_clean.png` แบบ verbatim ได้ `ผู้ขาย = บริษัท โปรเส้นสาย`,
+`ผู้ซื้อ = บริษัท ฮาโก้ โฮม`, `Grand Total 4,723.55`, `รหัสสินค้า 8888888888888` ซึ่ง **ผิดทั้งหมด** ทั้งที่อ่านด้วย
+thinking=on และ 300 DPI crops) → ห้ามใช้ VLM เป็นพยาน
+
+พยานที่ Independence จริง = **OCR ของ Paperless-ngx เอง** (tesseract eng+tha, ผูกกับไฟล์จริง, เราไม่ได้สร้าง)
+`GET /api/documents/23/ -> content` — ตัว PDF เองไม่มี text layer (R3-4 วัดแล้วว่า `get_text()` = 0 ตัวอักษร)
+เครื่องมือ: `temp/n8n_run/gt_paperless.py` (ดึง+เซฟ) และ `temp/n8n_run/gt_score.py` (ให้คะแนนทุก producer
+กับของจริง โดย **ตรวจว่าคำอ้างอิงที่อ้าง อยู่ในไฟล์ OCR จริง** ถ้าไม่อยู่ = ออก 1 ห้ามใช้ต่อ)
+
+| ฟิลด์ | สิ่งที่พิมพ์จริง (อ้างจาก OCR) | ที่มา |
+|---|---|---|
+| supplier_name | บริษัท ที.เอ็น.สตีล จำกัด | `T.N.STEEL CO.,LTD. (HEAD OFFICE)` |
+| supplier_tax_id | 0145538000833 | `เลขประจําตัวผู้เสียภาษี : 0145538000833 (สํานักงานใหญ่)` |
+| customer_name | บริษัท อาปิโก ไฮเทค ทูลลิ่ง จำกัดฯ | `AAPICO HITECH TOOLING COMPANY LIMITED` |
+| customer_tax_id | 0145548001557 | หน้าที่ 2 (PO): `TAX 1D : 0-1455-48001-55-7` |
+| invoice_num | T6909/0093 | `เลียวหก a a T6909, /0093` |
+| invoice_date | 03/09/2569 | `โรนต่ 03/09/2569 9:43:19` · **02/11/2569 คือ "กําหนดชําระ/Due Date"** |
+| po_number | PO42052739 | `หนมายเหตุ: PO42052739` + PO พิมพ์ `42052739` |
+| sub_total / vat / grand_total | 2,265.00 / 158.55 / 2,423.55 | 2,265×7% = 158.55 · ผลบวก = 2,423.55 · PO เขียนตัวอักษร `TWO THOUSAND FOUR HUNDRED … AND 55/100` |
+| แถวรายการ | 0800105003216 / เหล็กท่อกลมดำ 2"×3.2 มม.ชมพู / 3.00 × 755.00 = 2,265.00 | OCR บรรทัดตาราง + PO `STEEL PIPE … 755.00` |
+
+⇒ **reference Oct-12 ถูก 10/11** (พลาด `customer_name` ตัวเดียว: พิมพ์ `พูลทิง` แทน `ทูลลิ่ง`)
+⇒ **flow (thinking=off) ถูก 2–5/11 ทุกครั้ง** — พังคงที่คือ `po_number` (หยิบ timestamp `03/09/2569 9:43:19`),
+`invoice_date` (หยิบ Due Date), `supplier_tax_id`, `customer_name`/`customer_address` (ประดิษฐ์ชื่อไทยใหม่
+ไม่ซ้ำกันในแต่ละรัน: อารียา โฮเทล / อมรินทร์ โฮมมาร์ท / อมรชัย โกลด์ / ฮาโก้ อินดัสทรี)
+
+**ข้อจำกัดที่ต้องบันทึกไว้ด้วย: reference Oct-12 ไม่ใช่ output ของ engine 5.5** — ผลิตด้วย prompt ก่อน 1.4.0
+(ไม่มี label ladder / กฎกันสับสนฝ่ายของ 1.5.0–1.6.0) และ engine 5.5 วันนี้รันไม่ได้เพราะ classify ยิงทุกหน้า
+ในลูกเดียว (§11) ⇒ **ตอนนี้ยังไม่มีใครวัด "flow vs engine 5.5" ได้จริง** สิ่งเดียวที่วัดได้คือ *flow vs สิ่งที่
+กระดาษพิมพ์* และตัวเลขข้างบนคือคำตอบนั้น
+
+### 12.2 Task 6: `enable_thinking` เข้า node + root cause ที่ MCP โกหกว่าแก้สำเร็จ
+
+`setNodeParameter` path `/parameters/jsCode` **ไม่ได้เขียนทับ** `parameters.jsCode` — มันสร้าง key ซ้อน
+`parameters.parameters.jsCode` แล้วปล่อย jsCode ตัวจริง **เหมือนเดิมทุกตัวอักษร** (sha256 `38cec399…` ทั้งก่อน
+และหลัง) แต่ API ตอบ `appliedOperations: 2` และ version diff ลงท้ายว่าเป็น `parameters__added`
+⇒ execution **335–338 รันโค้ดเดิมทั้ง 4 รอบ** (ตรวจจาก output ของ node 03/08 ที่ไม่มี key `thinking`/
+`max_tokens_used` และ llmBody still `enable_thinking:false`) — ตอนแรกเข้าใจผิดว่า "n8n ใช้ snapshot ค้าง"
+กว่าจะจับได้เพราะอ่าน `parameters` กลับมาดู (บทเรียน: **ห้ามเชื่อ flag ของ write, ต้อง read back**)
+แก้ด้วย `updateNodeParameters` + `replace:true` (ลบ key ที่เกินมาออกด้วย) — n8n เติม `\n` ท้ายโค้ด 1 ตัว ไม่มีผล
+
+knob อ่านค่า 2 ทาง (node 03/08): `body.enable_thinking` จาก Webhook (ใช้ตอน A/B) → fallback `cfg.enable_thinking`
+จาก node 00 เหตุผลที่ไม่ใส่เข้า node 00 ให้เสร็จ: Set node แทรก array element ผ่าน MCP ไม่ได้ (Task 6 เดิม)
+และเขียนทับทั้งก้อน = ต้อง paste prompt 9,301 ตัวอักษรผ่าน MCP = เสี่ยง prompt เพี้ยน
+**และบทเรียนเพิ่ม (exec 336):** `cfg.body` เป็น `undefined` เสมอ เพราะ node 00 ตั้ง `includeOtherFields=false`
+→ ต้องอ่านจาก node Webhook ตรง ๆ ไม่งั้น knob ไม่ทำงานเงียบ ๆ (`reasoning_tokens=0`)
+เจ้าของยังเพิ่ม entry `enable_thinking` ใน node 00 ได้เองใน UI — โค้ดรองรับอยู่แล้ว
+
+ตรวจว่าการเขียนครั้งนี้ตรงเป้าจริง: jsCode ที่ store = ที่ build จาก `temp/n8n_run/build_ops_v2.py` ต่างกันแค่
+newline ท้ายไฟล์ และ **prompt ใน node 00 ยังเป็น byte เดิม** (`prompt_classify` sha `50404699…` = ไฟล์ใน repo
+ส่วน `prompt_extract` sha `9aa745df…` ≠ `34ac2fc3…` เพราะ **ขาด newline 1 ตัวที่ offset 7565** — deviation
+ที่มีมาก่อน session นี้ และยังไม่แก้เพราะต้อง paste 9.3 KB (เจ้าของวางจาก UI ได้เลย)
+
+### 12.3 ผล A/B ของ thinking บน DMS-23 (วัดจริง ไม่ใช่เดา)
+
+| arm | exec | ถูกเทียบกระดาษ | tokens | reasoning | เวลา |
+|---|---|---|---|---|---|
+| thinking=off (default = engine) | 332,333,334,335,336,337,338,340 | 2–5/11 (ค่ากลาง 3) | 4,904–5,799 | 0 | 12–14 s |
+| thinking=on (8,000 classify / 16,000 extract) | 339 | 5/11 | 8,457 | 2,052 | 27.6 s |
+| engine reference (Oct-12, prompt เก่า) | — | 10/11 | — | — | 15.8 s |
+
+อ่านอย่างซื่อสัตย์: **ยังสรุปว่า thinking=on ดีกว่าไม่ได้** — on arm มี 1 รัน และ off arm แกว่ง 2→5/11
+(exec340 ได้ 5/11 เท่ากัน) คือใน spread เดิม สิ่งเดียวที่ *เอนเอียงชัด* คือ `invoice_date`: off พลาด 8/8
+(หยิบ Due Date) ส่วน on ได้เลขถูก 1/1 — ต้อง n≥5 ต่อ arm ถึงจะพูดได้ และ thinking=on **จ่ายเพิ่มแน่นอน**
+คือ +46% completion tokens และ ~2× เวลา ส่วนฟิลด์ชื่อไทยประดิษฐ์ใหม่ **พังเท่ากันทั้งสอง arm** —
+นี่คือสิ่งที่ engine มีแต่ flow ไม่มี (occurrences voting, corroborate_arithmetic, `normalize.tax_id()`
++ Thai checksum, `format_warnings`, retry 300 DPI, adjudicate) ไม่ใช่เรื่อง thinking
