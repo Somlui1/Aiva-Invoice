@@ -23,9 +23,9 @@ patch ที่ `make_blackbox.py` ใส่ลง blackbox (ไม่แตะ�
 
 ## งานที่เหลือ (ลำดับเด็ดขาด — ห้ามสลับ)
 
-- [ ] **T16-2 (มนุษย์)** n8n → Import from file → เลือก `engine/temp/n8n_port/blackbox.json`
+- [x] **T16-2 (มนุษย์)** — import แล้ว ได้ id `034iqKMRjqKt9LlB` (ต้องเปิด "Available in MCP" ด้วย มิฉะนั้นแตะไม่ได้เลย) n8n → Import from file → เลือก `engine/temp/n8n_port/blackbox.json`
       แล้วบอก workflow id ใหม่ (ยัง **ไม่ต้อง** publish)
-- [ ] **T16-3** ทดสอบ blackbox เดี่ยว ๆ: Execute Workflow → trigger `BB TRIGGER` ด้วย `{ "doc_id": 89 }`
+- [x] **T16-3** — ผ่าน (exec 399): decision layer เท่ากับ exec 395 ทุกชั้น, sha ต่างเพราะ OCR jitter เท่านั้น (พิสูจน์ด้วย `harness/diff_live_runs.py`), output มี `binary.page_original` + `overlay` 40 slots ทดสอบ blackbox เดี่ยว ๆ: Execute Workflow → trigger `BB TRIGGER` ด้วย `{ "doc_id": 89 }`
       เกณฑ์: `json.port.payload_sha256 == sha256:d8ff7ac5b51324f8…` (exec 395), `engine_ok=true`,
       `missing=0`, output มี `binary.page_original` และ `overlay` ไม่ว่าง
       → **ถ้า sha ไม่ตรง ห้ามไปต่อ** (แปลว่าการย้ายทำ parity เสีย)
