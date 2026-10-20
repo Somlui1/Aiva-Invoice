@@ -59,7 +59,7 @@ harness/test_loop_nodes.mjs   : ALL PASS (exit 0) — รัน jsCode จริ
 
 **อาการ:** `ไม่พบเอกสารที่มี id เลยจาก Paperless (item เข้า = 1) [line 11]` ที่ node `01c`
 
-**สาเหตุ (有据):` `@mephistojb/n8n-nodes-paperless` `resource=document, operation=list` คืน
+**สาเหตุ (ยืนยันด้วยข้อมูลจริง):** `@mephistojb/n8n-nodes-paperless` `resource=document, operation=list` คืน
 **pagination ทั้งก้อนเป็น item เดียว** — `{ count, next, previous, all:[id...], results:[{id,title,tags},…] }`
 ไม่ใช่ 1 item/เอกสาร ⇒ `01c` เวอร์ชันแรกที่อ่าน `j.id` ตรง ๆ จึงไม่เห็น id เลย
 (ยืนยันข้อมูลจริงด้วย `paperless_documents_search tags=5 pageSize=3`: **มีเอกสารติด tag invoice 275 ฉบับ**)
