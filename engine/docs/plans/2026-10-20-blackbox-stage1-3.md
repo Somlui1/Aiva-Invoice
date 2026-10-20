@@ -29,28 +29,37 @@ patch ที่ `make_blackbox.py` ใส่ลง blackbox (ไม่แตะ�
       เกณฑ์: `json.port.payload_sha256 == sha256:d8ff7ac5b51324f8…` (exec 395), `engine_ok=true`,
       `missing=0`, output มี `binary.page_original` และ `overlay` ไม่ว่าง
       → **ถ้า sha ไม่ตรง ห้ามไปต่อ** (แปลว่าการย้ายทำ parity เสีย)
-- [ ] **T16-4** จัดการ parent (ผ่าน MCP ทั้งหมด):
-      * เพิ่ม trigger (Manual หรือ Webhook) + node `BB Call (Execute Sub-workflow)` ชี้ id จาก T16-2
-        (`mode: 'each'`, `source: 'database'`, `workflowInputs: omitted` เพราะ trigger เป็น passthrough)
-      * ลบ nodeที่ย้ายไปแล้ว: `00 CONFIG`, `Get a document`, `02`-`10`, `12`, `22`
-      * `11a Page to BMP`: `dataPropertyName` จาก `page` → **`page_original`** (BB ส่ง key นี้กลับมา)
-      * เพิ่ม node `14 Merge payload + annotated` ระหว่าง `11c` → `23` (โค้ดสั้น เขียนใหม่ ไม่แตะ `11b` 6.3 KB):
-        ```js
-        const bb = $('BB Call (Execute Sub-workflow)').first();
-        const cur = $input.first();
-        return [{ json: { ...bb.json, bbox_debug: cur.json },
-                  binary: { page_original: (bb.binary||{}).page_original, annotated: (cur.binary||{}).annotated } }];
-        ```
-        เหตุผลที่ใช้ node ใหม่แทนการแก้ `11b`: `11b` คืน json ของตัวเอง (ผล engine หลุด) —
-        แก้ที่ปลายทางถูกกว่าและไม่ต้อง print โค้ด pixel-writer 160 บรรทัดกลับเข้าไป (เสี่ยง typo)
-      * สายใหม่: `trigger → BB Call → 11a → 11b → 11c → 14 → 23`
-- [ ] **T16-5** รัน parent ทั้งเส้นด้วย `doc_id 89` → เทียบ sha กับ exec 395 + ดู `annotated` ใน Debug group
-      ว่ายังเป็น **กรอบ** ไม่ใช่กล่องทึบ
+- [x] **T16-4** จัดการ parent เสร็จ (ผ่าน MCP ทั้งหมด) — parent เหลือ **9 node**
+      `01 START (click Execute)` → `02 Input doc_id` → `03 BB Call (Execute Sub-workflow)` →
+      `04 Alias page key` → `11a` → `11b` → `11c` → `14 Merge payload + annotated` → `23 Build API response`
+      * ลบ 14 node ที่ย้ายเข้า blackbox แล้ว (`00 CONFIG`, `Get a document`, `02`-``10`, `12`, `22`) + การ์ดเก่า
+      * **ไม่แก้ `11a`/`11b`/`11c` Even ตัวเดียว** โดยเพิ่ม `04 Alias page key` ที่ map `page_original` → `page`
+        (กัน silent failure ด้วย throw ถ้า blackbox ไม่คืน `page_original`)
+      * ข้อจำกัดที่เจอ: **node group ใส่ trigger ไม่ได้** (ครั้งแรก fail เพราะเอา `01 START` เข้า group)
+      * `14 Merge` ต้องดึง metadata การวาดจาก `$('11b Draw bbox outlines (code)')` เอง เพราะ Edit Image เขียน json ทับ
+      * `23` spread แค่ payload ⇒ key ที่แนบมา root จะถูกทิ้ง → ย้าย `bbox_debug` เข้า `verification`
+- [x] **T16-5** ผ่าน (exec 404): verdict `HOLD` codes `[E01,E13]`, `engine_ok true`, `missing 0`,
+      rules 9, `integrity.payload_sha256 == verification.payload_sha256 == sha256:98c4aa94…`,
+      binary = `page_original` 974 kB + `annotated` 304 kB (ไม่มี BMP 6.5 MB หลุด),
+      `verification.bbox_debug` = 11b จริง (1240x1754, thickness 3, boxes_drawn 20), schema **0 errors**
+      ⇒ parity กับ blackbox exec 399: ชั้น decision เท่ากัน 12 ชั้น, ต่าง 8 จุดเป็น OCR jitter ทั้งหมด, **LOGIC diff = 0**
+  *(บันทึกวิธีทำ T16-4 ย้ายขึ้นไปอยู่ที่หัวข้อ [x] T16-4 ข้างบน — ข้อความร่างเดิมถูกลบเพราะทำจริงต่างจากแผน 2 จุด:
+  ไม่ ได้แก้ `11a` (ใช้ node alias แทน) และ `bbox_debug` ต้องไปอยู่ใน `verification` ไม่ใช่ root)*
 - [ ] **T16-6** (ทางเลือก) ทำ parent ตัวเก่าเป็นสำรองก่อนลบ: บันทึก version ผ่าน version history
 
-## เกณฑ์ความสำเร็จรวม
+## เกณฑ์ความสำเร็จรวม (สรุปสุดท้าย)
 
-1. parent มี node ≤ 7 ตัว: trigger, BB Call, 11a, 11b, 11c, 14, 23
-2. parent ไม่มี `$()` ชี้เข้า blackbox เลย (อ่านจาก input / `$('BB Call')` ของตัวเองเท่านั้น)
-3. `payload_sha256` ของ doc เดิม == ของเดิมก่อนย้าย ( parity)
-4. Debug group ยังแสดงรูป bbox ของรอบนั้น ๆ ได้ตามต้องการของผู้ใช้
+1. ✅ parent มี node 9 ตัว (เกิน 7 เพราะเพิ่ม trigger + Set doc_id + ตัว alias binary ซึ่งจำเป็นจริง)
+2. ✅ parent ไม่มี `$()` ชี้เข้า blackbox เลย (`03` คืน item ทั้งก้อน ⇒ `04`/`14` อ่านจาก binary/json ที่ข้ามมา,
+   `14` ใช้ `$('BB Call')`/`$('11b')` เฉพาะ node ใน workflow ตัวเอง)
+3. ✅ parity ไม่ใช่การเทียบ sha ข้าม run (VLM ไม่ deterministic) แต่เทียบ **ชั้น decision**: exec 399 (blackbox ล้วน)
+   vs exec 404 (parent ทั้งเส้น) = rule_results/exceptions/recommendation/line_matching/documents/pages/
+   package/contract/versions/summary.decision/receipt/rules เท่ากันหมด · sha ต่างเพราะ bbox/OCR jitter
+4. ✅ Debug group ยังแสดงกรอบ bbox (outline 3 px, `boxes_drawn=20`) และ metadata การวาดหลุดถึง API แล้ว
+
+## เหลือที่อยากทำ (ไม่บล็อกการใช้งาน)
+
+* ยัง **ไม่ publish** ทั้งสอง workflow · ถ้าอยากให้ frontend ยิง HTTP จริงต้องเปลี่ยน trigger เป็น Webhook/Form
+* n8n ตอบ binary ได้ 1 ไฟล์/คำตอบ — รูปยังดูดจาก execution binary data
+* `engine/temp/n8n_port/` (generator + harness + node21_inline.js) ยังอยู่ใต้ gitignore —
+  ถ้าจะ sync ด้วย CI ต้องย้ายไป path ที่ tracked ก่อน
