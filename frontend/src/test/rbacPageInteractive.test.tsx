@@ -4,12 +4,13 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { RbacPage } from '../components/governance/RbacPage'
 import { AuthProvider } from '../context/AuthContext'
 import { ToastModalProvider } from '../context/ToastModalContext'
+import { USERS } from '../mock/users'
 import React from 'react'
 
 describe('Interactive RbacPage with Mockup v3 Excel Grid', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
-    window.localStorage.setItem('aiva.auth.user', 'u7') // IT Admin
+    window.localStorage.setItem('aiva.auth.user', USERS[0].id)
 
     vi.spyOn(global, 'fetch').mockImplementation(async (url: any) => {
       const urlStr = String(url)
@@ -20,15 +21,15 @@ describe('Interactive RbacPage with Mockup v3 Excel Grid', () => {
             ok: true,
             users: [
               {
-                id: 'u1',
-                email: 'somsak.j@aapico.com',
-                name: 'สมศักดิ์ ใจดี',
-                samAccount: 'somsak.j',
-                empId: '10231',
-                unit: 'คลังวัตถุดิบ',
-                role: 'EU',
-                companies: [],
-                receivers: ['SOMSAK JAIDEE'],
+                id: USERS[0].id,
+                email: USERS[0].email,
+                name: USERS[0].n,
+                samAccount: 'wajeepradit.p',
+                empId: '10001',
+                unit: 'IT Support',
+                role: 'SA',
+                companies: ['AH', 'AHA', 'AHT', 'AHP', 'AM'],
+                receivers: [],
               },
             ],
           }),
@@ -73,7 +74,7 @@ describe('Interactive RbacPage with Mockup v3 Excel Grid', () => {
 
   it('renders Excel Grid toolbar with Add User button and opens search modal', async () => {
     render(
-      <AuthProvider>
+      <AuthProvider initialUser={USERS[0]}>
         <ToastModalProvider>
           <RbacPage />
         </ToastModalProvider>
@@ -91,7 +92,7 @@ describe('Interactive RbacPage with Mockup v3 Excel Grid', () => {
 
   it('renders 3 tabs and switches views between Admin Grid, Matrix, and Companies', async () => {
     render(
-      <AuthProvider>
+      <AuthProvider initialUser={USERS[0]}>
         <ToastModalProvider>
           <RbacPage />
         </ToastModalProvider>
@@ -138,7 +139,7 @@ describe('Interactive RbacPage with Mockup v3 Excel Grid', () => {
 
   it('triggers company sync from Oracle in Tab 3', async () => {
     render(
-      <AuthProvider>
+      <AuthProvider initialUser={USERS[0]}>
         <ToastModalProvider>
           <RbacPage />
         </ToastModalProvider>

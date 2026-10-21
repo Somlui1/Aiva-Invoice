@@ -183,6 +183,7 @@ export function RbacPage() {
                       <th key={rk} style={{ textAlign: 'center', width: 90 }}>
                         <span
                           className="role-pill"
+                          title={ROLES[rk].n}
                           style={{ background: ROLES[rk].bg, color: ROLES[rk].c }}
                         >
                           {rk}

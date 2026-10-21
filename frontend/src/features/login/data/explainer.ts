@@ -26,10 +26,10 @@ export const TABS: { key: TabKey; label: string; icon: IconName }[] = [
   { key: "queue", label: "หน้าคิวตรวจสอบ", icon: "table" },
 ];
 
-/** เวลาที่อยู่ในแต่ละแท็บก่อนเลื่อนไปแท็บถัดไป (ms) */
-export const DWELL: Record<TabKey, number> = { flow: 20000, rules: 25000, state: 17000, role: 14500, queue: 8000 };
-/** เวลาต่อ 1 ขั้นภายในแท็บ (ms) · แท็บ rules/queue เล่นเองจึงไม่มี */
-export const STEP_MS: Partial<Record<TabKey, number>> = { flow: 3300, state: 2900, role: 3500 };
+/** เวลาที่อยู่ในแต่ละแท็บก่อนเลื่อนไปแท็บถัดไป (ms) - เร่งความเร็ว ~2x */
+export const DWELL: Record<TabKey, number> = { flow: 10000, rules: 12000, state: 9000, role: 8000, queue: 5000 };
+/** เวลาต่อ 1 ขั้นภายในแท็บ (ms) · แท็บ rules/queue เล่นเองจึงไม่มี - เร่งความเร็ว ~2x */
+export const STEP_MS: Partial<Record<TabKey, number>> = { flow: 1650, state: 1450, role: 1750 };
 
 /* ------------------------------------------------------- แท็บ 1 · กระบวนการ ---- */
 export interface WfStep {
@@ -55,7 +55,7 @@ export const WF: WfStep[] = [
     inp: "ไฟล์ใบแจ้งหนี้ (ต้นฉบับ + สำเนา)",
     out: "dms_doc_id · uploaded_by · uploaded_at",
     chips: [],
-    note: "Portal ไม่เก็บ URL ของ DMS · ออกลิงก์ชั่วคราว 10 นาที พร้อมลายน้ำ เมื่อมีคนเปิดดู",
+    note: "",
   },
   {
     t: "AIVA อ่านและตรวจเอกสาร",
@@ -254,14 +254,28 @@ export const STATE_LANES: { h: string; items: string[] }[] = [
 ];
 
 /* ------------------------------------------------- แท็บ 4 · สิทธิ์และบทบาท ---- */
-/** [id ผู้ใช้ตัวอย่าง, บทบาท] */
-export const RO_USERS: [string, Role][] = [["u1", "EU"], ["u4", "ACC"], ["u6", "APR"], ["u7", "ADM"]];
+export interface RoleArchetype {
+  role: Role;
+  scopeDesc: string;
+}
+
+export const RO_ROLES: RoleArchetype[] = [
+  { role: "EU", scopeDesc: "ขอบเขต: ตรวจรับเฉพาะรายการที่ตนเป็น Receiver" },
+  { role: "ACC", scopeDesc: "ขอบเขต: ดูแลเอกสารบริษัทที่ได้รับมอบหมาย" },
+  { role: "APR", scopeDesc: "ขอบเขต: อนุมัติ ตัดสิน Manual Review และส่ง AP" },
+  { role: "ADM", scopeDesc: "ขอบเขต: จัดการการผูกบัญชีและสิทธิ์ในระบบ" },
+  { role: "SA", scopeDesc: "ขอบเขต: ผู้ดูแลระบบสูงสุด (Super Admin)" },
+];
+
+/** [id ตัวแทนบทบาท, บทบาท] */
+export const RO_USERS: [string, Role][] = RO_ROLES.map(r => [r.role.toLowerCase(), r.role]);
 
 export const RO_NOTE: Record<Role, string> = {
   EU: "เห็นเฉพาะใบรับที่ Receiver ตรงกับ Oracle account ของคุณ และอยู่ในบริษัทที่ได้รับมอบหมาย · ไม่เห็นเอกสารที่ไม่มี Receiver · ตรวจสถานะเองและอัปโหลดเอกสารใหม่ได้เท่านั้น",
   ACC: "เห็นทุกเอกสารของบริษัทที่ได้รับมอบหมาย (ไม่มีใบรับ: ใช้บริษัทจาก Tax ID ลูกค้า) · Confirm / Review / Hold / Reject · ดู AP Interface ได้อย่างเดียว · ตัดสิน Manual Review และ Duplicate ไม่ได้",
   APR: "สิทธิ์ของเจ้าหน้าที่บัญชี + ตัดสิน Manual Review · ยืนยันว่าไม่ซ้ำ · Unconfirm · ส่ง Batch เข้า AP (ผู้ยืนยัน ≠ ผู้ส่ง · วงเงินต่อฉบับ) · ดู Audit",
   ADM: "จัดการการผูกบัญชีและสิทธิ์ · ดู Audit · ไม่เห็นเนื้อหาเอกสาร (บันทึกทุกความพยายามที่ถูกปฏิเสธ)",
+  SA: "Super Admin — ดูแลระบบ จัดการสิทธิ์การใช้งาน ผูกบัญชี และเข้าถึงเครื่องมือระบบทั้งหมด",
 };
 
 /* ------------------------------------------------------- แท็บ 5 · หน้าคิว ---- */

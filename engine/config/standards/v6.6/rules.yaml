@@ -8,5 +8,5 @@ rules:
   V-04: {version: "2.0", step: 2, engine: logic}
   V-05: {version: "2.0", step: 2, engine: logic+ai}
   V-07: {version: "3.0", step: 3, engine: logic(M1)+ai(M3/M4/M5)}
-  V-08: {version: "2.0", step: 3, engine: ai, prompt: v08-qty@1.0.0}
+  V-08: {version: "2.0", step: 3, engine: logic, prompt: v08-qty@1.0.0}   # v5: policy.ai.v08_mode
   V-09: {version: "1.0", step: 3, engine: logic}

@@ -30,6 +30,7 @@ import re
 import sys
 import threading
 import time
+from types import SimpleNamespace
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -50,6 +51,8 @@ for _stream in (sys.stdout, sys.stderr):
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))
+
+from system_a.perception.single_pass import drop_reprint_pages, select_invoice_pages   # ONE rule per decision
 
 # Load environment
 _env_path = ROOT / ".env"
@@ -241,70 +244,29 @@ Return ONLY valid JSON:
 }"""
 
 
-def group_and_select_invoice_pages(
+def select_pages_for_audit(
     pages_classification: List[dict]
-) -> Tuple[List[int], bool, bool, Dict[int, int]]:
-    """
-    Groups pages and selects primary invoice page(s).
-    Returns: (selected_pages, is_original, multi_invoice_detected, page_rotations)
+) -> Tuple[List[int], bool, bool, Dict[int, int], dict]:
+    """The pages **the engine** would read - the audit scores that set, never a page it invented itself.
+
+    Round 3 kept a second copy of the selection rules in this file, and it had already drifted twice:
+    two copy sheets of one document number (engine keeps both, this file dropped one), and
+    ``if not inv_pages: return [1]``, which invented page 1 whenever nothing was typed as an invoice.  That
+    invented page is how DMS-223 was scored on 2 of its 4 rows while printing full totals, and how DMS-227
+    was read unrotated with an empty rotation map (15 boxes drawn on a sideways scan).
+
+    Returns ``(selected, is_original, multi_invoice, page_rotations, engine_selection_info)``.
     """
     page_rotations = {
         int(p.get("page_no", i + 1)): int(p.get("rotate_degrees") or 0)
-        for i, p in enumerate(pages_classification)
+        for i, p in enumerate(pages_classification or [])
     }
-
-    inv_pages = [p for p in pages_classification if p.get("doc_type") in ("tax_invoice", "invoice")]
-    if not inv_pages:
-        return [1], True, False, page_rotations
-
-    hints = set()
-    for p in inv_pages:
-        h = (p.get("doc_no_hint") or "").strip()
-        if h and len(h) >= 3:
-            hints.add(h)
-    multi_invoice_detected = len(hints) > 1
-
-    orig_invoices = [p for p in inv_pages if p.get("copy_status") == "original"]
-    copy_invoices = [p for p in inv_pages if p.get("copy_status") == "copy"]
-
-    if orig_invoices:
-        target_list = orig_invoices
-        is_orig = True
-    elif copy_invoices:
-        target_list = copy_invoices
-        is_orig = False
-    else:
-        target_list = inv_pages
-        is_orig = True
-
-    if multi_invoice_detected:
-        first_hint = (target_list[0].get("doc_no_hint") or "").strip()
-        if first_hint:
-            selected = [p["page_no"] for p in target_list if (p.get("doc_no_hint") or "").strip() == first_hint]
-            if selected:
-                return sorted(selected), is_orig, True, page_rotations
-
-    # Deduplicate re-prints: track (doc_no_hint, page_marker)
-    seen_markers = set()
-    deduped = []
-    for p in target_list:
-        doc_key = (p.get("doc_no_hint") or "").strip()
-        marker = (p.get("page_marker") or "").strip()
-        if doc_key and marker:
-            key = f"{doc_key}::{marker}"
-        elif doc_key:
-            key = f"{doc_key}::default"
-        else:
-            key = None
-
-        if key and key in seen_markers:
-            continue
-        if key:
-            seen_markers.add(key)
-        deduped.append(p["page_no"])
-
-    selected = deduped if deduped else [p["page_no"] for p in target_list]
-    return sorted(selected) if selected else [1], is_orig, multi_invoice_detected, page_rotations
+    info = select_invoice_pages(pages_classification or [])
+    selected = list(info["selected"])
+    kept = [p for p in (pages_classification or []) if p.get("page_no") in selected] or \
+        [p for p in (pages_classification or []) if p.get("doc_type") in ("tax_invoice", "invoice")]
+    is_original = any(p.get("copy_status") != "copy" for p in kept) if kept else True
+    return selected, is_original, bool(info.get("multi_invoice")), page_rotations, info
 
 
 # --- Prompt 2: Focused Extraction on One Invoice Page (Compact & Extended Schema) ---
@@ -434,6 +396,59 @@ def render_pdf_pages(pdf_bytes: bytes, dpi: int = RENDER_DPI) -> List[Tuple[int,
         img = Image.open(io.BytesIO(pix.tobytes("png"))).convert("RGB")
         pages.append((i + 1, img))
     return pages
+
+
+CELL_KEYS = ("item_code", "description", "qty", "uom", "unit_price", "amount")
+
+
+def _num_box(box: Any) -> Optional[List[float]]:
+    """The four numbers of a ``bbox_2d``, or ``None`` - the model answers ``[null, null, null, null]`` often
+    enough that a recorder which assumes numbers would take the whole document down with it."""
+    if not isinstance(box, (list, tuple)) or len(box) != 4:
+        return None
+    try:
+        vals = [float(v) for v in box]
+    except (TypeError, ValueError):
+        return None
+    return None if any(v != v or v in (float("inf"), float("-inf")) for v in vals) else vals
+
+
+def build_page_debug(page_no: int, classify_rotate: int, orig_size: Tuple[int, int],
+                     sent_size: Tuple[int, int], coord_mode: str, answer: dict) -> dict:
+    """What the model answered, in the frame it was asked to answer in - before any of our mapping.
+
+    The payload used to carry only mapped boxes, which made the rotated pages undiagnosable: every candidate
+    explanation for a page typed ``rotate_degrees=90`` (coordinate mode, a square canvas inside the model, a
+    transposed frame, the inverse rotation) is judged on the coordinates the model itself returned.
+    """
+    fields: Dict[str, List[float]] = {}
+    for name, obj in ((answer or {}).get("fields") or {}).items():
+        box = _num_box(obj.get("bbox_2d")) if isinstance(obj, dict) else None
+        if box:
+            fields[str(name)] = box
+    lines: List[dict] = []
+    for row in (answer or {}).get("line_items") or []:
+        if not isinstance(row, dict):
+            continue
+        got: dict = {"line_no": row.get("line_no")}
+        for key in CELL_KEYS:
+            cell = row.get(key)
+            box = _num_box(cell.get("bbox_2d")) if isinstance(cell, dict) else None
+            if box:
+                got[key] = box
+        line_box = _num_box(row.get("line_bbox"))
+        if line_box:
+            got["line_bbox"] = line_box
+        lines.append(got)
+    regions: List[List[float]] = []
+    for reg in (answer or {}).get("regions") or []:
+        box = _num_box(reg.get("bbox_2d")) if isinstance(reg, dict) else None
+        if box:
+            regions.append(box)
+    return {"page_no": page_no, "classify_rotate": int(classify_rotate or 0),
+            "orig_size": [int(orig_size[0]), int(orig_size[1])],
+            "sent_size": [int(sent_size[0]), int(sent_size[1])],
+            "coord_mode": coord_mode, "fields": fields, "lines": lines, "regions": regions}
 
 
 def detect_coord_mode(boxes: List[List[float]], img_w: int, img_h: int) -> str:
@@ -769,20 +784,18 @@ def process_single_doc(
         pages = render_pdf_pages(pdf_bytes, dpi=dpi)
         log(f"        Rendered {len(pages)} page(s) for DMS-{doc_id}")
 
-        # === STEP 1: Fast Classification & Grouping ===
-        if len(pages) == 1:
-            selected_pages = [1]
-            is_original = True
-            multi_invoice_detected = False
-            page_rotations = {1: 0}
-            pages_classification = [{"page_no": 1, "doc_type": "tax_invoice", "copy_status": "original", "doc_no_hint": None, "page_marker": "1/1"}]
-            t_classify = 0.0
-            log(f"        Single page doc -> skipping classify step")
-        else:
-            classify_res, t_classify = step1_classify_pages(client, pdf_bytes, model=model)
-            log(f"        Step 1 Classify finished in {t_classify:.1f}s")
-            pages_classification = classify_res.get("pages") or classify_res.get("pages_classification") or []
-            selected_pages, is_original, multi_invoice_detected, page_rotations = group_and_select_invoice_pages(pages_classification)
+        # === STEP 1: Fast Classification & Grouping (every doc, including a 1-page doc: inventing a
+        #             page type/rotation for a lone page is how a sideways single-page scan gets mis-drawn) ===
+        classify_res, t_classify = step1_classify_pages(client, pdf_bytes, model=model)
+        log(f"        Step 1 Classify finished in {t_classify:.1f}s")
+        pages_classification = classify_res.get("pages") or classify_res.get("pages_classification") or []
+        selected_pages, is_original, multi_invoice_detected, page_rotations, selection_info = \
+            select_pages_for_audit(pages_classification)
+        if not pages_classification:
+            log("        WARNING: classify returned no page entries at all - nothing will be rotated or read")
+        if not selected_pages:
+            log(f"        No invoice page among {[p.get('doc_type') for p in pages_classification]} "
+                f"-> nothing read (engine answer, no invented page)")
 
         log(f"        Selected invoice page(s): {selected_pages} (is_original={is_original}, multi_invoice={multi_invoice_detected})")
 
@@ -799,7 +812,9 @@ def process_single_doc(
         all_fields: Dict[str, dict] = {}
         all_line_items: List[dict] = []
         all_regions: List[dict] = []
-        step2_times = []
+        step2_times: List[float] = []
+        pages_debug: List[dict] = []
+        answers_by_page: Dict[int, dict] = {}
 
         for p_no in selected_pages:
             img = pages_by_num.get(p_no)
@@ -814,14 +829,15 @@ def process_single_doc(
             log(f"        Step 2 Extract on Page {p_no} finished in {t_extract:.1f}s")
 
             raw_fields_map = extract_res.get("fields") or extract_res.get("required_fields") or {}
-            for empty_try in range(2):        # a shell answer parses fine but is not an extraction (DMS-183 run 1)
+            for empty_try in range(extract_empty_attempts()):   # a shell answer parses fine but is not an extraction
                 if not is_empty_extraction(raw_fields_map):
                     break
-                log(f"        [RETRY-EMPTY Page {p_no} ({empty_try + 1}/2)]: the answer carried no value at all")
+                log(f"        [RETRY-EMPTY Page {p_no} ({empty_try + 1}/{extract_empty_attempts() - 1})]: the answer carried no value at all")
                 extract_res, t_extract = step2_extract_invoice_page(client, img, p_no, model=model)
                 step2_times.append(t_extract)
                 raw_fields_map = extract_res.get("fields") or extract_res.get("required_fields") or {}
             raw_line_items = extract_res.get("line_items") or []
+            answers_by_page[p_no] = extract_res
             raw_regions = extract_res.get("regions") or []
 
             for _l in raw_line_items:            # measure rows from their own cells (see row_bbox)
@@ -840,7 +856,7 @@ def process_single_doc(
                 if isinstance(l_obj, dict):
                     if l_obj.get("line_bbox") and len(l_obj["line_bbox"]) == 4:
                         all_boxes_p.append(l_obj["line_bbox"])
-                    for cell_key in ("item_code", "description", "qty", "uom", "unit_price", "amount"):
+                    for cell_key in CELL_KEYS:
                         c_val = l_obj.get(cell_key)
                         if isinstance(c_val, dict) and c_val.get("bbox_2d") and len(c_val["bbox_2d"]) == 4:
                             all_boxes_p.append(c_val["bbox_2d"])
@@ -849,6 +865,8 @@ def process_single_doc(
                     all_boxes_p.append(r_obj["bbox_2d"])
 
             coord_mode = detect_coord_mode(all_boxes_p, img.width, img.height) if all_boxes_p else "norm1000"
+            pages_debug.append(build_page_debug(p_no, rot, (pages_by_num[p_no].width, pages_by_num[p_no].height),
+                                                (img.width, img.height), coord_mode, extract_res))
 
             # 1. Build page_items for overlay PNG
             page_items = []
@@ -997,6 +1015,16 @@ def process_single_doc(
                 log(f"        Digit re-check disagreed on: {recheck_summary['disagreed']}")
 
         # Save validation_payload.json with complete new schema
+        # The same sheet printed twice must not add its rows a second time (DMS-134: one 231.00 row read
+        # three times under one subtotal).  The engine's own rule decides - it is not re-implemented here.
+        _kept, reprint_pages = drop_reprint_pages({p: SimpleNamespace(answer=a) for p, a in answers_by_page.items()},
+                                                  sorted(answers_by_page))
+        if reprint_pages:
+            _dropped = {r["page"] for r in reprint_pages}
+            all_line_items = [r for r in all_line_items if r.get("page_no") not in _dropped]
+            log(f"        Re-print sheet(s) not counted as extra rows: "
+                f"{[(r['page'], r['same_as_page']) for r in reprint_pages]}")
+
         validation_payload = {
             "doc_id": doc_id,
             "document_title": meta.get("title") or f"DMS-{doc_id}",
@@ -1019,6 +1047,10 @@ def process_single_doc(
             "is_original": is_original,
             "multi_invoice_detected": multi_invoice_detected,
             "pages_classification": pages_classification,
+            "classify_empty": not pages_classification,
+            "selection": selection_info,
+            "pages_debug": pages_debug,
+            "reprint_pages": reprint_pages,
             "step1_classify_seconds": round(t_classify, 2),
             "step2_extract_seconds": [round(t, 2) for t in step2_times],
             "total_seconds": total_duration,
@@ -1132,6 +1164,16 @@ def row_signature(item: dict) -> tuple:
         raw = cell.get("raw") if isinstance(cell, dict) else cell
         parts.append(re.sub(r"\s+", " ", str(raw or "").strip()).lower())
     return tuple(parts)
+
+
+def extract_empty_attempts() -> int:
+    """How many tries an invoice page gets when the model answers with an empty JSON shell.
+
+    Measured on DMS-159 page 1 (a 14-row freight invoice): 6 of 8 attempts came back as an empty shell
+    even at temperature 0, and each re-run recovered on try 3 or 4. The cost lands only on pages that
+    actually fail, which is why the number can be generous.
+    """
+    return max(1, int(os.getenv("EXTRACT_EMPTY_ATTEMPTS", "4")))
 
 
 def is_empty_extraction(fields: dict) -> bool:
@@ -1361,6 +1403,16 @@ def find_field_box(payload: dict, name: str):
     return None
 
 
+def box_overlap_frac(a, b) -> float:
+    """Shared area over the smaller box (0 = apart, 1 = one inside the other)."""
+    ax0, ay0, aw, ah = (float(v) for v in a)
+    bx0, by0, bw, bh = (float(v) for v in b)
+    ox = max(0.0, min(ax0 + aw, bx0 + bw) - max(ax0, bx0))
+    oy = max(0.0, min(ay0 + ah, by0 + bh) - max(ay0, by0))
+    small = max(min(aw * ah, bw * bh), 1e-9)
+    return (ox * oy) / small
+
+
 def audit_doc(payload: dict, page_dims: Optional[Dict[int, Tuple[int, int]]] = None) -> dict:
     """Automated triage of one round payload.
 
@@ -1414,9 +1466,12 @@ def audit_doc(payload: dict, page_dims: Optional[Dict[int, Tuple[int, int]]] = N
             continue
         if w <= 0 or h <= 0 or x < -0.005 or y < -0.005 or x + w > 1.005 or y + h > 1.005:
             findings.add(f"OOB:{label}")
-        if label in seen.setdefault(pg, set()):
+        prior = seen.setdefault(pg, {}).setdefault(label, [])
+        # Same label twice is only a defect when the two boxes sit on the same spot: a page carrying
+        # three different company stamps is normal paper, and counting labels made that a "defect".
+        if any(box_overlap_frac(prev, [x, y, w, h]) > 0.25 for prev in prior):
             findings.add(f"DUPLICATE:{label}")
-        seen[pg].add(label)
+        prior.append((x, y, w, h))
         if selected and pg not in selected:
             findings.add(f"BBOX_ON_UNSELECTED_PAGE:{pg}")
         if label.startswith("line_") and "." not in label and w > 0 and h > 0:
@@ -1430,11 +1485,24 @@ def audit_doc(payload: dict, page_dims: Optional[Dict[int, Tuple[int, int]]] = N
         if pg not in pages_with_boxes:
             findings.add(f"NO_BBOX_ON_SELECTED_PAGE:{pg}")
 
+    invoice_nums = {re.sub(r"[.\- /]", "", str(((payload.get("fields") or {}).get("invoice_num") or {})
+                                               .get("raw") or "")).lower()} - {""}
+    reprint_keys = set()
+    for p in ((payload.get("meta") or {}).get("pages_classification") or []):
+        if int(p.get("page_no") or 0) in selected and (p.get("doc_no_hint") or "").strip():
+            reprint_keys.add(((p.get("doc_no_hint") or "").strip(), str(p.get("page_marker") or "").strip()))
+
     for p in ((payload.get("meta") or {}).get("pages_classification") or []):
         pno = int(p.get("page_no") or 0)
         if pno in selected:
             continue
-        if str(p.get("doc_type", "")).endswith("tax_invoice") and str(p.get("copy_status", "")).lower() == "original":
+        if str(p.get("doc_type", "")).endswith("invoice") and str(p.get("copy_status", "")).lower() == "original":
+            # A re-print of the invoice that was selected is deliberately left out (selection dedups on
+            # doc_no_hint + page_marker); flagging it sent reviewers to pages with nothing wrong.
+            key = ((p.get("doc_no_hint") or "").strip(), str(p.get("page_marker") or "").strip())
+            norm = re.sub(r"[.\- /]", "", key[0]).lower()
+            if norm and (key in reprint_keys or norm in invoice_nums):
+                continue
             findings.add(f"CLASSIFY_SUSPECT:p{pno}_original_invoice_not_selected")
 
     # The second read is a hint only: measured on 35 fields it disagreed in 26% and when it did, it was

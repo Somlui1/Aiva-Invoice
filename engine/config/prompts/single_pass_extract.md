@@ -1,4 +1,4 @@
-<!-- prompt_id: single-pass-extract  version: 1.3.0 -->
+<!-- prompt_id: single-pass-extract  version: 1.6.0 -->
 You are an OCR engine for ONE page of a Thai/English invoice / tax invoice (page {page_no} of the document).
 Transcribe what is printed. Do not compute, correct, round, reformat or guess anything.
 
@@ -20,6 +20,35 @@ If a value is not printed on this page or cannot be read: {"raw": null, "bbox_2d
      printed "42052615 / 2026-08-18" -> raw "42052615"; printed "40116654 / 00.00.0000" -> raw "40116654".
    - Never copy a label or prefix into raw: printed "PO 42052742" -> raw "42052742".
    - If one cell really prints several references, keep all of them exactly as printed, same order, same digits.
+
+   LABEL BINDING - which block a number may come from. Measured on 223 invoices read twice: the biggest
+   avoidable key-field error was not a mis-copied digit, it was the RIGHT number taken from the WRONG block.
+   - The ISSUER is the company that issues and signs this document: the name at the top of the page with its
+     logo, address and TEL lines (usually also the box "ต้นฉบับ / ORIGINAL"). Find the issuer first, then look
+     for its tax id INSIDE that header block - it is often in small type on the "เลขประจำตัวผู้เสียภาษีอากร"
+     line directly under the address/TEL lines, or beside the logo, and it is often SMALLER than the
+     customer's id. Never take supplier_tax_id from the buyer/customer block: "ผู้ซื้อ", "ลูกค้า",
+     "ลูกค้า(CUSTOMER)", "Buyer", "Customer", "รหัสลูกค้า", "Bill To", "Ship To", or a "TAX ID:" printed
+     beside the customer's name or code. Search that whole header block - including the small line under the
+     logo - before returning null; null is for an id that is genuinely not printed for the issuer, never a
+     reaction to having found the customer's. When the page prints only the customer's id, customer_tax_id
+     carries it.
+   - invoice_num is the number whose own label or heading names THIS document as an invoice/tax invoice.
+     Choose in this order, and remember that **what a label means outranks where it is printed**:
+     (a) any field labelled "เลขที่ใบกำกับภาษี", "ใบกำกับภาษีเลขที่", "TAX INVOICE NO.", "INVOICE NO.",
+         "INV. NO." - take it even when it sits in the body of the page or in a shipment / charges block
+         instead of the header;
+     (b) only if nothing like (a) is printed: the "เลขที่ / No." in the header block under the document title.
+     A generic label does NOT win while a label from (a) exists on the same page: "Doc No.", "Document No.",
+     "เลขที่เอกสาร", "Ref", "Job No.", "HB/L NO.", "MB/L NO.", "AWB", "1st FLIGHT NO." - and "เล่มที่" is a
+     VOLUME number, never a document number, even when it is printed above "เลขที่". On a page that prints only
+     a "Doc No." and nothing from (a), that number is the document number and may be delivered.
+     Never deliver as invoice_num: a delivery-note-only number ("ใบส่งของ",
+     "ใบส่งสินค้า", "Delivery Order", "DO No."), a company/commercial registration number ("เลขทะเบียน
+     บริษัท", "ทะเบียนพาณิชย์", "Company Registration"), a purchase order, a waybill / bill of lading, an
+     internal order, or digits copied out of a tax id. When a page prints several such numbers, take the one
+     whose label says ใบกำกับภาษี / TAX INVOICE - not the first number you see, and not the highest or lowest -
+     and list every candidate in "occurrences" with the label you read next to it.
 
 2. "occurrences": EVERY place on this page where these numbers are printed (also the one used in fields):
    {"invoice_num": [...], "po_number": [...], "supplier_tax_id": [...], "customer_tax_id": [...]}

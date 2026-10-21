@@ -78,7 +78,7 @@ export function LoginForm({ c, mock, onSupport }: Props) {
             <form className="lg-form" onSubmit={submit} noValidate>
               <div className="lg-f">
                 <label htmlFor="lgU">
-                  ชื่อผู้ใช้ <span className="hint">LDAP · เช่น somsak.j</span>
+                  ชื่อผู้ใช้ <span className="hint">LDAP · เช่น wajeepradit.p</span>
                 </label>
                 <div className={`lg-in ${c.fieldErr.U ? "bad" : ""}`} id="wU">
                   <Icon name="user" />

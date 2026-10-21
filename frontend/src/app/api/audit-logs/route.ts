@@ -17,7 +17,7 @@ export async function GET(req: Request) {
         ? companiesParam.split(',').map(c => c.trim()).filter(Boolean)
         : []
 
-      if (role === 'ADM' || role === 'itsupport') {
+      if (role === 'ADM' || role === 'SA') {
         whereClause = undefined
       } else if (role === 'APR') {
         const matchedDocs = await prisma.document.findMany({

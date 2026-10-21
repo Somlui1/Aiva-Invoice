@@ -41,7 +41,7 @@ export function Sidebar({ currentPage, onNavigate, onToggleNav }: SidebarProps) 
   const unboundCount = 0 // IT admin unbound indicator
 
   const isAdm = currentUser.role === 'ADM'
-  const isSupport = currentUser.role === 'itsupport'
+  const isSupport = currentUser.role === 'SA'
 
   const workSection = {
     title: 'งานหลัก',

@@ -6,7 +6,7 @@
  * (แผงอธิบายระบบต้องการเฉพาะ: ROLES, PERM, USERS, MAPS, DEMO_DOCS, DEMO_COUNTS, SEV, EXC_NAME, RULES)
  */
 
-export type Role = "EU" | "ACC" | "APR" | "ADM";
+export type Role = "EU" | "ACC" | "APR" | "ADM" | "SA";
 export type Severity = "High" | "Medium" | "Low";
 
 export interface DemoUser {
@@ -37,114 +37,23 @@ export interface DemoDoc {
 
 export const USERS: DemoUser[] = [
   {
-    "id": "u1",
-    "n": "สมศักดิ์ ใจดี",
-    "email": "somsak.j@aapico.com",
-    "role": "EU",
-    "emp": 10231,
-    "co": [
-      "AH"
-    ],
-    "unit": "คลังวัตถุดิบ"
+    id: "wajeepradit.p",
+    n: "Wajeepradit Prompan (AH)",
+    email: "wajeepradit.p@aapico.com",
+    role: "SA",
+    emp: null,
+    co: ["AH", "AHA", "AHT", "AHP", "AM"],
+    unit: "IT Support",
   },
   {
-    "id": "u2",
-    "n": "วิไลวรรณ ศรีสุข",
-    "email": "wilaiwan.s@aapico.com",
-    "role": "EU",
-    "emp": 20417,
-    "co": [
-      "AHT"
-    ],
-    "unit": "ฝ่ายซ่อมบำรุง"
+    id: "itsupport",
+    n: "IT Support (AH)",
+    email: "itsupport@aapico.com",
+    role: "SA",
+    emp: null,
+    co: ["AH", "AHA", "AHT", "AHP", "AM"],
+    unit: "IT Support",
   },
-  {
-    "id": "u3",
-    "n": "ธนากร มั่นคง",
-    "email": "thanakorn.m@aapico.com",
-    "role": "EU",
-    "emp": 30552,
-    "co": [
-      "AM"
-    ],
-    "unit": "คลังอะไหล่"
-  },
-  {
-    "id": "u4",
-    "n": "ปณิดา รักงาน",
-    "email": "panida.r@aapico.com",
-    "role": "ACC",
-    "emp": 11020,
-    "co": [
-      "AH",
-      "AHT"
-    ],
-    "unit": "ฝ่ายบัญชี AH/AHT"
-  },
-  {
-    "id": "u5",
-    "n": "กมลวรรณ ใจงาม",
-    "email": "kamonwan.j@aapico.com",
-    "role": "ACC",
-    "emp": 31005,
-    "co": [
-      "AM",
-      "AHP"
-    ],
-    "unit": "ฝ่ายบัญชี AM/AHP"
-  },
-  {
-    "id": "u6",
-    "n": "สมชาย วงศ์ทอง",
-    "email": "somchai.w@aapico.com",
-    "role": "APR",
-    "emp": 11001,
-    "co": [
-      "AH",
-      "AHT",
-      "AHP",
-      "AM",
-      "?"
-    ],
-    "unit": "หัวหน้าฝ่ายบัญชี"
-  },
-  {
-    "id": "u7",
-    "n": "อนุชา ไอที",
-    "email": "anucha.i@aapico.com",
-    "role": "ADM",
-    "emp": null,
-    "co": [],
-    "unit": "IT"
-  },
-  {
-    "id": "u8",
-    "n": "กิตติ สมบูรณ์",
-    "email": "kitti.s@aapico.com",
-    "role": "EU",
-    "emp": null,
-    "co": [
-      "AH",
-      "AHT",
-      "AM"
-    ],
-    "unit": "หัวหน้าคลัง (ดูแลหลาย account)"
-  },
-  {
-    "id": "itsupport",
-    "n": "IT Support",
-    "email": "itsupport@aapico.com",
-    "role": "ADM",
-    "emp": 99999,
-    "co": [
-      "AH",
-      "AHA",
-      "AHT",
-      "AHP",
-      "AM"
-    ],
-    "unit": "IT Support"
-  }
 ];
 
 export const ROLES: Record<Role, RoleDef> = {
@@ -204,6 +113,30 @@ export const ROLES: Record<Role, RoleDef> = {
       "AUDIT"
     ],
     "scope": "none"
+  },
+  "SA": {
+    "n": "ผู้ดูแลระบบระดับสูง (Super Admin)",
+    "c": "#0D9488",
+    "bg": "#CCFBF1",
+    "p": [
+      "VIEW_CO",
+      "VIEW_OWN",
+      "DMS",
+      "UPLOAD_NEW",
+      "CONFIRM",
+      "REVIEW",
+      "HOLD",
+      "REJECT",
+      "MANUAL_REVIEW",
+      "DUP_OVERRIDE",
+      "UNCONFIRM",
+      "POST",
+      "RETURN_FAILED",
+      "VIEW_AP",
+      "MAP",
+      "AUDIT"
+    ],
+    "scope": "company"
   }
 };
 
@@ -230,32 +163,7 @@ export const PERM: Record<string, string> = {
 };
 
 /** การผูก AD user ↔ Oracle account (RECEIVER) · เอกสารเป็นของ Oracle account */
-export const MAPS: { user: string; acct: string }[] = [
-  {
-    "user": "u1",
-    "acct": "SOMSAK JAIDEE"
-  },
-  {
-    "user": "u2",
-    "acct": "WILAIWAN SRISUK"
-  },
-  {
-    "user": "u3",
-    "acct": "THANAKORN MANKONG"
-  },
-  {
-    "user": "u8",
-    "acct": "SOMSAK JAIDEE"
-  },
-  {
-    "user": "u8",
-    "acct": "WILAIWAN SRISUK"
-  },
-  {
-    "user": "u8",
-    "acct": "THANAKORN MANKONG"
-  }
-];
+export const MAPS: { user: string; acct: string }[] = [];
 
 export const COMPANY_NAME: Record<string, string> = {
   "AH": "อาปิโก ไฮเทค (มหาชน)",

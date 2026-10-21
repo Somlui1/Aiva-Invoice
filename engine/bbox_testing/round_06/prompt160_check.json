@@ -1,0 +1,208 @@
+[
+ {
+  "doc": 159,
+  "new_invoice_num": "INV-2026-0802",
+  "wanted": "INV-2026-0802",
+  "ok": true,
+  "old_invoice_num": [
+   "SLI2610000004",
+   "INV-2026-0802"
+  ],
+  "new_tax": {
+   "supplier_tax_id": "0745565004962",
+   "customer_tax_id": "0145563000434"
+  },
+  "retry": [],
+  "prompts": "single-pass-classify@1.3.0+single-pass-extract@1.6.0+single-pass-adjudicate@1.0.0"
+ },
+ {
+  "doc": 175,
+  "new_invoice_num": "2213666606",
+  "wanted": "2213666606",
+  "ok": true,
+  "old_invoice_num": [
+   "1003801984",
+   "2213666606"
+  ],
+  "new_tax": {
+   "supplier_tax_id": "0105544109337",
+   "customer_tax_id": "0145548001557"
+  },
+  "retry": [],
+  "prompts": "single-pass-classify@1.3.0+single-pass-extract@1.6.0+single-pass-adjudicate@1.0.0"
+ },
+ {
+  "doc": 236,
+  "new_invoice_num": "422",
+  "wanted": "422",
+  "ok": true,
+  "old_invoice_num": [
+   "085",
+   "422"
+  ],
+  "new_tax": {
+   "supplier_tax_id": "0103522008471",
+   "customer_tax_id": "0145548001594"
+  },
+  "retry": [
+   {
+    "page": 1,
+    "reason": "TAX_ID_CHECKSUM",
+    "dpi": 300,
+    "accepted": false
+   }
+  ],
+  "prompts": "single-pass-classify@1.3.0+single-pass-extract@1.6.0+single-pass-adjudicate@1.0.0"
+ },
+ {
+  "doc": 237,
+  "new_invoice_num": "422",
+  "wanted": "422",
+  "ok": true,
+  "old_invoice_num": [
+   "085",
+   "422"
+  ],
+  "new_tax": {
+   "supplier_tax_id": "0103522008471",
+   "customer_tax_id": "0145548001557"
+  },
+  "retry": [
+   {
+    "page": 1,
+    "reason": "TAX_ID_CHECKSUM",
+    "dpi": 300,
+    "accepted": true
+   }
+  ],
+  "prompts": "single-pass-classify@1.3.0+single-pass-extract@1.6.0+single-pass-adjudicate@1.0.0"
+ },
+ {
+  "doc": 43,
+  "new_invoice_num": "IV6909119",
+  "wanted": null,
+  "ok": true,
+  "old_invoice_num": [
+   "IV6909119",
+   "IV6909119"
+  ],
+  "new_tax": {
+   "supplier_tax_id": "0105562195321",
+   "customer_tax_id": "0145548001549"
+  },
+  "retry": [],
+  "prompts": "single-pass-classify@1.3.0+single-pass-extract@1.6.0+single-pass-adjudicate@1.0.0"
+ },
+ {
+  "doc": 127,
+  "new_invoice_num": "IV69100046",
+  "wanted": null,
+  "ok": true,
+  "old_invoice_num": [
+   "IV69100046",
+   "IV69100046"
+  ],
+  "new_tax": {
+   "supplier_tax_id": "0105546047223",
+   "customer_tax_id": "0145563000434"
+  },
+  "retry": [],
+  "prompts": "single-pass-classify@1.3.0+single-pass-extract@1.6.0+single-pass-adjudicate@1.0.0"
+ },
+ {
+  "doc": 147,
+  "new_invoice_num": "IV6910106",
+  "wanted": null,
+  "ok": true,
+  "old_invoice_num": [
+   "IV6910106",
+   "IV6910106"
+  ],
+  "new_tax": {
+   "supplier_tax_id": "0105562195321",
+   "customer_tax_id": "0145563000434"
+  },
+  "retry": [],
+  "prompts": "single-pass-classify@1.3.0+single-pass-extract@1.6.0+single-pass-adjudicate@1.0.0"
+ },
+ {
+  "doc": 212,
+  "new_invoice_num": "69A/20299",
+  "wanted": null,
+  "ok": true,
+  "old_invoice_num": [
+   "69A/20299",
+   "69A/20299"
+  ],
+  "new_tax": {
+   "supplier_tax_id": "0115533001629",
+   "customer_tax_id": "0145548001557"
+  },
+  "retry": [],
+  "prompts": "single-pass-classify@1.3.0+single-pass-extract@1.6.0+single-pass-adjudicate@1.0.0"
+ },
+ {
+  "doc": 20,
+  "new_invoice_num": "26/2691",
+  "wanted": null,
+  "ok": true,
+  "old_invoice_num": [
+   "26/2691",
+   "26/2691"
+  ],
+  "new_tax": {
+   "supplier_tax_id": "0105537063173",
+   "customer_tax_id": "0145548001557"
+  },
+  "retry": [],
+  "prompts": "single-pass-classify@1.3.0+single-pass-extract@1.6.0+single-pass-adjudicate@1.0.0"
+ },
+ {
+  "doc": 30,
+  "new_invoice_num": "SES 08470",
+  "wanted": null,
+  "ok": true,
+  "old_invoice_num": [
+   "SES 08470",
+   "SES 08470"
+  ],
+  "new_tax": {
+   "supplier_tax_id": "0105556094925",
+   "customer_tax_id": "0107545000179"
+  },
+  "retry": [],
+  "prompts": "single-pass-classify@1.3.0+single-pass-extract@1.6.0+single-pass-adjudicate@1.0.0"
+ },
+ {
+  "doc": 33,
+  "new_invoice_num": "SSA1-260901-056",
+  "wanted": null,
+  "ok": true,
+  "old_invoice_num": [
+   "SSA1-260901-056",
+   "SSA1-260901-056"
+  ],
+  "new_tax": {
+   "supplier_tax_id": "0105548107746",
+   "customer_tax_id": "0107545000179"
+  },
+  "retry": [],
+  "prompts": "single-pass-classify@1.3.0+single-pass-extract@1.6.0+single-pass-adjudicate@1.0.0"
+ },
+ {
+  "doc": 106,
+  "new_invoice_num": "69A/18522",
+  "wanted": null,
+  "ok": true,
+  "old_invoice_num": [
+   "69A/18522",
+   "69A/18522"
+  ],
+  "new_tax": {
+   "supplier_tax_id": "0115533001629",
+   "customer_tax_id": "0145548001557"
+  },
+  "retry": [],
+  "prompts": "single-pass-classify@1.3.0+single-pass-extract@1.6.0+single-pass-adjudicate@1.0.0"
+ }
+]

@@ -25,6 +25,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import io
+import os
 import re
 import statistics
 import time
@@ -34,13 +35,15 @@ import numpy as np
 
 from ..domain.contracts import (DocumentInfo, ExtractionResult, PageInfo, RawField, RawLine, Region,
                                 RegionNode, SignatureObs)
-from ..domain.normalize import thai_to_arabic
+from ..domain.normalize import thai_to_arabic, Invalid, tax_id
 from ..domain.standard import load_prompt
-from .coords import choose_coord_mode, rotate_box_back, rotate_image, sanitize_xyxy, xyxy_to_xywh
+from .coords import (choose_coord_mode, INK_RULES_VERSION, ink_mask, is_placeholder, rotate_box_back, rotate_image,
+                     rotate_px_box_back, strip_rules,
+                    sanitize_xyxy, snap_box_to_ink, xyxy_px, xyxy_to_xywh)
 from .orientation import MODEL_SHA256, OrientationResult
 
-ENGINE = "single-pass/1.2.0"
-PROMPTS = ("single_pass_classify", "single_pass_extract")
+ENGINE = "single-pass/1.4.0"
+PROMPTS = ("single_pass_classify", "single_pass_extract", "single_pass_adjudicate")
 
 HEADER_FIELDS = ("invoice_num", "invoice_date", "po_number", "supplier_name", "supplier_tax_id",
                  "customer_name", "customer_tax_id", "customer_address", "currency")
@@ -67,6 +70,10 @@ _HEADER_ROW = re.compile(r"DESCRIPTION|QUANTITY|UNIT\s*PRICE|AMOUNT|รายก
 _TOTAL_ROW = re.compile(r"SUB\s*-?\s*TOTAL|GRAND\s*TOTAL|TOTAL|VAT|รวม|ภาษี|ยอดยก|CARRIED|BROUGHT|ส่วนลด|DISCOUNT|"
                         r"ค่าขนส่ง|DELIVERY\s*CHARGE", re.I)
 _MARKER = re.compile(r"^\s*(\d+)\s*/\s*(\d+)\s*$")
+# The same page count the paper writes in words: "Page 1 of 2", "หน้า 2 จาก 2".  Read as no marker at all,
+# a document loses its printed length - pages_complete then says "complete" and nothing bounds it.
+_MARKER_WORD = re.compile(r"^\s*(?:page|หน้า|แผ่น|ฉบับ)?\s*(\d+)\s*(?:of|จาก)\s*"
+                         r"(?:page|หน้า|แผ่น|ฉบับ)?\s*(\d+)\s*$", re.IGNORECASE)
 
 
 # ============================================================================ small helpers (pure)
@@ -146,7 +153,7 @@ def validate_line_bbox(box: Optional[list[float]]) -> bool:
 
 
 def parse_marker(m) -> Optional[tuple[int, int]]:
-    hit = _MARKER.match(str(m or ""))
+    hit = _MARKER.match(str(m or "")) or _MARKER_WORD.match(str(m or ""))
     if not hit:
         return None
     a, b = int(hit.group(1)), int(hit.group(2))
@@ -191,6 +198,8 @@ def select_invoice_pages(pages: list[dict]) -> dict:
     * several different document numbers (after norm_key) -> ``multi_invoice``: the first number's pages are
       read; every other number stays an occurrence so Oracle arbitrates (ambiguous -> MANUAL_REVIEW)
     * printed markers that do not cover 1..b -> ``pages_complete = False`` (E01, never a silent pass)
+    * a page numbered past the printed length (``b``) is not this document, even when it quotes the same
+      document number; inside that range a page keeps its rows whether or not it printed a marker
     * no invoice page at all -> nothing is read, ``pages_complete = False`` (no guessing page 1)
     """
     taxes = [p for p in pages if p["doc_type"] == "tax_invoice"]
@@ -235,6 +244,26 @@ def select_invoice_pages(pages: list[dict]) -> dict:
             seen.add(key)
         kept.append(p["page_no"])
     kept.sort()
+
+    # What the paper prints about its own length is the authority on how long this document is.  A sheet
+    # numbered past that length cannot be part of it, even when it quotes the same document number - and a
+    # sheet inside the range keeps its rows even if it printed no marker of its own (that case is a marker
+    # gap, reported through ``marker_gaps``, not a reason to throw money away).  DMS-159: pages printed
+    # ``Page 1 of 2`` / ``Page 2 of 2``, page 6 quoted the same number and added a 16,500.00 row on top of
+    # a subtotal the paper had already closed.
+    printed = [m for m in (parse_marker(p.get("page_marker")) for p in target if p["page_no"] in kept) if m]
+    if printed:
+        beyond = max(b for _a, b in printed)
+        reading = []
+        for p in target:
+            if p["page_no"] not in kept:
+                continue
+            if p["page_no"] <= beyond or parse_marker(p.get("page_marker")):
+                reading.append(p["page_no"])
+            else:
+                info["dropped"].append({"page": p["page_no"], "reason": "unmarked_page_beyond_printed_count",
+                                        "printed_pages": beyond, "doc_no_hint": p.get("doc_no_hint")})
+        kept = sorted(reading)
 
     markers = [m for m in (parse_marker(p.get("page_marker")) for p in target if p["page_no"] in kept) if m]
     if markers:
@@ -298,7 +327,8 @@ class PageAnswer:
     def __init__(self, page_no: int, orig_w: int, orig_h: int,
                  rot_w: Optional[int] = None, rot_h: Optional[int] = None,
                  M: Optional[np.ndarray] = None, answer: Optional[dict] = None,
-                 coord: str = "norm1000"):
+                 coord: str = "norm1000", mask: Optional[np.ndarray] = None,
+                 snap: bool | str = True):
         self.page_no = page_no
         if answer is None and isinstance(rot_w, dict):
             # Backward compatibility with (page_no, w, h, answer, coord)
@@ -312,6 +342,13 @@ class PageAnswer:
         self.M = M
         self.w, self.h = orig_w, orig_h
         self.answer = answer or {}
+        #: boxes this page's answer carried that the parser could not map, kept as the model sent them.
+        #: A page can read perfectly and still lose every coordinate (DMS-147/212), and the only way to
+        #: diagnose that afterwards is to have kept what came back.
+        self.dropped: list[list] = []
+        self.mask = mask          # ink map of the page as it was sent, for box corrections
+        self.snap_mode = ink_snap_mode(snap)      # both / move / grow / off - see R4-9 below
+        self.snap_boxes = self.snap_mode != "off"  # False = the arm that delivers the model's boxes untouched
         boxes = [b for b in (_box(v) for v in (self.answer.get("fields") or {}).values()) if b]
         for r in self.answer.get("line_items") or []:
             if isinstance(r, dict):
@@ -319,23 +356,155 @@ class PageAnswer:
         boxes += [b for b in (_box(r) for r in self.answer.get("regions") or []) if b]
         self.coord = choose_coord_mode(boxes, rot_w, rot_h, None, coord) if coord in ("auto", "words") else coord
 
-    def region(self, b) -> Optional[Region]:
+    def _px(self, b, snap: bool = False):
+        """A model box -> a pixel rect in the frame the page was sent in, optionally corrected against ink."""
         if not b:
             return None
         mode = "norm1" if max(float(v) for v in b) <= 1.0 else self.coord
-        bbox, rbox = rotate_box_back(b, self.rot_w, self.rot_h, self.orig_w, self.orig_h, self.M, mode)
+        rect = xyxy_px(b, self.rot_w, self.rot_h, mode)
+        if snap and self.snap_boxes and self.mask is not None:
+            corrected, note = snap_box_to_ink(rect, self.mask,
+                                             move=self.snap_mode in ("both", "move"),
+                                             grow=self.snap_mode in ("both", "grow"))
+            if note != "unchanged":
+                rect = corrected
+            # untouched stays untouched: the correction works in whole pixels, so adopting its answer when
+            # it acted on nothing would re-quantise the model's own box by up to 1 px (see R4-9's control arm)
+        return rect
+
+    def region(self, b, snap: bool = False, contains: tuple = ()) -> Optional[Region]:
+        """A model box -> a page region.  ``snap`` corrects a field/cell box against the page's own ink.
+
+        The page's own ``snap_mode`` has the final say, so one run is one arm: a measurement run that
+        switched the correction off cannot have a single box quietly corrected anyway.
+
+        ``contains`` are the boxes this region is the frame of - a row's cells - given in the model's own
+        units and corrected by the same rule the cells themselves get.  A row that was drawn around a cell
+        must still contain it after the cell is corrected: only cells are snapped, so without this the
+        correction would break, for free, the one invariant two audit rounds measured at zero breaks.
+        A box the model never placed inside this one is not adopted (it stays a model problem to report).
+        """
+        rect = self._px(b, snap)
+        if rect is None:
+            if b and len(self.dropped) < 12 and list(b) not in [d for d in self.dropped]:
+                self.dropped.append(list(b))
+            return None
+        if contains:
+            frame = self._px(b) or rect
+            for cell in contains:
+                drawn, moved = self._px(cell), self._px(cell, snap=True)
+                if drawn is None or moved is None:
+                    continue
+                if drawn[1] >= frame[3] or drawn[3] <= frame[1]:      # not in this row to begin with
+                    continue
+                rect = (min(rect[0], moved[0]), min(rect[1], moved[1]),
+                        max(rect[2], moved[2]), max(rect[3], moved[3]))
+        bbox, rbox = rotate_px_box_back(rect, self.rot_w, self.rot_h, self.orig_w, self.orig_h, self.M)
         if bbox[2] <= 0 or bbox[3] <= 0:
+            # the box arrived but collapsed on the way in (numbers in a shape this coordinate mode cannot
+            # read); the raw values are the only trace of what the model actually sent
+            if b and len(self.dropped) < 12 and list(b) not in self.dropped:
+                self.dropped.append(list(b))
             return None
         return Region(page=self.page_no, bbox=bbox, rbox=rbox)
 
 
+TAX_ID_FIELDS = ("supplier_tax_id", "customer_tax_id")
+
+
+def tax_id_warnings(fields: dict, field_page: dict) -> list[dict]:
+    """Flag a tax id that cannot be one, without rewriting what the model saw.
+
+    A Thai taxpayer identification number is 13 digits.  DMS-177 delivered twelve - the same twelve in both
+    runs of an identical corpus, which is why the repeatability measurement rated it as stable: a fault that
+    never varies is invisible to a test that only looks for variation.  A digit count needs no model, so it
+    catches what that cannot.
+
+    The printed value is left exactly as delivered (the prompt's fidelity contract); this only reports, so a
+    reviewer or a rule can decide what a short id means.  Spacing and hyphens are removed before counting,
+    because Thai invoices print these with wide gaps between digits.
+    """
+    out = []
+    for name in TAX_ID_FIELDS:
+        field = fields.get(name)
+        raw = getattr(field, "raw", None)
+        if raw in (None, ""):
+            continue
+        digits = re.sub(r"\D", "", str(raw))
+        if len(digits) < 8 or len(digits) == 13:
+            continue        # not a tax id at all (a dash, a branch code, prose), or a well-formed one
+        out.append({"field": name, "raw": str(raw), "digits": len(digits),
+                    "rule": "thai_tax_id_13_digits", "page": (field_page or {}).get(name)})
+    return out
+
+
+#: A tax id that fails the Thai rule is usually a resolution problem, not a reasoning problem: R6-12 read the
+#: same page at 150 DPI (one digit dropped) and at the same page read exactly at 300 DPI.  Paying 4x pixels for
+#: all ~224 pages is poor value; paying one extra read for the 13-16% of documents where the rule fails is.
+TAXID_RETRY_ENV = "PERCEPTION_TAXID_RETRY_DPI"
+TAXID_RETRY_DPI_DEFAULT = 300
+
+
+def taxid_retry_dpi_from_env() -> int:
+    """The resolution a suspicious page gets re-read at; 0 turns the second look off (the pre-R6-13 behaviour)."""
+    raw = (os.getenv(TAXID_RETRY_ENV) or "").strip().lower()
+    if raw in ("", "0", "off", "false", "no"):
+        return TAXID_RETRY_DPI_DEFAULT if raw == "" else 0
+    try:
+        return max(0, int(raw))
+    except ValueError:
+        return TAXID_RETRY_DPI_DEFAULT
+
+
+def tax_id_problem(answer: Optional[dict]) -> Optional[str]:
+    """Why this page's answer cannot be trusted on tax ids - or None when it can.
+
+    Three ways to fail, all measured on real pages: not 13 digits, 13 digits whose Thai check digit is wrong
+    (the signature of one mis-read character), and the issuer's id simply not returned when it is printed.
+    An absent customer id is not a trigger: plenty of documents genuinely do not print one.
+    """
+    fields = (answer or {}).get("fields") or {}
+    for name in ("supplier_tax_id", "customer_tax_id"):
+        raw = _raw(fields.get(name))
+        if raw in (None, ""):
+            if name == "supplier_tax_id":
+                return "TAX_ID_MISSING"
+            continue
+        try:
+            tax_id(str(raw))
+        except Invalid as e:
+            return str(e)
+        except Exception as e:                          # pragma: no cover - defensive
+            return type(e).__name__
+    return None
+
+
+def count_answer_values(answer: dict) -> int:
+    """How many non-empty values one extract answer offered the parser, fields and cells together.
+
+    Compared against how many arrived with a box, this is what tells a coordinate-less read apart from a
+    page that simply had nothing to say.
+    """
+    n = sum(1 for v in (answer.get("fields") or {}).values() if _raw(v) is not None)
+    for row in answer.get("line_items") or []:
+        if isinstance(row, dict):
+            n += sum(1 for k in CELLS if _raw(row.get(k)) is not None)
+    return n
+
+
 def _rf(cell, page: PageAnswer) -> RawField:
     raw = _raw(cell)
+    # A box only deserves correcting if it carries something to recover.  A cell that read "-" (or nothing) is
+    # delivered with its region, and correcting that region walks the crop onto a neighbour's digits - which
+    # is how R4-13's only regression happened (DMS-159 vat, raw "-", moved 11 px onto another value's line).
+    snap = not is_placeholder(raw)
     if raw is None:
-        return RawField(raw=None, confidence=None, agreement=True, region=page.region(_box(cell)) if cell else None,
+        return RawField(raw=None, confidence=None, agreement=True,
+                        region=page.region(_box(cell), snap=snap) if cell else None,
                         source="ocr", null_reason="NOT_PRESENT")
     # one reader: agreement False -> the domain needs independent evidence (arithmetic / Oracle) to accept it
-    return RawField(raw=raw, confidence=None, agreement=False, region=page.region(_box(cell)), source="vlm")
+    return RawField(raw=raw, confidence=None, agreement=False, region=page.region(_box(cell), snap=snap),
+                    source="vlm")
 
 
 def _present(v) -> Optional[bool]:
@@ -347,11 +516,61 @@ def _present(v) -> Optional[bool]:
     return None
 
 
+def drop_reprint_pages(reads: dict, selected: list[int]) -> tuple[list[int], list[dict]]:
+    """Drop pages that repeat another page's rows and totals - the same sheet printed again.
+
+    :func:`select_invoice_pages` keeps every page whose printed marker differs, because a stamped
+    continuation sheet has to survive that decision; the price of that safety is a document handed over as
+    four identical sheets (DMS-134, round 4: one ``ENERGIZER … 231.00`` row read three times under a single
+    231.00 subtotal).  Comparing what was actually extracted is the check selection could not make - it
+    only becomes possible after the pages have been read.
+
+    A page that came back with no rows is never dropped: that may be the sheet carrying the stamp and the
+    signatures, and its evidence is worth more than the duplicate rows it cannot have.
+    """
+    kept: list[int] = []
+    seen: dict[tuple, int] = {}
+    reprints: list[dict] = []
+    for p in selected:
+        answer = getattr(reads.get(p), "answer", None) or {}
+        head, rows = _page_signature(answer)
+        if not rows:
+            kept.append(p)
+            continue
+        key = (head, rows)
+        if key in seen:
+            reprints.append({"page": p, "same_as_page": seen[key], "rows": len(rows),
+                             "invoice_num": _raw((answer.get("fields") or {}).get("invoice_num"))})
+            continue
+        seen[key] = p
+        kept.append(p)
+    return kept, reprints
+
+
+def _page_signature(answer: dict) -> tuple:
+    """The two things that say "this is the same sheet": the header totals and the row cells."""
+    f = (answer or {}).get("fields") or {}
+    head = tuple(norm_key(_raw(f.get(k))) for k in ("invoice_num", "sub_total", "vat", "grand_total"))
+    rows: list[tuple] = []
+    for row in (answer or {}).get("line_items") or []:
+        if not isinstance(row, dict):
+            continue
+        cells = tuple(norm_key(_raw(row.get(k))) for k in CELLS)
+        if any(cells):
+            rows.append(cells)
+    return head, tuple(rows)
+
+
 def build_extraction(*, package_id: str, dms_doc_id: str, sha: str, page_infos: list[PageInfo],
                      classified: list[dict], selection: dict, reads: dict[int, PageAnswer],
                      page_errors: dict, calls: list, model: str, prompt_version: str,
-                     timings: dict, page_orientations: Optional[dict] = None) -> ExtractionResult:
+                     taxid_retry: Optional[list] = None,
+                     timings: dict, page_orientations: Optional[dict] = None,
+                     ink_snap: bool = True, snap_mode: Optional[str] = None,
+                     adjudication: Optional[list] = None) -> ExtractionResult:
+    snap_mode = snap_mode or INK_SNAP_DEFAULT     # the payload has to say which knobs made it
     selected = [p for p in selection["selected"] if p in reads]
+    selected, reprint_pages = drop_reprint_pages(reads, selected)
     # ---------------------------------------------------------------- fields
     fields: dict[str, RawField] = {}
     field_page: dict[str, int] = {}
@@ -426,7 +645,8 @@ def build_extraction(*, package_id: str, dms_doc_id: str, sha: str, page_infos: 
             cand = compute_row_bbox_from_cells(row, table_bbox=table_bbox)
             if validate_line_bbox(cand):
                 effective_box = cand
-        row_region = pg.region(effective_box) if effective_box else None
+        row_region = pg.region(effective_box, contains=tuple(
+            b for b in (_box(row.get(k)) for k in CELLS if row.get(k) is not None) if b)) if effective_box else None
         lines.append(RawLine(line_no=it["line_no"], region=row_region, cells=cells))
     for ex in excluded:
         txt = " | ".join(t for t in (_raw(ex["row"].get(k)) for k in CELLS) if t)
@@ -471,6 +691,23 @@ def build_extraction(*, package_id: str, dms_doc_id: str, sha: str, page_infos: 
             run = []
         if p is not None:
             run.append(p)
+    # --------------------------------------------------- a page that delivered values with no boxes at all
+    # Every box on a page can fail to map - the numbers arrive in a shape the coordinate mode cannot read -
+    # and the payload still looks like a successful read: eleven fields, a line, totals, page_errors empty.
+    # A value with no box cannot be checked by a reviewer and should not stand as located evidence to
+    # matching, so the page is reported, with the raw boxes kept for whoever has to explain it.
+    # This runs BEFORE ``complete`` is decided, because it is exactly the kind of finding that makes a read
+    # incomplete.
+    for p in [x for x in selection["selected"] if x in reads]:
+        offered = count_answer_values(reads[p].answer)
+        located = sum(1 for f in fields.values()
+                      if f.raw is not None and f.region and f.region.page == p)
+        located += sum(1 for ln in lines for c in ln.cells.values()
+                       if c.raw is not None and c.region and c.region.page == p)
+        if offered and not located:
+            sample = "; ".join(str(d) for d in reads[p].dropped[:3])
+            page_errors[str(p)] = (f"NO_GEOMETRY: {offered} values read, none with a usable box "
+                                   f"(unmapped: {sample or 'none reported'})")
     complete = (bool(selection.get("pages_complete")) and bool(selected)
                 and not any(str(p) in page_errors for p in selection["selected"]))
     return ExtractionResult(
@@ -486,7 +723,13 @@ def build_extraction(*, package_id: str, dms_doc_id: str, sha: str, page_infos: 
                            for it in items],
             "folded_rows": [{k: v for k, v in f.items()} for f in folded],
             "excluded_rows": [{k: v for k, v in e.items()} for e in excluded],
+            "reprint_pages": reprint_pages,
+            "format_warnings": tax_id_warnings(fields, field_page),   # e.g. a 12-digit tax id, delivered twice
             "coord_mode_by_page": {str(p): reads[p].coord for p in reads},
+            "ink_snap": bool(ink_snap),        # which arm of the R4-3c A/B produced this payload
+            "ink_snap_mode": snap_mode,        # and which of its two knobs R4-9 left switched on
+            "adjudication": list(adjudication or []),   # pages re-read because the document was about to be discarded
+            "taxid_retry": list(taxid_retry or []),     # pages re-read at higher DPI because a tax id failed the rule
             "orientation": {str(p): {"r": o.r, "confidence": o.confidence, "uncertain": o.uncertain,
                                      "skew": o.skew, "total": o.total, "runtime": o.runtime}
                             for p, o in (page_orientations or {}).items()},
@@ -494,6 +737,110 @@ def build_extraction(*, package_id: str, dms_doc_id: str, sha: str, page_infos: 
             "invoice_pages": list(selected),
         },
         extractor={"vlm": model, "prompts": prompt_version, "pipeline": ENGINE, "consensus": "single-read+evidence"})
+
+
+#: R4-3c: the ink snap must be measurable, and a measurement needs an arm where it is switched off.  The
+#: environment decides the default so a batch run picks its arm without any code or Settings change;
+#: PERCEPTION_INK_SNAP=0 (also off/false/no) measures the raw model boxes on the same documents.
+#: R4-9: the correction is two actions, not one - MOVE a box that sits on blank paper, GROW a box over the
+#: run it already touches.  They were shipped together in R4-3a and measured together in R4-3c, which is how
+#: a net-negative knob ended up in production: paired on two replications, move fixed 3 boxes and broke none
+#: (and removed every empty box), grow fixed 5 and broke 13.  So the shipped default is ``move``, and the
+#: environment can name any of them: PERCEPTION_INK_SNAP=move / grow / both / off.
+INK_SNAP_ENV = "PERCEPTION_INK_SNAP"
+INK_SNAP_OFF = ("0", "off", "false", "no")
+INK_SNAP_MODES = ("both", "move", "grow", "off")
+INK_SNAP_DEFAULT = "move"
+
+
+def ink_snap_mode(value, default: str = INK_SNAP_DEFAULT) -> str:
+    """The knob setting a bool or a name asks for.  Anything unrecognised keeps the shipped default.
+
+    ``True``/``False`` are the R4-3c spellings and stay exact (all knobs / none); ``None`` means "whatever
+    the environment says", which the caller resolves.  An unusable name is not an off switch: silently
+    losing the correction would be the worst possible way to read a typo.
+    """
+    if isinstance(value, bool):
+        return "both" if value else "off"
+    raw = str(value if value is not None else "").strip().lower()
+    if raw in INK_SNAP_MODES:
+        return raw
+    if raw in INK_SNAP_OFF:
+        return "off"
+    if not raw:
+        return default
+    return default
+
+
+def ink_snap_from_env(default: str = INK_SNAP_DEFAULT) -> str:
+    """The knob setting an environment asks for (unset or nonsense keeps the shipped default)."""
+    raw = (os.getenv(INK_SNAP_ENV) or "").strip().lower()
+    return ink_snap_mode(raw, default=default) if raw else default
+
+
+def _fold_wording(text: str) -> str:
+    """Fold Thai spelling wobble and spaces so one printed word matches however it was typed or quoted.
+
+    ``ใบกำกับภาษี`` is printed and transcribed with its vowels and tone marks in more than one place
+    (``ใบกำกับภาษี`` and friends), and the model quotes what it sees - so a rescue must not depend on a
+    transcription being letter-perfect, only on the word being there.
+    """
+    return re.sub(r"[\u0e31\u0e34-\u0e3a\u0e47-\u0e4e]", "", text or "").replace(" ", "").lower()
+
+
+_TAX_INVOICE_WORD = _fold_wording("ใบกำกับภาษี")
+_TAX_INVOICE_EN = _fold_wording("TAX INVOICE")
+_INVOICE_WORD = _fold_wording("ใบแจ้งหนี้")
+_INVOICE_EN = _fold_wording("INVOICE")
+#: the knob that turns the second look off, for A/B and for a rollback that needs no code change
+ADJUDICATE_ENV = "PERCEPTION_ADJUDICATE"
+#: Words that mean the page has ruled itself out, folded the same way as the titles. Seven of the twelve
+#: documents the FFR discarded print exactly this - which is why a plain substring test is not a rule.
+_DENIALS = tuple(_fold_wording(w) for w in
+                 ("ไม่ใช่", "มิใช่", "not a ", "no tax", "not the tax", "this is not a tax"))
+#: how far back (in folded characters) a denial still governs the title it precedes
+_DENIAL_WINDOW = 10
+
+
+def _wording_in(folded: str) -> str:
+    """Which invoice name appears in already-folded text, ignoring occurrences that text denies."""
+    found: list[str] = []
+    for kind, needles in (("tax_invoice", (_TAX_INVOICE_WORD, _TAX_INVOICE_EN)),
+                          ("invoice", (_INVOICE_WORD, _INVOICE_EN))):
+        for needle in needles:
+            at = folded.find(needle)
+            while at >= 0:
+                before = folded[max(0, at - _DENIAL_WINDOW):at]
+                if not any(d in before for d in _DENIALS):
+                    found.append(kind)
+                at = folded.find(needle, at + 1)
+    return "tax_invoice" if "tax_invoice" in found else ("invoice" if "invoice" in found else "")
+
+
+def invoice_wording(text: str, kind_word: str = "") -> str:
+    """Which invoice wording a page prints **as its own document name**: ``tax_invoice`` | ``invoice`` | ``""``.
+
+    This gates the reopening of a page-type decision, so it is written to be hard to satisfy:
+
+    * the name the page gives itself (``kind_word``, from ``kind_word_seen``) is what counts. The wording
+      appearing somewhere else on the page is a different fact: measured on DMS-93/123/205/206/207, whose
+      purchase-order page prints "TAX INVOICE" / "เลขที่ใบกำกับภาษี" while naming itself
+      "PURCHASE ORDER", accepting on wording-found-anywhere reopened five documents that contain no invoice
+      at all - which is inventing an invoice, worse than discarding the document;
+    * only when the page names itself nothing are the quoted lines searched, because a title lands in the
+      first quote when there is one;
+    * a title the page denies is not a title: ``ไม่ใช่ใบกำกับภาษี`` carries the same characters as
+      ``ใบกำกับภาษี`` and must resolve to "not an invoice" (measured on DMS-93/123/124/180/205/206/207);
+    * when both names appear, ``tax_invoice`` wins - what the classify prompt already asks for on combined
+      titles like ``ต้นฉบับใบกำกับภาษี/ใบส่งของ``.
+    """
+    named = _fold_wording(kind_word)
+    return _wording_in(named) if named else _wording_in(_fold_wording(text))
+
+
+def adjudicate_from_env() -> bool:
+    """Whether the second look may spend calls (default on; off reproduces the pre-R6-6 engine)."""
+    return (os.getenv(ADJUDICATE_ENV) or "1").strip().lower() not in ("0", "off", "false", "no")
 
 
 # ============================================================================ the pipeline (LLM IO)
@@ -506,14 +853,31 @@ class SinglePassPipeline:
 
     def __init__(self, client, model: str, *, dpi: int = 150, classify_dpi: int = 80, max_pages: int = 12,
                  max_tokens: int = 8000, coord: str = "norm1000", json_mode: bool = False,
-                 thinking: Optional[bool] = False):
+                 thinking: Optional[bool] = False, ink_snap: Optional[bool] = None,
+                 adjudicate_dpi: int = 150, adjudicate: Optional[bool] = None,
+                 taxid_retry_dpi: Optional[int] = None):
         self.client, self.model = client, model
         self.dpi, self.classify_dpi, self.max_pages = dpi, classify_dpi, max_pages
         self.max_tokens, self.coord, self.json_mode, self.thinking = max_tokens, coord, json_mode, thinking
+        self.snap_mode = ink_snap_from_env() if ink_snap is None else ink_snap_mode(ink_snap)
+        self.ink_snap = self.snap_mode != "off"   # R4-3c's boolean, still the payload's "was anything corrected"
+        self.adjudicate = adjudicate_from_env() if adjudicate is None else bool(adjudicate)
+        self.taxid_retry_dpi = (taxid_retry_dpi_from_env() if taxid_retry_dpi is None
+                                else int(taxid_retry_dpi))
+        self.adjudicate_dpi = adjudicate_dpi
         self.prompts = {n: load_prompt(n) for n in PROMPTS}
         self.prompt_version = "+".join(self._pid(n) for n in PROMPTS)
         with open(__file__, "rb") as fh:
-            self.code_version = hashlib.sha256(fh.read() + MODEL_SHA256.encode()).hexdigest()[:12]
+            # the snap arm is part of the identity: it changes the boxes this pipeline delivers, and
+            # process_pdf.py hashes code_version into the perception cache key.  So does the prompt: an
+            # edit to the wording changes which values the model returns, and a cached payload read under
+            # the old wording would otherwise be served as if it were the new one (same trap INK_RULES
+            # VERSION closed for the ink rules).
+            self.code_version = hashlib.sha256(fh.read() + MODEL_SHA256.encode()
+                                               + f"|ink_snap={self.snap_mode}|ink_rules={INK_RULES_VERSION}"
+                                                 f"|adjudicate={int(self.adjudicate)}"
+                                                 f"|taxid_retry={self.taxid_retry_dpi}"
+                                                 f"|prompts={self.prompt_version}".encode()).hexdigest()[:12]
         self.calls: list[dict] = []
         self.stats: dict = {}
 
@@ -550,6 +914,45 @@ class SinglePassPipeline:
                            "salvaged": bool(getattr(self.client, "last_salvaged", False)),
                            "usage": dict(getattr(self.client, "last_usage", {}) or {})})
         return out if isinstance(out, dict) else {}
+
+    def _adjudicate(self, doc, classified: list[dict], selection: dict,
+                    page_errors: dict) -> tuple[list[dict], dict, list[dict]]:
+        """Look again, page by page, before a whole document is thrown away - and change only the evidence.
+
+        Round 6 discarded twelve documents on a single classify vote. Five printed a title naming both roles
+        (``ต้นฉบับใบกำกับภาษี/ใบส่งของ``) and were real invoices; seven printed ``ไม่ใช่ใบกำกับภาษี`` and were
+        correctly discarded. The cheap multi-page pass at 80 DPI could not tell the two groups apart, while a
+        slower single-page look at the printed title got all twelve right - so this asks the slower question,
+        and it is allowed to fire only when the gate is about to discard the document.
+
+        It never overrides the gate. A page's ``doc_type`` changes only when that page's own quoted text
+        prints an invoice name (``invoice_wording``), and the unchanged ``select_invoice_pages`` rule is then
+        run again over the new evidence, so copy detection, page markers and multi-document handling still
+        apply. If the second look cannot answer, the original decision stands and the failure is recorded.
+        """
+        log: list[dict] = []
+        changed = False
+        for entry in classified:
+            p = entry["page_no"]
+            try:
+                img = self._render(doc[p - 1], self.adjudicate_dpi)
+                ans = self._ask("adjudicate", p, self.prompts["single_pass_adjudicate"],
+                                [self._data_url(img, quality=85)], 900)
+            except Exception as e:                       # keep the discard; never take the read down with this
+                page_errors["adjudicate"] = f"{type(e).__name__}: {str(e)[:200]}"
+                break
+            quote = " | ".join(str(q).strip() for q in ((ans or {}).get("quotes") or []) if str(q).strip())
+            named = str((ans or {}).get("kind_word_seen") or "").strip()
+            # the name the page gives itself decides; tax-invoice wording in someone else's column does not
+            kind = invoice_wording(quote, kind_word=named)
+            log.append({"page_no": p, "was": entry["doc_type"], "accepted": kind or False,
+                        "named_as": named[:80], "quote": quote[:400],
+                        "said_tax_invoice": bool((ans or {}).get("serves_as_tax_invoice")),
+                        "dpi": self.adjudicate_dpi})
+            if kind and entry["doc_type"] not in ("tax_invoice", "invoice"):
+                entry["doc_type"] = kind
+                changed = True
+        return classified, (select_invoice_pages(classified) if changed else selection), log
 
     def extract(self, pdf: bytes, *, package_id: str, dms_doc_id: str) -> ExtractionResult:
         import fitz
@@ -590,10 +993,19 @@ class SinglePassPipeline:
                     r=r_val, confidence=1.0, uncertain=False, skew=0.0, total=float(r_val), runtime="vlm_classify"
                 )
             timings["classify_ms"] = round((time.time() - t0) * 1000)
+            # ---------------- step 1b: one harder look, only on the edge of discarding the whole document
+            adjudication: list[dict] = []
+            if self.adjudicate and not selection["selected"] and not page_errors.get("classify"):
+                t_adj = time.time()
+                classified, selection, adjudication = self._adjudicate(doc, classified, selection, page_errors)
+                timings["adjudicate_ms"] = round((time.time() - t_adj) * 1000)
             if len(doc) > self.max_pages:
                 selection.update(pages_complete=False, truncated_at=self.max_pages)
             # ---------------- step 2: extract, one upright page per call
             reads: dict[int, PageAnswer] = {}
+            taxid_retry: list[dict] = []
+            taxid_spent = False        # one harder look per document, not per page: the cost stays bounded
+            dpi_by_page: dict[int, int] = {}
             t0 = time.time()
             for p in selection["selected"]:
                 ori = page_orientations.get(p) or OrientationResult(0, 1.0, False, 0.0, 0.0, "vlm_classify")
@@ -605,6 +1017,7 @@ class SinglePassPipeline:
                     rot_img, M = orig_img, None
                 rot_w, rot_h = rot_img.width, rot_img.height
                 text = self.prompts["single_pass_extract"].replace("{page_no}", str(p))
+                dpi_used = self.dpi
                 try:
                     ans = self._ask("extract", p, text, [self._data_url(rot_img)], self.max_tokens)
                     if getattr(self.client, "last_salvaged", False):
@@ -612,7 +1025,30 @@ class SinglePassPipeline:
                 except Exception as e:
                     page_errors[str(p)] = f"{type(e).__name__}: {str(e)[:200]}"
                     ans = {}
-                reads[p] = PageAnswer(p, orig_w, orig_h, rot_w, rot_h, M, ans, self.coord)
+                # ------------------------------------------- one harder look, only where the tax id rule fails
+                problem = tax_id_problem(ans) if (self.taxid_retry_dpi and not taxid_spent) else None
+                if problem:
+                    taxid_spent = True
+                    accepted = False
+                    try:
+                        hi_orig = self._render(doc[p - 1], self.taxid_retry_dpi)
+                        hi_rot, hi_M = rotate_image(hi_orig, ori.total) if ori.total != 0 else (hi_orig, None)
+                        ans_hi = self._ask("extract", p, text, [self._data_url(hi_rot)], self.max_tokens)
+                        if ans_hi and tax_id_problem(ans_hi) is None:
+                            # the accepted answer brings its own frame with it: its boxes are in the
+                            # high-resolution page, so dimensions, matrix and ink map all follow it
+                            ans, orig_img, rot_img, M = ans_hi, hi_orig, hi_rot, hi_M
+                            orig_w, orig_h = hi_orig.width, hi_orig.height
+                            rot_w, rot_h = hi_rot.width, hi_rot.height
+                            dpi_used = self.taxid_retry_dpi
+                            accepted = True
+                    except Exception:
+                        pass          # a failed second look leaves the first answer standing, and is reported
+                    taxid_retry.append({"page": p, "reason": problem, "dpi": self.taxid_retry_dpi,
+                                        "accepted": accepted})
+                dpi_by_page[p] = dpi_used
+                reads[p] = PageAnswer(p, orig_w, orig_h, rot_w, rot_h, M, ans, self.coord,
+                                      mask=strip_rules(ink_mask(rot_img)), snap=self.snap_mode)
             timings["extract_ms"] = round((time.time() - t0) * 1000)
             infos = []
             for i in range(len(doc)):
@@ -620,12 +1056,14 @@ class SinglePassPipeline:
                 w, h = round(pg.rect.width, 2), round(pg.rect.height, 2)
                 ori = page_orientations.get(i + 1)
                 r_deg = ori.r if ori else 0
-                infos.append(PageInfo(page_no=i + 1, width_pt=w, height_pt=h, rotation=r_deg, render_dpi=self.dpi))
+                infos.append(PageInfo(page_no=i + 1, width_pt=w, height_pt=h, rotation=r_deg,
+                                      render_dpi=dpi_by_page.get(i + 1, self.dpi)))
         timings["total_ms"] = round((time.time() - t_all) * 1000)
         ext = build_extraction(package_id=package_id, dms_doc_id=dms_doc_id, sha=sha, page_infos=infos,
                                classified=classified, selection=selection, reads=reads, page_errors=page_errors,
                                calls=list(self.calls), model=self.model, prompt_version=self.prompt_version,
-                               timings=timings, page_orientations=page_orientations)
+                               timings=timings, page_orientations=page_orientations, ink_snap=self.ink_snap,
+                               snap_mode=self.snap_mode, adjudication=adjudication, taxid_retry=taxid_retry)
         self.stats = {"calls": len(self.calls), "ok": sum(1 for c in self.calls if c["ok"]),
                       "failed": sum(1 for c in self.calls if not c["ok"]), "ms": timings["total_ms"],
                       "pages": len(infos), "selected": selection["selected"], "lines": len(ext.lines),

@@ -6,7 +6,10 @@ dist-ssr
 .tmp
 *.xlsx
 
-temp/
+temp/*
+!temp/paperless_invoices_v5/
+!temp/schemas/
+temp/paperless_invoices_v5/.cache/
 /src/generated/prisma
 
 # Prisma / local database

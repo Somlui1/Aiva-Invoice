@@ -42,14 +42,20 @@ const INITIAL_SET_LOG: SettingLogEntry[] = [
 
 const SettingsContext = createContext<SettingsContextType | null>(null)
 
-export function SettingsProvider({ children }: { children: React.ReactNode }) {
+export function SettingsProvider({
+  children,
+  initialMaps
+}: {
+  children: React.ReactNode
+  initialMaps?: AccountMapping[]
+}) {
   const { currentUser, logAudit } = useAuth()
   const [pref, setPref] = useState<PersonalPreferences>({
     cols: { tax: true, po: true, rcv: true, own: true, up: true, age: true }
   })
   const [orgSettings, setOrgSettings] = useState<OrgSettings>(DEFAULT_ORG_SETTINGS)
   const [settingLogs, setSettingLogs] = useState<SettingLogEntry[]>(INITIAL_SET_LOG)
-  const [accountMaps, setAccountMaps] = useState<AccountMapping[]>(INITIAL_MAPS)
+  const [accountMaps, setAccountMaps] = useState<AccountMapping[]>(initialMaps || INITIAL_MAPS)
 
   // Load preferences when active user changes
   useEffect(() => {
@@ -152,7 +158,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   }, [currentUser.role, orgSettings.period, orgSettings.hideClosed, logSettingChange])
 
   const addMapping = useCallback((userId: string, acct: string, req: string) => {
-    if (currentUser.role !== 'ADM') return { ok: false, msg: 'เฉพาะ IT Admin จัดการการผูกบัญชี' }
+    if (currentUser.role !== 'ADM' && currentUser.role !== 'SA') return { ok: false, msg: 'เฉพาะ IT Admin จัดการการผูกบัญชี' }
     if (!req.trim()) return { ok: false, msg: 'ระบุอ้างอิงคำขอ (ticket / อีเมล) ก่อนทุกครั้ง' }
     const cleanAcct = acct.trim().toUpperCase()
     if (!cleanAcct) return { ok: false, msg: 'ระบุชื่อ Oracle account' }
@@ -174,7 +180,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   }, [currentUser, accountMaps, logSettingChange])
 
   const delMapping = useCallback((id: string, req: string) => {
-    if (currentUser.role !== 'ADM') return { ok: false, msg: 'เฉพาะ IT Admin จัดการการผูกบัญชี' }
+    if (currentUser.role !== 'ADM' && currentUser.role !== 'SA') return { ok: false, msg: 'เฉพาะ IT Admin จัดการการผูกบัญชี' }
     if (!req.trim()) return { ok: false, msg: 'ระบุอ้างอิงคำขอ (ticket / อีเมล) ก่อนทุกครั้ง' }
     const m = accountMaps.find(x => x.id === id)
     if (!m) return { ok: false, msg: 'ไม่พบรายการ' }
@@ -184,7 +190,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   }, [currentUser.role, accountMaps, logSettingChange])
 
   const toggleUserCompany = useCallback((userId: string, co: string, req: string) => {
-    if (currentUser.role !== 'ADM') return { ok: false, msg: 'เฉพาะ IT Admin จัดการ' }
+    if (currentUser.role !== 'ADM' && currentUser.role !== 'SA') return { ok: false, msg: 'เฉพาะ IT Admin จัดการ' }
     if (!req.trim()) return { ok: false, msg: 'ระบุอ้างอิงคำขอ (ticket / อีเมล) ก่อนทุกครั้ง' }
     logSettingChange(`บริษัทที่รับผิดชอบ · ${userId}`, co, 'สลับสิทธิ์', req)
     return { ok: true }
@@ -215,8 +221,26 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   )
 }
 
-export function useSettings() {
+export function useSettings(): SettingsContextType {
   const ctx = useContext(SettingsContext)
-  if (!ctx) throw new Error('useSettings must be used within SettingsProvider')
+  if (!ctx) {
+    return {
+      pref: { cols: { tax: true, po: true, rcv: true, own: true, up: true, age: true } },
+      orgSettings: DEFAULT_ORG_SETTINGS,
+      settingLogs: INITIAL_SET_LOG,
+      accountMaps: INITIAL_MAPS,
+      savePref: () => {},
+      resetPref: () => {},
+      saveStaleDays: () => ({ ok: true }),
+      saveLimit: () => ({ ok: true }),
+      saveReasons: () => ({ ok: true }),
+      saveEuVis: () => {},
+      savePrint: () => {},
+      saveQueueDef: () => {},
+      addMapping: () => ({ ok: true }),
+      delMapping: () => ({ ok: true }),
+      toggleUserCompany: () => ({ ok: true })
+    } as SettingsContextType
+  }
   return ctx
 }

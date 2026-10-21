@@ -431,6 +431,11 @@ def all_scenarios() -> list[Scenario]:
         out += list(V4)
     except ImportError:
         pass
+    try:
+        from .v5_cases import V5                 # S63+ v5: unit rules, price/amount, logic V-08
+        out += list(V5)
+    except ImportError:
+        pass
     return out
 
 

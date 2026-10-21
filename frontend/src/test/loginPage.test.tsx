@@ -80,7 +80,7 @@ describe('LoginPage Component', () => {
     expect(passwordInput).toBeTruthy()
 
     await act(async () => {
-      fireEvent.change(usernameInput, { target: { value: 'somsak.j' } })
+      fireEvent.change(usernameInput, { target: { value: 'wajeepradit.p' } })
       fireEvent.change(passwordInput, { target: { value: 'anypassword' } })
     })
 
@@ -96,7 +96,32 @@ describe('LoginPage Component', () => {
     )
 
     const [user, method] = onSuccess.mock.calls[0]
-    expect(user.email).toContain('somsak.j')
+    expect(user.email).toContain('wajeepradit.p')
     expect(method).toBe('ldap')
+  })
+
+  it('speeds up animation constants and allows toggling auto-play smoothly', async () => {
+    const { DWELL, STEP_MS, WF } = await import('../features/login/data/explainer')
+    expect(DWELL.flow).toBe(10000)
+    expect(DWELL.rules).toBe(12000)
+    expect(STEP_MS.flow).toBe(1650)
+    expect(WF[0].note).toBe('')
+
+    render(<LoginPage mock={false} />)
+    const toggleBtn = screen.getByRole('button', { name: /หยุดเล่นอัตโนมัติ/i })
+    expect(toggleBtn).toBeTruthy()
+
+    // Click to pause
+    await act(async () => {
+      fireEvent.click(toggleBtn)
+    })
+    expect(screen.getByRole('button', { name: /เล่นอัตโนมัติ/i })).toBeTruthy()
+
+    // Click to resume
+    const resumeBtn = screen.getByRole('button', { name: /เล่นอัตโนมัติ/i })
+    await act(async () => {
+      fireEvent.click(resumeBtn)
+    })
+    expect(screen.getByRole('button', { name: /หยุดเล่นอัตโนมัติ/i })).toBeTruthy()
   })
 })

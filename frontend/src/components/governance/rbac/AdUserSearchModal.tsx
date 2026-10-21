@@ -245,7 +245,7 @@ export function AdUserSearchModal({ isOpen, onClose, onAddUser }: Props) {
                 เลือกบทบาท (Role)
               </label>
               <div className="role-cards">
-                {(['EU', 'ACC', 'APR', 'ADM'] as RoleKey[]).map(rk => (
+                {(['EU', 'ACC', 'APR', 'ADM', 'SA'] as RoleKey[]).map(rk => (
                   <div
                     key={rk}
                     className={`role-card ${role === rk ? 'on' : ''}`}
@@ -258,6 +258,7 @@ export function AdUserSearchModal({ isOpen, onClose, onAddUser }: Props) {
                         {rk === 'ACC' && 'ตรวจสอบและยืนยันเอกสารตามบริษัท'}
                         {rk === 'APR' && 'อนุมัติ ส่งเข้า AP Interface'}
                         {rk === 'ADM' && 'ผู้ดูแลระบบ จัดการสิทธิ์'}
+                        {rk === 'SA' && 'ผู้ดูแลระบบระดับสูง สิทธิ์เต็มทุกระบบ'}
                       </small>
                     </div>
                   </div>

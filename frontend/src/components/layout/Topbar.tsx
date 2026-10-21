@@ -46,9 +46,9 @@ export function Topbar({ onToggleNav }: TopbarProps) {
         <span className="brand-mark">AI</span>
         <div>
           <div className="brand-name">
-            AIVA Portal <span className="brand-ver">v4.18 Next.js</span>
+            AIVA Portal <span className="brand-ver">v5.2 React</span>
           </div>
-          <div className="brand-sub">System A Engine · Next.js Edition</div>
+          <div className="brand-sub">System A Engine · React 19 SPA Edition</div>
         </div>
       </div>
 

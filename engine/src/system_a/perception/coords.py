@@ -174,24 +174,14 @@ def rotate_image(img: Any, angle_cw: float) -> Tuple[Any, np.ndarray]:
     return rot_np, M
 
 
-def rotate_box_back(box: Sequence[float], rot_w: int, rot_h: int,
-                    orig_w: int, orig_h: int, M: Optional[np.ndarray],
-                    mode: str = "norm1000") -> Tuple[BBox, RBox]:
-    """Map a box predicted on rotated image back to original unrotated image coordinates.
+def rotate_px_box_back(rect_px: Sequence[float], rot_w: int, rot_h: int,
+                       orig_w: int, orig_h: int, M: Optional[np.ndarray]) -> Tuple[BBox, RBox]:
+    """A rectangle already measured in rotated-image pixels -> the two boxes in the original frame.
 
-    Args:
-        box: [x1, y1, x2, y2] predicted on rotated image.
-        rot_w, rot_h: pixel dimensions of rotated image.
-        orig_w, orig_h: pixel dimensions of 130 DPI image before rotation (never PDF points).
-        M: 2x3 forward transformation matrix used to rotate the image.
-        mode: coordinate frame ('norm1000', 'norm1', 'pixel').
-
-    Returns:
-        (bbox, rbox) where:
-          bbox: normalized [x, y, w, h] axis-aligned bounding box enclosing the rotated box.
-          rbox: normalized [cx, cy, w, h, angle] oriented box with angle in [-45°, +45°] (degrees clockwise).
+    Split out of :func:`rotate_box_back` so a box that was corrected against the page's own ink (see
+    :func:`snap_box_to_ink`) travels back through exactly the same maths as an untouched one.
     """
-    x1, y1, x2, y2 = xyxy_px(box, rot_w, rot_h, mode)
+    x1, y1, x2, y2 = (float(v) for v in rect_px[:4])
 
     if M is None or np.allclose(M, [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], atol=1e-4):
         bbox = px_to_xywh((x1, y1, x2, y2), orig_w, orig_h)
@@ -239,6 +229,233 @@ def rotate_box_back(box: Sequence[float], rot_w: int, rot_h: int,
 
     rbox = (cx, cy, round(edge_w, 4), round(edge_h, 4), round(angle, 2))
     return bbox, rbox
+
+
+def rotate_box_back(box: Sequence[float], rot_w: int, rot_h: int, orig_w: int, orig_h: int,
+                    M: Optional[np.ndarray], mode: str = "norm1000") -> Tuple[BBox, RBox]:
+    """Corner box predicted on the rotated image (any coordinate frame) -> the two boxes of the original page."""
+    return rotate_px_box_back(xyxy_px(box, rot_w, rot_h, mode), rot_w, rot_h, orig_w, orig_h, M)
+
+
+#: How far a box may be nudged onto a printed line, as a share of the page height (measured Round 3: the
+#: boxes drawn from a label sit 15-44 px off their value on a ~1500 px page; the ones 86-120 px off belong to
+#: no line at all and are left alone rather than teleported).
+INK_MOVE_RATIO = 0.03
+#: How much a box may stretch to cover the value it already sits on, as a multiple of its own width.
+#: Past that it would be reaching across whitespace into the next column.
+INK_GROW_RATIO = 1.8
+INK_GAP_PX = 3
+
+
+def ink_mask(img) -> np.ndarray:
+    """``1`` where the page carries ink, ``0`` on paper - Otsu over the page's own grey levels.
+
+    Every box correction is only as honest as this map, so it is derived from the page itself instead of a
+    fixed threshold: the same scan may be white paper, cream paper or a shaded form.
+    """
+    arr = np.asarray(img.convert("L") if hasattr(img, "convert") else img)
+    if arr.ndim == 3:
+        arr = cv2.cvtColor(np.ascontiguousarray(arr, dtype=np.uint8), cv2.COLOR_RGB2GRAY)
+    arr = np.ascontiguousarray(arr, dtype=np.uint8)
+    th, _ = cv2.threshold(arr, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    return (arr <= th).astype(np.uint8)   # the threshold level itself counts as ink (a two-level scan puts Otsu on the text)
+
+
+def _ink_bands(mask: np.ndarray, x0: int, x1: int) -> list[tuple[int, int]]:
+    """Row bands that carry ink between ``x0`` and ``x1`` - the printed lines under that span."""
+    col = mask[:, max(0, x0):max(x0 + 1, x1)].sum(axis=1) > 0
+    bands: list[tuple[int, int]] = []
+    start = None
+    for y, hit in enumerate(col):
+        if hit and start is None:
+            start = y
+        elif not hit and start is not None:
+            bands.append((start, y))
+            start = None
+    if start is not None:
+        bands.append((start, len(col)))
+    return bands
+
+
+#: A printed rule (a form's underline, a table border) is a thin, near-unbroken line of ink across the page.
+#: Dotted leaders are deliberately NOT in this definition - their dots leave gaps - so the strip is
+#: conservative and only removes what cannot be print a box was meant to cover.
+RULE_MAX_HEIGHT_PX = 4
+RULE_MIN_SPAN_RATIO = 0.8
+
+
+def strip_rules(mask: np.ndarray) -> np.ndarray:
+    """Remove page furniture from an ink map: thin solid lines that run across the sheet.
+
+    ``snap_box_to_ink`` decides "this box already has its own line" from the ink under the box's columns, and a
+    table rule answers that question the same way printed digits do.  Measured on six documents that is why
+    ``moved`` - the correction's whole reason for existing - fired 0 and 5 times in 211 boxes, while the audit
+    round had counted 90 boxes sitting on blank paper: they were not on paper, they were on rules.
+
+    Deliberately conservative: a band must be thin *and* run unbroken across almost the whole page, so a line
+    of small print (which spans just as wide, but is twelve pixels of strokes with gaps) survives.
+    """
+    inked = np.asarray(mask) > 0
+    out = np.asarray(mask).copy()
+    H, W = inked.shape[:2]
+    if W < 8:
+        return out
+    rows = np.flatnonzero(inked.any(axis=1))
+    for r0, r1 in _bands(list(rows)):
+        if r1 - r0 > RULE_MAX_HEIGHT_PX:
+            continue
+        cols = np.flatnonzero(inked[r0:r1].any(axis=0))
+        spans = [b[1] - b[0] for b in _bands(list(cols))] or [0]
+        if max(spans) / W >= RULE_MIN_SPAN_RATIO:
+            out[r0:r1, :] = 0
+    return out
+
+
+def _bands(indices: list[int]) -> list[tuple[int, int]]:
+    """Contiguous runs of a sorted index list, as (start, end) - rows or columns that carry ink."""
+    out, start, prev = [], None, None
+    for i in indices:
+        if start is None:
+            start = prev = int(i)
+        elif i == prev + 1:
+            prev = int(i)
+        else:
+            out.append((start, prev + 1))
+            start = prev = int(i)
+    if start is not None:
+        out.append((start, prev + 1))
+    return out
+
+
+#: How tall a band of ink must be to count as a line of print.  Anything shorter is a scratch: a broken rule,
+#: a leader dot, a speck - the snap neither calls it a box's own line nor moves a box onto it.  10pt text is
+#: 11 px tall at the engine's 150 DPI and 12 px at the audit render, so this sits far below any real line and
+#: well above the 1-3 px scraps R4-12 counted: 13 of its 29 moves landed on one, and the single box the
+#: correction made worse in that whole measurement was one of them.
+MIN_LINE_HEIGHT_PX = 4.0
+MIN_LINE_HEIGHT_RATIO = 0.0035          # the same floor as a fraction of page height, for large scans
+#: Bumped whenever the rules above change what the snap delivers.  ``single_pass`` hashes its own file into
+#: ``code_version``, which ``process_pdf.py`` folds into the perception cache key - but these rules live here,
+#: so without this marker a cached payload from the old rules could be served as if it were measured by the
+#: new ones.  2 = height floor + height ceiling + valley merge (R4-13, R4-14), placeholder boxes left alone.
+INK_RULES_VERSION = 2
+#: What the model writes when there is nothing printed to read.
+PLACEHOLDER_VALUES = {"", "-", "--", "---", "\u2013", "\u2014", "/", "n/a", "na", "none", "null", "nil"}
+
+
+def is_placeholder(value: Any) -> bool:
+    """Is this "value" the model's way of saying the box is empty?
+
+    A box carrying one of these has no value to recover, so the snap has no business moving it: DMS-159's
+    ``vat`` read ``-``, its box landed on blank paper, and the correction walked it onto a neighbouring line -
+    a crop of digits that were never in the field, which the re-read step can only turn into a wrong number.
+    ``"0"`` and ``"0.00"`` are deliberately not here: a table of zeros is where the correction earned its keep.
+    """
+    text = str(value if value is not None else "").strip().lower()
+    return text in PLACEHOLDER_VALUES
+
+#: ... and no taller than a line can plausibly be.  A move delivers a crop as tall as the band it lands on, so
+#: one 306 px ink region (a stamp, a shaded block, a scan blob) turns an 8 px box into a 306 px crop: DMS-171
+#: ``currency``, and DMS-59's three header fields on a 192 px region.  The gap the note reports was 13 px.
+MAX_LINE_HEIGHT_PX = 24.0
+MAX_LINE_HEIGHT_RATIO = 0.03            # 35 px at the engine's 150 DPI, 46 px on the audit render
+#: Rows of blank paper that still belong inside one printed line.  Type is not a solid rectangle: an ascender
+#: row, a Thai vowel row, an anti-aliased valley through the middle of the digits all leave an empty row, and
+#: a band cut in half fails both tests above - too short to be a line, and the wrong thing to land a box on.
+#: Measured on DMS-224 ``invoice_date``, whose line reads as rows 241-244 plus 246-254: the snap took the
+#: 4 px top piece and delivered a crop covering half of every digit in the date.
+VALLEY_MERGE_PX = 2
+def line_bands(mask: np.ndarray, x0: int, x1: int) -> list[tuple[int, int]]:
+    """Bands between ``x0`` and ``x1`` that could be a line of print - and nothing else the ink map holds.
+
+    Bands are first joined across a hairline valley (:data:`VALLEY_MERGE_PX` rows), because a line torn in two
+    is still the line a box belongs on; then a band must be tall enough to be print and no taller than a line
+    can plausibly be.  Too short is a scratch (a broken rule, a leader dot, a speck); too tall is a region
+    (shading, a stamp, a scan blob).  None of them may be a box's own line or a box's destination - see
+    :data:`MIN_LINE_HEIGHT_PX` and :data:`MAX_LINE_HEIGHT_PX` for what each did to real documents.
+    """
+    H = mask.shape[0]
+    floor = max(MIN_LINE_HEIGHT_PX, MIN_LINE_HEIGHT_RATIO * H)
+    ceiling = max(MAX_LINE_HEIGHT_PX, MAX_LINE_HEIGHT_RATIO * H)
+    merged: list[list[int]] = []
+    for start, end in _ink_bands(mask, x0, x1):
+        if merged and start - merged[-1][1] <= VALLEY_MERGE_PX:
+            merged[-1][1] = end
+        else:
+            merged.append([start, end])
+    return [(a, b) for a, b in merged if floor <= b - a <= ceiling]
+
+
+def snap_box_to_ink(box: Sequence[float], mask: np.ndarray,
+                    max_move: Optional[float] = None, *,
+                    move: bool = True, grow: bool = True) -> tuple[tuple[int, int, int, int], str]:
+    """Put a pixel box onto the printed line it was meant to cover, and over the whole value.
+
+    Round 3 measured the two ways a box misses: 90 boxes sat on blank paper (drawn from the label, the value
+    one row below) and 154 covered only the edge of the value.  Both have the answer written on the page -
+    the ink itself.  The box may travel at most ``INK_MOVE_RATIO`` of the page height, and may stretch at
+    most ``INK_GROW_RATIO`` times its own width, so a box with nothing under it is reported untouched rather
+    than moved somewhere plausible.
+
+    ``move`` and ``grow`` are separate knobs because R4-3c could only measure them together, and that is how
+    a net-negative action ended up shipped inside a useful one: measured apart (R4-9, paired on two
+    replications) moving a box off blank paper fixed 3 boxes and broke none, widening a box over the run
+    fixed 5 and broke 13.  With ``grow=False`` a box keeps exactly the width the model drew; with
+    ``move=False`` a box on blank paper stays there, and grow has no line of its own to grow over - so the
+    two faults can always be told apart in the note.
+
+    Returns ``((x1, y1, x2, y2), note)`` - ``note`` says what happened, for the evidence trail.
+    """
+    H, W = mask.shape[:2]
+    ax, ay, bx, by = (float(v) for v in box[:4])
+    x1, x2 = sorted((max(0.0, min(ax, W)), max(0.0, min(bx, W))))
+    y1, y2 = sorted((max(0.0, min(ay, H)), max(0.0, min(by, H))))
+    box_h = max(1.0, y2 - y1)
+    travel = max(2.0 * box_h, INK_MOVE_RATIO * H) if max_move is None else float(max_move)
+
+    bands = line_bands(mask, int(x1), int(x2))
+    if not bands:
+        return (int(x1), int(y1), int(x2), int(y2)), "unchanged"
+
+    own = next((b for b in bands if b[0] < y2 and b[1] > y1), None)
+    note = ""
+    if own is None:
+        if not move:
+            return (int(x1), int(y1), int(x2), int(y2)), "unchanged"
+        near = min(bands, key=lambda b: min(abs(b[0] - y2), abs(b[1] - y1)))
+        gap = min(abs(near[0] - y2), abs(near[1] - y1))
+        if gap > travel:
+            return (int(x1), int(y1), int(x2), int(y2)), "unchanged"
+        own, note = near, f"moved_{int(gap)}px"
+        y1, y2 = float(own[0]), float(own[1])
+
+    grown = ""
+    if not grow:
+        return (int(x1), int(y1), int(x2), int(y2)), note or "unchanged"
+    inked = mask[max(0, own[0]):max(own[0] + 1, own[1]), :].sum(axis=0) > 0
+    runs, start, last = [], None, 0
+    for x in range(W):
+        if inked[x]:
+            if start is None:
+                start = x
+            last = x
+        elif start is not None and x - last > INK_GAP_PX:
+            runs.append((float(start), float(last + 1)))
+            start = None
+    if start is not None:
+        runs.append((float(start), float(last + 1)))
+    span = next(((a, b) for (a, b) in runs if a < x2 and b > x1), None)
+    if span:
+        nx1, nx2 = span
+        cap = INK_GROW_RATIO * max(1.0, x2 - x1)
+        if nx2 - nx1 > cap:                      # too wide to be this value: keep the middle over the box
+            cx = (x1 + x2) / 2.0
+            nx1, nx2 = cx - cap / 2.0, cx + cap / 2.0
+        if nx1 < x1 or nx2 > x2:
+            grown = f"grown_{int(nx1)}-{int(nx2)}"
+            x1, x2 = nx1, nx2
+    note = (note + ("+" if note and grown else "") + grown) or "unchanged"
+    return (int(x1), int(y1), int(x2), int(y2)), note
 
 
 def text_drop_reason(item: dict) -> str | None:

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { USERS, INITIAL_MAPS } from '@/mock/users'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -13,52 +12,20 @@ const USER_SAVE_SCHEMA = z.object({
   samAccount: z.string().optional(),
   empId: z.string().optional(),
   unit: z.string().optional(),
-  role: z.enum(['EU', 'ACC', 'APR', 'ADM']),
+  role: z.enum(['EU', 'ACC', 'APR', 'ADM', 'SA']),
   companies: z.array(z.string()).default([]),
   receivers: z.array(z.string()).default([]),
 })
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(_req: NextRequest): Promise<NextResponse> {
   try {
-    let dbUsers = await prisma.user.findMany({
+    const dbUsers = await prisma.user.findMany({
       include: {
         companies: true,
         receivers: true,
       },
       orderBy: { createdAt: 'asc' },
     })
-
-    // If database has no users yet, seed from USERS and INITIAL_MAPS
-    if (dbUsers.length === 0) {
-      for (const u of USERS) {
-        const uReceivers = INITIAL_MAPS.filter(m => m.user === u.id).map(m => m.acct)
-        await prisma.user.create({
-          data: {
-            id: u.id,
-            email: u.email,
-            name: u.n,
-            samAccount: u.email.split('@')[0],
-            empId: u.emp ? String(u.emp) : null,
-            unit: u.unit,
-            role: u.role,
-            companies: {
-              create: (u.co || []).map(c => ({ companyCode: c })),
-            },
-            receivers: {
-              create: uReceivers.map(r => ({ receiverName: r, assignedBy: 'u7' })),
-            },
-          },
-        })
-      }
-
-      dbUsers = await prisma.user.findMany({
-        include: {
-          companies: true,
-          receivers: true,
-        },
-        orderBy: { createdAt: 'asc' },
-      })
-    }
 
     const formatted = dbUsers.map(u => ({
       id: u.id,

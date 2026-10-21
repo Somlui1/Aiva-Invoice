@@ -11,6 +11,8 @@ venv/
 env/
 ENV/
 
+# Generated bbox-loop runs (1.1 GB of page PNGs + payloads): rebuild with scripts/run_single_pass.py
+bbox_testing/
 # Bytecode / caches
 __pycache__/
 *.py[cod]

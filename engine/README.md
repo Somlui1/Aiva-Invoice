@@ -3,6 +3,9 @@
 เครื่องยนต์ประมวลผลและตรวจสอบใบแจ้งหนี้/ใบกำกับภาษีอัตโนมัติ (AIVA System A) ตามมาตรฐาน **AH-IT-DOC-PO-INV-Matching-Standard v6.6**
 ทำหน้าที่รับไฟล์ PDF เข้ามา สกัดข้อมูลด้วย AI Vision ตรวจเทียบกับใบรับสินค้าใน Oracle EBS และประเมินผลการตรวจสอบออกมาเป็น JSON (`aiva.system_a.result/3.0`) พร้อมคำแนะนำ (Recommendation)
 
+> **Engine version `5.5`** — snapshot นี้คือฉบับที่ดีที่สุด ณ ตอนนี้ · git tag **`engine-v5.5`** (push ขึ้น GitLab + GitHub mirror แล้ว)
+> รายละเอียดและการกู้คืนฉบับนี้: [`docs/RELEASE_NOTES.md`](docs/RELEASE_NOTES.md)
+
 ---
 
 ## 🚀 วิธีใช้งานด่วน (Quick Start)

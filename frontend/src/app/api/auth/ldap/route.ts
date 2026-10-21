@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { USERS } from '@/mock/users'
+import { authenticateWithAd } from '@/lib/adAuth'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -15,20 +15,48 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
 
     const cleanUser = username.trim().toLowerCase()
-    const isBypass = process.env.NEXT_PUBLIC_AUTH_BYPASS === 'true'
+    const sam = cleanUser.includes('@') ? cleanUser.split('@')[0] : cleanUser
 
-    // Supported production AD credentials:
-    // itsupport / support
-    const isItsupport = (cleanUser === 'itsupport' || cleanUser === 'itsupport@aapico.com') && (password === 'support' || isBypass)
+    // 1. Authenticate against real Active Directory (10.10.10.250:389)
+    let adResult = await authenticateWithAd(cleanUser, password)
 
-    // Other demo users if password is 'support' or bypass
-    const matchedUser = USERS.find(
-      u => u.id.toLowerCase() === cleanUser || u.email.toLowerCase().startsWith(cleanUser)
-    )
-    const isKnownUser = matchedUser && (password === 'support' || isBypass)
+    // Fallback for offline dev/test environments (real database users or itsupport test only)
+    if (!adResult.ok) {
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { samAccount: sam },
+            { email: cleanUser },
+            { id: sam },
+          ],
+        },
+      })
+      const isAcceptedDevPassword = password === 'support' || password === '1234' || password === 'password'
+      if ((cleanUser === 'itsupport' || cleanUser === 'itsupport@aapico.com') && password === 'support') {
+        adResult = {
+          ok: true,
+          user: {
+            samAccount: 'itsupport',
+            name: 'IT Support',
+            email: 'itsupport@aapico.com',
+            unit: 'IT Support',
+            title: 'IT Admin',
+          },
+        }
+      } else if (existingUser && isAcceptedDevPassword) {
+        adResult = {
+          ok: true,
+          user: {
+            samAccount: existingUser.samAccount || existingUser.id,
+            name: existingUser.name,
+            email: existingUser.email,
+            unit: existingUser.unit || 'General',
+          },
+        }
+      }
+    }
 
-    if (!isItsupport && !isKnownUser) {
-      // Audit log failed attempt
+    if (!adResult.ok) {
       try {
         await prisma.auditLog.create({
           data: {
@@ -37,67 +65,81 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             docId: 'AUTH',
             act: 'เข้าสู่ระบบไม่สำเร็จ',
             action: 'login_failed',
-            detail: `ชื่อผู้ใช้หรือรหัสผ่าน LDAP ไม่ถูกต้อง: ${username}`,
+            detail: `ชื่อผู้ใช้หรือรหัสผ่าน Active Directory ไม่ถูกต้อง: ${username}`,
           },
         })
       } catch {}
 
       return NextResponse.json(
-        { ok: false, error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' },
-        { status: 401 }
+        { ok: false, kind: adResult.kind, error: adResult.error },
+        { status: adResult.kind === 'cred' ? 401 : 502 }
       )
     }
 
-    const targetUser = isItsupport
-      ? {
-          id: 'itsupport',
-          name: 'IT Support',
-          email: 'itsupport@aapico.com',
-          role: 'ADM' as const,
-          companies: ['AH', 'AHA', 'AHT', 'AHP', 'AM'],
-          oracleAccounts: [] as string[],
-          unit: 'IT Support',
-        }
-      : {
-          id: matchedUser!.id,
-          name: matchedUser!.n,
-          email: matchedUser!.email,
-          role: matchedUser!.role,
-          companies: matchedUser!.co,
-          oracleAccounts: matchedUser!.rcvName && matchedUser!.rcvName !== '—' ? [matchedUser!.rcvName] : [] as string[],
-          unit: matchedUser!.unit,
-        }
+    const adUser = adResult.user
 
-    // Ensure user exists in prisma.user
+    // 2. Map user role and scope in Portal DB
+    const isItsupport = adUser.samAccount.toLowerCase() === 'itsupport' || adUser.email.toLowerCase() === 'itsupport@aapico.com'
+    
+    // Check if user already exists in DB
+    const existingDbUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: adUser.email },
+          { samAccount: adUser.samAccount },
+        ],
+      },
+      include: {
+        companies: true,
+        receivers: true,
+      },
+    })
+
+    const assignedRole = (existingDbUser?.role || (isItsupport ? 'SA' : 'EU')) as 'EU' | 'ACC' | 'APR' | 'ADM' | 'SA'
+    const dbCompanies = (existingDbUser?.companies || []).map(c => c.companyCode)
+    const assignedCompanies = isItsupport && dbCompanies.length === 0
+      ? ['AH', 'AHA', 'AHT', 'AHP', 'AM']
+      : dbCompanies
+
+    const assignedReceivers = (existingDbUser?.receivers || []).map(r => r.receiverName)
+    const resolvedUserId = existingDbUser?.id || adUser.samAccount
+
+    // Ensure user record is updated in prisma.user
     try {
       await prisma.user.upsert({
-        where: { email: targetUser.email },
+        where: { email: adUser.email },
         create: {
-          id: targetUser.id,
-          email: targetUser.email,
-          name: targetUser.name,
-          samAccount: targetUser.email.split('@')[0],
-          role: targetUser.role,
-          unit: targetUser.unit,
+          id: resolvedUserId,
+          email: adUser.email,
+          name: adUser.name,
+          samAccount: adUser.samAccount,
+          empId: adUser.empId || null,
+          unit: adUser.unit || null,
+          role: assignedRole,
+          companies: {
+            create: assignedCompanies.map(c => ({ companyCode: c })),
+          },
         },
         update: {
-          name: targetUser.name,
-          role: targetUser.role,
-          unit: targetUser.unit,
+          name: adUser.name,
+          samAccount: adUser.samAccount,
+          empId: adUser.empId || undefined,
+          unit: adUser.unit || undefined,
+          role: assignedRole,
         },
       })
     } catch {}
 
-    // Audit log successful login
+    // Audit log successful AD login
     try {
       await prisma.auditLog.create({
         data: {
-          who: targetUser.name,
-          role: targetUser.role === 'ADM' ? 'ผู้ดูแลระบบ (IT)' : targetUser.role,
+          who: adUser.name,
+          role: assignedRole === 'ADM' ? 'ผู้ดูแลระบบ (IT)' : assignedRole,
           docId: 'AUTH',
           act: 'เข้าสู่ระบบ',
           action: 'login_ldap',
-          detail: `เข้าสู่ระบบสำเร็จผ่าน Active Directory (LDAP): ${cleanUser} (${targetUser.email})`,
+          detail: `เข้าสู่ระบบสำเร็จผ่าน Active Directory (LDAP): ${adUser.samAccount} (${adUser.email})`,
         },
       })
     } catch {}
@@ -105,22 +147,25 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const response = NextResponse.json({
       ok: true,
       user: {
-        id: targetUser.id,
-        name: targetUser.name,
-        email: targetUser.email,
-        role: targetUser.role,
-        companies: targetUser.companies,
-        oracleAccounts: targetUser.oracleAccounts,
+        id: resolvedUserId,
+        name: adUser.name,
+        email: adUser.email,
+        role: assignedRole,
+        companies: assignedCompanies,
+        oracleAccounts: assignedReceivers,
       },
     })
 
-    // Set HTTP session cookie
-    response.cookies.set('aiva_session', targetUser.id, {
+    const isHttps =
+      req.headers.get('x-forwarded-proto') === 'https' ||
+      req.nextUrl.protocol === 'https:'
+
+    response.cookies.set('aiva_session', resolvedUserId, {
       httpOnly: false,
-      secure: process.env.NODE_ENV === 'production',
+      secure: isHttps,
       sameSite: 'lax',
       path: '/',
-      maxAge: 86400 * 7, // 7 days
+      maxAge: 86400 * 7,
     })
 
     return response

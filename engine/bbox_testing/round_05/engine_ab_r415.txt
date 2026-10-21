@@ -1,0 +1,148 @@
+docs: DMS-19, DMS-26, DMS-41, DMS-45, DMS-54, DMS-58, DMS-59, DMS-74, DMS-76, DMS-78, DMS-81, DMS-106, DMS-108, DMS-117, DMS-127, DMS-134, DMS-149, DMS-159, DMS-163, DMS-170, DMS-171, DMS-183, DMS-193, DMS-198, DMS-199, DMS-203, DMS-208, DMS-209, DMS-227, DMS-233   (n=2 runs per arm)
+
+      arm  run      doc | boxes defect defect% | empty boxes  empty%
+ snap_off    1   DMS-19 |    23      3   13.0% |     0    21    0.0%
+ snap_off    1   DMS-26 |   144      4    2.8% |     0   125    0.0%
+ snap_off    1   DMS-41 |    18      1    5.6% |     0    17    0.0%
+ snap_off    1   DMS-45 |    16      3   18.8% |     0    15    0.0%
+ snap_off    1   DMS-54 |    20      0    0.0% |     0    18    0.0%
+ snap_off    1   DMS-58 |    17      7   41.2% |     1    16    6.2%
+ snap_off    1   DMS-59 |     1      1  100.0% |     2    17   11.8%
+ snap_off    1   DMS-74 |    18      1    5.6% |     0    18    0.0%
+ snap_off    1   DMS-76 |    17      5   29.4% |     0    16    0.0%
+ snap_off    1   DMS-78 |    17      4   23.5% |     0    16    0.0%
+ snap_off    1   DMS-81 |    33      0    0.0% |     0    29    0.0%
+ snap_off    1  DMS-106 |    23      1    4.3% |     0    21    0.0%
+ snap_off    1  DMS-108 |    18      3   16.7% |     0    17    0.0%
+ snap_off    1  DMS-117 |    46      6   13.0% |     0    42    0.0%
+ snap_off    1  DMS-127 |    17      3   17.6% |     0    16    0.0%
+ snap_off    1  DMS-134 |    17      4   23.5% |     1    17    5.9%
+ snap_off    1  DMS-149 |    22      6   27.3% |     0    20    0.0%
+ snap_off    1  DMS-159 |   118      6    5.1% |     5   101    5.0%
+ snap_off    1  DMS-163 |    17      2   11.8% |     0    16    0.0%
+ snap_off    1  DMS-170 |    17      3   17.6% |     0    16    0.0%
+ snap_off    1  DMS-171 |    21      3   14.3% |     0    19    0.0%
+ snap_off    1  DMS-183 |    25      3   12.0% |     0    24    0.0%
+ snap_off    1  DMS-193 |    25      6   24.0% |     0    24    0.0%
+ snap_off    1  DMS-198 |    17      3   17.6% |     0    16    0.0%
+ snap_off    1  DMS-199 |    17      4   23.5% |     1    17    5.9%
+ snap_off    1  DMS-203 |    18      5   27.8% |     0    17    0.0%
+ snap_off    1  DMS-208 |    18      4   22.2% |     0    17    0.0%
+ snap_off    1  DMS-209 |    18      2   11.1% |     0    18    0.0%
+ snap_off    1  DMS-227 |     1      1  100.0% |     4    17   23.5%
+ snap_off    1  DMS-233 |    18      6   33.3% |     1    17    5.9%
+ snap_off    1    TOTAL |   797    100   12.5% |    15   760    2.0%
+
+ snap_off    2   DMS-19 |    23      3   13.0% |     0    21    0.0%
+ snap_off    2   DMS-26 |   144      4    2.8% |     0   125    0.0%
+ snap_off    2   DMS-41 |    18      1    5.6% |     0    17    0.0%
+ snap_off    2   DMS-45 |    16      3   18.8% |     0    15    0.0%
+ snap_off    2   DMS-54 |    20      0    0.0% |     0    18    0.0%
+ snap_off    2   DMS-58 |    17      7   41.2% |     1    16    6.2%
+ snap_off    2   DMS-59 |     1      1  100.0% |     2    17   11.8%
+ snap_off    2   DMS-74 |    18      2   11.1% |     0    18    0.0%
+ snap_off    2   DMS-76 |    17      5   29.4% |     0    16    0.0%
+ snap_off    2   DMS-78 |    17      5   29.4% |     0    16    0.0%
+ snap_off    2   DMS-81 |    33      0    0.0% |     0    29    0.0%
+ snap_off    2  DMS-106 |    23      1    4.3% |     0    21    0.0%
+ snap_off    2  DMS-108 |    18      3   16.7% |     0    17    0.0%
+ snap_off    2  DMS-117 |    46      6   13.0% |     0    42    0.0%
+ snap_off    2  DMS-127 |    17      3   17.6% |     0    16    0.0%
+ snap_off    2  DMS-134 |    17      3   17.6% |     1    17    5.9%
+ snap_off    2  DMS-149 |    22      6   27.3% |     0    20    0.0%
+ snap_off    2  DMS-159 |   118     15   12.7% |    12   101   11.9%
+ snap_off    2  DMS-163 |    17      2   11.8% |     0    16    0.0%
+ snap_off    2  DMS-170 |    17      3   17.6% |     0    16    0.0%
+ snap_off    2  DMS-171 |    21      3   14.3% |     0    20    0.0%
+ snap_off    2  DMS-183 |    25      5   20.0% |     2    24    8.3%
+ snap_off    2  DMS-193 |    23      3   13.0% |     0    21    0.0%
+ snap_off    2  DMS-198 |    17      4   23.5% |     0    16    0.0%
+ snap_off    2  DMS-199 |    17      4   23.5% |     0    16    0.0%
+ snap_off    2  DMS-203 |    18      5   27.8% |     0    17    0.0%
+ snap_off    2  DMS-208 |    18      4   22.2% |     0    17    0.0%
+ snap_off    2  DMS-209 |    18      2   11.1% |     0    18    0.0%
+ snap_off    2  DMS-227 |     1      1  100.0% |     4    16   25.0%
+ snap_off    2  DMS-233 |    18      6   33.3% |     0    17    0.0%
+ snap_off    2    TOTAL |   795    110   13.8% |    22   756    2.9%
+
+snap_move    1   DMS-19 |    23      2    8.7% |     0    21    0.0%
+snap_move    1   DMS-26 |   144      3    2.1% |     0   125    0.0%
+snap_move    1   DMS-41 |    18      1    5.6% |     0    17    0.0%
+snap_move    1   DMS-45 |    16      2   12.5% |     0    15    0.0%
+snap_move    1   DMS-54 |    20      1    5.0% |     0    18    0.0%
+snap_move    1   DMS-58 |    17      4   23.5% |     1    16    6.2%
+snap_move    1   DMS-59 |     1      1  100.0% |     3    17   17.6%
+snap_move    1   DMS-74 |    17      0    0.0% |     0    16    0.0%
+snap_move    1   DMS-76 |    17      5   29.4% |     0    16    0.0%
+snap_move    1   DMS-78 |    17      2   11.8% |     0    16    0.0%
+snap_move    1   DMS-81 |    33      0    0.0% |     0    29    0.0%
+snap_move    1  DMS-106 |    23      1    4.3% |     0    21    0.0%
+snap_move    1  DMS-108 |    18      3   16.7% |     0    17    0.0%
+snap_move    1  DMS-117 |    46      3    6.5% |     0    42    0.0%
+snap_move    1  DMS-127 |    17      1    5.9% |     0    16    0.0%
+snap_move    1  DMS-134 |    17      3   17.6% |     0    17    0.0%
+snap_move    1  DMS-149 |    23      4   17.4% |     0    21    0.0%
+snap_move    1  DMS-159 |   118      2    1.7% |     0   101    0.0%
+snap_move    1  DMS-163 |    17      0    0.0% |     0    16    0.0%
+snap_move    1  DMS-170 |    17      2   11.8% |     0    16    0.0%
+snap_move    1  DMS-171 |    21      3   14.3% |     0    20    0.0%
+snap_move    1  DMS-183 |    24      2    8.3% |     0    23    0.0%
+snap_move    1  DMS-193 |    25      3   12.0% |     0    23    0.0%
+snap_move    1  DMS-198 |    17      2   11.8% |     0    16    0.0%
+snap_move    1  DMS-199 |    17      3   17.6% |     0    16    0.0%
+snap_move    1  DMS-203 |    18      3   16.7% |     0    17    0.0%
+snap_move    1  DMS-208 |    18      1    5.6% |     0    17    0.0%
+snap_move    1  DMS-209 |    18      3   16.7% |     0    18    0.0%
+snap_move    1  DMS-227 |     1      1  100.0% |     1    17    5.9%
+snap_move    1  DMS-233 |    18      4   22.2% |     0    17    0.0%
+snap_move    1    TOTAL |   796     65    8.2% |     5   757    0.7%
+
+snap_move    2   DMS-19 |    23      2    8.7% |     0    21    0.0%
+snap_move    2   DMS-26 |   144      3    2.1% |     0   125    0.0%
+snap_move    2   DMS-41 |    18      1    5.6% |     0    17    0.0%
+snap_move    2   DMS-45 |    16      2   12.5% |     0    15    0.0%
+snap_move    2   DMS-54 |    20      1    5.0% |     0    18    0.0%
+snap_move    2   DMS-58 |    18      5   27.8% |     1    17    5.9%
+snap_move    2   DMS-59 |     1      1  100.0% |     2    17   11.8%
+snap_move    2   DMS-74 |    18      1    5.6% |     0    17    0.0%
+snap_move    2   DMS-76 |    17      5   29.4% |     0    16    0.0%
+snap_move    2   DMS-78 |    17      3   17.6% |     0    16    0.0%
+snap_move    2   DMS-81 |    33      0    0.0% |     0    29    0.0%
+snap_move    2  DMS-106 |    23      1    4.3% |     0    21    0.0%
+snap_move    2  DMS-108 |    18      2   11.1% |     0    17    0.0%
+snap_move    2  DMS-117 |    46      4    8.7% |     0    42    0.0%
+snap_move    2  DMS-127 |    16      1    6.2% |     0    15    0.0%
+snap_move    2  DMS-134 |    17      2   11.8% |     0    17    0.0%
+snap_move    2  DMS-149 |     0      0    nan% |     0     0    nan%
+snap_move    2  DMS-159 |   118      3    2.5% |     0   101    0.0%
+snap_move    2  DMS-163 |    17      1    5.9% |     0    16    0.0%
+snap_move    2  DMS-170 |    17      2   11.8% |     0    16    0.0%
+snap_move    2  DMS-171 |    21      3   14.3% |     0    20    0.0%
+snap_move    2  DMS-183 |    25      3   12.0% |     0    24    0.0%
+snap_move    2  DMS-193 |    25      3   12.0% |     0    24    0.0%
+snap_move    2  DMS-198 |    17      2   11.8% |     0    16    0.0%
+snap_move    2  DMS-199 |    17      3   17.6% |     0    16    0.0%
+snap_move    2  DMS-203 |    18      2   11.1% |     0    17    0.0%
+snap_move    2  DMS-208 |    18      0    0.0% |     0    17    0.0%
+snap_move    2  DMS-209 |    18      1    5.6% |     0    18    0.0%
+snap_move    2  DMS-227 |     1      1  100.0% |     1    17    5.9%
+snap_move    2  DMS-233 |    18      6   33.3% |     0    17    0.0%
+snap_move    2    TOTAL |   775     64    8.3% |     4   739    0.5%
+
+arm totals (the number to compare is the RATE, and the two runs are its own noise floor)
+
+ snap_off defect rate pooled  13.2%  (210/1592 boxes)   per run 12.5% / 13.8%   spread 1.3 pp
+          empty  rate pooled   2.4%  (37/1516 boxes)   per run 2.0% / 2.9%   spread 0.9 pp
+snap_move defect rate pooled   8.2%  (129/1571 boxes)   per run 8.2% / 8.3%   spread 0.1 pp
+          empty  rate pooled   0.6%  (9/1496 boxes)   per run 0.7% / 0.5%   spread 0.1 pp
+
+defect: snap_off 13.2% -> snap_move 8.2%   delta -5.0 pp   within-arm noise floor 1.3 pp   => DIFFERENCE LARGER THAN NOISE
+empty : snap_off 2.4% -> snap_move 0.6%   delta -1.8 pp   within-arm noise floor 0.9 pp   => DIFFERENCE LARGER THAN NOISE
+note: [snap_off run1] DMS-59 p1: engine turned this page 90? but delivers its boxes unrotated - align's frame does not apply here
+note: [snap_off run1] DMS-227 p1: engine turned this page 90? but delivers its boxes unrotated - align's frame does not apply here
+note: [snap_off run2] DMS-59 p1: engine turned this page 90? but delivers its boxes unrotated - align's frame does not apply here
+note: [snap_off run2] DMS-227 p1: engine turned this page 90? but delivers its boxes unrotated - align's frame does not apply here
+note: [snap_move run1] DMS-59 p1: engine turned this page 90? but delivers its boxes unrotated - align's frame does not apply here
+note: [snap_move run1] DMS-227 p1: engine turned this page 90? but delivers its boxes unrotated - align's frame does not apply here
+note: [snap_move run2] DMS-59 p1: engine turned this page 90? but delivers its boxes unrotated - align's frame does not apply here
+note: [snap_move run2] DMS-227 p1: engine turned this page 90? but delivers its boxes unrotated - align's frame does not apply here

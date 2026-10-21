@@ -16,10 +16,13 @@ import { SimPage } from '../components/governance/SimPage'
 import { InvoiceDetailPane } from '../components/queue/InvoiceDetailPane'
 import { EvidenceViewerDock } from '../components/evidence/EvidenceViewerDock'
 import { initialDocs } from '../mock/initialDocs'
+import { USERS } from '../mock/users'
+
+const smokeUser = USERS[0]
 
 function Wrapper({ children }: { children: React.ReactNode }) {
   return (
-    <AuthProvider>
+    <AuthProvider initialUser={smokeUser}>
       <SettingsProvider>
         <ToastModalProvider>
           <InvoiceProvider>
@@ -32,13 +35,22 @@ function Wrapper({ children }: { children: React.ReactNode }) {
 }
 
 describe('App smoke test', () => {
-  it('renders the complete portal shell without crashing', () => {
-    const html = renderToString(<App />)
+  it('renders the complete portal shell without crashing for authenticated user', () => {
+    const html = renderToString(<App initialUser={USERS[0]} />)
     expect(html).toContain('AIVA')
     expect(html).toContain('shell')
     expect(html).toContain('topbar')
     expect(html).toContain('nav')
     expect(html).toContain('queue')
+  })
+
+  it('strictly redirects unauthenticated visitors to /login and forbids default IT support login', () => {
+    const html = renderToString(<App initialUser={null} />)
+    expect(html).toContain('กำลังนำทางไปหน้าเข้าสู่ระบบ...')
+    expect(html).toContain('auth-redirect-guard')
+    expect(html).not.toContain('itsupport@aapico.com')
+    expect(html).not.toContain('กิตติศักดิ์ ซัพพอร์ต')
+    expect(html).not.toContain('tbar')
   })
 
   it('renders ApPage without crashing', () => {

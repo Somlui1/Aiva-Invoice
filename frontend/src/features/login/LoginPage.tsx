@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter } from "../../lib/router";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { createHttpAuth } from "./auth/http";
 import { createMockAuth, toSessionUser, type MockControls } from "./auth/mock";
@@ -36,7 +36,7 @@ export function LoginPage({ redirectTo, initialError = null, adapter, mock, show
   const isMock = mock ?? LOGIN_CONFIG.mock;
   const toasts = useToasts();
 
-  const [mockCtl, setMockCtl] = useState<MockControls>({ sim: "auto", acct: "u1" });
+  const [mockCtl, setMockCtl] = useState<MockControls>({ sim: "auto", acct: "wajeepradit.p" });
   const mockRef = useRef(mockCtl);
   mockRef.current = mockCtl;
 
@@ -50,6 +50,8 @@ export function LoginPage({ redirectTo, initialError = null, adapter, mock, show
       try {
         if (typeof window !== "undefined") {
           localStorage.setItem("aiva.auth.user", user.id);
+          localStorage.setItem("aiva.auth.profile", JSON.stringify(user));
+          localStorage.removeItem("aiva.test.unauthenticated");
         }
       } catch {}
       if (onSuccess) return onSuccess(user, method);

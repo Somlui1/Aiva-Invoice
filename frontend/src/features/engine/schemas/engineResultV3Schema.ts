@@ -137,7 +137,7 @@ export const enginePageSchema = z.object({
   rotation: z.number(),
   render_dpi: z.number().optional(),
   page_type: z.string(),
-  type_confidence: z.number().optional(),
+  type_confidence: z.number().nullable().optional(),
   ocr_quality: z.number().nullable().optional(),
 })
 
@@ -145,7 +145,7 @@ export const engineDocumentSchema = z.object({
   document_id: z.string(),
   document_type: z.string(),
   pages: z.array(z.number().int()),
-  confidence: z.number().optional(),
+  confidence: z.number().nullable().optional(),
 })
 
 /**
@@ -183,10 +183,10 @@ export const engineResultV3Schema = z
     pages: z.array(enginePageSchema),
     documents: z.array(engineDocumentSchema),
     ocr: z.object({ elements: z.array(engineOcrElementSchema) }),
-    extraction: openObject,
-    normalized_fields: openObject,
-    oracle_snapshot: openObject,
-    line_matching: openObject,
+    extraction: openObject.nullable().optional(),
+    normalized_fields: openObject.nullable().optional(),
+    oracle_snapshot: openObject.nullable().optional(),
+    line_matching: openObject.nullable().optional(),
     rule_results: z.array(engineRuleResultSchema).length(9),
     evidence: z.array(engineEvidenceSchema),
     exceptions: z.array(engineExceptionSchema),

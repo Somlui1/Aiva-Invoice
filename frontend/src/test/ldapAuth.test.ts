@@ -28,7 +28,7 @@ describe('LDAP / Active Directory Authentication API', () => {
     expect(data.error).toContain('ไม่ถูกต้อง')
   })
 
-  it('authenticates itsupport with password support and grants ADM role', async () => {
+  it('authenticates itsupport with password support and grants SA role', async () => {
     const req = new NextRequest('http://localhost/api/auth/ldap', {
       method: 'POST',
       body: JSON.stringify({ username: 'itsupport', password: 'support' }),
@@ -38,21 +38,21 @@ describe('LDAP / Active Directory Authentication API', () => {
     const data = await res.json()
     expect(data.ok).toBe(true)
     expect(data.user.id).toBe('itsupport')
-    expect(data.user.role).toBe('ADM')
-    expect(data.user.name).toBe('IT Support')
+    expect(data.user.role).toBe('SA')
+    expect(data.user.name).toContain('IT Support')
 
     // Verify audit log
     const log = await prisma.auditLog.findFirst({
       where: { docId: 'AUTH', action: 'login_ldap' },
     })
     expect(log).toBeDefined()
-    expect(log?.who).toBe('IT Support')
+    expect(log?.who).toContain('IT Support')
 
     // Verify user in DB
     const dbUser = await prisma.user.findUnique({
       where: { email: 'itsupport@aapico.com' },
     })
     expect(dbUser).toBeDefined()
-    expect(dbUser?.role).toBe('ADM')
+    expect(dbUser?.role).toBe('SA')
   })
 })

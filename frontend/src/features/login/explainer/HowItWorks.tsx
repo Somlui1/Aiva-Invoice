@@ -88,9 +88,16 @@ export function HowItWorks() {
 
   const toggleAuto = () => {
     const next = !autoRef.current;
+    holdRef.current = false;
     setAuto(next);
     elapsed.current = { t: 0, s: 0 };
-    if (next && tab === "rules") setNonce((n) => n + 1);
+    if (next) {
+      if (tab === "rules") setNonce((n) => n + 1);
+      else if (tab === "flow") setStep((s) => (s + 1) % WF.length);
+      else if (tab === "state")
+        setSt(({ jr, js }) => (js + 1 >= JR[jr].n.length ? { jr: (jr + 1) % JR.length, js: 0 } : { jr, js: js + 1 }));
+      else if (tab === "role") setRi((r) => (r + 1) % RO_USERS.length);
+    }
   };
 
   const scene = (() => {
@@ -118,12 +125,7 @@ export function HowItWorks() {
   })();
 
   return (
-    <section
-      className="d3-r"
-      id="rp"
-      onMouseEnter={() => (holdRef.current = true)}
-      onMouseLeave={() => (holdRef.current = false)}
-    >
+    <section className="d3-r" id="rp">
       <div className="rp-head">
         <div>
           <h2>ระบบทำงานอย่างไร</h2>
@@ -160,7 +162,11 @@ export function HowItWorks() {
         ))}
       </div>
 
-      <div className="rp-scene">
+      <div
+        className="rp-scene"
+        onMouseEnter={() => (holdRef.current = true)}
+        onMouseLeave={() => (holdRef.current = false)}
+      >
         <div className="rp-in" key={tab}>
           {scene}
         </div>

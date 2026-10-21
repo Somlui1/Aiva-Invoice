@@ -2494,3 +2494,693 @@ def test_audit_doc_reports_recheck_disagreement_as_a_hint_not_a_finding():
     ok = _round_layout_payload()
     ok["fields"]["invoice_num"]["recheck"] = {"raw": "26/2691", "agreed": True}
     assert m.audit_doc(ok, {1: (1000, 2000)})["recheck_hints"] == []
+
+
+def test_classify_suspect_ignores_reprints_of_the_selected_invoice():
+    """DMS-134: pages 1-3 are three re-prints of invoice 2213664477; selecting one of them is correct,
+    so flagging p2/p3 as suspects sent the reviewer to look at a page that had nothing wrong."""
+    m = _load_single_pass_script()
+    p = _round_layout_payload()
+    p["meta"]["pages_classification"] = [
+        {"page_no": 1, "doc_type": "tax_invoice", "copy_status": "original",
+         "doc_no_hint": "2213664477", "page_marker": "1/2"},
+        {"page_no": 2, "doc_type": "tax_invoice", "copy_status": "original",
+         "doc_no_hint": "2213664477", "page_marker": "1/2"},          # same re-print -> not a suspect
+        {"page_no": 3, "doc_type": "tax_invoice", "copy_status": "original",
+         "doc_no_hint": "9988776655", "page_marker": "1/1"},          # a different invoice -> still suspect
+    ]
+    findings = m.audit_doc(p, {1: (1000, 2000)})["findings"]
+    assert "CLASSIFY_SUSPECT:p2_original_invoice_not_selected" not in findings
+    assert "CLASSIFY_SUSPECT:p3_original_invoice_not_selected" in findings
+
+
+def test_classify_suspect_also_covers_pages_simply_typed_invoice():
+    """The rule only matched 'tax_invoice', so a second invoice typed plain 'invoice' (DMS-159 p6) was
+    invisible to triage even though the number extracted for page 2 was that page's number."""
+    m = _load_single_pass_script()
+    p = _round_layout_payload()
+    p["meta"]["pages_classification"] = [
+        {"page_no": 1, "doc_type": "invoice", "copy_status": "original",
+         "doc_no_hint": "SLI2610000004", "page_marker": "1/1"},
+        {"page_no": 2, "doc_type": "invoice", "copy_status": "original",
+         "doc_no_hint": "INV-2026-0802", "page_marker": None},
+    ]
+    p["selected_invoice_pages"] = [1]
+    for b in (p["fields"].values()):
+        b["page_no"] = 1
+    for r in p["regions"]:
+        r["page_no"] = 1
+    for it in p["line_items"]:
+        it["page_no"] = 1
+    findings = m.audit_doc(p, {1: (1000, 2000), 2: (1000, 2000)})["findings"]
+    assert "CLASSIFY_SUSPECT:p2_original_invoice_not_selected" in findings
+
+
+def test_classify_suspect_ignores_a_reprint_found_under_the_extracted_invoice_number():
+    """DMS-159 pages are filed under Doc No. SLI2610000004 but the invoice prints INVOICE NO.
+    INV-2026-0802; page 6 carries that number as its hint, so it is the same invoice re-printed."""
+    m = _load_single_pass_script()
+    p = _round_layout_payload()
+    p["fields"]["invoice_num"] = {"raw": "INV-2026-0802", "normalized": "INV-2026-0802",
+                                  "bbox": [0.2, 0.3, 0.1, 0.01], "page_no": 1}
+    p["meta"]["pages_classification"] = [
+        {"page_no": 1, "doc_type": "invoice", "copy_status": "original",
+         "doc_no_hint": "SLI2610000004", "page_marker": "1/2"},
+        {"page_no": 2, "doc_type": "invoice", "copy_status": "original",
+         "doc_no_hint": "INV-2026-0802", "page_marker": None},
+    ]
+    p["selected_invoice_pages"] = [1]
+    for b in list(p["fields"].values()) + p["regions"] + p["line_items"]:
+        b["page_no"] = 1
+    findings = m.audit_doc(p, {1: (1000, 2000), 2: (1000, 2000)})["findings"]
+    assert "CLASSIFY_SUSPECT:p2_original_invoice_not_selected" not in findings
+
+
+def test_duplicate_region_needs_two_boxes_on_the_same_spot():
+    """DMS-47 prints three company stamps (solid top-left, watermark mid-page, corner stamp bottom-right).
+    Counting the label three times called that a defect and sent the reviewer to chase a phantom."""
+    m = _load_single_pass_script()
+    p = _round_layout_payload()
+    p["regions"] = [
+        {"label": "company_stamp", "bbox": [0.03, 0.06, 0.15, 0.10], "page_no": 1},
+        {"label": "company_stamp", "bbox": [0.35, 0.44, 0.27, 0.21], "page_no": 1},
+        {"label": "company_stamp", "bbox": [0.72, 0.87, 0.23, 0.08], "page_no": 1},
+        {"label": "company_stamp", "bbox": [0.03, 0.06, 0.15, 0.10], "page_no": 1},   # same spot again
+    ]
+    findings = m.audit_doc(p, {1: (1000, 2000)})["findings"]
+    assert "DUPLICATE:region:company_stamp" in findings     # only the real re-box counts
+    assert sum(1 for f in findings if f.startswith("DUPLICATE")) == 1
+
+
+def test_box_overlap_frac_measures_shared_area():
+    m = _load_single_pass_script()
+    assert m.box_overlap_frac([0, 0, 1, 1], [0, 0, 1, 1]) == 1.0
+    assert m.box_overlap_frac([0, 0, 1, 1], [2, 0, 1, 1]) == 0.0
+    assert abs(m.box_overlap_frac([0, 0, 2, 1], [1, 0, 2, 1]) - 0.5) < 1e-9
+
+
+def test_empty_page_extraction_gets_four_attempts_not_two():
+    """DMS-159 page 1 answered with an empty shell in 6 of 8 measured attempts (temperature 0 included),
+    and every re-run recovered once it was allowed a third or fourth try. Two attempts were not enough."""
+    m = _load_single_pass_script()
+    assert m.extract_empty_attempts() == 4
+    import os
+    os.environ["EXTRACT_EMPTY_ATTEMPTS"] = "2"
+    try:
+        assert m.extract_empty_attempts() == 2
+    finally:
+        del os.environ["EXTRACT_EMPTY_ATTEMPTS"]
+
+
+# ---------------------------------------------------------------- Round 4: the audit harness must not invent pages
+def _audit_script():
+    """Load ``scripts/test_invoice_single_pass.py`` as a module (no package, ``main`` is guarded)."""
+    import importlib.util
+    from pathlib import Path
+    path = Path(__file__).resolve().parents[1] / "scripts" / "test_invoice_single_pass.py"
+    spec = importlib.util.spec_from_file_location("invoice_audit_script", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_audit_selector_invents_no_page_when_nothing_is_an_invoice():
+    """A document typed delivery-only selects NOTHING.
+
+    Round 3 measured the cost of inventing one: DMS-223 (both pages typed ``delivery``) had page 1 read by
+    fiat, which produced 2 of 4 rows *and full printed totals* - a document that looks extracted while 70%
+    of its rows (11,540.00 of 16,540.00) are missing.  The engine answers ``selected=[]`` and says why;
+    the audit has to report that same honest emptiness instead of scoring a half-read invoice.
+    """
+    mod = _audit_script()
+    pages = [
+        {"page_no": 1, "doc_type": "delivery", "copy_status": "original", "doc_no_hint": "TLP-IV-69-10-0007",
+         "page_marker": "2/2"},
+        {"page_no": 2, "doc_type": "delivery", "copy_status": "original", "doc_no_hint": "TLP-IV-69-10-0007",
+         "page_marker": "1/2"},
+        {"page_no": 3, "doc_type": "po", "copy_status": "original", "doc_no_hint": "42052868", "page_marker": "1/1"},
+    ]
+    selected, is_original, multi, rotations, info = mod.select_pages_for_audit(pages)
+    assert selected == [], f"nothing is an invoice, so nothing may be read, got {selected}"
+    assert info.get("no_invoice_page") is True
+
+
+def test_audit_selector_reports_exactly_what_the_engine_picks():
+    """One selection rule, not two.
+
+    The harness carried its own copy of the page-selection rules and they had already drifted: for two copy
+    sheets of one document number with no printed marker the engine keeps both pages, the harness dropped
+    the second.  Whatever the engine decides is what the audit must score.
+    """
+    from system_a.perception.single_pass import select_invoice_pages
+    mod = _audit_script()
+    pages = [
+        {"page_no": 1, "doc_type": "tax_invoice", "copy_status": "copy", "doc_no_hint": "INV-9", "page_marker": None},
+        {"page_no": 2, "doc_type": "tax_invoice", "copy_status": "copy", "doc_no_hint": "INV-9", "page_marker": None},
+    ]
+    selected, is_original, multi, rotations, info = mod.select_pages_for_audit(pages)
+    assert selected == select_invoice_pages(pages)["selected"], \
+        f"audit and engine disagree: audit={selected} engine={select_invoice_pages(pages)['selected']}"
+
+
+def test_audit_selector_carries_continuation_pages_and_rotations():
+    """``1/2`` + ``2/2`` of one document are both read, and each page keeps its own rotation.
+
+    DMS-227 shows what the rotation half is worth: classification came back with no pages at all, the
+    harness still read page 1 with an empty rotation map, so a page the model answered in an upright frame
+    was drawn on a sideways scan - all 15 boxes off.  The map therefore has to survive the refactor.
+    """
+    mod = _audit_script()
+    pages = [
+        {"page_no": 1, "doc_type": "invoice", "copy_status": "original", "doc_no_hint": "SLI2610000004",
+         "page_marker": "1/2", "rotate_degrees": 0},
+        {"page_no": 2, "doc_type": "invoice", "copy_status": "original", "doc_no_hint": "SLI2610000004",
+         "page_marker": "2/2", "rotate_degrees": 90},
+        {"page_no": 3, "doc_type": "po", "copy_status": "original", "doc_no_hint": "446012495",
+         "page_marker": "1/1", "rotate_degrees": 0},
+    ]
+    selected, is_original, multi, rotations, info = mod.select_pages_for_audit(pages)
+    assert selected == [1, 2], f"continuation sheet must not be dropped, got {selected}"
+    assert rotations == {1: 0, 2: 90, 3: 0}
+    assert is_original is True
+
+
+def test_page_debug_keeps_the_models_own_numbers():
+    """The rotated-page defect cannot be diagnosed from the payload as it stands.
+
+    DMS-224 and DMS-59 (page typed ``rotate_degrees=90``) show boxes whose y lands on the wrong line while
+    x stays right.  Every candidate explanation - coordinate mode, a square canvas inside the model, a
+    transposed frame, the inverse rotation - lives or dies on the numbers *the model itself* returned, and
+    the payload keeps only the box after our mapping.  So the audit has to record the raw answer per page.
+    """
+    mod = _audit_script()
+    answer = {"fields": {"grand_total": {"raw": "1.174,00", "bbox_2d": [711, 459, 754, 467]},
+                         "currency": {"raw": None, "bbox_2d": None}},
+              "line_items": [{"line_no": 1, "amount": {"raw": "5", "bbox_2d": [1, 2, 3, 4]},
+                              "line_bbox": [1, 2, 9, 4]}],
+              "regions": [{"type": "items_table", "bbox_2d": [0, 0, 1000, 900]}]}
+    dbg = mod.build_page_debug(page_no=1, classify_rotate=90, orig_size=(1521, 1075), sent_size=(1075, 1521),
+                              coord_mode="norm1000", answer=answer)
+    assert dbg["fields"]["grand_total"] == [711, 459, 754, 467], "raw numbers must survive untouched"
+    assert "currency" not in dbg["fields"], "a field that answered no box adds no evidence"
+    assert dbg["orig_size"] == [1521, 1075] and dbg["sent_size"] == [1075, 1521]
+    assert dbg["classify_rotate"] == 90 and dbg["coord_mode"] == "norm1000"
+    assert dbg["lines"][0]["amount"] == [1, 2, 3, 4]
+    assert dbg["regions"] == [[0, 0, 1000, 900]]
+
+
+def test_page_debug_survives_the_null_boxes_the_model_answers():
+    """``bbox_2d: [null, null, null, null]`` is a normal model answer - recording it must not kill the doc.
+
+    Round 4 proved the cost of assuming numbers: two of fifty documents died on ``float(None)`` inside the
+    debug recorder, which is a worse outcome than the missing evidence the recorder exists to capture.
+    """
+    mod = _audit_script()
+    answer = {"fields": {"invoice_num": {"raw": "7", "bbox_2d": [None, None, None, None]},
+                         "vat": {"raw": "7.00", "bbox_2d": [900, 800, 950, 812]}},
+              "line_items": [{"line_no": 1, "qty": {"raw": "1", "bbox_2d": [None, 2, None, 4]},
+                              "line_bbox": ["a", "b", "c", "d"]}]}
+    dbg = mod.build_page_debug(page_no=1, classify_rotate=0, orig_size=(1000, 1000), sent_size=(1000, 1000),
+                              coord_mode="norm1000", answer=answer)
+    assert dbg["fields"] == {"vat": [900.0, 800.0, 950.0, 812.0]}
+    assert dbg["lines"][0] == {"line_no": 1}
+
+
+# ---------------------------------------------------------------- Round 4: re-print sheets must not multiply rows
+def _sheet(num="IV-1", total="231.00", rows=None):
+    return {"fields": {"invoice_num": {"raw": num}, "sub_total": {"raw": total}, "grand_total": {"raw": total}},
+            "line_items": rows if rows is not None else [_cell_row("ENERGIZER MAX 12V", "1", "231.00", "231.00")]}
+
+
+def _cell_row(desc, qty, price, amount):
+    return {"item_code": {"raw": ""}, "description": {"raw": desc}, "qty": {"raw": qty},
+            "uom": {"raw": "PCS"}, "unit_price": {"raw": price}, "amount": {"raw": amount}}
+
+
+def _pages(**by_page):
+    """``_pages(p1=..., p2=...)`` -> ``{1: page, 2: page}`` with just enough of a ``PageAnswer``."""
+    from types import SimpleNamespace
+    return {int(k.lstrip("p")): SimpleNamespace(answer=v) for k, v in by_page.items()}
+
+
+def test_a_second_sheet_with_the_same_rows_is_a_reprint_not_more_rows():
+    """Same document number, same totals, same rows on the next page = the same sheet printed again.
+
+    Measured on DMS-134 (round 4): pages 1-4 all came back as invoice pages, each repeating the single
+    ``ENERGIZER … 231.00`` row, so the extraction carried that row three times under one ``sub_total`` of
+    231.00.  A row read twice is money that was never spent.
+    """
+    from system_a.perception.single_pass import drop_reprint_pages
+    reads = _pages(p1=_sheet(), p2=_sheet(), p3=_sheet())
+    kept, reprints = drop_reprint_pages(reads, [1, 2, 3])
+    assert kept == [1], f"a re-print adds no page to the reading list, got {kept}"
+    assert [r["page"] for r in reprints] == [2, 3]
+
+
+def test_a_continuation_sheet_with_other_rows_is_never_dropped():
+    """The opposite rule: a second sheet carrying different rows is the rest of the invoice."""
+    from system_a.perception.single_pass import drop_reprint_pages
+    reads = _pages(p1=_sheet(rows=[_cell_row("A", "1", "10.00", "10.00")]),
+                   p2=_sheet(rows=[_cell_row("B", "2", "20.00", "40.00")]))
+    kept, reprints = drop_reprint_pages(reads, [1, 2])
+    assert kept == [1, 2] and reprints == []
+
+
+def test_two_identical_rows_on_the_same_page_are_both_kept():
+    """Bought the same part twice on one sheet - collapsing inside a page would silently delete money."""
+    from system_a.perception.single_pass import drop_reprint_pages
+    dup = [_cell_row("A", "1", "10.00", "10.00"), _cell_row("A", "1", "10.00", "10.00")]
+    reads = _pages(p1=_sheet(rows=dup), p2=_sheet(rows=dup))
+    kept, reprints = drop_reprint_pages(reads, [1, 2])
+    assert kept == [1] and [r["page"] for r in reprints] == [2]
+    assert len(reads[1].answer["line_items"]) == 2, "nothing inside a kept page may be touched"
+
+
+def test_a_row_less_page_is_kept_even_when_the_totals_match():
+    """A signature/stamp sheet carries no rows; dropping it would erase the signature evidence."""
+    from system_a.perception.single_pass import drop_reprint_pages
+    reads = _pages(p1=_sheet(),
+                   p2={"fields": {"invoice_num": {"raw": "IV-1"}, "grand_total": {"raw": "231.00"}},
+                       "line_items": [], "regions": [{"label": "company_stamp"}]})
+    kept, reprints = drop_reprint_pages(reads, [1, 2])
+    assert kept == [1, 2] and reprints == []
+
+
+def test_the_audit_uses_the_engines_reprint_rule_too():
+    """One rule per decision, again: the audit used to keep its own copy of the page-selection rules and it
+    drifted silently, so the re-print decision is imported from the engine, not re-typed here.
+    """
+    from system_a.perception.single_pass import drop_reprint_pages
+    mod = _audit_script()
+    assert mod.drop_reprint_pages is drop_reprint_pages
+
+
+# ---------------------------------------------------------------- Round 4: the printed page count is the authority
+def _pg(page_no, hint="INV-2026-0802", marker=None, doc_type="invoice"):
+    """One classify entry; always pass the marker by keyword - it is what these tests are about."""
+    return {"page_no": page_no, "doc_type": doc_type, "copy_status": "original",
+            "doc_no_hint": hint, "page_marker": marker}
+
+
+def test_a_page_beyond_the_printed_page_count_is_not_part_of_the_invoice():
+    """The paper says the invoice is two pages, so a fifth sheet carrying the same number is not part of it.
+
+    Measured on DMS-159: pages 1-2 are printed ``Page 1 of 2`` / ``Page 2 of 2``, and page 6 - an unrelated
+    sheet carrying the same number - was kept because it printed no marker of its own.  Its one row added
+    16,500.00 on top of a printed ``sub_total`` the document had already closed.
+    """
+    from system_a.perception.single_pass import select_invoice_pages
+    pages = [_pg(1, marker="Page 1 of 2"), _pg(2, marker="Page 2 of 2"),
+             _pg(3, hint="446012495", marker="1/1", doc_type="po"), _pg(6)]
+    info = select_invoice_pages(pages)
+    assert info["selected"] == [1, 2], f"the printed page count must bound the document: {info['selected']}"
+    assert any(d["page"] == 6 and d["reason"] == "unmarked_page_beyond_printed_count" for d in info["dropped"])
+
+
+def test_an_unmarked_sheet_next_to_the_invoice_is_still_read():
+    """The opposite case, which is the reason the rule may not simply demand a marker: a continuation sheet
+    that prints the number but no ``x of y`` sits right behind the marked page and belongs to the invoice."""
+    from system_a.perception.single_pass import select_invoice_pages
+    pages = [_pg(1, marker="Page 1 of 2"), _pg(2), _pg(7)]
+    info = select_invoice_pages(pages)
+    assert info["selected"] == [1, 2], info["selected"]
+    assert [d["page"] for d in info["dropped"]] == [7]
+
+
+def test_a_document_that_prints_no_markers_is_not_bound_by_this_rule():
+    """No printed page count, no authority: every invoice page stays for the re-print check to judge."""
+    from system_a.perception.single_pass import select_invoice_pages
+    pages = [_pg(1), _pg(2), _pg(3)]
+    info = select_invoice_pages(pages)
+    assert info["selected"] == [1, 2, 3] and info["dropped"] == []
+
+
+def test_a_page_count_written_in_words_is_a_page_count():
+    """``Page 1 of 2`` and ``หน้า 2 จาก 2`` say exactly what ``2/2`` says.
+
+    The classify answer for DMS-159 carried the English word form; because only ``a/b`` was understood, the
+    engine read the document as having no printed length at all - so ``pages_complete`` said "complete" and
+    nothing bounded the document when page 6 turned up with the same number.
+    """
+    from system_a.perception.single_pass import parse_marker
+    assert parse_marker("Page 1 of 2") == (1, 2)
+    assert parse_marker("page 2 OF 2") == (2, 2)
+    assert parse_marker("หน้า 2 จาก 2") == (2, 2)
+    assert parse_marker("1/2") == (1, 2), "the original form keeps working"
+    assert parse_marker("8/9/2559") is None, "a date is not a page count"
+    assert parse_marker("2") is None
+
+
+def test_an_unmarked_page_inside_the_printed_range_is_still_read():
+    """The rule may only reject pages the paper says do not exist.
+
+    An invoice printed ``1/3`` whose middle page is a PO sheet still has its third page coming: it sits
+    inside the printed range, so a missing marker there is a gap to keep reading (and to report through
+    ``marker_gaps``), never a reason to throw rows away.
+    """
+    from system_a.perception.single_pass import select_invoice_pages
+    pages = [_pg(1, marker="1/3"), _pg(2, hint="PO-77", marker="1/1", doc_type="po"), _pg(3)]
+    info = select_invoice_pages(pages)
+    assert info["selected"] == [1, 3], info["selected"]
+
+
+# ---------------------------------------------------------------- Round 4: put the box on the printed value
+def _sheet_mask(h=60, w=200):
+    import numpy as np
+    return np.zeros((h, w), dtype=np.uint8)
+
+
+def _draw_word(mask, r0, r1, c0, c1, step=3):
+    """A printed word: ink in every row between r0/r1, in strokes every ``step`` columns."""
+    for r in range(r0, r1):
+        for c in range(c0, c1, step):
+            mask[r, c] = 1
+
+
+def test_an_empty_box_lands_on_the_line_it_was_meant_to_cover():
+    """Round 3 counted 90 boxes that sat on blank paper, usually half a line above the value.
+
+    The box was drawn from the label, the value is one row below it, and the crop re-read then sampled
+    nothing.  A box with no ink inside the window moves onto the nearest printed line.
+    """
+    from system_a.perception.coords import snap_box_to_ink
+    mask = _sheet_mask()
+    _draw_word(mask, 30, 38, 40, 80)
+    box, note = snap_box_to_ink((40, 20, 80, 24), mask)
+    assert box[1] >= 30 and box[3] <= 38, f"the box must sit inside the printed line, got {box} ({note})"
+    assert "moved" in note
+
+
+def test_a_box_that_clips_the_value_grows_over_the_whole_number():
+    """154 boxes covered the value's top or left edge only - the run is right there to be read."""
+    from system_a.perception.coords import snap_box_to_ink
+    mask = _sheet_mask()
+    _draw_word(mask, 30, 38, 40, 80)
+    box, note = snap_box_to_ink((46, 31, 70, 37), mask)
+    assert box[0] <= 40 and box[2] >= 79, f"the value's ink run must be covered, got {box} ({note})"
+
+
+def test_a_box_never_grows_into_the_neighbouring_column():
+    """Growing over whitespace is how a total's box ends up eating the label next to it."""
+    from system_a.perception.coords import snap_box_to_ink
+    mask = _sheet_mask()
+    _draw_word(mask, 30, 38, 40, 60)
+    _draw_word(mask, 30, 38, 150, 175)
+    box, _ = snap_box_to_ink((42, 30, 58, 38), mask)
+    assert box[2] < 150, f"the next column starts at 150, got {box}"
+
+
+def test_a_box_with_no_ink_nearby_is_left_alone():
+    """No evidence, no move: snapping must never invent a position for a phantom box."""
+    from system_a.perception.coords import snap_box_to_ink
+    mask = _sheet_mask()
+    _draw_word(mask, 52, 58, 40, 80)
+    box, note = snap_box_to_ink((40, 4, 80, 8), mask)
+    assert box == (40, 4, 80, 8), box
+    assert note == "unchanged"
+
+
+def test_snapping_a_box_that_already_covers_its_value_changes_nothing():
+    """The 118 clean documents must stay clean - snapping is allowed to be a no-op, not a drift."""
+    from system_a.perception.coords import snap_box_to_ink
+    mask = _sheet_mask()
+    _draw_word(mask, 30, 38, 40, 80)
+    box, note = snap_box_to_ink((40, 30, 80, 38), mask)
+    assert box == (40, 30, 80, 38), box
+    assert note == "unchanged"
+
+
+# ----------------------------------------------------------- R4-9: the snap has two knobs, and they are
+# measured separately because R4-3c found one of them profitable and the other one damaging
+def test_the_grow_knob_switched_off_leaves_the_box_at_the_width_the_model_drew():
+    """~45% of boxes were widened and some of them swallowed the neighbouring column; that knob must be
+    switchable on its own, so a measurement can price it without also switching off the useful move."""
+    from system_a.perception.coords import snap_box_to_ink
+    mask = _sheet_mask()
+    _draw_word(mask, 30, 38, 40, 80)
+    box, note = snap_box_to_ink((46, 31, 70, 37), mask, grow=False)
+    assert (box[0], box[2]) == (46, 70), f"grow=False must not change the width, got {box} ({note})"
+    assert "grown" not in note, note
+
+
+def test_the_move_knob_switched_off_leaves_an_empty_box_on_the_blank_paper_it_was_drawn_on():
+    """The other knob: with move off, a box above the value stays above the value - no widening either,
+    because grow only ever grows over the line the box already touches."""
+    from system_a.perception.coords import snap_box_to_ink
+    mask = _sheet_mask()
+    _draw_word(mask, 30, 38, 40, 80)
+    box, note = snap_box_to_ink((40, 20, 80, 24), mask, move=False)
+    assert box == (40, 20, 80, 24), box
+    assert note == "unchanged", note
+
+
+def test_a_box_that_needs_both_knobs_reports_both():
+    """The note is the evidence trail for the decomposition; it must not blur the two actions together."""
+    from system_a.perception.coords import snap_box_to_ink
+    mask = _sheet_mask()
+    _draw_word(mask, 30, 38, 40, 80)
+    box, note = snap_box_to_ink((46, 20, 70, 24), mask)
+    assert "moved" in note and "grown" in note, note
+    assert box[1] >= 30 and box[3] <= 38 and box[0] <= 40 and box[2] >= 79, f"{box} ({note})"
+
+
+# ------------------------------------------------- R4-11: the truth map must be text ink, not page furniture
+# ``moved`` fired 0 and 5 times in 211 boxes per run while the audit round recorded 90 empty boxes: the snap
+# finds "a line of its own" almost everywhere, because a table rule or a box border crossing the box's columns
+# reads as ink.  Two consequences, both measured, both wrong.
+def _sheet_with_a_rule(h=60, w=200):
+    """A form row: a printed value, a thin rule across the page above it, blank paper between.
+
+    The gap is inside the snap's own travel budget (twice the box height) on purpose, so the only thing
+    deciding where the box lands is which ink the map admits.
+
+    The rule is drawn 4 px tall - the height at which a band is thick enough that the height floor alone would
+    take it for a line of print (see ``MIN_LINE_HEIGHT_PX``), so this fixture keeps testing the furniture strip
+    rather than the floor, which has a fixture of its own.
+    """
+    mask = _sheet_mask(h=h, w=w)
+    _draw_word(mask, 34, 42, 40, 80)
+    mask[26:30, 5:195] = 1                      # the rule the form prints under every label: 4 px of solid ink
+    return mask
+
+
+def test_the_map_the_snap_reads_ignores_a_rule_it_would_otherwise_land_on():
+    """Given a box in the blank strip between a rule and its value, the snap moves it onto the rule.
+
+    Measured before this test was written: ``moved_4px`` - four pixels of drift onto a printed line that
+    carries no text at all, when the value it was meant to cover sits eight pixels further down.  A rule is
+    page furniture; the ink that decides where a box belongs is the print.
+    """
+    from system_a.perception.coords import snap_box_to_ink, strip_rules
+    raw, note = snap_box_to_ink((40, 20, 80, 26), _sheet_with_a_rule(), grow=False)
+    assert raw[1] < 34, f"what the unstripped map does, for the record: {raw} ({note})"
+    clean = strip_rules(_sheet_with_a_rule())
+    box, note = snap_box_to_ink((40, 20, 80, 26), clean, grow=False)
+    assert box[1] >= 34 and box[3] <= 42, f"the box belongs on the printed value, got {box} ({note})"
+
+
+def test_a_box_drawn_on_a_rule_is_no_longer_read_as_sitting_on_its_own_line():
+    """The other half of the blindness: a box whose only ink is a rule was "unchanged" forever.
+
+    This is the failure Round 3 counted 90 of, and why the empty-box ruler read 0.0% on the engine path while
+    the audit harness read 50% on the same documents.
+    """
+    from system_a.perception.coords import snap_box_to_ink, strip_rules
+    _box, note = snap_box_to_ink((40, 27, 80, 31), _sheet_with_a_rule(), grow=False)
+    assert note == "unchanged", f"what the unstripped map says, for the record: {note}"
+    clean = strip_rules(_sheet_with_a_rule())
+    box, note = snap_box_to_ink((40, 27, 80, 31), clean, grow=False)
+    assert "moved" in note, f"a box on a rule has no line of its own: {box} ({note})"
+    assert box[1] >= 34 and box[3] <= 42, f"it should travel to the value, got {box} ({note})"
+
+
+def test_stripping_rules_leaves_printed_text_alone():
+    """The strip must be conservative: a wide line of small print is a row of values, not a rule."""
+    import numpy as np
+
+    from system_a.perception.coords import strip_rules
+    mask = _sheet_mask(h=60, w=200)
+    _draw_word(mask, 20, 32, 6, 190, step=3)     # a full-width description line: same span as a rule, 12 px tall
+    clean = strip_rules(mask)
+    assert np.array_equal(clean, mask), "a text row was erased from the ink map"
+    assert not np.array_equal(strip_rules(_sheet_with_a_rule()), _sheet_with_a_rule()), \
+        "the rule was not stripped either"
+
+
+def _sheet_with_a_rule_fragment(h=60, w=200):
+    """A printed value, plus a short thin scrap of rule in the same columns - too short to be furniture.
+
+    ``strip_rules`` clears only lines that run across the sheet, and a scrap like this (one pixel tall,
+    eighteen wide, sitting in a cell's own columns) survives that - asserted below, because the first version
+    of this fixture drew the scrap on top of a full-width rule and the strip deleted both.
+
+    It is what the one broken box of R4-12 landed on: 13 of the 29 moves in that measurement went to an ink
+    band 3 px tall or less, which is not a line of print at any DPI this engine renders at - 10pt text is
+    11 px tall at 150 DPI, 12 px at the audit render.
+    """
+    import numpy as np
+
+    from system_a.perception.coords import strip_rules
+    mask = _sheet_mask(h=h, w=w)
+    _draw_word(mask, 34, 42, 40, 80)
+    mask[28:29, 42:60] = 1                      # a broken scrap: thin, and far too short to be a rule
+    assert np.array_equal(strip_rules(mask), mask), "the scrap must survive the furniture strip"
+    return mask
+
+
+def test_a_box_is_not_moved_onto_a_scrap_too_thin_to_be_a_line_of_print():
+    """A scrap of rule is nearer than the value; it must not win the box.
+
+    Today the correction takes the nearest band whatever it is, so the crop lands on one pixel of broken line
+    and re-reads the same nothing - the box looks corrected and is still useless.
+    """
+    from system_a.perception.coords import snap_box_to_ink, strip_rules
+    sheet = strip_rules(_sheet_with_a_rule_fragment())
+    box, note = snap_box_to_ink((40, 20, 80, 26), sheet, grow=False)
+    assert box[1] >= 34 and box[3] <= 42, f"the box belongs on the printed value, got {box} ({note})"
+
+
+def test_a_scrap_is_not_read_as_the_box_own_line():
+    """The blindness half again, at scrap size: a box whose only ink is a broken rule read "already correct".
+
+    ``strip_rules`` handles a rule that crosses the page; this one does not, so the height of the band is the
+    only thing left that can tell a line of print from a scratch.
+    """
+    from system_a.perception.coords import snap_box_to_ink, strip_rules
+    sheet = strip_rules(_sheet_with_a_rule_fragment())
+    box, note = snap_box_to_ink((40, 27, 80, 31), sheet, grow=False)
+    assert "moved" in note, f"a 1 px scrap is not a line of its own: {box} ({note})"
+    assert box[1] >= 34 and box[3] <= 42, f"it should travel to the value, got {box} ({note})"
+
+
+def test_a_box_is_never_delivered_as_a_crop_swallowed_by_a_shaded_block():
+    """The box a move delivers is as tall as the band it lands on - so a giant band delivers a giant crop.
+
+    Found while measuring the line-height floor, on real documents: DMS-171's ``currency`` box (8 px tall)
+    came back 306 px tall, and DMS-59's ``invoice_num`` / ``customer_name`` / ``customer_address`` landed on
+    one 192 px ink region and travelled 195-248 px.  The note said ``moved_13px`` - the gap it crossed - while
+    the crop had gone 320 px and covered most of the page.  A shaded block, a stamp, a scan blob answers
+    "nearest ink" the same way a line of print does, and it has no business being a box's line.
+    """
+    import numpy as np
+
+    from system_a.perception.coords import snap_box_to_ink
+    mask = _sheet_mask(h=120, w=200)
+    mask[4:36, 30:70] = 1                       # a shaded block / scan blob: nearer than any text
+    _draw_word(mask, 56, 64, 40, 80)            # the line the value is actually printed on
+    box, note = snap_box_to_ink((40, 40, 80, 50), mask, grow=False)     # drawn on blank paper between them
+    assert note.startswith("moved"), f"the value is inside the travel budget: {box} ({note})"
+    assert box[3] - box[1] <= 2.5 * 10 + 2, f"the crop must stay a crop, got rows {box[1]}..{box[3]} ({note})"
+    assert box[1] >= 56 and box[3] <= 64, f"it belongs on the printed line, got {box} ({note})"
+    assert np.count_nonzero(mask) > 0
+
+
+def test_a_line_split_by_a_hairline_valley_is_still_one_line():
+    """Print is not a solid rectangle: a row of text often has a row of paper through it.
+
+    DMS-224's ``invoice_date`` was delivered as a 6 px crop for this reason.  Its line reads as two bands -
+    rows 241-244 (4 px, the ascenders) and rows 246-254 (9 px, the body) - separated by one blank row, and the
+    snap takes the *nearest* band, so the box landed on the top sliver of a line and covered half of every
+    digit in it.  The ruler called it a defect; the correction had made it worse.
+
+    So a band the snap may act on is a band merged across a hairline valley, and the crop that gets delivered
+    covers the printed line rather than the tallest piece of it.
+    """
+    from system_a.perception.coords import snap_box_to_ink
+    mask = _sheet_mask(h=120, w=200)
+    _draw_word(mask, 40, 44, 40, 80)            # ascenders
+    _draw_word(mask, 46, 54, 40, 80)            # the body of the same line: one row of paper between
+    box, note = snap_box_to_ink((40, 30, 80, 38), mask, grow=False)    # box drawn just above it, on paper
+    assert box[1] >= 40 and box[3] <= 54, f"the crop must cover the line, got {box} ({note})"
+    assert box[3] - box[1] >= 10, f"a sliver is not a line: delivered {box[3] - box[1]} px ({box} {note})"
+
+
+def test_two_lines_of_print_are_not_merged_into_one():
+    """The merge is for a hairline inside one line, not for the gap between two rows of a table.
+
+    Merging across a real row gap would deliver crops covering two values at once, which is how a correction
+    turns one wrong field into two.
+    """
+    from system_a.perception.coords import snap_box_to_ink
+    mask = _sheet_mask(h=120, w=200)
+    _draw_word(mask, 40, 48, 40, 80)
+    _draw_word(mask, 56, 64, 40, 80)            # the next row of the table: 8 px of paper below it
+    box, note = snap_box_to_ink((40, 30, 80, 38), mask, grow=False)
+    assert box[1] >= 40 and box[3] <= 48, f"only the nearer line may be taken, got {box} ({note})"
+def test_a_placeholder_value_is_recognised_and_a_real_zero_is_not():
+    """What the snap must refuse to chase: a value that says "there is nothing printed here".
+
+    "0" and "0.00" are values, and a table full of them is where the empty-box correction earned its keep;
+    "-", "/" and "N/A" are the model saying the cell is empty.  Getting these two mixed up either throws away
+    the correction's whole win or sends boxes onto their neighbours.
+    """
+    from system_a.perception.coords import is_placeholder
+    for nothing in ("-", " -- ", "\u2013", "\u2014", "/", "N/A", "n/a", "", None, "none"):
+        assert is_placeholder(nothing), f"{nothing!r} is not a value"
+    for something in ("0", "0.00", "1,000.00", "30/09/2026", "-1,234.00", "12-34", "7 %"):
+        assert not is_placeholder(something), f"{something!r} is a value, not a placeholder"
+
+
+def test_a_box_that_already_overlaps_its_line_is_left_exactly_as_drawn():
+    """A box with ink under it is not touched at all - not resized, not requantised.
+
+    Pinned because it is the half of the rule that must not break while the other half gets stricter, and
+    because R4-9 measured that re-emitting an untouched box through float -> px -> float drifts it by up to a
+    pixel and flips verdicts in the ruler.  A correction that "improves" a box the model already got right is
+    the most expensive kind of correction: it costs the boxes nobody complained about.
+    """
+    from system_a.perception.coords import snap_box_to_ink
+    drawn = (40, 43, 80, 52)
+    mask = _sheet_mask(h=120, w=200)
+    _draw_word(mask, 40, 48, 40, 80)            # the box straddles a real line: 3 px of it hang below
+    box, note = snap_box_to_ink(drawn, mask, grow=False)
+    assert tuple(box) == drawn and note == "unchanged", f"untouched means untouched: {box} ({note})"
+
+
+def test_ink_mask_finds_print_and_only_print():
+    """The snap needs a truth map of the page: dark strokes yes, white paper no."""
+    import numpy as np
+    from system_a.perception.coords import ink_mask
+    page = np.full((60, 200, 3), 255, dtype=np.uint8)
+    page[30:38, 40:80] = 20                                  # a printed word
+    mask = ink_mask(page)
+    assert mask[33, 60] == 1 and mask[10, 60] == 0 and mask[33, 150] == 0
+    assert mask.shape == (60, 200)
+
+
+def test_a_field_box_is_snapped_when_the_page_ink_is_known():
+    """Wiring: an answer whose box missed the value is corrected against the page it was read from."""
+    import numpy as np
+    from system_a.perception.single_pass import PageAnswer
+    from system_a.perception.coords import ink_mask
+
+    page = np.full((1000, 1000, 3), 255, dtype=np.uint8)
+    page[600:630, 200:500] = 15                              # the value, printed lower than the box claims
+    mask = ink_mask(page)
+    # the model answered a box just above the value, in the pixel frame its coordinates are in
+    answer = {"fields": {"grand_total": {"raw": "1,234.00", "bbox_2d": [200, 560, 400, 580]}}}
+    pa = PageAnswer(1, 1000, 1000, mask=mask, answer=answer, coord="pixel")
+    reg = pa.region([200, 560, 400, 580], snap=True)
+    assert reg is not None
+    assert reg.bbox[1] >= 0.595, f"expected the box on the printed line ~0.60, got {reg.bbox}"
+
+
+def test_a_page_told_not_to_snap_returns_the_model_box_as_drawn():
+    """The switch lives on the page, not in the caller: an arm with snap off must not correct anything.
+
+    Asked at the page level because the arms are decided once per pipeline run and every box of that run -
+    header field or table cell - has to belong to the same arm.
+    """
+    import numpy as np
+    from system_a.perception.single_pass import PageAnswer
+    from system_a.perception.coords import ink_mask
+
+    page = np.full((1000, 1000, 3), 255, dtype=np.uint8)
+    page[600:630, 200:500] = 15
+    mask = ink_mask(page)
+    answer = {"fields": {"grand_total": {"raw": "1,234.00", "bbox_2d": [200, 560, 400, 580]}}}
+    pa = PageAnswer(1, 1000, 1000, mask=mask, answer=answer, coord="pixel", snap=False)
+    reg = pa.region([200, 560, 400, 580], snap=True)
+    assert reg is not None
+    assert abs(reg.bbox[1] - 0.56) < 1e-3 and abs(reg.bbox[3] - 0.02) < 1e-3, \
+        f"snap off must leave the box at 0.560/0.020, got {reg.bbox}"

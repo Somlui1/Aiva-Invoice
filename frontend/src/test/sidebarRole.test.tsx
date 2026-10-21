@@ -14,37 +14,37 @@ import { ToastModalProvider } from '../context/ToastModalContext'
 import { InvoiceProvider } from '../context/InvoiceContext'
 import { useEffect } from 'react'
 import { Sidebar } from '../components/layout/Sidebar'
+import { USERS } from '../mock/users'
+import { User } from '../types/auth'
 
-function SidebarHarness({ targetUserId }: { targetUserId: string }) {
-  const { currentUser, switchUser } = useAuth()
-  useEffect(() => {
-    if (currentUser.id !== targetUserId) {
-      switchUser(targetUserId)
-    }
-  }, [currentUser.id, targetUserId, switchUser])
+async function renderSidebarFor(userOrId: string | User) {
+  const user: User = typeof userOrId === 'string'
+    ? (USERS.find(u => u.id === userOrId) || {
+        id: userOrId,
+        n: userOrId,
+        email: `${userOrId}@aapico.com`,
+        role: (userOrId === 'u7' ? 'ADM' : userOrId === 'u6' ? 'APR' : userOrId === 'itsupport' ? 'SA' : 'EU'),
+        rcvName: '—',
+        emp: null,
+        co: ['AH', 'AHA', 'AHT', 'AHP', 'AM'],
+        unit: 'IT',
+      })
+    : userOrId
 
-  if (currentUser.id !== targetUserId) {
-    return <div>loading...</div>
-  }
-
-  return <Sidebar currentPage="queue" onNavigate={() => {}} onToggleNav={() => {}} />
-}
-
-async function renderSidebarFor(userId: string) {
   render(
-    <AuthProvider>
+    <AuthProvider initialUser={user}>
       <SettingsProvider>
         <ToastModalProvider>
           <InvoiceProvider>
-            <SidebarHarness targetUserId={userId} />
+            <Sidebar currentPage="queue" onNavigate={() => {}} onToggleNav={() => {}} />
           </InvoiceProvider>
         </ToastModalProvider>
       </SettingsProvider>
     </AuthProvider>,
   )
-  if (userId === 'u7') {
+  if (user.role === 'ADM') {
     await screen.findByText('เครื่องมือทดสอบและพัฒนา')
-  } else if (userId === 'u6' || userId === 'itsupport') {
+  } else if (user.role === 'APR' || user.role === 'SA') {
     await screen.findByText('คิวตรวจสอบ')
   } else {
     await screen.findByText('งานของฉัน')

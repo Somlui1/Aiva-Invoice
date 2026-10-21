@@ -66,5 +66,29 @@
 | cleanup-task-5 | Audit Log Security Scoping API & AuditPage Integration | completed | Scoped /api/audit-logs by identity & company, AuditPage; commit cfc33ff |
 | cleanup-task-6 | Login Page Production Cleanup | completed | Purge yellow MockBar and demo disclaimers from /login; commit b302e80 |
 | cleanup-task-7 | Queue Receiver Filtering by Oracle Account | completed | Interactive receiver filter chips for EU role in QueueToolbar; commit 44d5d3a |
-| cleanup-task-8 | Full End-to-End Regression & Verification Pass | completed | Full vitest suite 40/40 files (249/249 tests pass exit 0); npx tsc --noEmit clean; Next.js 15 production build 19/19 routes clean; commit 24278ab |
+| prod-v5-task-1 | Super Admin (SA) Role Refactoring & RBAC Matrix Update | completed | Refactored role itsupport to SA, updated Matrix column and Admin Grid dropdown (14/14 tests pass); commit 4d3e87a |
+| prod-v5-task-2 | Purge Fake Oracle Accounts from Seed & Initial Maps | completed | Clean slate for INITIAL_MAPS and EU receiver accounts, tests pass; commit 4d729ea |
+| prod-v5-task-3 | Login Page Polish, Explainer Animation Speedup & Play Bugfix | completed | Purged DMS note, fixed play button hover freeze, doubled animation speed (5/5 tests pass); commit 97c2982 |
+| prod-v5-task-4 | Strict Authentication Guard & No Default IT Support | completed | Strict route guard to /login when unauthenticated, ANONYMOUS_USER, tests pass; commit ba83127 |
+| prod-v5-task-5 | Ingest Real Dataset (paperless_invoices_v5) into Portal Database & Default State | completed | 125 real documents ingested into dev.db & initialDocs.ts; matches summary.json (51/23/12/39); 58/58 tests pass, tsc clean; commit pending |
+| prod-v5-task-6 | Complete Production Docker Compose & Dockerfiles | completed | Created multi-stage Dockerfile.frontend, Dockerfile.engine, docker-compose.prod.yml with persistent volumes & healthchecks; validated with docker compose config; commit pending |
+| prod-v5-task-7 | Full Verification & Integration Regression | completed | Full vitest suite 40/40 test files (251/251 tests) pass; tsc --noEmit clean; Next.js 15 standalone build (19/19 routes) clean; docker compose config valid; commit pending |
+| prod-v5-engine-offline-seed | Comment out Engine & Auto-seed Paperless V5 for Production Frontend | completed | Commented out engine service and depends_on in docker-compose.prod.yml; created src/lib/autoSeedSample.ts; wired into instrumentation.ts and docker-entrypoint.sh; verified live standalone startup serving 125 documents (51 Auto-pass, 23 Review, 12 Hold, 39 Manual Review); 41/41 vitest files (253/253 tests) pass |
+| purge-mock-users | Complete Purge of Mock Users across Web App & Mockup HTML | completed | Purged fake users (u1..u8, somsak.j, etc.) from API (/api/users, /api/auth/me, /api/auth/ldap), SQLite auto-seeding, Explainer archetypes (RO_ROLES), and Mockup HTML; full vitest suite 42/42 files (256/256 tests) pass; Next.js 15 build clean (19/19 routes); engine 263 pytest pass |
+| react-adapter-brainstorm-context | Explore project context (existing Vite React codebase, backend API surface, SQLite schema) | completed | Analyzed src structure (SPA components, context, styles) and backend API surface (16 route handlers, Prisma SQLite, LDAP, engine webhook) |
+| react-adapter-brainstorm-clarify | Ask clarifying questions (one at a time, constraints & expectations) | completed | Aligned on TypeScript Node.js (Express) adapter service + single concurrently command dev workflow |
+| react-adapter-brainstorm-propose | Propose 2-3 approaches with trade-offs & recommendation | completed | User approved Approach 1: Integrated Express Host (Vite React + Express Adapter Service) |
+| react-adapter-brainstorm-design | Present design in sections and get user approval | completed | All 3 design sections approved by user |
+| react-adapter-brainstorm-doc | Write design doc to docs/plans/2026-10-19-react-adapter-service-architecture-design.md & commit | completed | Committed design doc (7b8bd82) |
+| react-adapter-brainstorm-transition | Transition to implementation planning (invoke writing-plans) | completed | Invoked writing-plans skill to draft detailed task-by-task implementation plan |
+| react-adapter-plan-created | Create detailed implementation plan (Vite React + Express Adapter Service) | completed | Implementation plan saved to docs/plans/2026-10-19-react-adapter-service-architecture.md |
+| react-adapter-task-1 | Project Scaffolding, Dependencies & Vite Configuration | completed | Installed express, cors, cookie-parser, concurrently; index.html, main.tsx, vite.config.ts with /api proxy; tests pass; commit 8bc78ea |
+| react-adapter-task-2 | Express Adapter Service Entrypoint & Middlewares | completed | server/app.ts, server/index.ts, session & error middleware, /api/health; tests pass; commit 41a15b2 |
+| react-adapter-task-3 | Authentication & Identity Routes Migration | completed | server/routes/auth.ts (LDAP, session cookie, /api/auth/me, logout); tests pass; commit 0b69877 |
+| react-adapter-task-4 | Documents & State Machine Mutation Endpoints Migration | completed | server/routes/documents.ts (list, detail, actions, locking); tests pass; commit c8baca0 |
+| react-adapter-task-5 | PDF Streaming Proxy & Engine Webhook Ingestion Migration | completed | server/routes/pdfProxy.ts & engineIngest.ts (Zod normalization, Paperless streaming); tests pass; commit 783880d |
+| react-adapter-task-6 | Governance Routes Migration (Batches, Users, AD, Audit, Health) | completed | server/routes/governance.ts (users, AD search, audit logs, AP batches & callbacks, Oracle sync); 5/5 tests pass |
+| react-adapter-task-7 | Frontend SPA Root & Routing Adaptation | completed | src/App.tsx SPA routing, LoginPage & StandaloneViewerRoute, vite.config.ts alias, package.json scripts; tests pass |
+| react-adapter-task-8 | Full Verification, Build & Parity Regression Pass | completed | Full vitest 49/49 files (277/277 tests) pass; tsc clean (0 errors); vite build dist/ clean; engine 263 pytest pass |
+
 

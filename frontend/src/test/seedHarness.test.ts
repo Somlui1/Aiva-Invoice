@@ -39,7 +39,7 @@ describe('simulate-engine-push harness', () => {
   })
 
   it('scans only DMS-*_result.json and reports summary statistics', async () => {
-    const stats = await runIngestSimulation()
+    const stats = await runIngestSimulation({ dir: CORPUS })
 
     // 126 JSON files live in the corpus; summary.json is the index, not a
     // document, so it must be seen-and-skipped rather than ingested.
@@ -108,7 +108,7 @@ describe('simulate-engine-push harness', () => {
 
   it('is idempotent at scale: a second full pass replays without new rows', async () => {
     const { prisma } = await import('../lib/prisma')
-    const stats = await runIngestSimulation()
+    const stats = await runIngestSimulation({ dir: CORPUS })
 
     expect(stats.scanned).toBe(126)
     expect(stats.skipped).toBe(1)
