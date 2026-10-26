@@ -1,5 +1,10 @@
 # Issue — `vitest` เขียนลง `prisma/dev.db` ทั้งที่ออกแบบมาให้ใช้ `prisma/test.db`
 
+> **สถานะ (26 ต.ค.): ปิดแล้ว** — แพตช์ `aiva-frontend-v5.5-security.zip` ข้อ 16 แก้ตรงจุดที่รายงาน
+> (`vitest.db-url.ts` เปลี่ยนเป็น absolute path + `src/lib/prismaUrl.ts` ไม่ fallback ไป `dev.db` อีก)
+> ยืนยันบนเครื่องนี้: รัน `vitest run` ทั้งชุด (59 ไฟล์ 426 เทสต์) แล้ว md5 ของ `prisma/dev.db` เท่าเดิม
+> (`c1217bea6edbb295f09f8f6f58927dff`) — เก็บไฟล์นี้ไว้เป็นหลักฐานของช่องโหว่เดิม
+
 **ประเภท:** test harness / data-loss
 **พบเมื่อ:** 2026-10-26 ระหว่าง verify แพตช์ engine v5.7 + Portal F1–F10
 **กระทบ:** `npm test` หนึ่งครั้งเปลี่ยนฐานข้อมูลพัฒนาจริง (`prisma/dev.db`) — เอกสารของจริงหาย/เพี้ยน โดยไม่มีข้อความใดบอก
@@ -64,5 +69,24 @@ md5sum prisma/dev.db prisma/test.db   # dev.db เปลี่ยน, test.db st
 ## งานปัจจุบันที่ต้องทำต่อ
 
 * `prisma/dev.db` ถูกลบ/สร้างใหม่ด้วย `npm run seed:v5` ทุกครั้งก่อนทำการตรวจสอบ (backup ไว้ก่อนรัน `npm test`)
-* เทสต์ใหม่ `src/test/dockKeyboardScroll.test.tsx` และเทสต์อื่นที่ไม่ใช้ DB ไม่กระทบ — แต่ **ห้าม** ใช้
-  `dev.db` ที่ผ่าน `npm test` แล้วเป็นฐานดูหน้าจอ (ต้องมี DB แยก)
+* เทสต์ใหม่ `src/test/dockKeyboardScroll.test.tsx` และเทสต์อื่นที่ไม่ใช้ DB ไม่กระทบ — แต่ตอนนี้ `npm test`
+  ไม่แตะ `dev.db` แล้วหลังใช้ v5.5 (ตรวจด้วย md5 ก่อน/หลัง)
+
+## เรื่องเดียวกันแต่คนละสาเหตุ: คำสั่งผ่าน `npm run` / `npx` บนเครื่องนี้
+
+ระหว่างตรวจ v5.5 พบบนเครื่อง dev เครื่องนี้ (Windows + Git Bash):
+
+```bash
+npm run db:reset -- --seed nope --yes   # พิมพ์เฉพาะ banner แล้ว exit 0 — สคริปต์ไม่ได้รันจริง
+                                          # (ควรขึ้น "[db:reset] refused: seed folder nope not found" exit 2)
+node_modules/.bin/tsx scripts/db-reset.ts --seed nope --yes   # → refused + exit 2 ถูกต้อง
+npm exec -- node -e "…"                 # npm จะไป install แพ็กเกจชื่อ node จาก registry
+```
+
+ผลคือคำสั่งตามแผน (`npm run typecheck && npm test`, `npm run db:reset`) **เขียวแบบหลอก ๆ** ได้
+`npm config get script-shell` = `null` (ใช้ `cmd.exe`) และ `npm exec` หา `node` ในถาดไม่เจอ
+→ ระหว่างตรวจงานนี้จึงใช้รูปแบบตรง: `node node_modules/typescript/bin/tsc --noEmit`,
+`node node_modules/vitest/vitest.mjs run`, `node node_modules/tsx/dist/cli.mjs …`,
+หรือเรียก shim ตรง `node_modules/.bin/tsx …`
+คนที่ใช้ PowerShell/CMD ปกติของเครื่อง (ไม่ผ่าน shell นี้) ไม่น่าเจอ — ยังไม่ได้แก้เครื่อง
+

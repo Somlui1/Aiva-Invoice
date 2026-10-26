@@ -14,6 +14,8 @@
     "start": "tsx server/index.ts",
     "preview": "vite preview",
     "check:services": "tsx scripts/check-services.ts",
+    "check:integrations": "tsx scripts/check-integrations.ts",
+    "db:reset": "tsx scripts/db-reset.ts",
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",

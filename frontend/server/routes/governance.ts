@@ -3,6 +3,8 @@ import { z } from 'zod'
 import { prisma } from '../../src/lib/prisma'
 import { searchActiveDirectory } from '../../src/lib/adAuth'
 import { COMPANIES } from '../../src/mock/companies'
+import { requireIntegrationKey, requirePerm } from '../../src/server/auth/guards'
+import { isProduction } from '../../src/server/auth/config'
 
 // --- USERS ROUTER ---
 export const usersRouter = Router()
@@ -59,7 +61,8 @@ usersRouter.post('/', async (req: Request, res: Response) => {
   }
 
   const data = parsed.data
-  const adminId = (req.headers['x-user-id'] as string) || (req as any).user?.id || 'u7'
+  // Mounted behind requirePerm('MAP'): the admin is the signed-in user, never a header.
+  const adminId = req.sessionUser!.id
 
   try {
     const user = await prisma.$transaction(async (tx: any) => {
@@ -166,6 +169,16 @@ const DIRECTORY_EMPLOYEES = [
 adRouter.get('/search', async (req: Request, res: Response) => {
   const q = String(req.query.q || '').trim().toLowerCase()
 
+  // The sample directory below is demo data: production answers from AD only.
+  if (isProduction()) {
+    if (q.length < 2) return res.json({ ok: true, results: [], source: 'ad' })
+    try {
+      return res.json({ ok: true, results: await searchActiveDirectory(q), source: 'ad' })
+    } catch (err: any) {
+      return res.status(502).json({ ok: false, error: `ค้นหา Active Directory ไม่สำเร็จ: ${err?.message || err}` })
+    }
+  }
+
   if (!q) {
     return res.json({ ok: true, results: DIRECTORY_EMPLOYEES })
   }
@@ -196,12 +209,12 @@ auditLogsRouter.get('/', async (req: Request, res: Response) => {
   try {
     let whereClause: any = undefined
 
-    const whoId = req.query.whoId ? String(req.query.whoId) : undefined
-    const role = req.query.role ? String(req.query.role) : undefined
-    const companiesParam = req.query.companies ? String(req.query.companies) : undefined
-    const companies = companiesParam
-      ? companiesParam.split(',').map(c => c.trim()).filter(Boolean)
-      : []
+    // Scope comes from the signed-in user, not from the query string. Before v5.5 any caller could
+    // send ?role=SA and read every log. (The page still sends these parameters; they are ignored.)
+    const session = req.sessionUser!
+    const whoId = session.id
+    const role = session.role
+    const companies = session.companies || []
 
     if (role === 'ADM' || role === 'SA') {
       whereClause = undefined
@@ -258,7 +271,7 @@ auditLogsRouter.get('/', async (req: Request, res: Response) => {
 // --- AP ROUTER ---
 export const apRouter = Router()
 
-apRouter.get('/batches', async (_req: Request, res: Response) => {
+apRouter.get('/batches', requirePerm('VIEW_AP'), async (_req: Request, res: Response) => {
   try {
     const batches = await prisma.apBatch.findMany({
       orderBy: { createdAt: 'desc' },
@@ -271,10 +284,12 @@ apRouter.get('/batches', async (_req: Request, res: Response) => {
 
 apRouter.post('/batches', async (req: Request, res: Response) => {
   try {
-    const role = (req.headers['x-user-role'] as string) || (req as any).user?.role || 'EU'
-    const userId = (req.headers['x-user-id'] as string) || (req as any).user?.id || 'unknown'
-    const rawUserName = (req.headers['x-user-name'] as string) || (req as any).user?.name || userId
-    const userName = decodeURIComponent(rawUserName)
+    // Who sends the batch = the signed-in user. Before v5.5 the role came from the x-user-role header.
+    const session = req.sessionUser
+    if (!session) return res.status(401).json({ ok: false, error: 'กรุณาเข้าสู่ระบบ', code: 'UNAUTHENTICATED' })
+    const role = session.role
+    const userId = session.id
+    const userName = session.name
 
     // Authorization guard: only APR (Accounting Supervisor) or ADM can send batches
     if (!['APR', 'ADM'].includes(role)) {
@@ -426,7 +441,8 @@ apRouter.post('/batches', async (req: Request, res: Response) => {
   }
 })
 
-apRouter.post('/batches/:id/callback', async (req: Request, res: Response) => {
+// Called by the Oracle AP interface, not by a person: shared key (Authorization: Bearer / X-AIVA-Key).
+apRouter.post('/batches/:id/callback', requireIntegrationKey('oracle'), async (req: Request, res: Response) => {
   try {
     const batchId = String(req.params.id)
     const body = req.body || {}
@@ -583,7 +599,7 @@ export const oracleRouter = Router()
 oracleRouter.post('/sync-companies', async (req: Request, res: Response) => {
   try {
     const body = req.body || {}
-    const triggeredBy = body.triggeredBy || (req as any).user?.id || 'itsupport'
+    const triggeredBy = req.sessionUser?.id || 'system'
     const oracleMcpUrl = process.env.ORACLE_MCP_URL
     const oracleMcpToken = process.env.ORACLE_MCP_TOKEN
 

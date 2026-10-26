@@ -173,10 +173,13 @@ documentsRouter.post('/:id/actions', async (req, res) => {
 
   const { action, reason = '', note = '', simOutcome = 'Auto-pass', uploadFile = 'revision.pdf' } = parsed.data
 
+  // Identity comes from the signed session only (the route is mounted behind requireAuth).
+  // Before v5.5 a request without a session acted as role SA and the x-user-* headers were trusted.
   const session = req.sessionUser
-  const userId = session?.id || (req.headers['x-user-id'] as string) || 'wajeepradit.p'
-  const userRole = (session?.role || (req.headers['x-user-role'] as string) || 'SA').toUpperCase()
-  const userName = session?.name || (req.headers['x-user-name'] ? decodeURIComponent(req.headers['x-user-name'] as string) : 'Wajeepradit Prompan')
+  if (!session) return res.status(401).json({ ok: false, error: 'กรุณาเข้าสู่ระบบ', code: 'UNAUTHENTICATED' })
+  const userId = session.id
+  const userRole = String(session.role || '').toUpperCase()
+  const userName = session.name
 
   try {
     const doc = await prisma.document.findUnique({

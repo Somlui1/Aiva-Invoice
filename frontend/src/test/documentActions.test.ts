@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import request from 'supertest'
 import { createExpressApp } from '../../server/app'
 import { prisma } from '../lib/prisma'
+import { asUser } from './helpers/session'
 
 describe('Document Actions Mutation API', () => {
   const app = createExpressApp()
@@ -34,6 +35,7 @@ describe('Document Actions Mutation API', () => {
   it('rejects action when document does not exist with 404', async () => {
     const res = await request(app)
       .post('/api/documents/DMS-NONEXIST/actions')
+      .set('Cookie', await asUser('u4', 'ACC', { name: 'ปณิดา รักงาน' }))
       .send({ action: 'confirm', reason: 'ทดสอบ' })
     expect(res.status).toBe(404)
   })
@@ -42,17 +44,28 @@ describe('Document Actions Mutation API', () => {
     await prisma.document.update({ where: { id: docId }, data: { isLocked: true } })
     const res = await request(app)
       .post(`/api/documents/${docId}/actions`)
+      .set('Cookie', await asUser('u4', 'ACC', { name: 'ปณิดา รักงาน' }))
       .send({ action: 'confirm', reason: 'ทดสอบ' })
     expect(res.status).toBe(423)
     expect(res.body.error).toContain('ล็อก')
   })
 
+  it('v5.5: no session = 401, and x-user-* headers are not a session', async () => {
+    const anon = await request(app).post(`/api/documents/${docId}/actions`).send({ action: 'confirm', reason: 'x' })
+    expect(anon.status).toBe(401)
+    const forged = await request(app)
+      .post(`/api/documents/${docId}/actions`)
+      .set('x-user-id', 'u6')
+      .set('x-user-role', 'SA')
+      .send({ action: 'confirm', reason: 'x' })
+    expect(forged.status).toBe(401)
+    expect((await prisma.document.findUnique({ where: { id: docId } }))?.status).toBe('Auto-pass')
+  })
+
   it('rejects confirm when role is EU with 403 Forbidden', async () => {
     const res = await request(app)
       .post(`/api/documents/${docId}/actions`)
-      .set('x-user-id', 'u1')
-      .set('x-user-role', 'EU')
-      .set('x-user-name', encodeURIComponent('สมศักดิ์ ใจดี'))
+      .set('Cookie', await asUser('u1', 'EU', { name: 'สมศักดิ์ ใจดี' }))
       .send({ action: 'confirm', reason: 'ผู้รับของพยายามกดยืนยัน' })
     expect(res.status).toBe(403)
   })
@@ -60,9 +73,7 @@ describe('Document Actions Mutation API', () => {
   it('confirms document and writes AuditLog row in atomic transaction', async () => {
     const res = await request(app)
       .post(`/api/documents/${docId}/actions`)
-      .set('x-user-id', 'u4')
-      .set('x-user-role', 'ACC')
-      .set('x-user-name', encodeURIComponent('ปณิดา รักงาน'))
+      .set('Cookie', await asUser('u4', 'ACC', { name: 'ปณิดา รักงาน' }))
       .send({ action: 'confirm', reason: 'PO ตรงกับใบรับ' })
     expect(res.status).toBe(200)
     expect(res.body.ok).toBe(true)
@@ -87,9 +98,7 @@ describe('Document Actions Mutation API', () => {
   it('handles hold action with mandatory reason', async () => {
     const res = await request(app)
       .post(`/api/documents/${docId}/actions`)
-      .set('x-user-id', 'u4')
-      .set('x-user-role', 'ACC')
-      .set('x-user-name', encodeURIComponent('ปณิดา รักงาน'))
+      .set('Cookie', await asUser('u4', 'ACC', { name: 'ปณิดา รักงาน' }))
       .send({ action: 'hold', reason: 'รอยืนยันใบรับของรอบสอง', note: 'ติดต่อคุณสมศักดิ์แล้ว' })
     expect(res.status).toBe(200)
     expect(res.body.document.status).toBe('Hold')
@@ -102,9 +111,7 @@ describe('Document Actions Mutation API', () => {
     // Current status is Auto-pass, unconfirm is only allowed from Confirmed
     const res = await request(app)
       .post(`/api/documents/${docId}/actions`)
-      .set('x-user-id', 'u6')
-      .set('x-user-role', 'APR')
-      .set('x-user-name', encodeURIComponent('สมชาย วงศ์ทอง'))
+      .set('Cookie', await asUser('u6', 'APR', { name: 'สมชาย วงศ์ทอง' }))
       .send({ action: 'unconfirm', reason: 'ยกเลิก' })
     expect(res.status).toBe(422)
   })

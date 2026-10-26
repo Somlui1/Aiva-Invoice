@@ -1,6 +1,8 @@
 import type { Request, Response, NextFunction } from 'express'
 import { prisma } from '../../src/lib/prisma'
 import { USERS } from '../../src/mock/users'
+import { devAuthEnabled, sessionSecret } from '../../src/server/auth/config'
+import { SESSION_COOKIE, verifySession } from '../../src/server/auth/sessionToken'
 
 export interface SessionData {
   id: string
@@ -19,41 +21,31 @@ declare global {
   }
 }
 
+/**
+ * Resolves `req.sessionUser` from the signed `aiva_session` cookie — and from nothing else.
+ *
+ * Removed on purpose (v5.5):
+ *  - the `x-user-id` header (any client could send it and become any user);
+ *  - plain / unsigned cookies (`aiva_session=<id>` or a JSON blob) — every user logs in once again;
+ *  - the fallback to the demo users in src/mock/users.ts, which now applies only in development /
+ *    tests (`devAuthEnabled()`), never in production.
+ *
+ * The user row is re-read on every request, so a role change or deactivation takes effect at once.
+ */
 export async function sessionMiddleware(req: Request, _res: Response, next: NextFunction) {
+  req.sessionUser = null
   try {
-    const rawCookie = req.cookies?.['aiva_session']
-    const headerUserId = req.headers['x-user-id'] as string | undefined
+    const claims = verifySession(req.cookies?.[SESSION_COOKIE], sessionSecret())
+    if (!claims) return next()
+    const userId = claims.sub
 
-    let userId: string | null = null
-
-    if (rawCookie) {
-      try {
-        const parsed = JSON.parse(rawCookie)
-        userId = parsed.id || parsed.userId || null
-      } catch {
-        userId = rawCookie
-      }
-    } else if (headerUserId) {
-      userId = headerUserId
-    }
-
-    if (!userId) {
-      req.sessionUser = null
-      return next()
-    }
-
-    // Lookup user in DB first
     const dbUser = await prisma.user.findFirst({
-      where: {
-        OR: [{ id: userId }, { email: userId }, { samAccount: userId }],
-      },
-      include: {
-        companies: true,
-        receivers: true,
-      },
+      where: { id: userId },
+      include: { companies: true, receivers: true },
     })
 
     if (dbUser) {
+      if (dbUser.isActive === false) return next()
       req.sessionUser = {
         id: dbUser.id,
         name: dbUser.name,
@@ -65,21 +57,19 @@ export async function sessionMiddleware(req: Request, _res: Response, next: Next
       return next()
     }
 
-    // Fallback to USERS in mock/users.ts if found
-    const staticUser = USERS.find((u) => u.id === userId || u.email === userId)
-    if (staticUser) {
-      req.sessionUser = {
-        id: staticUser.id,
-        name: staticUser.n,
-        email: staticUser.email,
-        role: staticUser.role,
-        companies: staticUser.co,
-        receivers: [],
+    if (devAuthEnabled()) {
+      const staticUser = USERS.find(u => u.id === userId)
+      if (staticUser) {
+        req.sessionUser = {
+          id: staticUser.id,
+          name: staticUser.n,
+          email: staticUser.email,
+          role: staticUser.role,
+          companies: staticUser.co,
+          receivers: [],
+        }
       }
-      return next()
     }
-
-    req.sessionUser = null
     return next()
   } catch (err) {
     console.warn('[sessionMiddleware] error:', err)

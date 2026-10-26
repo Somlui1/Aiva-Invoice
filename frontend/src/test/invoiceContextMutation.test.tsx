@@ -7,6 +7,7 @@ import { SettingsProvider } from '../context/SettingsContext'
 import { ToastModalProvider } from '../context/ToastModalContext'
 import { USERS } from '../mock/users'
 import React from 'react'
+import { asUser } from './helpers/session'
 
 describe('InvoiceContext Server Action Integration', () => {
   beforeEach(() => {
@@ -86,7 +87,7 @@ describe('InvoiceContext Server Action Integration', () => {
     })
 
     const app = createExpressApp()
-    const res = await request(app).get('/api/audit-logs')
+    const res = await request(app).get('/api/audit-logs').set('Cookie', await asUser('ctx-sa', 'SA'))
     expect(res.status).toBe(200)
     expect(res.body.ok).toBe(true)
     expect(Array.isArray(res.body.logs)).toBe(true)

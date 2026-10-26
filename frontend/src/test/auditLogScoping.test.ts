@@ -5,6 +5,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import request from 'supertest'
 import { createExpressApp } from '../../server/app'
 import { prisma } from '../lib/prisma'
+import { asUser } from './helpers/session'
 
 describe('Audit Log Security Scoping API', () => {
   const app = createExpressApp()
@@ -55,7 +56,7 @@ describe('Audit Log Security Scoping API', () => {
   })
 
   it('restricts EU and ACC users to only see their own audit logs', async () => {
-    const res = await request(app).get('/api/audit-logs?whoId=u1&role=EU')
+    const res = await request(app).get('/api/audit-logs').set('Cookie', await asUser('u1', 'EU'))
     expect(res.status).toBe(200)
     expect(res.body.ok).toBe(true)
 
@@ -70,8 +71,18 @@ describe('Audit Log Security Scoping API', () => {
     expect(hasU6).toBe(false)
   })
 
+  it('v5.5: the scope comes from the session — ?role=SA in the query does not widen it', async () => {
+    const res = await request(app)
+      .get('/api/audit-logs?whoId=itsupport&role=SA')
+      .set('Cookie', await asUser('u1', 'EU'))
+    expect(res.status).toBe(200)
+    expect(res.body.logs.every((l: any) => l.doc !== 'TEST-SCOPING-AHT-2')).toBe(true)
+    const anon = await request(app).get('/api/audit-logs?role=SA')
+    expect(anon.status).toBe(401)
+  })
+
   it('allows APR to see audit logs within their assigned companies and own logs', async () => {
-    const res = await request(app).get('/api/audit-logs?whoId=u6&role=APR&companies=AH')
+    const res = await request(app).get('/api/audit-logs').set('Cookie', await asUser('u6', 'APR', { companies: ['AH'] }))
     expect(res.status).toBe(200)
     expect(res.body.ok).toBe(true)
 
@@ -88,7 +99,7 @@ describe('Audit Log Security Scoping API', () => {
 
   it('allows ADM and itsupport to see all audit logs across the system', async () => {
     // itsupport
-    const resSupport = await request(app).get('/api/audit-logs?whoId=itsupport&role=SA')
+    const resSupport = await request(app).get('/api/audit-logs').set('Cookie', await asUser('sa-test', 'SA'))
     expect(resSupport.body.ok).toBe(true)
 
     expect(resSupport.body.logs.some((l: any) => l.doc === 'TEST-SCOPING-AH-1')).toBe(true)
@@ -96,7 +107,7 @@ describe('Audit Log Security Scoping API', () => {
     expect(resSupport.body.logs.some((l: any) => l.doc === 'TEST-SCOPING-AH-3')).toBe(true)
 
     // ADM
-    const resAdm = await request(app).get('/api/audit-logs?whoId=u7&role=ADM')
+    const resAdm = await request(app).get('/api/audit-logs').set('Cookie', await asUser('u7', 'ADM'))
     expect(resAdm.body.ok).toBe(true)
     expect(resAdm.body.logs.some((l: any) => l.doc === 'TEST-SCOPING-AH-1')).toBe(true)
     expect(resAdm.body.logs.some((l: any) => l.doc === 'TEST-SCOPING-AHT-2')).toBe(true)

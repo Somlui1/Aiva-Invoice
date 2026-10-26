@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import request from 'supertest'
 import { createExpressApp } from '../../server/app'
 import { prisma } from '../lib/prisma'
+import { asUser } from './helpers/session'
 
 describe('Oracle AP Batch Staging & Locking Pipeline', () => {
   const app = createExpressApp()
@@ -62,9 +63,7 @@ describe('Oracle AP Batch Staging & Locking Pipeline', () => {
   it('rejects batch creation when user role is not authorized (EU)', async () => {
     const res = await request(app)
       .post('/api/ap/batches')
-      .set('x-user-id', 'u1')
-      .set('x-user-role', 'EU')
-      .set('x-user-name', encodeURIComponent('สมศักดิ์ ใจดี'))
+      .set('Cookie', await asUser('u1', 'EU', { name: 'สมศักดิ์ ใจดี' }))
       .send({
         documentIds: [doc1Id],
         companyCode: 'AH',
@@ -76,9 +75,7 @@ describe('Oracle AP Batch Staging & Locking Pipeline', () => {
   it('creates AP batch, locks documents with Sent status, and records audit log', async () => {
     const res = await request(app)
       .post('/api/ap/batches')
-      .set('x-user-id', 'u6')
-      .set('x-user-role', 'APR')
-      .set('x-user-name', encodeURIComponent('สมชาย วงศ์ทอง'))
+      .set('Cookie', await asUser('u6', 'APR', { name: 'สมชาย วงศ์ทอง' }))
       .send({
         batchId: 'AP-TEST-001',
         documentIds: [doc1Id, doc2Id],
@@ -124,7 +121,7 @@ describe('Oracle AP Batch Staging & Locking Pipeline', () => {
       },
     })
 
-    const res = await request(app).get('/api/ap/batches')
+    const res = await request(app).get('/api/ap/batches').set('Cookie', await asUser('u4', 'ACC'))
     expect(res.status).toBe(200)
     expect(res.body.ok).toBe(true)
     const found = res.body.batches.find((b: any) => b.id === 'AP-TEST-EXISTING')
@@ -157,9 +154,6 @@ describe('Oracle AP Batch Staging & Locking Pipeline', () => {
     // Now call callback route
     const res = await request(app)
       .post('/api/ap/batches/AP-TEST-CALLBACK/callback')
-      .set('x-user-id', 'oracle-system')
-      .set('x-user-role', 'SYSTEM')
-      .set('x-user-name', encodeURIComponent('Oracle AP Interface'))
       .send({
         results: [
           {

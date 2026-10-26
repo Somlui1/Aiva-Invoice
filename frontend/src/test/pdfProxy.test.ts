@@ -4,6 +4,7 @@ import path from 'node:path'
 import { AddressInfo } from 'node:net'
 import request from 'supertest'
 import { createExpressApp } from '../../server/app'
+import { asUser } from './helpers/session'
 
 /**
  * The PDF proxy has three sources (live DMS -> cached file -> synthetic mock)
@@ -18,6 +19,7 @@ const app = createExpressApp()
 const get = async (id: string) => {
   const req = request(app)
     .get(`/api/documents/${encodeURIComponent(id)}/pdf`)
+    .set('Cookie', await asUser('pdf-sa', 'SA'))
     .buffer(true)
     .parse((res, callback) => {
       const chunks: Buffer[] = []

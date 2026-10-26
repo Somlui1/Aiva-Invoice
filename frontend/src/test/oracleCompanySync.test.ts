@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import request from 'supertest'
 import { createExpressApp } from '../../server/app'
 import { prisma } from '../lib/prisma'
+import { asUser } from './helpers/session'
 
 describe('Oracle Company Sync API (/api/oracle/sync-companies)', () => {
   const app = createExpressApp()
@@ -13,6 +14,7 @@ describe('Oracle Company Sync API (/api/oracle/sync-companies)', () => {
   it('handles company sync request and returns structured companies with audit logging', async () => {
     const res = await request(app)
       .post('/api/oracle/sync-companies')
+      .set('Cookie', await asUser('route-adm', 'ADM'))
       .send({ triggeredBy: 'itsupport' })
     expect(res.status).toBe(200)
 

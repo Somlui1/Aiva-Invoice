@@ -4,6 +4,7 @@ import path from 'node:path'
 import { Readable } from 'node:stream'
 import { prisma } from '../../src/lib/prisma'
 import { buildMockPdf } from '../../src/lib/mockPdf'
+import { pdfFallbacksEnabled } from '../../src/server/auth/config'
 
 export const pdfProxyRouter = Router()
 
@@ -76,8 +77,13 @@ function fromCache(id: string, reasons: string[]) {
     path.join(cDir, `${id}.pdf`),
     path.join(cDir, `${id.replace(/^DMS-/, '')}.pdf`),
     path.join(cDir, `${id}.PDF`),
-    path.resolve(process.cwd(), `temp/paperless_invoices_v5/${id}/${id}.pdf`),
-    path.resolve(process.cwd(), `temp/paperless_invoices_v5/${id}.pdf`),
+    // Development fixtures — never served in production.
+    ...(pdfFallbacksEnabled()
+      ? [
+          path.resolve(process.cwd(), `temp/paperless_invoices_v5/${id}/${id}.pdf`),
+          path.resolve(process.cwd(), `temp/paperless_invoices_v5/${id}.pdf`),
+        ]
+      : []),
   ]
 
   for (const candidate of candidates) {
@@ -121,7 +127,8 @@ pdfProxyRouter.get('/:id/pdf', async (req, res) => {
   }
 
   const filename = `${doc.id}.pdf`
-  const attempts: PdfSource[] = ['dms_live', 'cache', 'fallback_mock']
+  // Production never shows a generated stand-in: a reviewer must not judge a fake document.
+  const attempts: PdfSource[] = pdfFallbacksEnabled() ? ['dms_live', 'cache', 'fallback_mock'] : ['dms_live', 'cache']
   const reasons: string[] = []
 
   for (const source of attempts) {

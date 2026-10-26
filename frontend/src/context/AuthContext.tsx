@@ -5,6 +5,7 @@ import { User, Role, RoleKey, Permission } from '../types/auth'
 import { InvoiceDoc } from '../types/invoice'
 import { AuditEntry } from '../types/audit'
 import { USERS, ROLES, acctsOf } from '../mock/users'
+import { LOGIN_CONFIG } from '../features/login/config'
 
 export const ANONYMOUS_USER: User = {
   id: '',
@@ -107,11 +108,20 @@ export function AuthProvider({
     const unauth = window.localStorage.getItem('aiva.test.unauthenticated') === 'true'
     if (unauth) return
 
-    const savedId = window.localStorage.getItem('aiva.auth.user')
-    const query = savedId ? `?userId=${encodeURIComponent(savedId)}` : ''
-
-    fetch(`/api/auth/me${query}`)
-      .then(res => (res.ok ? res.json() : null))
+    // v5.5: the server identifies the user by the signed session cookie only (no ?userId=).
+    fetch('/api/auth/me', { credentials: 'same-origin' })
+      .then(res => {
+        // The session expired / was revoked: drop the cached profile and go to the login page —
+        // otherwise the UI looks signed in while every API call answers 401.
+        if (res.status === 401 && !LOGIN_CONFIG.mock && window.localStorage.getItem('aiva.auth.profile')) {
+          window.localStorage.removeItem('aiva.auth.user')
+          window.localStorage.removeItem('aiva.auth.profile')
+          setCurrentUser(ANONYMOUS_USER)
+          if (!window.location.pathname.startsWith('/login')) window.location.href = '/login'
+          return null
+        }
+        return res.ok ? res.json() : null
+      })
       .then(data => {
         if (data?.ok && data.user) {
           const u = data.user
@@ -224,9 +234,12 @@ export function AuthProvider({
       if (typeof window !== 'undefined') {
         window.localStorage.removeItem('aiva.auth.user')
         window.localStorage.removeItem('aiva.auth.profile')
-        document.cookie = 'aiva_session=; path=/; max-age=0'
         setCurrentUser(ANONYMOUS_USER)
-        window.location.href = '/login'
+        // The session cookie is httpOnly: only the server can clear it (document.cookie cannot).
+        const go = () => {
+          window.location.href = '/login'
+        }
+        fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).then(go, go)
       }
     } catch {}
   }, [])

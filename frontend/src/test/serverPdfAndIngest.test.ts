@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import request from 'supertest'
 import { createExpressApp } from '../../server/app'
+import { asUser } from './helpers/session'
 
 describe('Express PDF Proxy and Engine Ingestion Routes', () => {
   const app = createExpressApp()
@@ -12,7 +13,7 @@ describe('Express PDF Proxy and Engine Ingestion Routes', () => {
   })
 
   it('GET /api/documents/:id/pdf rejects invalid id format with 400', async () => {
-    const res = await request(app).get('/api/documents/invalid_doc_id/pdf')
+    const res = await request(app).get('/api/documents/invalid_doc_id/pdf').set('Cookie', await asUser('route-sa', 'SA'))
     expect(res.status).toBe(400)
     expect(res.body.ok).toBe(false)
   })

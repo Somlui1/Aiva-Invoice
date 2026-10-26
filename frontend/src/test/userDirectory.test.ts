@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import request from 'supertest'
 import { createExpressApp } from '../../server/app'
 import { prisma } from '../lib/prisma'
+import { asUser } from './helpers/session'
 
 describe('Directory Search and User Provisioning API', () => {
   const app = createExpressApp()
@@ -11,7 +12,7 @@ describe('Directory Search and User Provisioning API', () => {
   })
 
   it('searches directory by query and returns auto-mapped employee fields', async () => {
-    const res = await request(app).get('/api/ad/search?q=somsak')
+    const res = await request(app).get('/api/ad/search?q=somsak').set('Cookie', await asUser('u7', 'ADM'))
     expect(res.status).toBe(200)
     expect(res.body.ok).toBe(true)
     expect(Array.isArray(res.body.results)).toBe(true)
@@ -29,8 +30,7 @@ describe('Directory Search and User Provisioning API', () => {
   it('provisions new user into database and retrieves user list with relations', async () => {
     const saveRes = await request(app)
       .post('/api/users')
-      .set('x-user-id', 'u7')
-      .set('x-user-role', 'ADM')
+      .set('Cookie', await asUser('u7', 'ADM'))
       .send({
         email: 'new.emp@aapico.com',
         name: 'สมหญิง รักดี',
@@ -45,7 +45,7 @@ describe('Directory Search and User Provisioning API', () => {
     expect(saveRes.body.ok).toBe(true)
     expect(saveRes.body.user.email).toBe('new.emp@aapico.com')
 
-    const listRes = await request(app).get('/api/users')
+    const listRes = await request(app).get('/api/users').set('Cookie', await asUser('u7', 'ADM'))
     expect(listRes.status).toBe(200)
     expect(listRes.body.ok).toBe(true)
     const found = listRes.body.users.find((u: any) => u.email === 'new.emp@aapico.com')

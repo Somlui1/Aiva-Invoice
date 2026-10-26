@@ -39,6 +39,25 @@ const findUser = (s: string) => {
 };
 
 /**
+ * v5.5: the API trusts only a signed session cookie. In development the mock login asks the server
+ * for one (POST /api/auth/dev-login — available only when the server runs with AUTH_DEV_LOGIN=true,
+ * never in production). Best effort: no server (UI-only work) or a test without fetch = nothing happens.
+ */
+async function devLogin(user: SessionUser): Promise<void> {
+  if (typeof fetch !== "function" || typeof window === "undefined" || !/^https?:/.test(window.location?.protocol ?? "")) return;
+  try {
+    await fetch("/api/auth/dev-login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ user }),
+    });
+  } catch {
+    /* no server: the UI still works on mock data */
+  }
+}
+
+/**
  * Mock adapter · จำลอง 4 ขั้นของการยืนยันตัวตนตามจังหวะเดิมใน mockup
  * getControls() ถูกเรียกทุกครั้งที่กดเข้าสู่ระบบ เพื่ออ่านค่าล่าสุดจากแถบ MOCK
  */
@@ -60,7 +79,10 @@ export function createMockAuth(getControls: () => MockControls): AuthAdapter {
         return { ok: false, kind: "noaccess" };
       }
     }
-    return user ? { ok: true, user: toSessionUser(user) } : { ok: false, kind: "noaccess" };
+    if (!user) return { ok: false, kind: "noaccess" };
+    const session = toSessionUser(user);
+    await devLogin(session);
+    return { ok: true, user: session };
   }
 
   return {

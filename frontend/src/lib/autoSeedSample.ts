@@ -2,12 +2,17 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { prisma } from './prisma'
 import { transformEngineResultToPortalDoc } from '@/features/engine/adapters/engineToPortalAdapter'
+import { sampleSeedEnabled } from '@/server/auth/config'
 
 /**
- * Ensures production database is populated with sample data from `temp/paperless_invoices_v5`
- * when running standalone without a live Engine service.
+ * Development convenience: fills an EMPTY database with the sample invoices in
+ * `temp/paperless_invoices_v5` so the queue is not blank.
+ *
+ * Never in production (real documents come only from the Engine) and never in tests.
+ * Turn it off in development with AIVA_SEED_SAMPLE=false. (Name kept for existing imports.)
  */
 export async function ensureProductionSampleData(): Promise<void> {
+  if (!sampleSeedEnabled()) return
   try {
     // 1. Do not auto-seed fake users; authentic users are provisioned via AD or RBAC admin
 

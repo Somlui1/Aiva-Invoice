@@ -64,6 +64,7 @@ import { viewerBoxesFromInvoiceDoc } from '../features/pdf-viewer/lib/overlayMod
 import { USERS, ROLES } from '../mock/users'
 import type { User } from '../types/auth'
 import { EU_CODES, EXCEPTION_RULES } from '../mock/rules'
+import { asUser } from './helpers/session'
 
 // ---------------------------------------------------------------------------
 // Corpus: the real Engine results, pushed through the real ingestion boundary.
@@ -99,8 +100,12 @@ interface ListBody {
 
 const app = createExpressApp()
 
+/** v5.5: the documents API needs a signed session (one SA user for the whole parity suite). */
+let saCookie: Promise<string> | null = null
+const sa = () => (saCookie ??= asUser('parity-sa', 'SA'))
+
 async function list(url: string): Promise<{ status: number; body: ListBody }> {
-  const res = await request(app).get(url)
+  const res = await request(app).get(url).set('Cookie', await sa())
   return { status: res.status, body: res.body as ListBody }
 }
 
@@ -663,7 +668,7 @@ describe('GET /api/documents — live database connection', () => {
   })
 
   it('serves one document with its boxes for the evidence dock', async () => {
-    const res = await request(app).get('/api/documents/DMS-100')
+    const res = await request(app).get('/api/documents/DMS-100').set('Cookie', await sa())
     expect(res.status).toBe(200)
     const body = res.body as { ok: boolean; source: string; document: InvoiceDoc }
     expect(body.source).toBe('portal_db')
@@ -673,11 +678,11 @@ describe('GET /api/documents — live database connection', () => {
   })
 
   it('answers 404 for an unknown id and 400 for a forged one', async () => {
-    const missing = await request(app).get('/api/documents/DMS-999999')
+    const missing = await request(app).get('/api/documents/DMS-999999').set('Cookie', await sa())
     expect(missing.status).toBe(404)
 
     for (const bad of ['../etc/passwd', 'DMS-100 x', ' ']) {
-      const res = await request(app).get(`/api/documents/${encodeURIComponent(bad)}`)
+      const res = await request(app).get(`/api/documents/${encodeURIComponent(bad)}`).set('Cookie', await sa())
       expect(res.status, bad).toBe(400)
     }
   })
