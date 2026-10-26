@@ -26,7 +26,7 @@ from ..domain.contracts import ExtractionResult
 from ..domain.standard import load_standard
 
 log = logging.getLogger("system_a.api")
-SCHEMA_PATH = Path(__file__).resolve().parents[3] / "schemas" / "result-3.0.schema.json"
+SCHEMA_PATH = Path(__file__).resolve().parents[3] / "schemas" / "result-3.1.schema.json"
 
 
 class PortalRefs(BaseModel):

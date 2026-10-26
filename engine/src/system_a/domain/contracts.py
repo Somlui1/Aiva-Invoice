@@ -334,6 +334,24 @@ class Finding:
     element_ids: tuple = ()
     oracle_refs: tuple = ()
     source: Optional[str] = None           # e.g. E03 "invoice" | "receipt"
+    # v5.7 evidence: why the finding cannot be located when it names no element at all
+    # (e.g. "PAGES_INCOMPLETE").  Element-level reasons are derived by the assembler.
+    missing_reason: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class ReviewPoint:
+    """v5.7: what a person must look at for a ``manual_review`` rule.
+
+    Not a Finding: it has no exception code / severity, never enters ``exceptions[]`` and is never
+    read by ``recommend()`` - it only gives the Portal an evidence row (a button) to open.
+    """
+    message_th: str
+    element_ids: tuple = ()
+    oracle_refs: tuple = ()
+    actual: Optional[str] = None
+    expected: Optional[str] = None
+    missing_reason: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -344,3 +362,4 @@ class RuleOutcome:
     detail: Optional[str] = None
     halted_by: Optional[str] = None
     data: dict = field(default_factory=dict)
+    reviews: tuple = ()                    # v5.7: ReviewPoint for manual_review evidence

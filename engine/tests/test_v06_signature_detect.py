@@ -40,10 +40,14 @@ def test_unclear_answer_is_not_a_detection():
     assert r.result == "fail" and r.findings[0].severity == "Medium"
 
 
-def test_no_box_found_is_e08_without_evidence_id():
+def test_no_box_found_is_e08_pointing_at_the_slot_element():
+    # v5.7 (E5): the finding always names the slot element; the assembler emits that element for
+    # every slot (bbox null) and explains it with bbox_missing_reason, so the Portal shows
+    # "no position" with a reason instead of no button.
     r = v06_signatures(_ctx({}))
     assert r.result == "fail" and len(r.findings) == 2
-    assert all(f.element_ids == () for f in r.findings)
+    assert [f.element_ids for f in r.findings] == [("D1-sig-receiver",), ("D1-sig-deliverer",)]
+    assert all(f.actual == "no box" and f.expected == "signed" for f in r.findings)
     assert "ไม่พบกล่อง" in r.findings[0].message_th
 
 

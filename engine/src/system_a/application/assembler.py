@@ -2,6 +2,8 @@
 
 * every extracted value becomes an Element (page/field/row/cell/signature/word) with bbox
 * every Finding becomes Evidence with ``related_element_ids`` + ``bboxes`` (or ``bbox_missing_reason``)
+* v5.7: every ReviewPoint (manual_review) becomes Evidence with exception_code/severity null and
+  ``kind: "review"`` - never an exception; ``bbox_missing_reason.reason`` is derived per element
 * NO workflow / assigned_to / approval / AP / duplicate fields (Responsibility Boundary, X-04)
 """
 from __future__ import annotations
@@ -12,10 +14,13 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
-from ..domain.contracts import COORDINATE_SYSTEM, ExtractionResult, InvoiceDoc, row_payload
+from .evidence_check import enforce as enforce_evidence
+from ..domain.contracts import COORDINATE_SYSTEM, ExtractionResult, InvoiceDoc, ReviewPoint, row_payload
 
 CONTRACT = "aiva.system_a.result/3.0"
-SCHEMA_VERSION = "3.0"
+SCHEMA_VERSION = "3.1"   # v5.7: additive evidence fields (kind, review rows, reason enum)
+SIGNATURE_SLOTS = ("receiver", "deliverer")
+MISSING_REASONS = ("PAGES_INCOMPLETE", "NOT_PRESENT", "LOW_CONFIDENCE", "NOT_LOCATED", "NO_ELEMENT")  # priority
 FORBIDDEN_KEYS = {"workflow", "allowed_actions", "assigned_to", "approved", "ap_status", "duplicate_status", "history"}
 
 
@@ -68,13 +73,32 @@ def build_elements(ext: ExtractionResult, doc: InvoiceDoc) -> dict[str, dict]:
                 rf.region.bbox if rf.region else None, f"lines[{rl.line_no}].{k}", rf.raw, nf.value, rf.confidence,
                 parent=nl.element_id, extra={"null_reason": nf.null_reason, "agreement": rf.agreement},
                 rbox=rf.region.rbox if rf.region else None)
+    # v5.7 (R6): a cell (or row) the normalizer created without a reader value still gets an element,
+    # so evidence can name it and say why it has no box, instead of pointing at an unknown id.
+    for nl in doc.lines:
+        if nl.element_id not in els:
+            add(nl.element_id, "row", nl.region.page if nl.region else None, nl.region.bbox if nl.region else None,
+                f"lines[{nl.line_no}]", extra={"null_reason": "NOT_PRESENT"})
+        row_page = els[nl.element_id]["page_no"]
+        for k, nf in nl.cells.items():
+            if nf.element_id not in els:
+                add(nf.element_id, "cell", row_page, None, f"lines[{nl.line_no}].{k}", nf.raw, nf.value, nf.confidence,
+                    parent=nl.element_id, extra={"null_reason": nf.null_reason or "NOT_PRESENT"})
     # v5.6: the final slot decision (after the stamp fallbacks in normalize) is what V-06 judged -
     # emit that one, so the Portal picture and the rule can never disagree.
-    for slot, s in {**ext.signatures, **doc.signatures}.items():
+    sigs = {**ext.signatures, **doc.signatures}
+    for slot, s in sigs.items():
         add(f"{did}-sig-{slot}", "signature", s.region.page if s.region else None, s.region.bbox if s.region else None,
-            f"signatures.{slot}", {True: "signed", False: "empty"}.get(s.present), s.present, s.confidence,
-            extra={"kind": s.kind},
+            f"signatures.{slot}", {True: "signed", False: "empty"}.get(s.present),
+            s.present if isinstance(s.present, bool) else None, s.confidence,
+            extra={"kind": s.kind, **({} if s.region else {"null_reason": "NOT_LOCATED"})},
             rbox=s.region.rbox if s.region else None)
+    # v5.7 (R10): every slot V-06 judges has an element, so an E08 for a slot the reader never
+    # boxed still points at something the Portal can name ("no box found") instead of nothing.
+    for slot in SIGNATURE_SLOTS:
+        if slot not in sigs:
+            add(f"{did}-sig-{slot}", "signature", None, None, f"signatures.{slot}", None, None, None,
+                extra={"kind": None, "null_reason": "NOT_PRESENT"})
     for w in ext.words:
         add(w.word_id, "word", w.page, w.bbox, None, w.text, w.text, w.confidence)
 
@@ -98,6 +122,60 @@ def build_elements(ext: ExtractionResult, doc: InvoiceDoc) -> dict[str, dict]:
     return els
 
 
+def _element_reason(e: Optional[dict]) -> str:
+    """Why one related element has no box (R4)."""
+    if e is None:
+        return "NO_ELEMENT"
+    nr = str((e.get("source_reference") or {}).get("null_reason") or "")
+    if nr == "NOT_PRESENT" or (e.get("raw_value") is None and e.get("normalized_value") is None
+                               and e.get("element_type") != "row"):
+        return "NOT_PRESENT"
+    if nr == "LOW_CONFIDENCE":
+        return "LOW_CONFIDENCE"
+    return "NOT_LOCATED"
+
+
+def _locate(f, els: dict, doc) -> tuple[list, list, Optional[dict]]:
+    """-> (related_element_ids that exist, bboxes, bbox_missing_reason).
+
+    R3: a row is either located (bboxes) or explained (bbox_missing_reason) - a finding that names no
+    element is explained by its own ``missing_reason`` (or NOT_LOCATED).  R6: ids without an element
+    are reported only inside the reason, never in related_element_ids.
+    """
+    related, boxes, why = [], [], {}
+    for eid in f.element_ids:
+        e = els.get(eid)
+        if e is not None:
+            related.append(eid)
+        if e is not None and e["bbox"]:
+            boxes.append({"element_id": eid, "page_no": e["page_no"], "bbox": e["bbox"]})
+        else:
+            why[eid] = _element_reason(e)
+    own = getattr(f, "missing_reason", None)
+    if boxes and not why:
+        return related, boxes, None                       # fully located
+    reasons = list(why.values()) + ([own] if own else [])
+    reason = next((r for r in MISSING_REASONS if r in reasons), "NOT_LOCATED")
+    out = {"element_ids": list(why), "reason": reason}
+    if len(set(why.values())) > 1:
+        out["details"] = why
+    return related, boxes, out
+
+
+def _hints(related: list, els: dict) -> dict:
+    """field_name / line_no of the first related element - display help for the Portal (schema 3.1)."""
+    for eid in related:
+        e = els.get(eid) or {}
+        fn = e.get("field_name")
+        if not fn:
+            continue
+        if fn.startswith("lines["):
+            try:
+                return {"field_name": fn, "line_no": int(fn[6:fn.index("]")])}
+            except ValueError:
+                return {"field_name": fn, "line_no": None}
+        return {"field_name": fn, "line_no": None}
+    return {"field_name": None, "line_no": None}
 
 
 def _multi_po_keys(snap) -> dict:
@@ -123,28 +201,30 @@ def assemble(*, ext, doc, meta, std, ctx, outcomes, recommendation, halted, erro
     n = 0
     for o in outcomes:
         ev_ids = []
-        for f in o.findings:
+        # findings (with an exception code) first, then review points (manual_review, no code)
+        reviews = tuple(getattr(o, "reviews", ()) or ())
+        if o.result == "manual_review" and not o.findings and not reviews:
+            # R7 safety net: a manual_review produced outside a rule (orchestrator gate) still gets a row
+            reviews = (ReviewPoint(message_th=o.detail or f"{o.rule_id}: ต้องตรวจโดยคน", missing_reason="NOT_LOCATED"),)
+        for f, is_review in [(f, False) for f in o.findings] + [(r, True) for r in reviews]:
             n += 1
             xid = f"X{n}"
-            boxes, missing = [], []
-            for eid in f.element_ids:
-                e = els.get(eid)
-                if e and e["bbox"]:
-                    boxes.append({"element_id": eid, "page_no": e["page_no"], "bbox": e["bbox"]})
-                else:
-                    missing.append(eid)
+            related, boxes, missing = _locate(f, els, doc)
             evidence.append({
                 "evidence_id": xid, "rule_id": o.rule_id, "rule_version": std.rule_version(o.rule_id),
-                "result": o.result, "exception_code": f.code, "severity": f.severity,
+                "result": "manual_review" if is_review else o.result,
+                "exception_code": None if is_review else f.code, "severity": None if is_review else f.severity,
                 "actual_value": f.actual, "expected_value": f.expected,
-                "source_document": {"document_id": doc.document_id, "source": f.source},
+                "source_document": {"document_id": doc.document_id, "source": None if is_review else f.source},
                 "page_no": sorted({b["page_no"] for b in boxes}),
-                "related_element_ids": list(f.element_ids), "related_oracle_refs": list(f.oracle_refs),
-                "bboxes": boxes, "bbox_missing_reason": ({"element_ids": missing, "reason": "NOT_LOCATED"}
-                                                         if missing else None),
-                "halted_by": o.halted_by, "evaluated_at": now, "message_th": f.message_th})
-            exceptions.append({"exception_id": xid, "code": f.code, "name": std.code_name(f.code),
-                               "severity": f.severity, "rule_id": o.rule_id, "evidence_ids": [xid]})
+                "related_element_ids": related, "related_oracle_refs": list(f.oracle_refs),
+                "bboxes": boxes, "bbox_missing_reason": missing,
+                "halted_by": o.halted_by, "evaluated_at": now, "message_th": f.message_th,
+                "kind": "review" if is_review else "exception",
+                **_hints(related, els)})
+            if not is_review:
+                exceptions.append({"exception_id": xid, "code": f.code, "name": std.code_name(f.code),
+                                   "severity": f.severity, "rule_id": o.rule_id, "evidence_ids": [xid]})
             ev_ids.append(xid)
         rule_results.append({"rule_id": o.rule_id, "rule_version": std.rule_version(o.rule_id), "result": o.result,
                              "detail": o.detail, "halted_by": o.halted_by, "evidence_ids": ev_ids,
@@ -194,6 +274,8 @@ def assemble(*, ext, doc, meta, std, ctx, outcomes, recommendation, halted, erro
         "metrics": metrics,
     }
     payload = json.loads(json.dumps(payload, default=_s, ensure_ascii=False))
+    # v5.7: evidence contract post-check (warn; AIVA_EVIDENCE_STRICT=1 raises).  In metrics -> not hashed.
+    payload["metrics"] = {**(payload.get("metrics") or {}), "evidence_violations": enforce_evidence(payload)}
     try:
         summary = build_summary(payload, doc, meta)
     except Exception as e:                       # a view must never fail the validation
@@ -325,7 +407,7 @@ def build_summary(payload: dict, doc, meta: dict) -> dict:
     for e in payload["evidence"]:
         for eid in e.get("related_element_ids") or ():
             parts = str(eid).split("-L")
-            if len(parts) == 2 and parts[1].split("-")[0].isdigit():
+            if len(parts) == 2 and parts[1].split("-")[0].isdigit() and e.get("exception_code"):
                 by_line.setdefault(int(parts[1].split("-")[0]), set()).add(e["exception_code"])
     fields = ext["fields"]
     rr = {r["rule_id"]: r for r in payload["rule_results"]}
@@ -432,10 +514,13 @@ def build_summary(payload: dict, doc, meta: dict) -> dict:
         "po_breakdown": breakdown,
         "lines": lines,
         "rules": [{"rule_id": k, "result": v["result"],
-                   "codes": sorted({e["exception_code"] for e in payload["evidence"] if e["rule_id"] == k}),
+                   "codes": sorted({e["exception_code"] for e in payload["evidence"]
+                                    if e["rule_id"] == k and e.get("exception_code")}),
                    "detail": v.get("detail")} for k, v in rr.items()],
         "exceptions": [{"code": e["exception_code"], "severity": e["severity"], "rule_id": e["rule_id"],
-                        "message": e["message_th"]} for e in payload["evidence"]],
+                        "message": e["message_th"]} for e in payload["evidence"] if e.get("exception_code")],
+        "review_points": [{"rule_id": e["rule_id"], "message": e["message_th"]}
+                          for e in payload["evidence"] if e.get("kind") == "review"],
         "unreadable_fields": sorted(k for k, f in fields.items() if not f.get("ok")),
         "corroborated": corroborated,
     }

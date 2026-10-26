@@ -447,7 +447,7 @@ def main(argv=None) -> int:
     ap.add_argument("--write-golden", action="store_true", help=f"pin hashes into {GOLDEN}")
     ap.add_argument("--golden", action="store_true", help=f"compare hashes against {GOLDEN}")
     ap.add_argument("--force-mode", help="run every scenario in this lookup mode")
-    ap.add_argument("--schema", action="store_true", help="validate every result against result-3.0.schema.json")
+    ap.add_argument("--schema", action="store_true", help="validate every result against result-3.1.schema.json")
     a = ap.parse_args(argv)
     if a.force_mode:
         os.environ["SYSTEM_A_FORCE_MODE"] = a.force_mode
@@ -457,7 +457,7 @@ def main(argv=None) -> int:
     if a.schema:
         import jsonschema
         schema = json.loads((Path(__file__).resolve().parents[3] / "schemas" /
-                             "result-3.0.schema.json").read_text(encoding="utf-8"))
+                             "result-3.1.schema.json").read_text(encoding="utf-8"))
         validator = jsonschema.Draft202012Validator(schema)
     got: dict[str, str] = {}
     for sc in all_scenarios():

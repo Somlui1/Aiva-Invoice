@@ -10,7 +10,7 @@ from decimal import Decimal
 from typing import Optional, Sequence
 
 from . import v08 as v08mod
-from .contracts import Finding, InvoiceDoc, NLine, OracleSnapshot, RuleOutcome
+from .contracts import Finding, InvoiceDoc, NLine, OracleSnapshot, ReviewPoint, RuleOutcome
 from .matching import price_check
 from .evidence import is_covered
 from .normalize import addr_key, norm_name, thai_to_arabic
@@ -35,6 +35,11 @@ class Ctx:
 
 def _f(c: Ctx, code, rule, msg, sev=None, **kw) -> Finding:
     return Finding(code=code, severity=sev or c.std.severity(code), rule_id=rule, message_th=msg, **kw)
+
+
+def _rv(msg, element_ids=(), **kw) -> ReviewPoint:
+    """v5.7: evidence for a manual_review rule (no code, no severity, never an exception)."""
+    return ReviewPoint(message_th=msg, element_ids=tuple(e for e in element_ids if e), **kw)
 
 
 def _ok(rid, detail=None, **data):
@@ -68,6 +73,12 @@ def _uom_cfg(c: Ctx, name: str) -> bool:
 def _tax_lookup(s) -> bool:
     """True when the snapshot came from the Tax ID + Invoice lookup (not RCV-V01/RCV-V02)."""
     return "supplier_tax_id_source" in (s.query_keys or {})
+
+
+def _line_values(l) -> str:
+    """v5.7 evidence banner: 'qty x price = amount' as read on the invoice line ('-' when unreadable)."""
+    f = lambda k: "-" if l.v(k) is None else str(l.v(k))
+    return f"{f('qty')} x {f('unit_price')} = {f('amount')}"
 
 
 def _line_tag(l) -> str:
@@ -118,44 +129,69 @@ def check_row_geometry_and_overlap(lines: Sequence[NLine]) -> list[str]:
 
 # =============================================================== STEP 1 — document only
 def v01_required(c: Ctx) -> RuleOutcome:
-    d, miss, eids = c.doc, [], []
+    """V-01.  v5.7: one Finding per field / per line / per page problem (was one Finding for all), so the
+    Portal gets one evidence button per thing to look at.  The branch and severity are decided on the
+    whole list exactly as before, so recommendation / max_severity / exception_codes do not change."""
+    d, miss = c.doc, []
+    items: list = []                      # (kind, text, element_ids, missing_reason, actual)
     for k in c.std.policy["required_fields"]:
         f = d.fields[k]
         if not f.ok:
-            miss.append(f"{k}({f.null_reason})"), eids.append(f.element_id)
+            t = f"{k}({f.null_reason})"
+            miss.append(t)
+            items.append(("field", t, (f.element_id,), None, t))
     if not d.lines:
         miss.append("lines(NOT_PRESENT)")
+        items.append(("lines", "lines(NOT_PRESENT)", (), "NOT_PRESENT", "lines(NOT_PRESENT)"))
     for l in d.lines:
+        bad = []
         for k in c.std.policy["required_line_cells"]:
             cf = l.cells[k]
             if not cf.ok:
-                miss.append(f"L{l.line_no}.{k}({cf.null_reason})"), eids.append(cf.element_id)
+                t = f"L{l.line_no}.{k}({cf.null_reason})"
+                miss.append(t)
+                bad.append((t, cf.element_id))
+        if bad:
+            items.append(("line", ", ".join(t for t, _ in bad), (l.element_id, *(e for _, e in bad)), None,
+                          f"L{l.line_no}: " + ", ".join(t.split(".", 1)[1] for t, _ in bad)))
     if not d.pages_complete:
         miss.append("pages_complete(false)")
+        items.append(("pages", "pages_complete(false)", (), "PAGES_INCOMPLETE", "pages_complete(false)"))
 
     geo_errs = check_row_geometry_and_overlap(d.lines)
+    geo_items: list = []
     if geo_errs:
         miss.extend(geo_errs)
-        for l in d.lines:
-            if l.element_id and l.element_id not in eids:
-                eids.append(l.element_id)
+        by_no = {l.line_no: l for l in d.lines}
+        per_line: dict = {}
+        for g in geo_errs:
+            no = g[1:].split(".", 1)[0]
+            per_line.setdefault(int(no) if no.isdigit() else None, []).append(g)
+        for no, errs in per_line.items():
+            l = by_no.get(no)
+            geo_items.append(("geo", ", ".join(errs), (l.element_id,) if l and l.element_id else (),
+                              None if l else "NOT_LOCATED", ", ".join(errs)))
 
     if not miss:
         return _ok("V-01")
+
+    def build(prefix, sev, rows):
+        return [_f(c, "E01", "V-01", prefix + text, sev=sev, element_ids=eids, missing_reason=why,
+                   actual=actual, expected="required" if kind != "geo" else "grounded row bbox")
+                for kind, text, eids, why, actual in rows]
 
     # If the only issue is po_number and Oracle EBS confirmed receipt, demote to Low advisory
     oracle_confirmed = bool(c.snapshot and (getattr(c.snapshot, "active", None) or getattr(c.snapshot, "receipt_lines", None)))
     all_po = all(m.startswith("po_number") for m in miss)
     if all_po and oracle_confirmed and not geo_errs:
-        return _fail("V-01", [_f(c, "E01", "V-01", "ฟิลด์ PO บนเอกสารมีข้อสังเกต แต่ยืนยันได้จากใบรับในระบบ Oracle: " + ", ".join(miss),
-                                 sev="Low", element_ids=tuple(eids))])
+        return _fail("V-01", build("ฟิลด์ PO บนเอกสารมีข้อสังเกต แต่ยืนยันได้จากใบรับในระบบ Oracle: ", "Low", items))
 
     if geo_errs and all(m in geo_errs for m in miss):
-        return _fail("V-01", [_f(c, "E01", "V-01", "พิกัดบรรทัดสินค้าบนเอกสารไม่สมบูรณ์หรือไม่สอดคล้องกับโครงสร้างตาราง: " + ", ".join(geo_errs),
-                                 sev="Medium", element_ids=tuple(eids))])
+        return _fail("V-01", build("พิกัดบรรทัดสินค้าบนเอกสารไม่สมบูรณ์หรือไม่สอดคล้องกับโครงสร้างตาราง: ",
+                                   "Medium", geo_items))
 
-    return _fail("V-01", [_f(c, "E01", "V-01", "ฟิลด์บังคับอ่านไม่ได้หรือไม่ครบ: " + ", ".join(miss),
-                             element_ids=tuple(eids))])
+    return _fail("V-01", build("ฟิลด์บังคับอ่านไม่ได้หรือไม่ครบ: ", None, items)
+                 + build("พิกัดบรรทัดสินค้าบนเอกสารไม่สมบูรณ์หรือไม่สอดคล้องกับโครงสร้างตาราง: ", None, geo_items))
 
 
 def v02_line_math(c: Ctx) -> RuleOutcome:
@@ -188,15 +224,25 @@ def v03_doc_totals(c: Ctx) -> RuleOutcome:
     diffs = {"lines_vs_sub_total": abs(lines_sum - sub),
              "vat_7pct": abs((sub * c.std.tol("vat_rate")).quantize(Q2) - vat),
              "sub_plus_vat_vs_grand": abs(sub + vat - grand)}
-    eids = tuple(d.fields[k].element_id for k in ("sub_total", "vat", "grand_total"))
-    over = (diffs["lines_vs_sub_total"] > c.std.tol("total") or diffs["vat_7pct"] > c.std.tol("vat")
-            or diffs["sub_plus_vat_vs_grand"] > c.std.tol("total"))
+    fe = lambda *ks: tuple(d.fields[k].element_id for k in ks)
+    # v5.7: one Finding per failed check (was one Finding pointing at all three totals)
+    checks = (("lines_vs_sub_total", "total", "ผลรวมราคาต่อรายการ ≠ ยอดก่อนภาษี", fe("sub_total"),
+               str(sub), str(lines_sum)),
+              ("vat_7pct", "vat", "VAT ≠ ยอดก่อนภาษี × อัตราภาษี", fe("vat"),
+               str(vat), str((sub * c.std.tol("vat_rate")).quantize(Q2))),
+              ("sub_plus_vat_vs_grand", "total", "ยอดก่อนภาษี + VAT ≠ ยอดรวมทั้งสิ้น", fe("grand_total", "sub_total", "vat"),
+               str(grand), str(sub + vat)))
+    over = [ch for ch in checks if diffs[ch[0]] > c.std.tol(ch[1])]
     detail = {k: str(v) for k, v in diffs.items()}
     if over:
-        return _fail("V-03", [_f(c, "E03", "V-03", f"ยอดรวมภายในใบแจ้งหนี้ไม่สอดคล้อง {detail}", source="invoice",
-                                 actual=str(sub), expected=str(lines_sum), element_ids=eids)], diffs=detail)
-    if any(v > 0 for v in diffs.values()):
-        return _fail("V-03", [_f(c, "E04", "V-03", f"ผลต่างเศษปัดอยู่ในกรอบ {detail}", element_ids=eids)], diffs=detail)
+        return _fail("V-03", [_f(c, "E03", "V-03", f"ยอดรวมภายในใบแจ้งหนี้ไม่สอดคล้อง: {label} (ต่าง {detail[k]})",
+                                 source="invoice", actual=act, expected=exp, element_ids=eids)
+                              for k, _, label, eids, act, exp in over], diffs=detail)
+    rounding = [ch for ch in checks if diffs[ch[0]] > 0]
+    if rounding:
+        return _fail("V-03", [_f(c, "E04", "V-03", f"ผลต่างเศษปัดอยู่ในกรอบ: {label} (ต่าง {detail[k]})",
+                                 actual=act, expected=exp, element_ids=eids)
+                              for k, _, label, eids, act, exp in rounding], diffs=detail)
     return _ok("V-03", diffs=detail)
 
 
@@ -214,11 +260,14 @@ def v06_signatures(c: Ctx) -> RuleOutcome:
         if s is not None and s.present is True:
             continue
         has_box = s is not None and s.region is not None
-        eid = (f"{c.doc.document_id}-sig-{slot}",) if has_box else ()
+        # v5.7: always name the slot element (the assembler emits one for every slot); without a box the
+        # evidence carries bbox_missing_reason instead of pointing at nothing.
+        eid = (f"{c.doc.document_id}-sig-{slot}",)
         if has_box:
             boxes[slot] = {"page": s.region.page, "bbox": list(s.region.bbox) if s.region.bbox else None}
         detail = f"ไม่พบลายเซ็นหรือตราในช่อง{label}" + ("" if has_box else " (ไม่พบกล่องลายเซ็นบนเอกสาร)")
-        out.append(_f(c, "E08", "V-06", detail, sev, element_ids=eid))
+        out.append(_f(c, "E08", "V-06", detail, sev, element_ids=eid,
+                      actual="empty" if has_box else "no box", expected="signed"))
     if out:
         return _fail("V-06", out, missing_slots=[k for k in ("receiver", "deliverer")
                                                   if k not in {s for s, v in c.doc.signatures.items()
@@ -231,6 +280,7 @@ def v06_signatures(c: Ctx) -> RuleOutcome:
 def v04_receipt(c: Ctx) -> RuleOutcome:
     s = c.snapshot
     keys = tuple(c.doc.fields[k].element_id for k in ("po_number", "invoice_num"))
+    fid = lambda *ks: tuple(c.doc.fields[k].element_id for k in ks if k in c.doc.fields)
     data = {"lookup_path": s.lookup_path, "rows": len(s.rows), "active_rows": len(s.active),
             "receipt_nums": s.receipt_nums}
     if _tax_lookup(s):
@@ -252,7 +302,10 @@ def v04_receipt(c: Ctx) -> RuleOutcome:
                                    + (f" หรือเลขใบรับ {', '.join(tried_r)}" if tried_r else "")
                                    + " — ตรวจเลข Invoice / Tax ID ที่อ่านได้ หรือยังไม่รับของ"
                                    + ("" if q0.get("supplier_tax_id") else " (ไม่ทราบ Tax ID ผู้ขาย)")),
-                           data={**data, "not_found": True})
+                           data={**data, "not_found": True},
+                           reviews=(_rv("ไม่พบใบรับด้วยเลข Invoice / Tax ID ผู้ขายที่อ่านได้ — ตรวจค่าที่อ่านบนเอกสาร",
+                                        fid("invoice_num", "supplier_tax_id"),
+                                        actual=str(q0.get("invoice_num") or "-"), expected="ใบรับใน Oracle"),))
     if s.active and s.lookup_path == "RCV-BY-NUM":
         acc = next((x for x in q0.get("receipt_num_lookup") or [] if x.get("accepted")), {})
         heads = sorted({v for r in s.active for v in (r.shipment_num, r.packing_slip) if v})
@@ -260,11 +313,17 @@ def v04_receipt(c: Ctx) -> RuleOutcome:
                            detail=(f"พบใบรับ {acc.get('receipt_num')} จากเลขใบรับที่เขียนบนเอกสาร "
                                    f"(ผู้ขายและยอดเงินตรง) แต่เลข Invoice ในใบรับ ({', '.join(heads) or '-'}) "
                                    f"ไม่ตรงกับเลขที่พิมพ์บนเอกสาร — ตรวจเลข Invoice"),
-                           data={**data, "continue_checks": True})
+                           data={**data, "continue_checks": True},
+                           reviews=(_rv("เลข Invoice บนเอกสารไม่ตรงกับเลขในใบรับที่พบจากเลขใบรับ", fid("invoice_num"),
+                                        oracle_refs=tuple(f"RCV:{n}" for n in s.receipt_nums),
+                                        actual=str(c.doc.v("invoice_num") or "-"),
+                                        expected=", ".join(heads) or None),))
     if s.active and q0.get("invoice_candidates_ambiguous"):
         return RuleOutcome("V-04", "manual_review",
                            detail="เลขบนเอกสารหลายเลขพบใบรับคนละใบ: " + ", ".join(q0["invoice_candidates_ambiguous"]),
-                           data=data)
+                           data=data,
+                           reviews=(_rv("เลขบนเอกสารหลายเลขพบใบรับคนละใบ: " + ", ".join(q0["invoice_candidates_ambiguous"]),
+                                        fid("invoice_num"), oracle_refs=tuple(f"RCV:{n}" for n in s.receipt_nums)),))
     if not s.active:
         if _tax_lookup(s):
             q = s.query_keys
@@ -284,7 +343,10 @@ def v04_receipt(c: Ctx) -> RuleOutcome:
         data.update(po_list_narrowing=nar)
         return RuleOutcome("V-04", "manual_review",
                            detail=f"ค้นด้วย PO ได้ใบรับ {len(s.receipt_nums)} ใบ ระบุใบรับของ Invoice นี้ไม่ได้ "
-                                  f"(เลขที่ใบรับ/ยอดเงิน/จำนวนค้างวางบิล ไม่ชี้ใบเดียว)", data=data)
+                                  f"(เลขที่ใบรับ/ยอดเงิน/จำนวนค้างวางบิล ไม่ชี้ใบเดียว)", data=data,
+                           reviews=(_rv(f"ค้นด้วย PO ได้ใบรับ {len(s.receipt_nums)} ใบ — เลือกใบรับของ Invoice นี้",
+                                        fid("po_number", "invoice_num"),
+                                        oracle_refs=tuple(f"RCV:{n}" for n in s.receipt_nums)),))
     if (s.query_keys or {}).get("po_list_narrowing"):
         data.update(po_list_narrowing=s.query_keys["po_list_narrowing"])
     if len(s.receipt_nums) > 1 and _flag(c, "multi_po_receipts"):
@@ -306,7 +368,9 @@ def v04_receipt(c: Ctx) -> RuleOutcome:
         ora = c.std.policy["oracle"]
         cap = (ora.get("row_caps") or {}).get(s.lookup_path or "", ora["row_cap"])
         return RuleOutcome("V-04", "manual_review", detail=f"SQL คืน {cap} แถวพอดี (ถึงเพดาน อาจได้ไม่ครบ)",
-                           data=data)
+                           data=data,
+                           reviews=(_rv(f"ผลค้นใบรับถึงเพดาน {cap} แถว อาจได้ไม่ครบ — ตรวจใบรับใน Oracle",
+                                        missing_reason="NOT_LOCATED"),))
     if len(s.receipt_nums) > 1:
         return _ok("V-04", f"ใบรับ {len(s.receipt_nums)} ใบ ({s.lookup_path}): " + ", ".join(s.receipt_nums), **data)
     return _ok("V-04", f"ใบรับ {s.receipt_nums[0]} ({s.lookup_path})", **data)
@@ -326,7 +390,10 @@ def v05_customer(c: Ctx) -> RuleOutcome:
     if ent is None or ent["status"] in ("unknown", "cancelled") or not ent.get("tax_id"):
         return RuleOutcome("V-05", "manual_review",
                            detail=f"ORG_ID {org} สถานะ {ent['status'] if ent else 'ไม่อยู่ในตารางที่ 4'} หรือไม่มี Tax ID",
-                           data=base)
+                           data=base,
+                           reviews=(_rv(f"ORG_ID {org} ไม่มีข้อมูลนิติบุคคลให้เทียบ — ตรวจผู้ซื้อบนเอกสาร",
+                                        (c.doc.fields["customer_tax_id"].element_id,),
+                                        actual=str(c.doc.v("customer_tax_id") or "-")),))
     d = c.doc
     if not d.ok("customer_tax_id"):
         return _skip("V-05", "V-01", "Tax ID ลูกค้าอ่านไม่ได้")
@@ -370,7 +437,9 @@ def v05_customer(c: Ctx) -> RuleOutcome:
                             actual=d.v("customer_name"), expected=ent.get("name_th"), element_ids=fid("customer_name"))
     if name_issue is not None and not _evidence_flag(c, "customer_name_advisory"):
         if isinstance(name_issue, tuple):              # unchanged Standard behaviour
-            return RuleOutcome("V-05", "manual_review", detail=name_issue[1], data=data)
+            return RuleOutcome("V-05", "manual_review", detail=name_issue[1], data=data,
+                               reviews=(_rv(name_issue[1], fid("customer_name"), actual=d.v("customer_name"),
+                                            expected=ent.get("name_th")),))
         findings.append(name_issue)
         name_issue = None
     # ---- address: house no + postal (X-03), AI parse when logic fails
@@ -394,7 +463,9 @@ def v05_customer(c: Ctx) -> RuleOutcome:
                     findings.append(_f(c, "E07", "V-05", "AI ไม่มั่นใจเรื่องที่อยู่ลูกค้า", "Medium",
                                        actual=d.v("customer_address"), element_ids=fid("customer_address")))
                 else:
-                    return RuleOutcome("V-05", "manual_review", tuple(findings), "AI ไม่มั่นใจเรื่องที่อยู่", data=data)
+                    return RuleOutcome("V-05", "manual_review", tuple(findings), "AI ไม่มั่นใจเรื่องที่อยู่", data=data,
+                                       reviews=(_rv("AI ไม่มั่นใจเรื่องที่อยู่ลูกค้า", fid("customer_address"),
+                                                    actual=d.v("customer_address")),))
             else:
                 ai_key = (thai_to_arabic(str(r.get("house_no") or "")) or None,
                           thai_to_arabic(str(r.get("postal_code") or "")) or None)
@@ -426,7 +497,9 @@ def v05_customer(c: Ctx) -> RuleOutcome:
             data.update(name_check="advisory", name_issue=name_issue[1] if isinstance(name_issue, tuple)
                         else name_issue.message_th)
         elif isinstance(name_issue, tuple):
-            return RuleOutcome("V-05", "manual_review", tuple(findings), name_issue[1], data=data)
+            return RuleOutcome("V-05", "manual_review", tuple(findings), name_issue[1], data=data,
+                               reviews=(_rv(name_issue[1], fid("customer_name"), actual=d.v("customer_name"),
+                                            expected=ent.get("name_th")),))
         else:
             findings.insert(0, name_issue)
     if not d.ok("customer_name") or not d.ok("customer_address"):
@@ -451,7 +524,7 @@ def v07_line_match(c: Ctx) -> RuleOutcome:
             for n in g.invoice_line_nos:
                 l = lines[n]
                 out.append(_f(c, "E13", "V-07", f"{_line_tag(l)}: ระบุบรรทัดในใบรับไม่ได้", element_ids=(l.element_id,),
-                              oracle_refs=refs))
+                              oracle_refs=refs, actual=_line_values(l), expected="บรรทัดใบรับที่ตรงกัน"))
             continue
         rcv = [rows[i] for i in g.rcv_line_ids]
         rcv_groups = {c.std.uom_group(r.uom) for r in rcv}
@@ -501,7 +574,8 @@ def v07_line_match(c: Ctx) -> RuleOutcome:
                 # an unreadable price is E01 (V-01), not evidence of a price variance (E09 High)
                 if g.level == "M4":
                     out.append(_f(c, "E11", "V-07", f"{_line_tag(l)}: จับคู่ด้วยคำบรรยาย ({g.rationale or ''})"[:200],
-                                  element_ids=(l.element_id,), oracle_refs=refs))
+                                  element_ids=(l.element_id,), oracle_refs=refs, actual=_line_values(l),
+                                  expected=f"{tot_q} x {rcv_price}"))
                 continue
             pc = price_check(p, rcv_price, c.std)
             if pc == "over_tolerance":
@@ -519,7 +593,8 @@ def v07_line_match(c: Ctx) -> RuleOutcome:
                                    "reason": "price/qty/amount/uom equal receipt", "ai_rationale": g.rationale})
                     continue
                 out.append(_f(c, "E11", "V-07", f"{_line_tag(l)}: จับคู่ด้วยคำบรรยาย ({g.rationale or ''})"[:200],
-                              element_ids=(l.element_id,), oracle_refs=refs))
+                              element_ids=(l.element_id,), oracle_refs=refs, actual=_line_values(l),
+                              expected=f"{tot_q} x {rcv_price}"))
     data = {"groups": len(c.groups), "ai_rejected": len(c.match_trace.get("ai_rejected", []))}
     if waived:
         data["e11_waived"] = waived
@@ -539,10 +614,33 @@ def v07_line_match(c: Ctx) -> RuleOutcome:
             return _fail("V-07", out, **data)
         return RuleOutcome("V-07", "manual_review", tuple(out),
                            f"วางบิลเป็นงวด {len(installments)} บรรทัด (ยอดเงินตรงใบรับ แต่ราคา/จำนวนเป็นสัดส่วนงวด) "
-                           "— รอมาตรฐานกำหนด ให้คนตรวจ", data=data)
+                           "— รอมาตรฐานกำหนด ให้คนตรวจ", data=data,
+                           reviews=tuple(_installment_review(lines.get(i["invoice_line_no"]), i) for i in installments))
     if c.match_trace.get("ai_rejected"):
-        return RuleOutcome("V-07", "manual_review", tuple(out), "AI เสนอการจับคู่ที่อ้างบรรทัดไม่ถูกต้อง", data=data)
+        return RuleOutcome("V-07", "manual_review", tuple(out), "AI เสนอการจับคู่ที่อ้างบรรทัดไม่ถูกต้อง", data=data,
+                           reviews=_ai_rejected_reviews(c.match_trace["ai_rejected"], lines))
     return _fail("V-07", out, **data) if out else _ok("V-07", **data)
+
+
+def _installment_review(l, inst: dict) -> ReviewPoint:
+    if l is None:
+        return _rv(f"บรรทัดที่ {inst.get('invoice_line_no')} วางบิลเป็นงวด", missing_reason="NOT_LOCATED",
+                   actual=inst.get("invoice"), expected=inst.get("receipt"))
+    return _rv(f"{_line_tag(l)}: วางบิลเป็นงวด (ยอดเงินตรงใบรับ ราคา/จำนวนเป็นสัดส่วนงวด)",
+               (l.element_id, l.cells["unit_price"].element_id, l.cells["qty"].element_id),
+               oracle_refs=(f"RCV:{inst['rcv_line_id']}",) if inst.get("rcv_line_id") else (),
+               actual=inst.get("invoice"), expected=inst.get("receipt"))
+
+
+def _ai_rejected_reviews(rejected: list, lines: dict) -> tuple:
+    out = []
+    for r in rejected:
+        prop = r.get("proposal") or {}
+        nos = prop.get("invoice_line_nos") if isinstance(prop, dict) else getattr(prop, "invoice_line_nos", None)
+        ids = tuple(lines[n].element_id for n in (nos or ()) if n in lines)
+        out.append(_rv(f"AI เสนอการจับคู่ที่ถูกปฏิเสธ: {r.get('reason') or '-'}", ids,
+                       missing_reason=None if ids else "NOT_LOCATED"))
+    return tuple(out) or (_rv("AI เสนอการจับคู่ที่อ้างบรรทัดไม่ถูกต้อง", missing_reason="NOT_LOCATED"),)
 
 
 def _installment(c: Ctx, l, rcv, g) -> Optional[dict]:
@@ -587,7 +685,8 @@ def v08_quantity(c: Ctx) -> RuleOutcome:
         results, n, majority, dis = v08mod.decide(payload, expected), 0, True, []
     else:
         if c.qty_ai is None:
-            return RuleOutcome("V-08", "manual_review", detail="ไม่มี AI สำหรับ V-08")
+            return RuleOutcome("V-08", "manual_review", detail="ไม่มี AI สำหรับ V-08",
+                               reviews=(_rv("ไม่มี AI สำหรับ V-08 — ตรวจจำนวนเทียบใบรับ", missing_reason="NOT_LOCATED"),))
         n = int(c.std.policy["ai"]["v08_votes"])
         merged, majority = v08mod.vote([c.qty_ai.judge(payload) for _ in range(n)])
         results, dis = v08mod.guard(merged, expected, c.std.policy["ai"]["v08_consistency_guard"])
@@ -632,7 +731,19 @@ def v08_quantity(c: Ctx) -> RuleOutcome:
     if out:
         return _fail("V-08", out, **data)
     if "manual_review" in res:
-        return RuleOutcome("V-08", "manual_review", detail="AI/facts ไม่สอดคล้อง หรือเทียบจำนวนไม่ได้", data=data)
+        reviews = []
+        for lr in results:
+            l = lines.get(lr.get("invoice_line_no"))
+            if lr.get("result") != "manual_review":
+                continue
+            msg = f"{_line_tag(l) if l else 'บรรทัดที่ ' + str(lr.get('invoice_line_no'))}: " \
+                  f"{lr.get('reason') or lr.get('message') or 'เทียบจำนวนกับใบรับไม่ได้'}"
+            reviews.append(_rv(msg, (l.element_id, l.cells["qty"].element_id) if l else (),
+                               missing_reason=None if l else "NOT_LOCATED",
+                               actual=None if l is None or l.v("qty") is None else str(l.v("qty")),
+                               expected=None if lr.get("qty_rcv_compared") is None else str(lr.get("qty_rcv_compared"))))
+        return RuleOutcome("V-08", "manual_review", detail="AI/facts ไม่สอดคล้อง หรือเทียบจำนวนไม่ได้", data=data,
+                           reviews=tuple(reviews))
     if res and all(r == "not_evaluated" for r in res):
         return _skip("V-08", "V-07", "ทุกบรรทัดระบุคู่ในใบรับไม่ได้")
     return _ok("V-08", **data)

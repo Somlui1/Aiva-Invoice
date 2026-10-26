@@ -7,6 +7,28 @@
 
 ---
 
+## Engine v5.7 (candidate) — หลักฐานรายจุด (evidence per finding) ให้ตรงกับปุ่ม 3 สถานะของ Portal
+
+**ผลตัดสินไม่เปลี่ยน:** `recommendation`, `max_severity`, `exception_codes`, `reasons` และผลของกฎ V-01..V-09 เหมือน v5.6 ทุกฉบับ
+(replay 125 ฉบับ `paperless_invoices_v5` ต่าง 0 ฉบับ · sandbox 59/68 แถวเดียวกันทุกแถว รวมทั้งโหมด `AIVA_EVIDENCE_STRICT=1`)
+**contract id ไม่เปลี่ยน** (`aiva.system_a.result/3.0`) · `versions.schema` = `3.1` (เพิ่มอย่างเดียว) · **Portal ต้องรับ schema 3.1 ก่อน (frontend F10)**
+
+| ส่วน | สิ่งที่เปลี่ยน | ไฟล์ |
+|---|---|---|
+| E1 ตัวตรวจ | `check_evidence()` ตรวจ R1–R10 ก่อนส่งผล ใส่ใน `metrics.evidence_violations` (ไม่เข้า integrity) · `AIVA_EVIDENCE_STRICT=1` = raise | `application/evidence_check.py` (ใหม่), `assembler.py` |
+| E2 เหตุผลไม่มีกรอบ | `bbox_missing_reason.reason` คำนวณจาก element จริง: `PAGES_INCOMPLETE` > `NOT_PRESENT` > `LOW_CONFIDENCE` > `NOT_LOCATED` > `NO_ELEMENT` (เดิมฮาร์ดโค้ด `NOT_LOCATED` และเป็น `null` เมื่อ finding ไม่มี element) · `details` เมื่อหลายเหตุผล · id ที่ไม่มี element ไม่อยู่ใน `related_element_ids` · สร้าง element ให้ row/cell ที่ normalize สร้างแต่ reader ไม่มี | `assembler.py` (`_locate`, `build_elements`), `contracts.py` (`Finding.missing_reason`) |
+| E3 แยกหลักฐาน | V-01: 1 finding ต่อฟิลด์ / ต่อบรรทัด / หน้าไม่ครบ / geometry ต่อบรรทัด (เดิมรวมเป็น 1) · V-03: 1 finding ต่อการตรวจที่ผิด (เดิมชี้ 3 ยอดเสมอ) · severity/branch เดิมทุกกรณี | `domain/rules.py` |
+| E4 manual_review | `ReviewPoint` → evidence `kind:"review"`, `exception_code/severity = null`, **ไม่เข้า `exceptions[]` และ `recommend()`** · V-04 (5 branch), V-05 (4), V-07 (งวด, ai_rejected), V-08 (รายบรรทัด, ไม่มี AI) · ตาข่ายสำรองใน assembler ให้ทุก rule ที่ manual_review มีแถวเสมอ · `summary.exceptions/rules.codes/lines.codes` นับเฉพาะแถวที่มี code + `summary.review_points` | `contracts.py`, `rules.py`, `assembler.py` |
+| E5 ลายเซ็น | element `D1-sig-receiver/deliverer` มีครบทุก slot (slot ที่ไม่มีกล่อง = bbox null + `null_reason`) · `normalized_value` เป็น bool/null เท่านั้น · E08 ชี้ slot เสมอ | `assembler.py`, `rules.py` (V-06) |
+| E6 ค่าใน banner | `actual/expected`: V-01 (ฟิลด์/บรรทัด vs required), V-03 (ต่อการตรวจ), V-06 (`empty`/`no box` vs `signed`), V-07 E11/E13 (`qty x price = amount` vs ใบรับ) | `rules.py` |
+| E7 schema 3.1 | evidence += `kind`, `field_name`, `line_no`; `severity`/`exception_code` เป็น null ได้เฉพาะแถว review; enum ของ reason; แถวไม่มี bbox ต้องมี reason | `schemas/result-3.1.schema.json` (ใหม่), `api/app.py`, `sandbox/scenarios.py` |
+
+**ผลบน replay 125 ฉบับ (row bbox คืนค่าครบ):** evidence 158 → 232 แถว (review 14) · exceptions 158 → 218 · violation R3 20 → 0, R7 2 → 0 ·
+คงเหลือ advisory R2 1 ฉบับ (DMS-26 V-08 E14 กลุ่มราคา ชี้ทุกบรรทัดโดยตั้งใจ)
+**Tests:** `tests/test_evidence_findings.py` ใหม่ 21 ข้อ · `test_v06_signature_detect.py` แก้ 1 ข้อ (E08 ไม่มีกล่องตอนนี้ชี้ slot element) ·
+pytest ในเครื่องที่ตรวจ: **256 passed / 37 failed** — 37 ข้อเท่ากับก่อนแก้ทุกตัว (36 ไม่มี `openai` + 1 import `tests.test_single_pass`) — **ต้องรันซ้ำในเครื่องที่มี `openai`** (คาด 272 + 21 = 293 passed)
+**Golden (`--golden`):** baseline ก่อนแก้ก็ DRIFT 19/19 อยู่แล้ว ⇒ ต้อง repin หลัง review (จำนวน evidence เปลี่ยนโดยตั้งใจ)
+
 ## Engine v5.6 (candidate) — ลายเซ็น/ตรา V-06 ให้ตรงกับ Portal
 
 **สถานะ:** engine 231 passed (ส่วนที่ fail 37 ข้อเป็นของเดิมที่ fail อยู่แล้ว เพราะ sandbox ไม่มี `openai` ไม่มีข้อใหม่), sandbox 58/68 เท่ากับ v5.5 (S18 E08 ยังผ่าน)
