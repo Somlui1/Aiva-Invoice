@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { Icon } from '../common/Icon'
 import { StatusBadge } from '../common/StatusBadge'
-import { InvoiceDoc, EvidenceSelection } from '../../types/invoice'
+import { InvoiceDoc, EvidenceSelection, type Finding, type RuleCheck } from '../../types/invoice'
+import { EvidenceButton } from '../evidence/EvidenceButton'
+import { findingsOf } from '../../features/evidence/findings'
 import { useAuth } from '../../context/AuthContext'
 import { useInvoices, TODAY } from '../../context/InvoiceContext'
 import { useToastModal } from '../../context/ToastModalContext'
@@ -23,6 +25,7 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
     setActiveDetailTab,
     isEvidenceDockOpen,
     openEvidenceDock,
+    openEvidence,
     closeEvidenceDock,
     isPdfLoading,
     allowedAction,
@@ -34,6 +37,8 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
   const { toast } = useToastModal()
 
   const [selectedPoFilter, setSelectedPoFilter] = useState<string | null>(null)
+  // Rule cards whose long finding list (> 5) the reviewer expanded. Declared before any early return.
+  const [expandedRules, setExpandedRules] = useState<Record<string, boolean>>({})
   useEffect(() => {
     setSelectedPoFilter(null)
   }, [doc.doc])
@@ -111,8 +116,17 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
       ? { cls: 'bad', lbl: 'พบซ้ำ', icon: 'x' as const }
       : { cls: 'ok', lbl: 'ไม่ซ้ำ', icon: 'check' as const }
 
-  const failRules = doc.rules.filter(r => r.status === 'FAIL' || r.result === 'fail')
+  // Cards: failed rules first, then rules waiting for a person (manual_review). A manual_review rule
+  // used to have no card at all, so its evidence (engine v5.7 review rows) had nowhere to be opened.
+  const isFail = (r: RuleCheck) => r.status === 'FAIL' || r.result === 'fail'
+  const isReview = (r: RuleCheck) => !isFail(r) && (r.status === 'WARN' || r.result === 'manual_review')
+  const failRules = [...doc.rules.filter(isFail), ...doc.rules.filter(isReview)]
   const passRules = doc.rules.filter(r => r.status === 'PASS' || r.result === 'pass')
+  /** `V-07` -> 'V-07 จับคู่รายบรรทัดและราคา' (exact code; the old `startsWith` matched 'V-0' too). */
+  const ruleTitle = (r: RuleCheck) => RULES.find((x: string) => x.split(' ')[0] === r.rule) || r.name
+  const FINDINGS_SHOWN = 5
+  const activeFindingId = evidenceSelection?.findingId ?? null
+  const openFinding = (f: Finding) => openEvidence(f)
 
   return (
     <section className="col detail" id="detail" aria-label="รายละเอียดเอกสาร" ref={detailRef}>
@@ -351,23 +365,28 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
 
               {failRules.length > 0 ? (
                 failRules.map(r => {
-                  const c = r.exception_code || 'E01'
-                  const cat = EXCEPTION_CATALOG[c] || ['ข้อยกเว้น', 'acc']
+                  const review = isReview(r)
+                  // A review card has no exception code; it must not borrow E01 from the old default.
+                  const c = r.exception_code || (review ? '' : 'E01')
+                  const cat = (c && EXCEPTION_CATALOG[c]) || (review ? ['ต้องตรวจโดยคน', 'acc'] : ['ข้อยกเว้น', 'acc'])
                   const isEuAction = cat[1] === 'eu'
-                  const sev = r.severity || 'High'
-                  const catKey = getValidationCategory(c, r.rule)
+                  const sev = r.severity || (review ? 'Low' : 'High')
+                  const catKey = getValidationCategory(c || null, r.rule)
+                  const findings = findingsOf(r, doc)
+                  const expanded = !!expandedRules[r.rule]
+                  const shown = expanded ? findings : findings.slice(0, FINDINGS_SHOWN)
 
                   const picked = evidenceSelection?.ruleId === r.rule
 
+                  // Clicking the card = the button of its first finding. A card with no finding (a
+                  // manual_review the Engine gave no evidence row) only marks itself: no dock, no page 1.
                   const handleSelectValidation = () => {
                     const ruleId = r.rule || r.id
-                    const pageNo = r.page || 1
-                    openEvidenceDock(pageNo, ruleId)
-                    setEvidenceSelection({
-                      ruleId,
-                      exceptionCode: r.exception_code,
-                      surface: 'pdf',
-                    })
+                    if (findings[0]) {
+                      openFinding(findings[0])
+                      return
+                    }
+                    setEvidenceSelection({ ruleId, exceptionCode: r.exception_code, surface: 'pdf' })
                   }
 
                   return (
@@ -387,34 +406,70 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
                       }}
                     >
                       <div className="exc-h">
-                        <span className={`code ${sev}`}>{c}</span>
+                        <span className={`code ${sev}${review ? ' review' : ''}`}>{c || 'ต้องตรวจ'}</span>
                         <h4>{cat[0]}</h4>
-                        <span className={`sev ${sev}`}>{sev}</span>
+                        {!review && <span className={`sev ${sev}`}>{sev}</span>}
                         <span className="sp" />
                         <span className={`owner-tag ${isEuAction ? 'eu' : ''}`}>
                           <Icon name={isEuAction ? 'user' : 'building'} size="sm" />
                           {isEuAction ? 'ผู้ใช้งานแก้' : 'ฝ่ายบัญชีตัดสิน'}
                         </span>
                       </div>
-                      <div className="rl">{RULES.find((x: string) => x.startsWith(r.rule)) || r.name}</div>
+                      <div className="rl">{ruleTitle(r)}</div>
                       <div className="ev">
-                        <div className="ev-text">{r.detail || r.evidence || ''}</div>
-                        {can('DMS') && (
+                        <div className="ev-text">
+                          {findings.length > 1
+                            ? `${r.detail || r.evidence || ''}${r.detail || r.evidence ? '\n' : ''}พบ ${findings.length} รายการ`
+                            : findings[0]?.messageTh || r.detail || r.evidence || ''}
+                        </div>
+                        {can('DMS') && findings.length === 1 && (
                           <div className="ev-btn">
-                            <button
-                              type="button"
-                              className="link"
-                              onClick={e => {
-                                e.stopPropagation()
-                                handleSelectValidation()
-                              }}
-                            >
-                              <Icon name="target" size="sm" />
-                              ดูหลักฐานหน้า {r.page || 1}
-                            </button>
+                            <EvidenceButton
+                              finding={findings[0]}
+                              onOpen={openFinding}
+                              active={activeFindingId === findings[0].id}
+                            />
                           </div>
                         )}
                       </div>
+                      {findings.length > 1 && (
+                        <ul className="fnd-list" aria-label={`หลักฐานของ ${r.rule}`}>
+                          {shown.map(f => (
+                            <li
+                              key={f.id}
+                              className={`fnd${activeFindingId === f.id ? ' on' : ''}`}
+                              data-finding={f.id}
+                            >
+                              <span className={`code ${f.severity ?? 'Low'}${f.code ? '' : ' review'}`}>
+                                {f.code ?? 'ต้องตรวจ'}
+                              </span>
+                              <span className="fnd-text">{f.messageTh || r.detail || f.ruleId}</span>
+                              {can('DMS') && (
+                                <EvidenceButton
+                                  finding={f}
+                                  onOpen={openFinding}
+                                  active={activeFindingId === f.id}
+                                  compact
+                                />
+                              )}
+                            </li>
+                          ))}
+                          {findings.length > FINDINGS_SHOWN && (
+                            <li className="fnd-more">
+                              <button
+                                type="button"
+                                className="link"
+                                onClick={e => {
+                                  e.stopPropagation()
+                                  setExpandedRules(prev => ({ ...prev, [r.rule]: !expanded }))
+                                }}
+                              >
+                                {expanded ? 'ย่อรายการ' : `แสดงอีก ${findings.length - FINDINGS_SHOWN} รายการ`}
+                              </button>
+                            </li>
+                          )}
+                        </ul>
+                      )}
                     </div>
                   )
                 })
@@ -653,12 +708,15 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
                   </tr>
                 </thead>
                 <tbody>
-                  {doc.rules.map(r => (
+                  {doc.rules.map(r => {
+                    const passed = r.status === 'PASS' || r.status === 'SKIP'
+                    const findings = passed ? [] : findingsOf(r, doc)
+                    return (
                     <tr
                       key={r.id || r.rule}
                       className={r.status === 'FAIL' || r.result === 'fail' ? 'row-bad' : ''}
                     >
-                      <td>{RULES.find((x: string) => x.startsWith(r.rule)) || r.name}</td>
+                      <td>{ruleTitle(r)}</td>
                       <td className={r.status === 'PASS' || r.result === 'pass' ? 'okc' : 'badc'}>
                         {r.status || r.result}
                       </td>
@@ -673,18 +731,31 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
                       </td>
                       <td className="sm">{r.detail || r.evidence || ''}</td>
                       <td>
-                        {can('DMS') && (
+                        {can('DMS') && findings.length === 1 && (
+                          <EvidenceButton
+                            finding={findings[0]}
+                            onOpen={openFinding}
+                            active={activeFindingId === findings[0].id}
+                            compact
+                          />
+                        )}
+                        {can('DMS') && findings.length > 1 && (
                           <button
                             type="button"
                             className="link"
-                            onClick={() => openEvidenceDock(r.page || 1, r.rule || r.id)}
+                            title="ดูรายการหลักฐานทั้งหมดของกฎนี้"
+                            onClick={() => {
+                              setActiveDetailTab('sum')
+                              setEvidenceSelection({ ruleId: r.rule, exceptionCode: r.exception_code, surface: 'pdf' })
+                            }}
                           >
-                            <Icon name="target" size="sm" /> ดู
+                            <Icon name="target" size="sm" /> {findings.length} รายการ
                           </button>
                         )}
                       </td>
                     </tr>
-                  ))}
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

@@ -322,7 +322,9 @@ export function transformValidatedEngineResult(engine: EngineResultV3): PortalIn
       const eid = typeof bb.element_id === 'string' ? bb.element_id : undefined
       if (!eid) continue
       const key = linkKey(eid)
-      if (!evidenceByElement.has(key)) {
+      const known = evidenceByElement.get(key)
+      // first row wins, except that an exception row replaces a review row (no code = no colour)
+      if (!known || (known.exceptionCode === undefined && typeof ev.exception_code === 'string')) {
         evidenceByElement.set(key, {
           ruleId: ev.rule_id as string,
           exceptionCode: typeof ev.exception_code === 'string' ? (ev.exception_code as string) : undefined,
@@ -535,7 +537,11 @@ export function buildFindings(
         TARGET_ORDER[a.kind] - TARGET_ORDER[b.kind] || a.pageNo - b.pageNo || a.bbox[1] - b.bbox[1],
     )
 
-    const reason = ev.bbox_missing_reason ?? null
+    const rawReason = ev.bbox_missing_reason as unknown
+    const reason =
+      rawReason && typeof rawReason === 'object' && Array.isArray((rawReason as { element_ids?: unknown }).element_ids)
+        ? (rawReason as { element_ids: string[]; reason?: unknown })
+        : null
     const kind: PortalFinding['kind'] = ev.kind ?? (ev.exception_code == null ? 'review' : 'exception')
     const finding: PortalFinding = {
       id,

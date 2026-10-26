@@ -46,6 +46,12 @@ export interface ViewerBBox {
   elementType?: string | null
   /** Table row this box belongs to, for PDF → detail-pane row highlighting. */
   lineNo?: number
+  /**
+   * Every finding (evidence row) this box is evidence for. A box may serve several rules — e.g.
+   * `sub_total` for V-03 and V-09 — so `ruleId` / `exceptionCode` above are only the first one
+   * (they pick the colour); selection goes by this list.
+   */
+  findingIds?: string[]
 }
 
 /** A box positioned in the CSS pixels of the page surface. */
@@ -60,6 +66,9 @@ export interface OverlayBox extends PixelBox {
   tag: string | null
   tooltip: string
   focused: boolean
+  /** Another box of the active finding is the focused one: draw this one faded. */
+  dim: boolean
+  findingIds?: string[]
   elementType?: string | null
 }
 
@@ -78,7 +87,14 @@ export interface ProjectOptions {
   focusId?: string | null
   /** Draw only boxes tied to a rule. Default `false` — the caller sets the policy. */
   onlyEvidence?: boolean
-  /** Filter to only display boxes belonging to this specific validation rule. */
+  /**
+   * Show only the boxes of this finding (evidence row). A box that carries `findingIds` is matched
+   * by them alone; a box without (mock page, rule-origin, payload stored before findings) falls back
+   * to `activeRuleId`. `focusId` then picks the one box of the finding that is focused (‹ n/m ›); the
+   * finding's other boxes are `dim`.
+   */
+  activeFindingId?: string | null
+  /** Filter to only display boxes belonging to this specific validation rule (exact id match). */
   activeRuleId?: string | null
   /** Optional exception code to further scope the active validation. */
   activeExceptionCode?: string | null
@@ -127,6 +143,22 @@ function tagLabel(
   return ruleId ?? null
 }
 
+/**
+ * Does a box belong to the active finding / rule?
+ *
+ * Exact matches only. The old rule match also accepted `activeRule.startsWith(b.ruleId)` and the
+ * reverse, so "V-0" matched "V-01" and a rule-level request jumped to whichever box came first.
+ */
+export function boxMatchesActive(
+  b: Pick<ViewerBBox, 'id' | 'ruleId' | 'findingIds'>,
+  activeRule: string | null,
+  activeFinding: string | null,
+): boolean {
+  if (activeFinding && b.findingIds && b.findingIds.length > 0) return b.findingIds.includes(activeFinding)
+  if (!activeRule) return !activeFinding
+  return b.ruleId === activeRule || b.id === activeRule || b.id.endsWith(`:${activeRule}`)
+}
+
 const shortTag = (b: ViewerBBox): string | null => b.exceptionCode ?? b.ruleId ?? null
 
 const area = (b: PixelBox): number => b.width * b.height
@@ -155,20 +187,17 @@ export function projectOverlayBoxes(boxes: ViewerBBox[], opts: ProjectOptions): 
   const padding = opts.padding ?? 0
   const rotation = opts.rotation ?? 0
   const activeRule = opts.activeRuleId ?? null
-  const activeCode = opts.activeExceptionCode ?? null
+  const activeFinding = opts.activeFindingId ?? null
+  // A finding already says which exception it is; the code filter would hide a box shared by two rules.
+  const activeCode = activeFinding ? null : (opts.activeExceptionCode ?? null)
 
   const placed: Array<OverlayBox & { viewer: ViewerBBox }> = []
   for (const b of boxes) {
     if (!b || b.pageNo !== opts.page) continue
     if (onlyEvidence && !b.ruleId) continue
 
-    if (activeRule) {
-      const matchRule =
-        b.ruleId === activeRule ||
-        b.id === activeRule ||
-        (b.id && b.id.includes(`:${activeRule}`)) ||
-        (b.ruleId && (activeRule.startsWith(b.ruleId) || b.ruleId.startsWith(activeRule)))
-      if (!matchRule) continue
+    if (activeRule || activeFinding) {
+      if (!boxMatchesActive(b, activeRule, activeFinding)) continue
     }
     if (activeCode && b.exceptionCode && b.exceptionCode !== activeCode) continue
 
@@ -191,6 +220,8 @@ export function projectOverlayBoxes(boxes: ViewerBBox[], opts: ProjectOptions): 
       tag: null,
       tooltip: tooltipOf(b),
       focused: false,
+      dim: false,
+      findingIds: b.findingIds,
       elementType: b.elementType,
       viewer: b,
     })
@@ -209,9 +240,11 @@ export function projectOverlayBoxes(boxes: ViewerBBox[], opts: ProjectOptions): 
     }
     box.focused = !!opts.focusId
       ? box.id === opts.focusId
-      : activeRule
+      : activeRule || activeFinding
         ? true
         : !!opts.focusRuleId && box.ruleId === opts.focusRuleId
+    // ‹ n/m ›: of the active finding's boxes only the chosen one is lit, the rest are faded.
+    box.dim = !!activeFinding && !!opts.focusId && !box.focused
   }
 
   return placed.map(({ viewer: _viewer, ...box }) => box)
@@ -237,6 +270,8 @@ interface EngineEvidenceLite {
   rule_id?: string
   exception_code?: string
   severity?: ExceptionSeverity
+  /** One evidence group per finding (Portal raw payload); absent on legacy per-rule groups. */
+  finding_id?: string
   bboxes?: Array<{ element_id?: string; page_no?: number; bbox?: unknown }>
 }
 
@@ -269,6 +304,9 @@ export function viewerBoxesFromInvoiceDoc(doc: InvoiceDoc, opts: ViewerBBoxOptio
   }
 
   for (const r of doc.rules ?? []) {
+    // A rule that carries findings is drawn from the findings' own boxes (below). Its single
+    // `bbox` is only a copy of one of them, and drawing it would add a box that belongs to no finding.
+    if (r.findings !== undefined) continue
     const bb = r.bbox
     if (!bb || !(bb.w > 0) || !(bb.h > 0)) continue
     const bbox = normalizeBBox([bb.x, bb.y, bb.w, bb.h])
@@ -290,13 +328,23 @@ export function viewerBoxesFromInvoiceDoc(doc: InvoiceDoc, opts: ViewerBBoxOptio
   const raw = (doc.raw_payload ?? undefined) as EnginePayloadLite | undefined
   if (!raw || typeof raw !== 'object') return out
 
-  // Which rule/exception each OCR element is evidence for.
-  const links = new Map<string, EngineEvidenceLite>()
+  // Which rule/exception each OCR element is evidence for — every evidence row it appears in.
+  const links = new Map<string, EngineEvidenceLite[]>()
   for (const ev of raw.evidence ?? []) {
     for (const b of ev?.bboxes ?? []) {
       const key = b?.element_id
-      if (key && !links.has(key)) links.set(key, ev)
+      if (!key) continue
+      const list = links.get(key)
+      if (list) list.push(ev)
+      else links.set(key, [ev])
     }
+  }
+  /** The row that colours the box (an exception beats a review) and the findings it serves. */
+  const linkOf = (elementId: string): { primary?: EngineEvidenceLite; findingIds?: string[] } => {
+    const list = links.get(elementId)
+    if (!list?.length) return {}
+    const ids = [...new Set(list.map(e => e.finding_id).filter((x): x is string => !!x))]
+    return { primary: list.find(e => !!e.exception_code) ?? list[0], findingIds: ids.length ? ids : undefined }
   }
 
   for (const el of raw.ocr?.elements ?? []) {
@@ -304,7 +352,7 @@ export function viewerBoxesFromInvoiceDoc(doc: InvoiceDoc, opts: ViewerBBoxOptio
     const bbox = normalizeBBox(el?.bbox)
     if (!id || !bbox) continue
     if (el.element_type === 'page') continue // full-page container, not a field
-    const link = links.get(id)
+    const { primary: link, findingIds } = linkOf(id)
     const value = el.raw_value ?? el.normalized_value
     push({
       id: `${doc.doc}:${id}`,
@@ -314,6 +362,7 @@ export function viewerBoxesFromInvoiceDoc(doc: InvoiceDoc, opts: ViewerBBoxOptio
       ruleId: link?.rule_id,
       exceptionCode: link?.exception_code,
       severity: link?.severity,
+      findingIds,
       label: tagLabel(link?.exception_code, link?.rule_id, opts.labelOf),
       fieldName: el.field_name ?? null,
       value: value == null ? null : String(value),
@@ -327,15 +376,17 @@ export function viewerBoxesFromInvoiceDoc(doc: InvoiceDoc, opts: ViewerBBoxOptio
     for (const b of ev?.bboxes ?? []) {
       const bbox = normalizeBBox(b?.bbox)
       if (!b?.element_id || !bbox) continue
+      const { primary, findingIds } = linkOf(b.element_id)
       push({
         id: `${doc.doc}:${b.element_id}`,
         pageNo: b.page_no ?? 1,
         bbox,
         origin: 'engine',
-        ruleId: ev?.rule_id,
-        exceptionCode: ev?.exception_code,
-        severity: ev?.severity,
-        label: tagLabel(ev?.exception_code, ev?.rule_id, opts.labelOf),
+        ruleId: (primary ?? ev)?.rule_id,
+        exceptionCode: (primary ?? ev)?.exception_code,
+        severity: (primary ?? ev)?.severity,
+        findingIds,
+        label: tagLabel((primary ?? ev)?.exception_code, (primary ?? ev)?.rule_id, opts.labelOf),
       })
     }
   }

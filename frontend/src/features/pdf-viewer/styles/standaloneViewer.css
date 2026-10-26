@@ -125,3 +125,23 @@
 .hide-labels .box span {
   display: none;
 }
+
+/* `?finding=` (plan F8): the finding's boxes stand out, the rest step back. */
+.box.focus {
+  border-width: 3px;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.9), 0 0 14px rgba(245, 158, 11, 0.6);
+  z-index: 5;
+}
+
+.box.dim {
+  opacity: 0.35;
+}
+
+.focus-note {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(245, 158, 11, 0.18);
+  border: 1px solid rgba(245, 158, 11, 0.6);
+  white-space: nowrap;
+}

@@ -258,8 +258,9 @@ export interface RawElementLite {
 
 export interface RawEvidenceLite {
   rule_id: string
-  exception_code: string
-  severity: ExceptionSeverity
+  /** Absent on a review finding (manual_review evidence has no exception code). */
+  exception_code?: string
+  severity?: ExceptionSeverity
   /** The finding this group is (one group per finding; legacy payloads: one per rule). */
   finding_id?: string
   bboxes: { element_id: string; page_no: number; bbox: number[] }[]
@@ -295,17 +296,18 @@ export function portalBboxesToRawPayload(
     })
   }
 
-  // One evidence group per *exception* finding, so a rule with several findings (V-07 per line)
-  // keeps each finding's boxes apart and a box shared by two rules sits in both groups. Review
-  // findings (no code) are not drawn as exceptions; they are reached through `findingIds`.
+  // One evidence group per *located* finding, so a rule with several findings (V-07 per line)
+  // keeps each finding's boxes apart and a box shared by two rules sits in both groups. A review
+  // finding (manual_review, no exception code) is a group too — its button has to find its boxes —
+  // but carries no code / severity, so it is drawn as "needs a person", never as an exception.
   const findingGroups: RawEvidenceLite[] = []
   for (const r of doc.rules) {
     for (const f of r.findings ?? []) {
-      if (f.kind !== 'exception' || !f.code || !f.severity || f.targets.length === 0) continue
+      if (f.targets.length === 0) continue
       findingGroups.push({
         rule_id: f.ruleId,
-        exception_code: f.code,
-        severity: f.severity,
+        ...(f.code ? { exception_code: f.code } : {}),
+        ...(f.severity ? { severity: f.severity } : {}),
         finding_id: f.id,
         bboxes: f.targets.map(t => ({
           element_id: t.id,

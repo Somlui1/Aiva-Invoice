@@ -751,6 +751,11 @@
   z-index: 10 !important;
 }
 
+/* The finding's other boxes while one of them is focused (‹ n/m ›): visible, but clearly secondary. */
+.evd .hl.dim {
+  opacity: .4;
+}
+
 /* Category-based theme highlights */
 .hl.cat-missing,
 .evd .hl.cat-missing {
@@ -973,4 +978,100 @@
   background: #FFFBEB;
   color: #92400E;
   font-weight: 700;
+}
+
+/* ---------------------------------------------------------------------------
+   Evidence findings in the dock — chips, status bar, banner (plan F6/F9).
+   Tokens only, so dark-compat.css needs no regeneration for these rules.
+   --------------------------------------------------------------------------- */
+.evchip.noloc {
+  border-style: dashed;
+  border-color: var(--warn-bd);
+}
+
+.evchip.review .code {
+  background: var(--s-100);
+  color: var(--s-700);
+}
+
+.ev-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--sunken);
+  font-size: 12px;
+  color: var(--s-800);
+}
+
+.ev-status .grow {
+  flex: 1;
+}
+
+.ev-status-where {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ev-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.ev-nav button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--s-700);
+  cursor: pointer;
+}
+
+.ev-nav button:focus-visible {
+  outline: 2px solid var(--info);
+  outline-offset: 1px;
+}
+
+.ev-banner {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 8px 10px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--warn-bd);
+  border-radius: var(--r-md);
+  background: var(--warn-bg);
+  color: var(--s-800);
+  font-size: 12.5px;
+}
+
+.ev-banner-msg {
+  margin-top: 4px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ev-banner-kv {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  margin: 6px 0 0;
+}
+
+.ev-banner-kv dt {
+  color: var(--s-500);
+}
+
+.ev-banner-kv dd {
+  margin: 0;
+  word-break: break-word;
 }

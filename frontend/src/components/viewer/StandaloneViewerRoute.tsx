@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
+import { parseViewerQuery, viewerFocusFor } from '../../features/evidence/viewerFocus'
 import {
   StandaloneBBoxViewer,
   type BBoxItem,
@@ -63,8 +64,18 @@ export function StandaloneViewerRoute({ docId: propDocId }: { docId?: string }) 
     }
   }, [effectiveId])
 
+  // `?finding=X3&t=0`: open on one finding (the dock's "open in new tab" carries it).
+  const query = useMemo(
+    () => parseViewerQuery(typeof window !== 'undefined' ? window.location.search : ''),
+    [],
+  )
+  const focus = useMemo(() => viewerFocusFor(doc, query.finding, query.target), [doc, query])
+
   return (
     <StandaloneBBoxViewer
+      focusIds={focus?.ids}
+      scrollToId={focus?.firstId}
+      focusNote={focus?.note}
       docId={effectiveId}
       title={`${effectiveId}${doc?.inv ? ` · ${doc.inv}` : ''}`}
       pdfUrl={`/api/documents/${effectiveId}/pdf`}

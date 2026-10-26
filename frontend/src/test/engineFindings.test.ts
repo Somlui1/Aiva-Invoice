@@ -163,12 +163,36 @@ describe('F2 UI model', () => {
     expect(b.expected).toBe('—')
   })
 
-  it('one raw evidence group per exception finding; a shared box sits in every group', () => {
+  it('one raw evidence group per located finding; a shared box sits in every group', () => {
     const p = portal('DMS-27')
     const payload = portalBboxesToRawPayload(p)
-    const exc = p.rules.flatMap(r => r.findings ?? []).filter(f => f.kind === 'exception' && f.targets.length)
-    expect(payload.evidence).toHaveLength(exc.length)
+    const located = p.rules.flatMap(r => r.findings ?? []).filter(f => f.targets.length)
+    expect(payload.evidence).toHaveLength(located.length)
     expect(payload.evidence.every(g => g.finding_id)).toBe(true)
+  })
+
+  it('a located review finding is a group too, with no code, and does not take the box colour', () => {
+    const r = raw('DMS-27')
+    const src = r.evidence.find((e: { rule_id: string }) => e.rule_id === 'V-07')
+    r.evidence.push({
+      ...src,
+      evidence_id: 'X98',
+      result: 'manual_review',
+      exception_code: null,
+      severity: null,
+      kind: 'review',
+      bbox_missing_reason: null,
+    })
+    r.rule_results.find((x: { rule_id: string }) => x.rule_id === 'V-07').evidence_ids.push('X98')
+    const p = transformEngineResultToPortalDoc(r)
+    const group = portalBboxesToRawPayload(p).evidence.find(g => g.finding_id === 'X98')!
+    expect(group).toBeTruthy()
+    expect(group.exception_code).toBeUndefined()
+    expect(group.severity).toBeUndefined()
+    expect(group.bboxes.length).toBeGreaterThan(0)
+    const shared = p.bboxes.find(b => b.id === group.bboxes[0].element_id)!
+    expect(shared.exceptionCode).toBe('E11')
+    expect(shared.findingIds).toContain('X98')
   })
 
   it('signature glyph: only "signed" / "true" count, an empty box does not', () => {

@@ -37,6 +37,12 @@ describe('Task 2: Validation Category Theme Definitions & Color Palette', () => 
     expect(getValidationCategory('E11')).toBe('duplicate')
   })
 
+  it('E11 raised by V-07 (line paired by description) is a mismatch, not a duplicate', () => {
+    expect(getValidationCategory('E11', 'V-07')).toBe('mismatch')
+    expect(getValidationCategory('E11', 'duplicate')).toBe('duplicate')
+    expect(getValidationCategory(null, 'duplicate')).toBe('duplicate')
+  })
+
   it('maps rule IDs and fallback to appropriate categories', () => {
     expect(getValidationCategory(null, 'V-01')).toBe('missing')
     expect(getValidationCategory(null, 'V-04')).toBe('missing')

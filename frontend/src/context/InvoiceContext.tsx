@@ -1,7 +1,8 @@
 'use client'
 
-import React, { createContext, useContext, useState, useMemo, useCallback, useEffect } from 'react'
-import { InvoiceDoc, InvoiceStatus, EvidenceSelection } from '../types/invoice'
+import React, { createContext, useContext, useState, useMemo, useCallback, useEffect, useRef } from 'react'
+import { InvoiceDoc, InvoiceStatus, EvidenceSelection, type Finding } from '../types/invoice'
+import { focusForFinding, focusForPage, selectionForFinding, type EvidenceDockFocus } from '../features/evidence/focus'
 import { INITIAL_DOCS } from '../mock/initialDocs'
 import { EU_CODES, ACTION_CONFIG, ActionType } from '../mock/rules'
 import { useAuth } from './AuthContext'
@@ -63,7 +64,16 @@ interface InvoiceContextType {
   activeDetailTab: string
   setActiveDetailTab: (tab: string) => void
   isEvidenceDockOpen: boolean
+  /**
+   * Legacy "open the dock on this page / rule". Kept for the toolbar button and existing callers;
+   * the 3-state evidence button opens a *finding* (`openEvidence`).
+   */
   openEvidenceDock: (page?: number, ruleId?: string) => void
+  /**
+   * Show one finding (evidence row) in the dock. With a box it turns to its page and lights box
+   * `targetIdx`; without one it opens the dock but does NOT move the PDF — the dock explains why.
+   */
+  openEvidence: (finding: Finding, targetIdx?: number) => void
   closeEvidenceDock: () => void
   /**
    * Share of `.work` given to the PDF dock (0.30–0.50, default 0.40 = the
@@ -74,7 +84,7 @@ interface InvoiceContextType {
   /** True while the dock is fetching/rasterising the PDF; drives the spinners. */
   isPdfLoading: boolean
   setIsPdfLoading: (loading: boolean) => void
-  evidenceDockFocus: { page: number; ruleId?: string; nonce?: number } | null
+  evidenceDockFocus: EvidenceDockFocus | null
   /**
    * Last box the analyst picked on the evidence surface — the reverse link of
    * `evidenceDockFocus`. The detail pane highlights the matching rule/row.
@@ -120,7 +130,10 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
   const [isEvidenceDockOpen, setIsEvidenceDockOpen] = useState<boolean>(false)
   const [dockSplitRatio, setDockSplitRatio] = useState<number>(0.4)
   const [isPdfLoading, setIsPdfLoading] = useState<boolean>(false)
-  const [evidenceDockFocus, setEvidenceDockFocus] = useState<{ page: number; ruleId?: string; nonce?: number } | null>(null)
+  const [evidenceDockFocus, setEvidenceDockFocus] = useState<EvidenceDockFocus | null>(null)
+  // Strictly increasing, so two requests in the same millisecond still differ (the dock re-scrolls on change).
+  const focusNonce = useRef(0)
+  const nextNonce = useCallback(() => (focusNonce.current = Math.max(Date.now(), focusNonce.current + 1)), [])
   const [evidenceSelection, setEvidenceSelection] = useState<EvidenceSelection | null>(null)
 
   useEffect(() => {
@@ -178,8 +191,17 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
   const openEvidenceDock = useCallback((page = 1, ruleId?: string) => {
     setViewMode('split')
     setIsEvidenceDockOpen(true)
-    setEvidenceDockFocus({ page, ruleId, nonce: Date.now() })
-  }, [])
+    setEvidenceDockFocus(focusForPage(page, ruleId, nextNonce()))
+  }, [nextNonce])
+
+  const openEvidence = useCallback((finding: Finding, targetIdx = 0) => {
+    setViewMode('split')
+    setIsEvidenceDockOpen(true)
+    setEvidenceDockFocus(focusForFinding(finding, targetIdx, nextNonce()))
+    // The reverse link (detail pane marks the card / row) is set in the same step, so a caller
+    // cannot open a finding and forget to mark it.
+    setEvidenceSelection(selectionForFinding(finding, targetIdx, 'pdf'))
+  }, [nextNonce])
 
   const closeEvidenceDock = useCallback(() => {
     setIsEvidenceDockOpen(false)
@@ -682,6 +704,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
         setActiveDetailTab,
         isEvidenceDockOpen,
         openEvidenceDock,
+        openEvidence,
         closeEvidenceDock,
         dockSplitRatio,
         setDockSplitRatio,

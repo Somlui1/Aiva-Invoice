@@ -19,9 +19,13 @@
  * whichever surface produced them.
  */
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { InvoiceDoc } from '../../types/invoice'
+import { InvoiceDoc, type Finding } from '../../types/invoice'
 import { Icon } from '../common/Icon'
 import { DockControls } from './DockControls'
+import { FindingBanner } from './FindingBanner'
+import { FindingStatusBar } from './FindingStatusBar'
+import { documentFindings } from '../../features/evidence/findings'
+import { clampTarget, stepFinding, stepTarget, viewerBoxId } from '../../features/evidence/focus'
 import { EvidenceCanvas } from './EvidenceCanvas'
 import { useInvoices } from '../../context/InvoiceContext'
 import { useAuth } from '../../context/AuthContext'
@@ -54,6 +58,7 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
   const { currentUser } = useAuth()
   const {
     closeEvidenceDock,
+    openEvidence,
     evidenceDockFocus,
     evidenceSelection,
     setEvidenceSelection,
@@ -161,6 +166,19 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
 
   const focusRuleId = evidenceDockFocus?.ruleId ?? evidenceSelection?.ruleId ?? null
 
+  // ---- Finding focus (the 3-state button) -------------------------------------------------------
+  // The chip strip, the status bar and the keyboard all walk the same list.
+  const findingList = useMemo(() => documentFindings(doc), [doc])
+  const focusFindingId = evidenceDockFocus?.findingId ?? null
+  const focusFinding = useMemo(
+    () => (focusFindingId ? findingList.find(f => f.id === focusFindingId) : undefined),
+    [findingList, focusFindingId],
+  )
+  const focusTargetIdx = focusFinding ? clampTarget(focusFinding, evidenceDockFocus?.targetIdx ?? 0) : 0
+  const focusTarget = focusFinding ? focusFinding.targets[focusTargetIdx] : undefined
+  // A finding with no box never moves the PDF: no page turn, no scroll, nothing lit — banner only.
+  const focusUnlocated = !!focusFindingId && evidenceDockFocus?.locatable === false
+
   const pdfOverlayBoxes = useMemo(
     () =>
       projectOverlayBoxes(pdfBoxes, {
@@ -171,10 +189,11 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
         focusRuleId,
         focusId: selectedId,
         activeRuleId: focusRuleId,
+        activeFindingId: focusFindingId,
         activeExceptionCode: evidenceSelection?.exceptionCode,
         onlyEvidence: !showAllFields,
       }),
-    [pdfBoxes, currentPage, pageSize, rotation, focusRuleId, selectedId, showAllFields, evidenceSelection?.exceptionCode],
+    [pdfBoxes, currentPage, pageSize, rotation, focusRuleId, focusFindingId, selectedId, showAllFields, evidenceSelection?.exceptionCode],
   )
 
   const mockPageSize = mockMode && measured.pageSize.width > 0 ? measured.pageSize : EMPTY_SIZE
@@ -190,10 +209,12 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
         focusRuleId,
         focusId: selectedId,
         activeRuleId: focusRuleId,
+        // Mock regions are per rule (no findingIds): the projector falls back to the rule.
+        activeFindingId: focusFindingId,
         activeExceptionCode: evidenceSelection?.exceptionCode,
         onlyEvidence: !showAllFields,
       }),
-    [mockBoxes, mockPageSize, focusRuleId, selectedId, showAllFields, evidenceSelection?.exceptionCode],
+    [mockBoxes, mockPageSize, focusRuleId, focusFindingId, selectedId, showAllFields, evidenceSelection?.exceptionCode],
   )
 
   const selectBox = (box: OverlayBox, surface: 'pdf' | 'mock') => {
@@ -202,9 +223,47 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
       ruleId: box.ruleId,
       lineNo: box.lineNo,
       label: box.tag ?? box.ruleId ?? null,
+      // the finding the picked box belongs to (the active one when the box serves several)
+      ...(box.findingIds?.length
+        ? { findingId: focusFindingId && box.findingIds.includes(focusFindingId) ? focusFindingId : box.findingIds[0] }
+        : {}),
       surface,
     })
   }
+
+  const handleSelectFinding = (f: Finding, targetIdx = 0) => {
+    setShowEvidence(true)
+    openEvidence(f, targetIdx)
+  }
+  const handleStepTarget = (delta: 1 | -1) => {
+    if (focusFinding) handleSelectFinding(focusFinding, stepTarget(focusFinding, focusTargetIdx, delta))
+  }
+  const handleStepFinding = (delta: 1 | -1) => {
+    const next = stepFinding(findingList, focusFindingId, delta)
+    if (next) handleSelectFinding(next)
+  }
+
+  // Alt+←/→ = boxes of the finding, Alt+↑/↓ = previous / next finding. Not while typing.
+  // (`[` is the sidebar toggle, so plain keys are left alone.)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.altKey || e.ctrlKey || e.metaKey) return
+      const t = e.target as HTMLElement | null
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return
+      const map: Record<string, () => void> = {
+        ArrowLeft: () => handleStepTarget(-1),
+        ArrowRight: () => handleStepTarget(1),
+        ArrowUp: () => handleStepFinding(-1),
+        ArrowDown: () => handleStepFinding(1),
+      }
+      const fn = map[e.key]
+      if (!fn) return
+      e.preventDefault()
+      fn()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
 
   const handleSelectRule = (ruleId: string, page?: number) => {
     if (page) setCurrentPage(page)
@@ -222,19 +281,24 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
     }
   }
 
-  // When an evidence focus request comes in from the detail pane, match and select the bbox
+  // Finding focus: light the box the request names. The mock page has no per-finding boxes (its
+  // regions are per rule), so there the whole rule's region is lit instead of one box.
   useEffect(() => {
+    if (!evidenceDockFocus?.findingId) return
+    setSelectedId(!mockMode && focusTarget ? viewerBoxId(doc.doc, focusTarget.id) : null)
+    // Keyed on the request itself: the target is derived from it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [evidenceDockFocus, mockMode])
+
+  // Legacy rule focus (openEvidenceDock(page, rule)): match and select the rule's box.
+  useEffect(() => {
+    if (evidenceDockFocus?.findingId) return // finding focus is handled above (and by openEvidence)
     const targetRule = evidenceDockFocus?.ruleId
     if (!targetRule) return
 
     const boxes = mockMode ? mockOverlayBoxes : pdfOverlayBoxes
-    const found = boxes.find(
-      b =>
-        b.ruleId === targetRule ||
-        b.id === targetRule ||
-        (b.ruleId && targetRule.startsWith(b.ruleId)) ||
-        (b.ruleId && b.ruleId.startsWith(targetRule)),
-    )
+    // Exact match only: the old prefix match ("V-0" ~ "V-01") sent every request to the first box.
+    const found = boxes.find(b => b.ruleId === targetRule || b.id === targetRule)
     if (found) {
       if (found.id !== selectedId) {
         setSelectedId(found.id)
@@ -254,26 +318,52 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
     }
   }, [evidenceDockFocus, mockMode, mockOverlayBoxes, pdfOverlayBoxes, selectedId, setEvidenceSelection])
 
-  // Auto-scroll to the focused bbox element
+  // Auto-scroll to the focused bbox element.
+  //  • A finding with no box never scrolls (focusUnlocated).
+  //  • A request that turns the page finds its box only after the new page is drawn, so the request
+  //    stays "armed" and the box-count effect below retries until the box exists, then disarms —
+  //    zooming afterwards does not scroll again.
+  const scrollArmed = useRef(false)
+  const activeBoxCount = (mockMode ? mockOverlayBoxes : pdfOverlayBoxes).length
+
+  const scrollToFocused = (): boolean => {
+    const container = bodyRef.current
+    if (!container) return false
+    const targetRule = evidenceDockFocus?.ruleId ?? evidenceSelection?.ruleId
+    const targetEl =
+      (container.querySelector('.hl.focus') as HTMLElement | null) ||
+      (selectedId ? (container.querySelector(`[data-id="${selectedId}"]`) as HTMLElement | null) : null) ||
+      (targetRule ? (container.querySelector(`.hl[data-rule="${targetRule}"]`) as HTMLElement | null) : null)
+    if (!targetEl) return false
+    targetEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })
+    return true
+  }
+
   useEffect(() => {
+    if (focusUnlocated) {
+      scrollArmed.current = false
+      return
+    }
     const targetRule = evidenceDockFocus?.ruleId ?? evidenceSelection?.ruleId
     if (!targetRule && !selectedId) return
+    if (evidenceDockFocus) scrollArmed.current = true
 
     const timer = setTimeout(() => {
-      const container = bodyRef.current
-      if (!container) return
-      const targetEl =
-        (container.querySelector('.hl.focus') as HTMLElement | null) ||
-        (selectedId ? (container.querySelector(`[data-id="${selectedId}"]`) as HTMLElement | null) : null) ||
-        (targetRule ? (container.querySelector(`.hl[data-rule="${targetRule}"]`) as HTMLElement | null) : null)
-
-      if (targetEl) {
-        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })
-      }
+      if (scrollToFocused()) scrollArmed.current = false
     }, 150)
 
     return () => clearTimeout(timer)
-  }, [evidenceDockFocus?.nonce, evidenceDockFocus?.ruleId, selectedId, evidenceSelection?.ruleId, currentPage, mockMode, status.state])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [evidenceDockFocus?.nonce, evidenceDockFocus?.ruleId, selectedId, evidenceSelection?.ruleId, currentPage, mockMode, status.state, focusUnlocated])
+
+  useEffect(() => {
+    if (!scrollArmed.current || focusUnlocated || activeBoxCount === 0) return
+    const timer = setTimeout(() => {
+      if (scrollArmed.current && scrollToFocused()) scrollArmed.current = false
+    }, 60)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeBoxCount, focusUnlocated])
 
   const handleRotate = () => setRotation(prev => (prev + 90) % 360)
 
@@ -375,7 +465,22 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
         boxCount={mockMode ? mockOverlayBoxes.length : pdfOverlayBoxes.length}
         activeRuleId={focusRuleId}
         onSelectRule={handleSelectRule}
+        findings={findingList}
+        activeFindingId={focusFindingId}
+        onSelectFinding={f => handleSelectFinding(f)}
       />
+
+      {showEvidence && focusFinding && (
+        <FindingStatusBar
+          finding={focusFinding}
+          targetIdx={focusTargetIdx}
+          position={Math.max(0, findingList.findIndex(f => f.id === focusFinding.id))}
+          total={findingList.length}
+          onStepTarget={handleStepTarget}
+          onStepFinding={handleStepFinding}
+        />
+      )}
+      {showEvidence && focusFinding && focusUnlocated && <FindingBanner finding={focusFinding} />}
 
       <div className="dock-body evd" ref={bodyRef}>
         <PdfCanvasViewer

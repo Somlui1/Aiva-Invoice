@@ -64,7 +64,7 @@ export function legacyFindings(r: RuleCheck, doc?: Pick<InvoiceDoc, 'doc'>): Fin
             pageNo: page,
             bbox: [bb!.x, bb!.y, bb!.w, bb!.h],
             kind: 'other',
-            label: r.exception_code ?? ruleId,
+            // no element name to show for a rule-level box (the chip already shows the code)
           },
         ]
       : [],

@@ -19,6 +19,12 @@ export interface StandaloneBBoxViewerProps {
   pdfUrl?: string
   items?: BBoxItem[]
   pageCount?: number
+  /** Ids of the boxes to light (one finding, `?finding=`); the rest are faded. */
+  focusIds?: string[]
+  /** Box to scroll to once the pages are drawn. */
+  scrollToId?: string
+  /** One line about the focused finding (shown in the bar). */
+  focusNote?: string
 }
 
 export const BBOX_CATEGORIES = [
@@ -117,7 +123,12 @@ export function StandaloneBBoxViewer({
   pdfUrl,
   items = [],
   pageCount = 1,
+  focusIds,
+  scrollToId,
+  focusNote,
 }: StandaloneBBoxViewerProps) {
+  const focusSet = useMemo(() => new Set(focusIds ?? []), [focusIds])
+  const hasFocus = focusSet.size > 0
   const [scale, setScale] = useState(1.4)
   const [showLabels, setShowLabels] = useState(true)
   const [visibleCategories, setVisibleCategories] = useState<Set<string>>(
@@ -230,6 +241,18 @@ export function StandaloneBBoxViewer({
     return map
   }, [items, numPages])
 
+  // Scroll once to the focused box, after the pages have their real size.
+  const scrolledFor = useRef<string | null>(null)
+  useEffect(() => {
+    if (!scrollToId || scrolledFor.current === scrollToId || typeof document === 'undefined') return
+    if (pdfUrl && Object.keys(pageDims).length === 0) return // wait for the first render
+    const el = document.querySelector(`.standalone-pages .box[data-id="${CSS.escape(scrollToId)}"]`)
+    if (el) {
+      el.scrollIntoView({ block: 'center', inline: 'center' })
+      scrolledFor.current = scrollToId
+    }
+  }, [scrollToId, pageDims, items, pdfUrl])
+
   // Standard A4 default aspect ratio: 595 x 842 points
   const baseWidth = 595
   const baseHeight = 842
@@ -239,6 +262,11 @@ export function StandaloneBBoxViewer({
       {/* Top sticky bar */}
       <div id="bar" className="standalone-bar">
         <b>{title || docId}</b>
+        {focusNote && (
+          <span className="focus-note" role="status">
+            {focusNote}
+          </span>
+        )}
         <button
           id="zo"
           aria-label="−"
@@ -331,13 +359,16 @@ export function StandaloneBBoxViewer({
                 const [x, y, w, h] = item.bbox_norm
                 const color =
                   BBOX_CATEGORY_COLORS[item.type] || BBOX_CATEGORY_COLORS.other
-                const isHidden = !visibleCategories.has(item.type)
+                const focused = !!item.id && focusSet.has(item.id)
+                // A focused box is shown even when its category is switched off.
+                const isHidden = !focused && !visibleCategories.has(item.type)
 
                 return (
                   <div
                     key={item.id || `${pageNo}-${itemIdx}`}
-                    className="box"
+                    className={`box${focused ? ' focus' : hasFocus ? ' dim' : ''}`}
                     data-t={item.type}
+                    data-id={item.id}
                     style={{
                       left: `${x * dim.width}px`,
                       top: `${y * dim.height}px`,

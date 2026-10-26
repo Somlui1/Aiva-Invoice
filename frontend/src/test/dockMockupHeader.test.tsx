@@ -214,17 +214,51 @@ describe('PDF Dock Mockup-Faithful 3-Tier Header & Controls', () => {
     const evbar = container.querySelector('.evbar')
     expect(evbar).not.toBeNull()
 
+    // One chip per finding (evidence row). SAMPLE_DOC's rule carries no box, so its single
+    // (rebuilt) finding is "no position": dashed chip, and no page is passed on.
     const chip = evbar?.querySelector('.evchip') as HTMLButtonElement
     expect(chip).not.toBeNull()
     expect(chip.classList.contains('on')).toBe(true)
+    expect(chip.classList.contains('noloc')).toBe(true)
     expect(chip.textContent).toContain('E08')
-    expect(chip.textContent).toContain('Signature Missing')
-    expect(chip.textContent).toContain('· หน้า 1')
+    expect(chip.textContent).toContain('V-06')
+    expect(chip.textContent).toContain('ไม่มีตำแหน่ง')
 
     act(() => {
       chip.click()
     })
-    expect(onSelectRule).toHaveBeenCalledWith('V-06', 1)
+    expect(onSelectRule).toHaveBeenCalledWith('V-06', undefined)
+  })
+
+  it('a chip of a finding with a box shows its page and reports the finding', () => {
+    const onSelectFinding = vi.fn()
+    const located: InvoiceDoc = {
+      ...SAMPLE_DOC,
+      rules: [{ ...SAMPLE_DOC.rules[0], bbox: { x: 0.1, y: 0.8, w: 0.3, h: 0.08, page: 2 } }],
+    }
+    const { container } = render(
+      <TestWrapper>
+        <DockControls
+          doc={located}
+          currentPage={1}
+          totalPages={2}
+          zoom={1}
+          onPageChange={vi.fn()}
+          onZoomChange={vi.fn()}
+          onClose={vi.fn()}
+          showEvidence={true}
+          onSelectFinding={onSelectFinding}
+        />
+      </TestWrapper>,
+    )
+    const chip = container.querySelector('.evbar .evchip') as HTMLButtonElement
+    expect(chip.classList.contains('loc')).toBe(true)
+    expect(chip.textContent).toContain('· หน้า 2')
+    act(() => {
+      chip.click()
+    })
+    expect(onSelectFinding).toHaveBeenCalledTimes(1)
+    expect(onSelectFinding.mock.calls[0][0].ruleId).toBe('V-06')
   })
 
   it('renders EvidenceViewerDock with 3-tier chrome and .dock-f footer', () => {

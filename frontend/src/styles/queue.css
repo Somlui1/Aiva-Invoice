@@ -1553,3 +1553,112 @@ table.t .num {
   border-radius: 4px;
   padding: 1px 5px;
 }
+
+/* ---------------------------------------------------------------------------
+   Evidence findings — 3-state button & finding list (plan F5/F9).
+   Tokens only (theme.css defines them for both themes), so dark-compat.css
+   needs no regeneration for these rules.
+   --------------------------------------------------------------------------- */
+.code.review {
+  background: var(--s-100);
+  color: var(--s-700);
+  border: 1px dashed var(--s-500);
+}
+
+.evbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--s-800);
+}
+
+.evbtn.loc {
+  border-color: var(--info-bd);
+  background: var(--info-bg);
+  color: var(--info);
+}
+
+.evbtn.noloc {
+  border-style: dashed;
+  border-color: var(--warn-bd);
+  background: transparent;
+  color: var(--warn);
+}
+
+.evbtn.review.loc {
+  border-color: var(--s-300);
+  background: var(--s-100);
+  color: var(--s-700);
+}
+
+.evbtn.review.noloc {
+  border-color: var(--s-500);
+  color: var(--s-700);
+}
+
+.evbtn:hover {
+  filter: brightness(.97);
+}
+
+.evbtn:focus-visible {
+  outline: 2px solid var(--info);
+  outline-offset: 1px;
+}
+
+.evbtn.on {
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+
+.evbtn.compact {
+  height: 22px;
+  padding: 0 7px;
+  font-size: 11.5px;
+}
+
+.fnd-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fnd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  font-size: 12px;
+}
+
+.fnd.on {
+  border-color: var(--info-bd);
+  background: var(--info-bg);
+}
+
+.fnd-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--s-800);
+}
+
+.fnd-more {
+  padding: 2px 8px;
+  font-size: 12px;
+}

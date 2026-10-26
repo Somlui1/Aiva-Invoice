@@ -18,6 +18,20 @@
 
 ---
 
+## สถานะ (อัปเดต 2026-10-26)
+| Task | สถานะ | หมายเหตุ |
+|---|---|---|
+| F1 F2 F10 | ✅ เสร็จ | + adapter ทน `bbox_missing_reason` แปลก, แถว review ไม่แย่งสีกล่อง |
+| F3 | ✅ เสร็จ | ตรวจด้วย test logic + ข้อมูลจริง |
+| F4 | ✅ เสร็จ | `openEvidence`, `focus.ts` · dock ยังไม่ได้ลองบนหน้าจอ |
+| F5 | ✅ เสร็จ (รอดูหน้าจอ) | render ครบ 125 ฉบับด้วย React 19 server render |
+| F6 | ✅ เสร็จ (รอดูหน้าจอ) | chip ต่อ finding, status bar ‹ n/m ›, banner, Alt+ลูกศร |
+| F7 | ✅ เสร็จ (รอรันกับ DB) | logic ผ่านทั้ง 125 ฉบับ · ไม่ได้เพิ่ม script ใน `package.json` (ไม่มีไฟล์ใน source) |
+| F8 | ✅ เสร็จ (รอดูหน้าจอ) | `/viewer/:id?finding=` · mock ถอยไปจับตามกฎ |
+| F9 | ✅ เสร็จ | token เท่านั้น · gendark ผลเท่าเดิม · E11/V-07 = mismatch |
+
+---
+
 ## 0. สิ่งที่พบในโค้ด
 
 | # | ปัญหา | ตำแหน่ง | Task |

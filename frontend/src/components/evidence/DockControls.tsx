@@ -3,9 +3,9 @@
 import { useMemo } from 'react'
 import { Icon } from '../common/Icon'
 import { useAuth } from '../../context/AuthContext'
-import type { InvoiceDoc } from '../../types/invoice'
+import type { Finding, InvoiceDoc } from '../../types/invoice'
 import { VENDOR_PROFILES } from '../../mock/vendors'
-import { EXCEPTION_RULES } from '../../mock/rules'
+import { documentFindings, findingState } from '../../features/evidence/findings'
 import type { PdfProxySource } from '../../features/pdf-viewer/types'
 import {
   MIN_ZOOM,
@@ -30,7 +30,12 @@ export interface DockControlsProps {
   onToggleAllFields?: () => void
   boxCount?: number
   activeRuleId?: string | null
+  /** @deprecated chips are per finding now; kept so older callers still compile. */
   onSelectRule?: (ruleId: string, page?: number) => void
+  /** Chip strip: one chip per finding. Defaults to `documentFindings(doc)`. */
+  findings?: Finding[]
+  activeFindingId?: string | null
+  onSelectFinding?: (finding: Finding) => void
   onRunTests?: () => void
   onOpenNewTab?: () => void
   onPrint?: () => void
@@ -56,6 +61,9 @@ export function DockControls({
   onToggleEvidence,
   activeRuleId,
   onSelectRule,
+  findings,
+  activeFindingId,
+  onSelectFinding,
   onRunTests,
   onOpenNewTab,
   onPrint,
@@ -75,33 +83,17 @@ export function DockControls({
         ? SOURCE_LABEL.fallback_mock
         : 'PDF จากระบบผู้ขาย'
 
-  // Exceptions / evidence chips per mockup
-  const evidenceList = useMemo(() => {
-    if (!doc?.rules) return []
-    return doc.rules
-      .filter(r => r.result === 'fail' || r.status === 'FAIL' || r.result === 'manual_review')
-      .map(r => {
-        const ruleId = r.rule || r.id
-        const code = r.exception_code || 'MR'
-        const label =
-          r.name ||
-          (r.exception_code ? EXCEPTION_RULES[r.exception_code]?.name : undefined) ||
-          ruleId
-        return {
-          ruleId,
-          code,
-          severity: r.severity || 'Medium',
-          label,
-          page: r.page || 1,
-        }
-      })
-  }, [doc?.rules])
+  // Evidence chips: one per finding (evidence row), not one per rule. A rule with no finding has no
+  // chip; a finding with no box gets a dashed chip and never turns the page.
+  const evidenceList = useMemo(() => findings ?? (doc ? documentFindings(doc) : []), [findings, doc])
 
   const handleOpenNewTab = () => {
     if (onOpenNewTab) {
       onOpenNewTab()
     } else if (doc?.doc) {
-      window.open(`/viewer/${doc.doc}`, '_blank')
+      // Carry the finding in focus, so the new tab opens on the same evidence (plan F8).
+      const q = activeFindingId ? `?finding=${encodeURIComponent(activeFindingId)}` : ''
+      window.open(`/viewer/${doc.doc}${q}`, '_blank')
     }
   }
 
@@ -265,21 +257,38 @@ export function DockControls({
       {/* Tier 3: Evidence bar (.evbar) */}
       {showEvidence && evidenceList.length > 0 && (
         <div className="evbar" aria-label="หลักฐาน">
-          {evidenceList.map(e => (
-            <button
-              key={e.ruleId}
-              type="button"
-              className={`evchip ${activeRuleId === e.ruleId ? 'on' : ''}`}
-              onClick={() => {
-                onToggleEvidence?.(true)
-                onSelectRule?.(e.ruleId, e.page)
-              }}
-            >
-              <span className={`code ${e.severity}`}>{e.code}</span>
-              {e.label}
-              <span className="muted xs">· หน้า {e.page}</span>
-            </button>
-          ))}
+          {evidenceList.map(f => {
+            const located = findingState(f) === 'located'
+            // No finding in focus (legacy "open rule" request): the rule's first chip is the active one.
+            const on = activeFindingId
+              ? activeFindingId === f.id
+              : !!activeRuleId && activeRuleId === f.ruleId && evidenceList.find(x => x.ruleId === f.ruleId) === f
+            const where = located
+              ? `${f.targets[0].label ? `${f.targets[0].label} · ` : ''}หน้า ${f.targets[0].pageNo}`
+              : 'ไม่มีตำแหน่ง'
+            return (
+              <button
+                key={f.id}
+                type="button"
+                className={['evchip', located ? 'loc' : 'noloc', f.kind === 'review' ? 'review' : '', on ? 'on' : '']
+                  .filter(Boolean)
+                  .join(' ')}
+                data-finding={f.id}
+                data-rule={f.ruleId}
+                title={f.messageTh ?? f.ruleId}
+                aria-pressed={on}
+                onClick={() => {
+                  onToggleEvidence?.(true)
+                  if (onSelectFinding) onSelectFinding(f)
+                  else onSelectRule?.(f.ruleId, f.targets[0]?.pageNo) // older callers
+                }}
+              >
+                <span className={`code ${f.severity ?? 'Low'}${f.code ? '' : ' review'}`}>{f.code ?? 'ต้องตรวจ'}</span>
+                {f.ruleId}
+                <span className="muted xs">· {where}</span>
+              </button>
+            )
+          })}
         </div>
       )}
     </div>

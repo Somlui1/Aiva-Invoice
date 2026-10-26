@@ -35,6 +35,7 @@ const severityClass = (box: OverlayBox, hoveredId: string | null): string =>
     box.category ? `cat-${box.category}` : '',
     box.severity === 'High' ? 'High' : box.severity === 'Medium' ? 'Medium' : '',
     box.focused ? 'focus' : '',
+    box.dim ? 'dim' : '',
     box.id === hoveredId ? 'hover' : '',
   ]
     .filter(Boolean)
@@ -83,6 +84,7 @@ export function BoundingBoxOverlay({
                 style={style}
                 data-id={box.id}
                 data-rule={box.ruleId ?? undefined}
+                data-finding={box.findingIds?.length ? box.findingIds.join(' ') : undefined}
                 data-line={box.lineNo ?? undefined}
                 title={box.tooltip || undefined}
                 role={onSelect ? 'button' : undefined}

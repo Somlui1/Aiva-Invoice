@@ -50,7 +50,11 @@ export const VALIDATION_CATEGORY_THEMES: Record<ValidationCategory, CategoryThem
 }
 
 export function getValidationCategory(code?: string | null, ruleId?: string | null): ValidationCategory {
-  if (code === 'E11' || ruleId === 'duplicate') return 'duplicate'
+  if (ruleId === 'duplicate') return 'duplicate'
+  // The Engine raises E11 in V-07 when a line was paired *by description* — a matching question, not
+  // a duplicate document. Only an E11 without that context keeps the purple "duplicate" colour.
+  if (code === 'E11' && ruleId === 'V-07') return 'mismatch'
+  if (code === 'E11') return 'duplicate'
   if (['E01', 'E05', 'E08'].includes(code || '') || ['V-01', 'V-04', 'V-06'].includes(ruleId || '')) {
     return 'missing'
   }
