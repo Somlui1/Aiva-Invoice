@@ -201,29 +201,29 @@ def v03_doc_totals(c: Ctx) -> RuleOutcome:
 
 
 def v06_signatures(c: Ctx) -> RuleOutcome:
+    """V-06 v2.0 (engine 5.6): a slot passes when any mark (signature or stamp) was detected, however faint.
+
+    No mark detected -> E08 for that slot.  The finding points at the slot's signature box
+    (``<doc>-sig-<slot>``) when the reader found the box, so the Portal evidence link opens that bbox.
+    """
     if not c.doc.pages_complete:
         return _skip("V-06", "V-01", "สแกนไม่ครบหน้า (E01 ไม่ใช่ E08)")
-    th = c.std.policy["signature"]["min_confidence"]
-    out, unsure = [], []
+    out, boxes = [], {}
     for slot, sev, label in (("receiver", "High", "ผู้รับของ"), ("deliverer", "Medium", "ผู้ขาย/ผู้ส่งของ")):
         s = c.doc.signatures.get(slot)
-        eid = (f"{c.doc.document_id}-sig-{slot}",)
-        if s is None or s.present is None or (s.confidence is not None and s.confidence < th):
-            unsure.append(slot)
-        elif not s.present:
-            out.append(_f(c, "E08", "V-06", f"ไม่พบลายเซ็นหรือตราในช่อง{label}", sev, element_ids=eid))
+        if s is not None and s.present is True:
+            continue
+        has_box = s is not None and s.region is not None
+        eid = (f"{c.doc.document_id}-sig-{slot}",) if has_box else ()
+        if has_box:
+            boxes[slot] = {"page": s.region.page, "bbox": list(s.region.bbox) if s.region.bbox else None}
+        detail = f"ไม่พบลายเซ็นหรือตราในช่อง{label}" + ("" if has_box else " (ไม่พบกล่องลายเซ็นบนเอกสาร)")
+        out.append(_f(c, "E08", "V-06", detail, sev, element_ids=eid))
     if out:
-        return _fail("V-06", out, unsure_slots=unsure)
-    if unsure:
-        has_receipt = bool(getattr(c.snapshot, "active", None) or getattr(c.snapshot, "found", False))
-        if has_receipt and set(unsure) <= {"deliverer", "receiver"}:
-            # an Oracle receipt is itself the receiving record (named receiver, goods booked):
-            # a faint signature on either slot cannot threaten invoice matching - EBS already
-            # confirmed the goods arrived (waiving the deliverer alone left DMS-20 stuck in manual
-            # review while its own receipt proved receiving)
-            return _ok("V-06", detail="ยืนยันการรับของจากใบรับสินค้าใน Oracle EBS (waive signature)",
-                       waived_slots=sorted(unsure))
-        return RuleOutcome("V-06", "manual_review", detail=f"ความมั่นใจต่ำ: {unsure}", data={"unsure_slots": unsure})
+        return _fail("V-06", out, missing_slots=[k for k in ("receiver", "deliverer")
+                                                  if k not in {s for s, v in c.doc.signatures.items()
+                                                               if v.present is True}],
+                     signature_boxes=boxes)
     return _ok("V-06")
 
 

@@ -1,0 +1,510 @@
+{
+  "extraction": {
+    "contract": "aiva.extraction/2.0",
+    "package_id": "PKG-SBX",
+    "dms_doc_id": "DMS-SBX",
+    "file_sha256": "sha256:sandbox",
+    "pages": [
+      {
+        "page_no": 1,
+        "width_pt": 595.0,
+        "height_pt": 842.0,
+        "rotation": 0,
+        "render_dpi": 300,
+        "page_type": "INVOICE",
+        "type_confidence": 0.99,
+        "ocr_quality": 0.95
+      }
+    ],
+    "documents": [
+      {
+        "document_id": "DOC-0001",
+        "document_type": "INVOICE",
+        "pages": [
+          1
+        ],
+        "confidence": 0.99
+      }
+    ],
+    "invoice_document_id": "DOC-0001",
+    "pages_complete": true,
+    "fields": {
+      "invoice_num": {
+        "raw": "SBX-INV-0001",
+        "confidence": 0.99,
+        "agreement": true,
+        "region": {
+          "page": 1,
+          "bbox": [
+            0.1,
+            0.1,
+            0.22,
+            0.03
+          ]
+        },
+        "word_ids": [],
+        "source": "consensus",
+        "null_reason": null
+      },
+      "po_number": {
+        "raw": "50000001",
+        "confidence": 0.99,
+        "agreement": true,
+        "region": {
+          "page": 1,
+          "bbox": [
+            0.1,
+            0.1,
+            0.22,
+            0.03
+          ]
+        },
+        "word_ids": [],
+        "source": "consensus",
+        "null_reason": null
+      },
+      "invoice_date": {
+        "raw": "05/10/2026",
+        "confidence": 0.99,
+        "agreement": true,
+        "region": {
+          "page": 1,
+          "bbox": [
+            0.1,
+            0.1,
+            0.22,
+            0.03
+          ]
+        },
+        "word_ids": [],
+        "source": "consensus",
+        "null_reason": null
+      },
+      "currency": {
+        "raw": "THB",
+        "confidence": 0.99,
+        "agreement": true,
+        "region": {
+          "page": 1,
+          "bbox": [
+            0.1,
+            0.1,
+            0.22,
+            0.03
+          ]
+        },
+        "word_ids": [],
+        "source": "consensus",
+        "null_reason": null
+      },
+      "customer_name": {
+        "raw": "บริษัท อาปิโก ไฮเทค จำกัด (มหาชน)",
+        "confidence": 0.99,
+        "agreement": true,
+        "region": {
+          "page": 1,
+          "bbox": [
+            0.1,
+            0.1,
+            0.22,
+            0.03
+          ]
+        },
+        "word_ids": [],
+        "source": "consensus",
+        "null_reason": null
+      },
+      "customer_address": {
+        "raw": "99 ม.1 นิคมอุตสาหกรรมไฮเทค ต.บ้านเลน อ.บางปะอิน จ.พระนครศรีอยุธยา 13160",
+        "confidence": 0.99,
+        "agreement": true,
+        "region": {
+          "page": 1,
+          "bbox": [
+            0.1,
+            0.1,
+            0.22,
+            0.03
+          ]
+        },
+        "word_ids": [],
+        "source": "consensus",
+        "null_reason": null
+      },
+      "customer_tax_id": {
+        "raw": "0107545000179",
+        "confidence": 0.99,
+        "agreement": true,
+        "region": {
+          "page": 1,
+          "bbox": [
+            0.1,
+            0.1,
+            0.22,
+            0.03
+          ]
+        },
+        "word_ids": [],
+        "source": "consensus",
+        "null_reason": null
+      },
+      "supplier_name": {
+        "raw": "SYNTHETIC SUPPLIER CO LTD",
+        "confidence": 0.99,
+        "agreement": true,
+        "region": {
+          "page": 1,
+          "bbox": [
+            0.1,
+            0.1,
+            0.22,
+            0.03
+          ]
+        },
+        "word_ids": [],
+        "source": "consensus",
+        "null_reason": null
+      },
+      "supplier_tax_id": {
+        "raw": "1234567890121",
+        "confidence": 0.99,
+        "agreement": true,
+        "region": {
+          "page": 1,
+          "bbox": [
+            0.1,
+            0.1,
+            0.22,
+            0.03
+          ]
+        },
+        "word_ids": [],
+        "source": "consensus",
+        "null_reason": null
+      },
+      "sub_total": {
+        "raw": "1500.00",
+        "confidence": 0.99,
+        "agreement": true,
+        "region": {
+          "page": 1,
+          "bbox": [
+            0.1,
+            0.1,
+            0.22,
+            0.03
+          ]
+        },
+        "word_ids": [],
+        "source": "consensus",
+        "null_reason": null
+      },
+      "vat": {
+        "raw": "105.00",
+        "confidence": 0.99,
+        "agreement": true,
+        "region": {
+          "page": 1,
+          "bbox": [
+            0.1,
+            0.1,
+            0.22,
+            0.03
+          ]
+        },
+        "word_ids": [],
+        "source": "consensus",
+        "null_reason": null
+      },
+      "grand_total": {
+        "raw": "1605.00",
+        "confidence": 0.99,
+        "agreement": true,
+        "region": {
+          "page": 1,
+          "bbox": [
+            0.1,
+            0.1,
+            0.22,
+            0.03
+          ]
+        },
+        "word_ids": [],
+        "source": "consensus",
+        "null_reason": null
+      }
+    },
+    "lines": [
+      {
+        "line_no": 1,
+        "region": {
+          "page": 1,
+          "bbox": [
+            0.05,
+            0.37,
+            0.9,
+            0.05
+          ]
+        },
+        "cells": {
+          "item_code": {
+            "raw": "ITM-1001",
+            "confidence": 0.99,
+            "agreement": true,
+            "region": {
+              "page": 1,
+              "bbox": [
+                0.1,
+                0.1,
+                0.22,
+                0.03
+              ]
+            },
+            "word_ids": [],
+            "source": "consensus",
+            "null_reason": null
+          },
+          "description": {
+            "raw": "BRACKET ASSY REF PO 50000001",
+            "confidence": 0.99,
+            "agreement": true,
+            "region": {
+              "page": 1,
+              "bbox": [
+                0.1,
+                0.1,
+                0.22,
+                0.03
+              ]
+            },
+            "word_ids": [],
+            "source": "consensus",
+            "null_reason": null
+          },
+          "qty": {
+            "raw": "10",
+            "confidence": 0.99,
+            "agreement": true,
+            "region": {
+              "page": 1,
+              "bbox": [
+                0.1,
+                0.1,
+                0.22,
+                0.03
+              ]
+            },
+            "word_ids": [],
+            "source": "consensus",
+            "null_reason": null
+          },
+          "uom": {
+            "raw": "EA",
+            "confidence": 0.99,
+            "agreement": true,
+            "region": {
+              "page": 1,
+              "bbox": [
+                0.1,
+                0.1,
+                0.22,
+                0.03
+              ]
+            },
+            "word_ids": [],
+            "source": "consensus",
+            "null_reason": null
+          },
+          "unit_price": {
+            "raw": "100.00",
+            "confidence": 0.99,
+            "agreement": true,
+            "region": {
+              "page": 1,
+              "bbox": [
+                0.1,
+                0.1,
+                0.22,
+                0.03
+              ]
+            },
+            "word_ids": [],
+            "source": "consensus",
+            "null_reason": null
+          },
+          "amount": {
+            "raw": "1000.00",
+            "confidence": 0.99,
+            "agreement": true,
+            "region": {
+              "page": 1,
+              "bbox": [
+                0.1,
+                0.1,
+                0.22,
+                0.03
+              ]
+            },
+            "word_ids": [],
+            "source": "consensus",
+            "null_reason": null
+          }
+        }
+      },
+      {
+        "line_no": 2,
+        "region": {
+          "page": 1,
+          "bbox": [
+            0.05,
+            0.44,
+            0.9,
+            0.05
+          ]
+        },
+        "cells": {
+          "item_code": {
+            "raw": "ITM-1001",
+            "confidence": 0.99,
+            "agreement": true,
+            "region": {
+              "page": 1,
+              "bbox": [
+                0.1,
+                0.1,
+                0.22,
+                0.03
+              ]
+            },
+            "word_ids": [],
+            "source": "consensus",
+            "null_reason": null
+          },
+          "description": {
+            "raw": "BRACKET ASSY REF PO 50000002",
+            "confidence": 0.99,
+            "agreement": true,
+            "region": {
+              "page": 1,
+              "bbox": [
+                0.1,
+                0.1,
+                0.22,
+                0.03
+              ]
+            },
+            "word_ids": [],
+            "source": "consensus",
+            "null_reason": null
+          },
+          "qty": {
+            "raw": "5",
+            "confidence": 0.99,
+            "agreement": true,
+            "region": {
+              "page": 1,
+              "bbox": [
+                0.1,
+                0.1,
+                0.22,
+                0.03
+              ]
+            },
+            "word_ids": [],
+            "source": "consensus",
+            "null_reason": null
+          },
+          "uom": {
+            "raw": "EA",
+            "confidence": 0.99,
+            "agreement": true,
+            "region": {
+              "page": 1,
+              "bbox": [
+                0.1,
+                0.1,
+                0.22,
+                0.03
+              ]
+            },
+            "word_ids": [],
+            "source": "consensus",
+            "null_reason": null
+          },
+          "unit_price": {
+            "raw": "100.00",
+            "confidence": 0.99,
+            "agreement": true,
+            "region": {
+              "page": 1,
+              "bbox": [
+                0.1,
+                0.1,
+                0.22,
+                0.03
+              ]
+            },
+            "word_ids": [],
+            "source": "consensus",
+            "null_reason": null
+          },
+          "amount": {
+            "raw": "500.00",
+            "confidence": 0.99,
+            "agreement": true,
+            "region": {
+              "page": 1,
+              "bbox": [
+                0.1,
+                0.1,
+                0.22,
+                0.03
+              ]
+            },
+            "word_ids": [],
+            "source": "consensus",
+            "null_reason": null
+          }
+        }
+      }
+    ],
+    "signatures": {
+      "receiver": {
+        "present": true,
+        "confidence": 0.95,
+        "kind": "signature",
+        "region": {
+          "page": 1,
+          "bbox": [
+            0.6,
+            0.8,
+            0.25,
+            0.1
+          ]
+        }
+      },
+      "deliverer": {
+        "present": true,
+        "confidence": 0.93,
+        "kind": "stamp",
+        "region": {
+          "page": 1,
+          "bbox": [
+            0.6,
+            0.68,
+            0.25,
+            0.1
+          ]
+        }
+      }
+    },
+    "extractor": {
+      "ocr": "sandbox",
+      "vlm": "sandbox"
+    }
+  },
+  "portal_refs": {
+    "document_revision": 1,
+    "validation_round": 1
+  }
+}

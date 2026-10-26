@@ -62,7 +62,20 @@ TYPE_TO_DOCTYPE = {"tax_invoice": "tax_invoice", "invoice": "invoice", "delivery
                    "po": "purchase_order", "other": "other"}
 INVOICE_TYPES = ("tax_invoice", "invoice")
 SIGNATURE_SLOT = {"receiver_signature": "receiver", "received_stamp": "receiver",
-                  "deliverer_signature": "deliverer"}
+                  "deliverer_signature": "deliverer", "authorized_signature": "deliverer",
+                  "company_stamp": "deliverer"}
+
+
+def signature_slot(kind: str, label: str) -> Optional[str]:
+    """Which V-06 slot a signature/stamp region speaks for (v5.6).
+
+    A receiving stamp (RECEIVED / ได้รับสินค้า) counts as the receiver's mark; any other stamp on the
+    invoice page is the supplier's company stamp and counts as the deliverer's mark.
+    """
+    slot = SIGNATURE_SLOT.get(label)
+    if slot or kind != "stamp":
+        return slot
+    return "receiver" if any(w in label for w in ("receiv", "รับ")) else "deliverer"
 REGION_KIND = {"table": "table", "stamp": "stamp", "signature": "signature_box"}
 
 _HEADER_ROW = re.compile(r"DESCRIPTION|QUANTITY|UNIT\s*PRICE|AMOUNT|รายการสินค้า|รายการ$|จำนวนเงิน|ราคาต่อหน่วย|"
@@ -668,15 +681,21 @@ def build_extraction(*, package_id: str, dms_doc_id: str, sha: str, page_infos: 
             text = ({True: "stamped" if kind == "stamp" else "signed", False: "empty"}.get(present, "unclear")
                     if kind in ("stamp", "signature_box") else r.get("label"))
             add_region(pg, kind, label, text, _box(r))
-            slot = SIGNATURE_SLOT.get(label)
+            slot = signature_slot(kind, label) if kind in ("stamp", "signature_box") else None
             if slot:
-                sig_votes[slot].append((present, pg.region(_box(r)), label))
+                sig_votes[slot].append((present, pg.region(_box(r)), label, kind))
     signatures = {}
     for slot, votes in sig_votes.items():
-        if votes:
-            pick = (next((v for v in votes if v[0] is True), None) or next((v for v in votes if v[0] is False), None)
-                    or votes[0])
-            signatures[slot] = SignatureObs(present=pick[0], confidence=None, kind=pick[2], region=pick[1])
+        # v5.6: detected = any mark (signature or stamp) found for the slot, however faint.
+        # The box itself is kept even when empty, so E08 can point the reviewer at it.
+        marked = [v for v in votes if v[0] is True]
+        boxes = [v for v in votes if v[3] == "signature_box" and v[1] is not None]
+        if marked:
+            pick = next((v for v in marked if v[3] == "signature_box"), marked[0])
+            signatures[slot] = SignatureObs(present=True, confidence=None, kind=pick[2], region=pick[1])
+        elif votes:
+            pick = (boxes or votes)[0]
+            signatures[slot] = SignatureObs(present=False, confidence=None, kind=pick[2], region=pick[1])
     # ---------------------------------------------------------------- pages / documents
     by_page = {c["page_no"]: c for c in classified}
     pages = tuple(pi.model_copy(update={"page_type": TYPE_TO_PAGE.get(by_page.get(pi.page_no, {}).get("doc_type"),

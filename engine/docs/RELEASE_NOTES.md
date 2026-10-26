@@ -7,6 +7,26 @@
 
 ---
 
+## Engine v5.6 (candidate) — ลายเซ็น/ตรา V-06 ให้ตรงกับ Portal
+
+**สถานะ:** engine 231 passed (ส่วนที่ fail 37 ข้อเป็นของเดิมที่ fail อยู่แล้ว เพราะ sandbox ไม่มี `openai` ไม่มีข้อใหม่), sandbox 58/68 เท่ากับ v5.5 (S18 E08 ยังผ่าน)
+
+**สถานะซ้ำตอนติดตั้งเข้า working tree (session วันที่ 2026-10-21):** engine **272 passed exit 0** (`PYTHONPATH=src python -m pytest -q --basetemp=temp/pt-base`),
+sandbox `system_a.cli scenarios` = **59/68 เท่ากับ v5.5 แบบ row-by-row (diff ว่าง)**, `sandbox.scenarios --schema` = **all results valid**,
+offline replay 200 ฉบับจริง (`tools/replay_results.py` เทียบ tree ก่อน/หลัง patch) = V-06 เปลี่ยน 28 doc, E08 เพิ่ม 21 doc, เข้า HOLD เพิ่ม 16 doc
+
+| ส่วน | สิ่งที่แก้ | ไฟล์ |
+|---|---|---|
+| OCR | prompt `extract@1.7.0`: present มีแค่ `signed`/`empty` (มีรอยหมึกหรือตราแม้จางก็นับว่า `signed`) และต้องคืนกล่องทั้ง 2 ช่องเสมอ แม้กล่องว่าง | `config/prompts/single_pass_extract.md` |
+| OCR | `signature_slot()`: ตรารับของ (received) นับเป็นช่องผู้รับ ส่วนตราอื่นและ `authorized_signature` นับเป็นช่องผู้ส่ง ถ้าในช่องมีรอยอย่างน้อย 1 อัน = พบ ถ้าไม่พบให้เก็บกล่องว่างไว้เป็น evidence | `perception/single_pass.py` |
+| Validate | V-06 v2.0: พบรอย = pass ไม่ดู confidence และไม่มี waiver Oracle ถ้าไม่พบ = E08 (ผู้รับ High / ผู้ส่ง Medium) ชี้ไปที่ `D1-sig-<slot>` และส่ง `data.signature_boxes` | `domain/rules.py`, `rules.yaml` |
+| Validate | ตราใช้แทนลายเซ็นได้แม้ region ไม่มี confidence (ก่อนหน้านี้ fallback นี้ไม่ทำงานใน single_pass) | `domain/normalize.py` |
+| Validate | **ปิดงานให้ตรงกับคำสั่งเจ้าของงาน "ไม่ต้องใช้ confidence — เจอรอยถือว่าเซ็น"**: fallback ตราทั้ง 2 ช่องไม่อ่าน `min_confidence` อีกเลย (ค่าที่ region ส่งมาถูกเก็บไว้เป็น audit data เท่านั้น) + หมายเหตุใน policy · test 4 ข้อ (red-green: 2 ข้อแรก fail ก่อนแก้) | `domain/normalize.py`, `policy.yaml`, `tests/test_v06_signature_detect.py` |
+| Contract | element ลายเซ็นใช้ผลตัดสินสุดท้ายเดียวกับ V-06 และ `raw_value` = `signed`/`empty` | `application/assembler.py` |
+
+**ยังไม่แก้ (เจ้าของงานสั่ง):** ฝั่ง Portal `frontend/src/features/engine/adapters/portalDocToInvoiceDoc.ts:201` นับ glyph จาก `rawValue` ที่ไม่ว่าง
+⇒ กล่อง `empty` จะถูกมองว่ามีลายเซ็น · และ **ยังไม่ commit/tag**
+
 ## Engine v5.5 (release นี้คือฉบับที่ดีที่สุด ณ ตอนนี้)
 
 **สถานะ:** ผ่านการตรวจใน session ที่ release — **engine 263 passed** (`PYTHONPATH=src python -m pytest -q`),

@@ -68,9 +68,12 @@ def build_elements(ext: ExtractionResult, doc: InvoiceDoc) -> dict[str, dict]:
                 rf.region.bbox if rf.region else None, f"lines[{rl.line_no}].{k}", rf.raw, nf.value, rf.confidence,
                 parent=nl.element_id, extra={"null_reason": nf.null_reason, "agreement": rf.agreement},
                 rbox=rf.region.rbox if rf.region else None)
-    for slot, s in ext.signatures.items():
+    # v5.6: the final slot decision (after the stamp fallbacks in normalize) is what V-06 judged -
+    # emit that one, so the Portal picture and the rule can never disagree.
+    for slot, s in {**ext.signatures, **doc.signatures}.items():
         add(f"{did}-sig-{slot}", "signature", s.region.page if s.region else None, s.region.bbox if s.region else None,
-            f"signatures.{slot}", None, s.present, s.confidence, extra={"kind": s.kind},
+            f"signatures.{slot}", {True: "signed", False: "empty"}.get(s.present), s.present, s.confidence,
+            extra={"kind": s.kind},
             rbox=s.region.rbox if s.region else None)
     for w in ext.words:
         add(w.word_id, "word", w.page, w.bbox, None, w.text, w.text, w.confidence)

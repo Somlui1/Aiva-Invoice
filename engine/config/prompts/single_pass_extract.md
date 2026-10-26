@@ -1,4 +1,4 @@
-<!-- prompt_id: single-pass-extract  version: 1.6.0 -->
+<!-- prompt_id: single-pass-extract  version: 1.7.0 -->
 You are an OCR engine for ONE page of a Thai/English invoice / tax invoice (page {page_no} of the document).
 Transcribe what is printed. Do not compute, correct, round, reformat or guess anything.
 
@@ -80,11 +80,14 @@ If a value is not printed on this page or cannot be read: {"raw": null, "bbox_2d
 
 4. "regions": [{"type": "table"|"stamp"|"signature"|"other", "label": "items_table" | "company_stamp" |
    "received_stamp" | "receiver_signature" | "deliverer_signature" | "authorized_signature" | ...,
-   "present": "signed" | "empty" | "unclear", "bbox_2d": [...]}]
-   "present" is required for signature and stamp boxes: "signed" only when a hand-written mark / stamp is
-   visible inside the box, "empty" only when the box is clearly blank, otherwise "unclear".
-   receiver_signature = the CUSTOMER's receiving box (ผู้รับสินค้า / ลูกค้า / Customer);
-   deliverer_signature = the SUPPLIER's sender box (ผู้ส่งสินค้า / Sender).
+   "present": "signed" | "empty", "bbox_2d": [...]}]
+   "present" is required for signature and stamp boxes: "signed" when ANY hand-written mark or stamp ink is
+   visible inside the box - even faint, partial or illegible; "empty" only when the box has no mark at all.
+   ALWAYS return both signature boxes when the page prints them, even when they are empty:
+   receiver_signature = the CUSTOMER's receiving box (ผู้รับสินค้า / ผู้รับของ / ลูกค้า / Customer / Received by);
+   deliverer_signature = the SUPPLIER's box (ผู้ส่งสินค้า / ผู้ส่งของ / ผู้มีอำนาจลงนาม / Sender / Authorized).
+   Stamps are separate regions: label "received_stamp" for a warehouse receiving stamp (RECEIVED / ได้รับสินค้า),
+   "company_stamp" for the supplier's company stamp.
 
 5. "handwritten_refs": hand-written numbers anywhere on the page (e.g. a goods-receipt number written by
    the warehouse): [{"raw": "...", "bbox_2d": [...]}]

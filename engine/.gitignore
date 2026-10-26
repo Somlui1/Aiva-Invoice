@@ -63,3 +63,7 @@ reports/
 
 # Cached source PDFs anywhere in the tree
 *.pdf
+
+# Pi skills junction
+.pi/
+
