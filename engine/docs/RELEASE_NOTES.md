@@ -45,6 +45,8 @@ engine **293 passed, exit 0** (`AIVA_EVIDENCE_STRICT=1 PYTHONPATH=src python -m 
 | advisory `R2_WIDE_FINDING` | 7 | 5 (หมดนี้เป็น V-08/E14 กลุ่มราคา DMS-26 — ข้อยกเว้นที่ plan บันทึกไว้; ตัวตรวจไม่ให้ raise กับ R2) |
 | `bbox_missing_reason` | `NOT_LOCATED` 214 (ค่าเดียวทั้งชุด) | `NOT_LOCATED` 437 · `NOT_PRESENT` 38 · `PAGES_INCOMPLETE` 3 |
 | ผลตรวจ fixture | — | DMS-27 V-07 = **10 findings** ✓ · DMS-40 → `PAGES_INCOMPLETE` ✓ · DMS-139 V-06 → `signatures.deliverer` + `NOT_PRESENT` ✓ · DMS-95 V-01 แตกเป็น **10 ปุ่ม** (plan ประมาณไว้ 9 — เกณฑ์จริง “1 ปุ่มต่อ 1 ฟิลด์/1 บรรทัด” ถือว่าครบ) |
+| เพิ่มจาก checklist ซ้ำอีก 2 ข้อ | DMS-123 V-01 `customer_tax_id` → `NOT_PRESENT` + `actual/expected` ครบ ✓ · DMS-77 element `D1-f-sub_total` เป็นหลักฐานของ **ทั้ง V-03 (X8) และ V-09 (X14)** → `findingIds` ของ F1 ให้กรอบกับ 2 ปุ่ม ✓ |
+| หมายเหตุ | ในชุด replay นี้ไม่มีเอกสารที่ **V-08 = manual_review** (V-08 วิ่งโหมด logic/simulator) จึงยังไม่มีตัวอย่าง “ปุ่มต้องตรวจต่อบรรทัด” ของ V-08 · review rows ที่เกิดจริง = V-07 12 + V-04 2 ใน 8 เอกสาร |
 
 **Golden repin แล้ว** — `tests/golden_legacy_integrity.json` จาก 19 → **68 sids** (ของเดิม drift 19/19 ตั้งแต่ *ก่อน* patch จึงไม่ใช่สัญญาณถอยหลังของรอบนี้) gate ใหม่: `sandbox.scenarios --golden` = **68/68 unchanged**
 
