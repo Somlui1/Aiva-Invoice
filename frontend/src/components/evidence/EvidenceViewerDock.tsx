@@ -318,12 +318,16 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
     }
   }, [evidenceDockFocus, mockMode, mockOverlayBoxes, pdfOverlayBoxes, selectedId, setEvidenceSelection])
 
-  // Auto-scroll to the focused bbox element.
+  // Auto-scroll to the focused bbox element — exactly once per request.
   //  • A finding with no box never scrolls (focusUnlocated).
+  //  • A request arms the scroll only when its nonce is new. Arming on every dependency change made
+  //    one open scroll several times (page turn and PDF-ready each re-armed it), so `lastScrollNonce`
+  //    consumes a request exactly once; Alt+→ / Alt+← bump the nonce in DockControls, zoom does not.
   //  • A request that turns the page finds its box only after the new page is drawn, so the request
-  //    stays "armed" and the box-count effect below retries until the box exists, then disarms —
-  //    zooming afterwards does not scroll again.
+  //    stays "armed" and the box-count effect below retries until the box exists — the first box that
+  //    is found disarms it, so nothing scrolls again for the same request.
   const scrollArmed = useRef(false)
+  const lastScrollNonce = useRef<number | null>(null)
   const activeBoxCount = (mockMode ? mockOverlayBoxes : pdfOverlayBoxes).length
 
   const scrollToFocused = (): boolean => {
@@ -340,16 +344,26 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
   }
 
   useEffect(() => {
+    const nonce = evidenceDockFocus?.nonce
+    const isNewRequest = nonce !== undefined && nonce !== lastScrollNonce.current
+    // Consume the request before anything can bail out, so an unrelated re-render cannot arm it again.
+    if (isNewRequest) lastScrollNonce.current = nonce
+
     if (focusUnlocated) {
       scrollArmed.current = false
       return
     }
+    if (isNewRequest) scrollArmed.current = true
+    if (!scrollArmed.current) return
+
     const targetRule = evidenceDockFocus?.ruleId ?? evidenceSelection?.ruleId
-    if (!targetRule && !selectedId) return
-    if (evidenceDockFocus) scrollArmed.current = true
+    if (!targetRule && !selectedId) {
+      scrollArmed.current = false
+      return
+    }
 
     const timer = setTimeout(() => {
-      if (scrollToFocused()) scrollArmed.current = false
+      if (scrollArmed.current && scrollToFocused()) scrollArmed.current = false
     }, 150)
 
     return () => clearTimeout(timer)
