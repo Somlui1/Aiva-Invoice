@@ -495,7 +495,10 @@ describe('raw_payload boxes — live rows drive the evidence overlay', () => {
     const payload = portalBboxesToRawPayload(p)
     const src = p.bboxes.find(b => b.exceptionCode && b.ruleId)!
 
-    const link = payload.evidence.find(e => e.rule_id === src.ruleId)!
+    // One evidence group per finding (plan F2): find the group of this rule that holds the box.
+    const link = payload.evidence.find(
+      e => e.rule_id === src.ruleId && e.bboxes.some(b => b.element_id === src.id),
+    )!
     expect(link, `no evidence group for rule ${src.ruleId}`).toBeTruthy()
     expect(link.exception_code).toBe(src.exceptionCode)
     expect(link.severity).toBe(src.severity)

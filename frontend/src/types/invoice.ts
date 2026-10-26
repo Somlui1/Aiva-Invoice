@@ -11,8 +11,18 @@ export type InvoiceStatus =
   | 'Duplicate'
   | 'Import Failed'
 
-import type { PortalOracleReceiptLine, PortalBoundingBox } from '../features/engine/types/portalDomain'
-export type { PortalOracleReceiptLine, PortalBoundingBox }
+import type {
+  PortalOracleReceiptLine,
+  PortalBoundingBox,
+  PortalFinding,
+  PortalFindingTarget,
+  FindingMissingReason,
+} from '../features/engine/types/portalDomain'
+export type { PortalOracleReceiptLine, PortalBoundingBox, FindingMissingReason }
+
+/** One evidence button: an Engine evidence row (see `src/features/evidence/findings.ts`). */
+export type Finding = PortalFinding
+export type FindingTarget = PortalFindingTarget
 
 export type ExceptionSeverity = 'High' | 'Medium' | 'Low'
 
@@ -31,7 +41,13 @@ export interface RuleCheck {
   actual?: number | string
   page?: number
   halted_by?: string
+  /** @deprecated single box per rule; use `findings[].targets` (one button per finding). */
   bbox?: { x: number; y: number; w: number; h: number; page?: number }
+  /**
+   * Every Engine evidence row of this rule. Absent on mock / pre-findings documents — read it
+   * through `findingsOf()` which falls back to one finding built from the fields above.
+   */
+  findings?: Finding[]
 }
 
 export interface InvoiceLineItem {
@@ -131,4 +147,10 @@ export interface EvidenceSelection {
   label?: string | null
   /** Which surface produced it: `pdf` or `mock`. */
   surface?: 'pdf' | 'mock'
+  /** The finding (evidence row) the selection is about — the unit of the 3-state button. */
+  findingId?: string
+  /** Index into `finding.targets` currently focused (‹ n/m ›). */
+  targetIdx?: number
+  /** `false` = the finding has no box: the PDF must not move, a banner explains why. */
+  locatable?: boolean
 }

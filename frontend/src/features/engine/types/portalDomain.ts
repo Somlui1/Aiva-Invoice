@@ -165,6 +165,62 @@ export interface PortalRuleCheck {
   evidenceIds: string[]
   haltedBy?: string | null
   evaluatedAt?: string | null
+  /**
+   * One entry per Engine evidence row of this rule (button-level evidence). The single-valued
+   * fields above stay = the first exception finding, for backward compatibility. Optional because
+   * payloads stored before this field existed do not carry it (see `legacyFindings`).
+   */
+  findings?: PortalFinding[]
+}
+
+/** Why a finding has no box on the document. `UNKNOWN` = the Engine gave no (valid) reason. */
+export type FindingMissingReason =
+  | 'NOT_PRESENT'
+  | 'NOT_LOCATED'
+  | 'PAGES_INCOMPLETE'
+  | 'LOW_CONFIDENCE'
+  | 'NO_ELEMENT'
+  | 'UNKNOWN'
+
+export const FINDING_MISSING_REASONS: readonly FindingMissingReason[] = [
+  'NOT_PRESENT', 'NOT_LOCATED', 'PAGES_INCOMPLETE', 'LOW_CONFIDENCE', 'NO_ELEMENT', 'UNKNOWN',
+] as const
+
+export type FindingTargetKind = 'row' | 'cell' | 'field' | 'signature' | 'other'
+
+export interface PortalFindingTarget {
+  /** Same key as `PortalBoundingBox.id` (`<document_id>:<element_id>`). */
+  id: string
+  elementId: string
+  pageNo: number
+  /** `[x, y, w, h]` normalized 0..1. */
+  bbox: [number, number, number, number]
+  kind: FindingTargetKind
+  /** Short display label, e.g. "L7 · qty", "sub_total", "signatures.receiver". */
+  label?: string
+}
+
+/** One thing the reviewer can look at = one evidence button. */
+export interface PortalFinding {
+  /** Engine `evidence_id`, or `${ruleId}#${index}` when absent. Unique within the document. */
+  id: string
+  ruleId: string
+  /** `review` = manual_review evidence: no exception code, never an exception. */
+  kind: 'exception' | 'review'
+  result: PortalRuleCheck['result']
+  code: string | null
+  severity: 'Low' | 'Medium' | 'High' | null
+  messageTh: string | null
+  actual: string | number | null
+  expected: string | number | null
+  fieldName?: string | null
+  lineNo?: number | null
+  relatedElementIds: string[]
+  oracleRefs: string[]
+  /** Empty = "no position on the document" (3-state button: unlocated). */
+  targets: PortalFindingTarget[]
+  missingReason?: FindingMissingReason
+  missingElementIds?: string[]
 }
 
 export interface PortalException {
@@ -211,6 +267,11 @@ export interface PortalBoundingBox {
   /** Associated exception (e.g. "E10"). */
   exceptionCode?: string
   severity?: 'Low' | 'Medium' | 'High'
+  /**
+   * Every finding this box is evidence for (an element can serve several rules, e.g. `sub_total`
+   * for V-03 and V-09). `ruleId` / `exceptionCode` above stay = the first one.
+   */
+  findingIds?: string[]
 }
 
 export interface PortalInvoiceDocument {

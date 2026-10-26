@@ -3,6 +3,10 @@ import { z } from 'zod'
 /**
  * Engine Result 3.0 contract (`aiva.system_a.result/3.0`).
  *
+ * Accepts `versions.schema` "3.0" and "3.1". 3.1 (engine v5.7) is additive: evidence rows gain
+ * `kind` / `field_name` / `line_no`, `bbox_missing_reason.reason` is a fixed enum, and review rows
+ * (`kind: 'review'`) carry `exception_code: null` + `severity: null`. The contract id is unchanged.
+ *
  * Ported from `temp/schemas/result-3.0.schema.json`. The Portal treats this as
  * the Engine's outward-facing contract: Portal code must never depend on Engine
  * internals, so the blob sections (`extraction`, `normalized_fields`,
@@ -93,10 +97,25 @@ export const engineEvidenceSchema = z.object({
   bboxes: z.array(
     z.object({ element_id: z.string(), page_no: z.number().int(), bbox: normalizedBBoxSchema }),
   ),
-  bbox_missing_reason: z.unknown().nullable().optional(),
+  // Schema 3.1 (engine v5.7): `{ element_ids, reason, details? }`. Any other shape from an older
+  // engine degrades to null rather than rejecting the whole payload; the adapter then reports UNKNOWN.
+  bbox_missing_reason: z
+    .object({
+      element_ids: z.array(z.string()),
+      reason: z.string(),
+      details: z.record(z.string(), z.string()).optional(),
+    })
+    .nullable()
+    .optional()
+    .catch(null),
   halted_by: z.string().nullable(),
   evaluated_at: z.string(),
   message_th: z.string().optional(),
+  // Schema 3.1 additive display fields. `kind: 'review'` = manual_review evidence with no exception
+  // code (never in `exceptions[]`). Absent on 3.0 payloads.
+  kind: z.enum(['exception', 'review']).optional().catch(undefined),
+  field_name: z.string().nullable().optional(),
+  line_no: z.number().int().nullable().optional(),
 })
 
 export const engineExceptionSchema = z.object({
@@ -166,7 +185,7 @@ export const engineResultV3Schema = z
     contract: z.literal('aiva.system_a.result/3.0'),
     request: engineRequestSchema,
     versions: z.object({
-      schema: z.string(),
+      schema: z.string(), // "3.0" | "3.1" (additive) — not pinned on purpose
       standard: z.string(),
       ruleset: z.string(),
       models: z.record(z.string(), z.string()),

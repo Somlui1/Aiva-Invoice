@@ -20,6 +20,11 @@ import {
   type PortalBoundingBox,
   type PortalDuplicateStatus,
   type PortalException,
+  type PortalFinding,
+  type PortalFindingTarget,
+  type FindingMissingReason,
+  type FindingTargetKind,
+  FINDING_MISSING_REASONS,
   type PortalInvoiceDocument,
   type PortalLineItem,
   type PortalOracleReceiptLine,
@@ -161,7 +166,12 @@ export function transformValidatedEngineResult(engine: EngineResultV3): PortalIn
 
   for (const rawEv of engine.evidence) {
     const ev = asRecord(rawEv)
-    if (!evByRule.has(ev.rule_id as string)) evByRule.set(ev.rule_id as string, ev)
+    // Rule-level fields describe the first *exception* row; a review row (schema 3.1, no code) is
+    // only used when the rule has nothing else.
+    const prev = evByRule.get(ev.rule_id as string)
+    if (!prev || (prev.exception_code == null && typeof ev.exception_code === 'string')) {
+      evByRule.set(ev.rule_id as string, ev)
+    }
     const code = typeof ev.exception_code === 'string' ? ev.exception_code : undefined
     if (code && !evByException.has(code)) evByException.set(code, ev)
 
@@ -180,6 +190,9 @@ export function transformValidatedEngineResult(engine: EngineResultV3): PortalIn
     pagesByRule.set(ev.rule_id as string, pageSetForRule)
     if (code && pageSetForCode) pagesByException.set(code, pageSetForCode)
   }
+
+  // ---------- findings: one per evidence row (button-level evidence) ----------
+  const { findingsByRule, findingIdsByElement } = buildFindings(engine, linkKey)
 
   const rules: PortalRuleCheck[] = engine.rule_results.map(rr => {
     const ev = evByRule.get(rr.rule_id)
@@ -208,6 +221,7 @@ export function transformValidatedEngineResult(engine: EngineResultV3): PortalIn
       evidenceIds: rr.evidence_ids,
       haltedBy: rr.halted_by ?? null,
       evaluatedAt: typeof ev?.evaluated_at === 'string' ? (ev.evaluated_at as string) : null,
+      findings: findingsByRule.get(rr.rule_id) ?? [],
     }
   })
 
@@ -298,7 +312,8 @@ export function transformValidatedEngineResult(engine: EngineResultV3): PortalIn
       : ('UNKNOWN' as PortalPageType),
   }))
 
-  // Which rule/exception each OCR element is evidence for (for overlay colouring).
+  // Which rule/exception each OCR element is evidence for (for overlay colouring). First row wins
+  // for the colour; the full many-to-many link is `findingIds` (buildFindings).
   const evidenceByElement = new Map<string, { ruleId: string; exceptionCode?: string; severity?: string }>()
   for (const rawEv of engine.evidence) {
     const ev = asRecord(rawEv)
@@ -334,6 +349,7 @@ export function transformValidatedEngineResult(engine: EngineResultV3): PortalIn
       ruleId: link?.ruleId,
       exceptionCode: link?.exceptionCode,
       severity: link?.severity as PortalBoundingBox['severity'],
+      findingIds: findingIdsByElement.get(id) ?? [],
     })
   }
 
@@ -453,6 +469,124 @@ export function transformValidatedEngineResult(engine: EngineResultV3): PortalIn
     updatedAt: completedAt,
     history: [],
   }
+}
+
+// ---------------------------------------------------------------------------- findings
+
+const TARGET_KIND: Record<string, FindingTargetKind> = {
+  row: 'row',
+  cell: 'cell',
+  field: 'field',
+  signature: 'signature',
+}
+const TARGET_ORDER: Record<FindingTargetKind, number> = { row: 0, field: 1, cell: 1, signature: 1, other: 2 }
+
+/** `lines[7].qty` -> `L7 · qty`, `lines[7]` -> `L7`, anything else verbatim. */
+export function targetLabel(fieldName: string | null | undefined, elementId: string): string {
+  if (!fieldName) return elementId
+  const m = /^lines\[(\d+)\](?:\.(.+))?$/.exec(fieldName)
+  if (m) return m[2] ? `L${m[1]} · ${m[2]}` : `L${m[1]}`
+  return fieldName
+}
+
+/** Engine reason -> Portal enum. Anything unknown (or a missing reason with no box) is UNKNOWN. */
+export function normalizeMissingReason(raw: unknown): FindingMissingReason {
+  const r = typeof raw === 'string' ? raw : ''
+  return (FINDING_MISSING_REASONS as readonly string[]).includes(r) ? (r as FindingMissingReason) : 'UNKNOWN'
+}
+
+/**
+ * One `PortalFinding` per Engine evidence row, attached to its rule through
+ * `rule_results[].evidence_ids` (rows without an id fall back to `rule_id`), plus the reverse index
+ * element -> every finding that uses it (an element may be evidence for several rules).
+ */
+export function buildFindings(
+  engine: EngineResultV3,
+  linkKey: (elementId: string, documentId?: string | null) => string,
+): { findingsByRule: Map<string, PortalFinding[]>; findingIdsByElement: Map<string, string[]> } {
+  const elementById = new Map(engine.ocr.elements.map(el => [el.element_id, el] as const))
+  const byId = new Map<string, PortalFinding>()
+  const orphans = new Map<string, PortalFinding[]>()
+  const findingIdsByElement = new Map<string, string[]>()
+  const seen = new Set<string>()
+
+  engine.evidence.forEach((ev, i) => {
+    let id = ev.evidence_id ?? `${ev.rule_id}#${i}`
+    if (seen.has(id)) id = `${id}#${i}` // never two buttons with one id
+    seen.add(id)
+
+    const targets: PortalFindingTarget[] = ev.bboxes.map(b => {
+      const el = elementById.get(b.element_id)
+      const key = linkKey(b.element_id, el?.document_id)
+      const ids = findingIdsByElement.get(key) ?? []
+      if (!ids.includes(id)) ids.push(id)
+      findingIdsByElement.set(key, ids)
+      return {
+        id: key,
+        elementId: b.element_id,
+        pageNo: b.page_no,
+        bbox: [b.bbox[0], b.bbox[1], b.bbox[2], b.bbox[3]],
+        kind: TARGET_KIND[el?.element_type ?? ''] ?? 'other',
+        label: targetLabel(el?.field_name, b.element_id),
+      }
+    })
+    targets.sort(
+      (a, b) =>
+        TARGET_ORDER[a.kind] - TARGET_ORDER[b.kind] || a.pageNo - b.pageNo || a.bbox[1] - b.bbox[1],
+    )
+
+    const reason = ev.bbox_missing_reason ?? null
+    const kind: PortalFinding['kind'] = ev.kind ?? (ev.exception_code == null ? 'review' : 'exception')
+    const finding: PortalFinding = {
+      id,
+      ruleId: ev.rule_id,
+      kind,
+      result: ev.result,
+      code: ev.exception_code ?? null,
+      severity: ev.severity ?? null,
+      messageTh: ev.message_th ?? null,
+      actual: ev.actual_value ?? null,
+      expected: ev.expected_value ?? null,
+      fieldName: ev.field_name ?? null,
+      lineNo: ev.line_no ?? null,
+      relatedElementIds: [...ev.related_element_ids],
+      oracleRefs: [...(ev.related_oracle_refs ?? [])],
+      targets,
+    }
+    if (reason || targets.length === 0) {
+      finding.missingReason = normalizeMissingReason(reason?.reason)
+      finding.missingElementIds = reason ? [...reason.element_ids] : []
+    }
+    if (ev.evidence_id && !byId.has(ev.evidence_id)) byId.set(ev.evidence_id, finding)
+    else {
+      const list = orphans.get(ev.rule_id) ?? []
+      list.push(finding)
+      orphans.set(ev.rule_id, list)
+    }
+  })
+
+  const findingsByRule = new Map<string, PortalFinding[]>()
+  const used = new Set<string>()
+  for (const rr of engine.rule_results) {
+    const list: PortalFinding[] = []
+    for (const eid of rr.evidence_ids) {
+      const f = byId.get(eid)
+      if (f && !used.has(f.id)) {
+        list.push(f)
+        used.add(f.id)
+      }
+    }
+    list.push(...(orphans.get(rr.rule_id) ?? []))
+    findingsByRule.set(rr.rule_id, list)
+  }
+  // Evidence that a rule result forgot to list is still shown under its own rule.
+  for (const f of byId.values()) {
+    if (used.has(f.id)) continue
+    const list = findingsByRule.get(f.ruleId) ?? []
+    list.push(f)
+    findingsByRule.set(f.ruleId, list)
+  }
+  return { findingsByRule, findingIdsByElement }
 }
 
 export { transformEngineResultToPortalDoc as engineToPortalAdapter }

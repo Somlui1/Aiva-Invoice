@@ -118,7 +118,10 @@ function ruleDetail(r: PortalInvoiceDocument['rules'][number]): string | undefin
   return named || undefined
 }
 
-/** Smallest evidence box for a rule, on the first page that carries evidence. */
+/**
+ * Smallest evidence box for a rule, on the first page that carries evidence.
+ * @deprecated kept for `RuleCheck.bbox` consumers until the dock reads `findings` (plan F3/F6).
+ */
 function boxForRule(
   ruleId: string,
   bboxes: readonly PortalBoundingBox[],
@@ -149,6 +152,7 @@ function toRuleCheck(r: PortalInvoiceDocument['rules'][number], box?: PortalBoun
   if (r.expectedValue != null) check.expected = r.expectedValue
   if (r.pageNos?.length) check.page = r.pageNos[0]
   if (r.haltedBy) check.halted_by = r.haltedBy
+  if (r.findings) check.findings = r.findings
   if (box) {
     check.bbox = { x: box.bbox[0], y: box.bbox[1], w: box.bbox[2], h: box.bbox[3], page: box.pageNo }
   }
@@ -191,16 +195,21 @@ function linesOf(doc: PortalInvoiceDocument): InvoiceLineItem[] {
 /**
  * The mock page's two signature glyphs.
  *
- * The Engine reports a signature as a named element on the page: if it found one,
- * the element exists and carries a value. No element, or an empty value, is the
- * ✗ glyph — this reads the Engine's own evidence, not the V-06 verdict, so the
- * picture and the rule can never disagree by construction.
+ * The Engine reports a signature as a named element on the page. Engine v5.6+ always emits the
+ * slot's box and says what is in it: `raw_value` "signed" / "empty" (older payloads: the boolean
+ * `normalized_value`, which the adapter stringifies to "true" / "false"). Only an explicit "signed" /
+ * "true" is the ✓ glyph — a box that exists but is empty is ✗. This reads the Engine's own evidence,
+ * not the V-06 verdict, so the picture and the rule can never disagree by construction.
  */
+export const SIGNED_VALUES: ReadonlySet<string> = new Set(['signed', 'true'])
+
+export function isSignedValue(raw: unknown): boolean {
+  return SIGNED_VALUES.has(String(raw ?? '').trim().toLowerCase())
+}
+
 export function mockSignatureFlags(doc: PortalInvoiceDocument): [number, number] {
   const present = (field: string): number =>
-    doc.bboxes.some(b => b.fieldName === field && String(b.rawValue ?? '').trim().length > 0)
-      ? 1
-      : 0
+    doc.bboxes.some(b => b.fieldName === field && isSignedValue(b.rawValue)) ? 1 : 0
   return [present('signatures.deliverer'), present('signatures.receiver')]
 }
 
@@ -251,6 +260,8 @@ export interface RawEvidenceLite {
   rule_id: string
   exception_code: string
   severity: ExceptionSeverity
+  /** The finding this group is (one group per finding; legacy payloads: one per rule). */
+  finding_id?: string
   bboxes: { element_id: string; page_no: number; bbox: number[] }[]
 }
 
@@ -284,6 +295,31 @@ export function portalBboxesToRawPayload(
     })
   }
 
+  // One evidence group per *exception* finding, so a rule with several findings (V-07 per line)
+  // keeps each finding's boxes apart and a box shared by two rules sits in both groups. Review
+  // findings (no code) are not drawn as exceptions; they are reached through `findingIds`.
+  const findingGroups: RawEvidenceLite[] = []
+  for (const r of doc.rules) {
+    for (const f of r.findings ?? []) {
+      if (f.kind !== 'exception' || !f.code || !f.severity || f.targets.length === 0) continue
+      findingGroups.push({
+        rule_id: f.ruleId,
+        exception_code: f.code,
+        severity: f.severity,
+        finding_id: f.id,
+        bboxes: f.targets.map(t => ({
+          element_id: t.id,
+          page_no: t.pageNo,
+          bbox: [t.bbox[0], t.bbox[1], t.bbox[2], t.bbox[3]],
+        })),
+      })
+    }
+  }
+  if (doc.rules.some(r => r.findings !== undefined)) {
+    return { ocr: { elements }, evidence: findingGroups }
+  }
+
+  // Legacy payload (stored before findings existed): one group per rule, as before.
   const groups = new Map<string, RawEvidenceLite>()
   for (const b of doc.bboxes) {
     if (!b.ruleId || !b.exceptionCode || !b.severity) continue
