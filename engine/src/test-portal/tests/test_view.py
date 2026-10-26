@@ -15,9 +15,13 @@ from webapp.view import COLORS, DEFAULT_TYPES, ELEMENT_TYPES, PayloadError, buil
 
 # --------------------------------------------------------------------------- what goes in
 def test_a_result_3_0_payload_becomes_a_screen_and_nothing_else_is_claimed(payload):
+    from system_a.application.assembler import CONTRACT, SCHEMA_VERSION
+
     v = build_view(payload)
-    assert v["contract"] == payload["contract"] == "aiva.system_a.result/3.0"
-    assert v["versions"] == payload["versions"] and v["versions"]["schema"] == "3.0"
+    assert v["contract"] == payload["contract"] == CONTRACT == "aiva.system_a.result/3.0"
+    # The screen echoes whatever version System A stamped - so compare against System A's own constant,
+    # not a number written here (schema went 3.0 -> 3.1 with the additive evidence rows of v5.7).
+    assert v["versions"] == payload["versions"] and v["versions"]["schema"] == SCHEMA_VERSION
     assert v["versions"]["standard"].startswith("6.6") and v["versions"]["ruleset"]
     assert set(v["versions"]["models"]) == {"line_matcher", "qty_judge", "entity_judge"}
     assert set(v["versions"]["prompts"]) == {"V-05", "V-07", "V-08"}
