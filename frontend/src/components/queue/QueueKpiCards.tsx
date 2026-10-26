@@ -12,19 +12,19 @@ interface KpiMeta {
 }
 
 const KPI_META: Record<string, KpiMeta> = {
-  all: { icon: 'layers', color: '#1D4ED8', bg: '#EFF6FF' },
-  mine: { icon: 'user', color: '#C2410C', bg: '#FFF7ED' },
-  'Auto-pass': { icon: 'checkc', color: '#047857', bg: '#ECFDF5' },
-  Review: { icon: 'clock', color: '#B45309', bg: '#FFFBEB' },
-  Hold: { icon: 'pause', color: '#B91C1C', bg: '#FEF2F2' },
-  'Manual Review': { icon: 'alert', color: '#6D28D9', bg: '#F5F3FF' },
-  Duplicate: { icon: 'copy', color: '#C2410C', bg: '#FFF7ED' },
-  Confirmed: { icon: 'check', color: '#1D4ED8', bg: '#EFF6FF' },
-  Posted: { icon: 'send', color: '#0D274D', bg: '#E2E8F0' },
-  Superseded: { icon: 'layers', color: '#64748B', bg: '#F1F5F9' },
-  Rejected: { icon: 'ban', color: '#64748B', bg: '#F1F5F9' },
-  unres: { icon: 'alert', color: '#6D28D9', bg: '#F5F3FF' },
-  bind: { icon: 'key', color: '#0F766E', bg: '#E6F4F3' }
+  all: { icon: 'layers', color: 'var(--t-blue)', bg: 'var(--t-blue-bg)' },
+  mine: { icon: 'user', color: 'var(--t-org)', bg: 'var(--t-org-bg)' },
+  'Auto-pass': { icon: 'checkc', color: 'var(--t-ok)', bg: 'var(--t-ok-bg)' },
+  Review: { icon: 'clock', color: 'var(--t-warn)', bg: 'var(--t-warn-bg)' },
+  Hold: { icon: 'pause', color: 'var(--t-err)', bg: 'var(--t-err-bg)' },
+  'Manual Review': { icon: 'alert', color: 'var(--t-vio)', bg: 'var(--t-vio-bg)' },
+  Duplicate: { icon: 'copy', color: 'var(--t-org)', bg: 'var(--t-org-bg)' },
+  Confirmed: { icon: 'check', color: 'var(--t-blue)', bg: 'var(--t-blue-bg)' },
+  Posted: { icon: 'send', color: 'var(--t-navy)', bg: 'var(--s-200)' },
+  Superseded: { icon: 'layers', color: 'var(--s-500)', bg: 'var(--s-100)' },
+  Rejected: { icon: 'ban', color: 'var(--s-500)', bg: 'var(--s-100)' },
+  unres: { icon: 'alert', color: 'var(--t-vio)', bg: 'var(--t-vio-bg)' },
+  bind: { icon: 'key', color: 'var(--t-teal)', bg: 'var(--t-teal-bg)' }
 }
 
 export function QueueKpiCards() {

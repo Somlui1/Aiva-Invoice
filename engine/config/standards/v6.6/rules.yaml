@@ -4,7 +4,7 @@ rules:
   V-01: {version: "1.1", step: 1, engine: logic}
   V-02: {version: "1.0", step: 1, engine: logic, gate: true}
   V-03: {version: "1.0", step: 1, engine: logic}
-  V-06: {version: "1.1", step: 1, engine: logic+vision}
+  V-06: {version: "2.0", step: 1, engine: logic+vision}   # 5.6: detected mark = pass, none = E08
   V-04: {version: "2.0", step: 2, engine: logic}
   V-05: {version: "2.0", step: 2, engine: logic+ai}
   V-07: {version: "3.0", step: 3, engine: logic(M1)+ai(M3/M4/M5)}

@@ -117,11 +117,11 @@ export const ACTION_CONFIG: Record<
   ActionType,
   { title: string; btnText: string; btnClass: string; icon: string; tone: string; c: string; bg: string }
 > = {
-  confirm: { title: 'Confirm', btnText: 'Confirm', btnClass: 'btn-success', icon: 'check', tone: 'ok', c: '#047857', bg: '#ECFDF5' },
-  review: { title: 'ย้ายเป็น Review', btnText: 'Review', btnClass: 'btn-primary', icon: 'clock', tone: 'warn', c: '#B45309', bg: '#FFFBEB' },
-  hold: { title: 'Hold', btnText: 'Hold', btnClass: 'btn-warn', icon: 'pause', tone: 'warn', c: '#B91C1C', bg: '#FEF2F2' },
-  reject: { title: 'Reject', btnText: 'Reject', btnClass: 'btn-danger', icon: 'ban', tone: 'err', c: '#B91C1C', bg: '#FEF2F2' },
-  unconfirm: { title: 'Unconfirm', btnText: 'ย้ายกลับ Review', btnClass: 'btn-primary', icon: 'undo', tone: 'warn', c: '#1D4ED8', bg: '#EFF6FF' },
-  returnf: { title: 'Return Import Failed', btnText: 'Return → Review', btnClass: 'btn-warn', icon: 'undo', tone: 'warn', c: '#B45309', bg: '#FFFBEB' },
-  upload: { title: 'อัปโหลดเอกสารใหม่', btnText: 'อัปโหลด', btnClass: 'btn-teal', icon: 'dl', tone: 'info', c: '#00857F', bg: '#EEF8F8' }
+  confirm: { title: 'Confirm', btnText: 'Confirm', btnClass: 'btn-success', icon: 'check', tone: 'ok', c: 'var(--t-ok)', bg: 'var(--t-ok-bg)' },
+  review: { title: 'ย้ายเป็น Review', btnText: 'Review', btnClass: 'btn-primary', icon: 'clock', tone: 'warn', c: 'var(--t-warn)', bg: 'var(--t-warn-bg)' },
+  hold: { title: 'Hold', btnText: 'Hold', btnClass: 'btn-warn', icon: 'pause', tone: 'warn', c: 'var(--t-err)', bg: 'var(--t-err-bg)' },
+  reject: { title: 'Reject', btnText: 'Reject', btnClass: 'btn-danger', icon: 'ban', tone: 'err', c: 'var(--t-err)', bg: 'var(--t-err-bg)' },
+  unconfirm: { title: 'Unconfirm', btnText: 'ย้ายกลับ Review', btnClass: 'btn-primary', icon: 'undo', tone: 'warn', c: 'var(--t-blue)', bg: 'var(--t-blue-bg)' },
+  returnf: { title: 'Return Import Failed', btnText: 'Return → Review', btnClass: 'btn-warn', icon: 'undo', tone: 'warn', c: 'var(--t-warn)', bg: 'var(--t-warn-bg)' },
+  upload: { title: 'อัปโหลดเอกสารใหม่', btnText: 'อัปโหลด', btnClass: 'btn-teal', icon: 'dl', tone: 'info', c: 'var(--t-teal)', bg: 'var(--t-teal-bg)' }
 }

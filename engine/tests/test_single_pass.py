@@ -1146,3 +1146,32 @@ def test_select_invoice_pages_preserves_multipage_continuation():
     res = select_invoice_pages(pages)
     assert res["selected"] == [1, 2]
 
+
+
+# ---------------------------------------------------------------- engine 5.6: signature / stamp slots
+def _with_regions(regions):
+    import copy
+    e = copy.deepcopy(EXTRACT)
+    e["regions"] = [EXTRACT["regions"][0]] + regions
+    return e
+
+
+def test_signature_empty_box_is_kept_for_evidence():
+    ext = SinglePassPipeline(FakeClient(extract=_with_regions([
+        {"type": "signature", "label": "receiver_signature", "present": "empty", "bbox_2d": [120, 860, 330, 900]},
+        {"type": "signature", "label": "deliverer_signature", "present": "signed", "bbox_2d": [430, 860, 640, 900]}])),
+        "fake-vl").extract(_pdf(), package_id="PKG-T", dms_doc_id="DMS-T")
+    rcv = ext.signatures["receiver"]
+    assert rcv.present is False and rcv.region is not None and rcv.region.page == 1
+    assert ext.signatures["deliverer"].present is True
+
+
+def test_stamps_fill_the_slots_when_boxes_are_empty():
+    ext = SinglePassPipeline(FakeClient(extract=_with_regions([
+        {"type": "signature", "label": "receiver_signature", "present": "empty", "bbox_2d": [120, 860, 330, 900]},
+        {"type": "signature", "label": "deliverer_signature", "present": "empty", "bbox_2d": [430, 860, 640, 900]},
+        {"type": "stamp", "label": "received_stamp", "present": "stamped", "bbox_2d": [100, 700, 300, 780]},
+        {"type": "stamp", "label": "company_stamp", "present": "stamped", "bbox_2d": [700, 840, 900, 950]}])),
+        "fake-vl").extract(_pdf(), package_id="PKG-T", dms_doc_id="DMS-T")
+    assert ext.signatures["receiver"].present is True and ext.signatures["receiver"].kind == "received_stamp"
+    assert ext.signatures["deliverer"].present is True and ext.signatures["deliverer"].kind == "company_stamp"

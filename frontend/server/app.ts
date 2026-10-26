@@ -13,6 +13,7 @@ import { authRouter } from './routes/auth'
 import { documentsRouter } from './routes/documents'
 import { pdfProxyRouter } from './routes/pdfProxy'
 import { engineIngestRouter } from './routes/engineIngest'
+import { simulationIngestRouter } from './routes/simulationIngest'
 import {
   usersRouter,
   adRouter,
@@ -36,6 +37,8 @@ export function createExpressApp(): Express {
   app.use('/api/documents', pdfProxyRouter)
   app.use('/api/documents', documentsRouter)
   app.use('/api/engine', engineIngestRouter)
+  app.use('/api/ingest', simulationIngestRouter)
+  app.use('/api/v1/ingest', simulationIngestRouter)
   app.use('/api/users', usersRouter)
   app.use('/api/ad', adRouter)
   app.use('/api/audit-logs', auditLogsRouter)

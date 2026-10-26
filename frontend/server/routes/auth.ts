@@ -90,7 +90,7 @@ authRouter.post('/ldap', async (req, res) => {
     })
 
     const assignedRole = (existingDbUser?.role || (isItsupport ? 'SA' : 'EU')) as 'EU' | 'ACC' | 'APR' | 'ADM' | 'SA'
-    const dbCompanies = (existingDbUser?.companies || []).map((c) => c.companyCode)
+    const dbCompanies = (existingDbUser?.companies || []).map((c: any) => c.companyCode)
     const assignedCompanies =
       isItsupport && dbCompanies.length === 0
         ? ['AH', 'AHA', 'AHT', 'AHP', 'AM']
@@ -98,7 +98,7 @@ authRouter.post('/ldap', async (req, res) => {
         ? dbCompanies
         : ['AH', 'AHA', 'AHT', 'AHP', 'AM']
 
-    const assignedReceivers = (existingDbUser?.receivers || []).map((r) => r.receiverName)
+    const assignedReceivers = (existingDbUser?.receivers || []).map((r: any) => r.receiverName)
     const resolvedUserId = existingDbUser?.id || adUser.samAccount
 
     // Ensure user record is updated in prisma.user
@@ -114,10 +114,10 @@ authRouter.post('/ldap', async (req, res) => {
           unit: adUser.unit || null,
           role: assignedRole,
           companies: {
-            create: assignedCompanies.map((c) => ({ companyCode: c })),
+            create: assignedCompanies.map((c: any) => ({ companyCode: c })),
           },
           receivers: {
-            create: assignedReceivers.map((r) => ({ receiverName: r, assignedBy: 'SYSTEM' })),
+            create: assignedReceivers.map((r: any) => ({ receiverName: r, assignedBy: 'SYSTEM' })),
           },
         },
         update: {
@@ -135,11 +135,11 @@ authRouter.post('/ldap', async (req, res) => {
     try {
       await prisma.auditLog.create({
         data: {
-          who: `${adUser.name} (${adUser.email})`,
+          who: adUser.name,
           role: assignedRole,
           docId: 'AUTH',
           act: 'เข้าสู่ระบบสำเร็จ',
-          action: 'login_success',
+          action: 'login_ldap',
           detail: `เข้าสู่ระบบสำเร็จผ่าน Active Directory (LDAP): ${adUser.samAccount}`,
         },
       })
@@ -179,8 +179,34 @@ authRouter.post('/ldap', async (req, res) => {
  */
 authRouter.get('/me', async (req, res) => {
   try {
+    const queryUser = req.query.userId ? String(req.query.userId) : undefined
+    if (queryUser) {
+      const dbUser = await prisma.user.findFirst({
+        where: {
+          OR: [{ id: queryUser }, { email: queryUser }, { samAccount: queryUser }],
+        },
+        include: { companies: true, receivers: true },
+      })
+      if (!dbUser) {
+        return res.status(404).json({ ok: false, user: null })
+      }
+      return res.json({
+        ok: true,
+        user: {
+          id: dbUser.id,
+          name: dbUser.name,
+          email: dbUser.email,
+          role: dbUser.role,
+          empId: dbUser.empId,
+          unit: dbUser.unit,
+          companies: dbUser.companies.map((c: any) => c.companyCode),
+          oracleAccounts: dbUser.receivers.map((r: any) => r.receiverName),
+        },
+      })
+    }
+
     if (!req.sessionUser) {
-      return res.status(401).json({ ok: false, error: 'Unauthenticated' })
+      return res.status(401).json({ ok: false, error: 'Unauthenticated', user: null })
     }
 
     const { id, email, name, role, companies, receivers } = req.sessionUser

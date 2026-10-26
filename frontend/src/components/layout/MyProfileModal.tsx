@@ -1,6 +1,19 @@
 'use client'
 
-import React from 'react'
+/* =====================================================================
+   v5.3.1 · MyProfileModal
+   BUG FIX: modal เดิม render อยู่ "ข้างใน" <header class="topbar">
+   ซึ่ง theme v5.2 ใส่ backdrop-filter:blur() (กระจกฝ้า) ให้ .topbar
+   → CSS สร้าง containing block ใหม่ให้ลูกที่เป็น position:fixed
+   → overlay inset:0 จึงถูกจำกัดให้อยู่แค่กรอบ topbar (สูง 52px) ไม่ใช่เต็มจอ
+     เห็นเป็นแถบเบลอ + เนื้อหา modal โผล่ครึ่ง ๆ ด้านหลัง (ตามภาพ)
+   วิธีแก้: render ผ่าน createPortal ไปที่ document.body (หลุดจาก topbar)
+   + ใช้โครง modal ของ aiva-react (.ov.on > .modal > .mh/.mb/.mf) แทน inline style
+   + ปิดด้วย Esc / คลิกพื้นหลัง / ปุ่ม ✕ / ปุ่ม "ปิด" · ล็อก scroll ด้านหลัง
+   ข้อความ, aria-label และข้อมูลที่แสดง = เหมือนเดิมทุกอย่าง (test เดิมผ่าน)
+   ===================================================================== */
+import { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useAuth } from '../../context/AuthContext'
 import { PERMISSION_DESCRIPTIONS, acctsOf } from '../../mock/users'
 import { Icon } from '../common/Icon'
@@ -12,280 +25,165 @@ interface Props {
 
 export function MyProfileModal({ isOpen, onClose }: Props) {
   const { currentUser, currentRole } = useAuth()
+  const boxRef = useRef<HTMLDivElement>(null)
 
-  if (!isOpen) return null
+  useEffect(() => {
+    if (!isOpen) return
+    const prevFocus = document.activeElement as HTMLElement | null
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopPropagation()
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', onKey, true)
+    const t = window.setTimeout(() => boxRef.current?.focus(), 20)
+    return () => {
+      window.clearTimeout(t)
+      window.removeEventListener('keydown', onKey, true)
+      document.body.style.overflow = prevOverflow
+      try {
+        prevFocus?.focus?.()
+      } catch {}
+    }
+  }, [isOpen, onClose])
+
+  if (!isOpen || typeof document === 'undefined') return null
 
   const accounts = acctsOf(currentUser)
   const isEu = currentUser.role === 'EU'
 
-  return (
+  return createPortal(
     <div
-      className="modal-ov"
-      role="dialog"
-      aria-modal="true"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundColor: 'rgba(15, 23, 42, 0.45)',
-        backdropFilter: 'blur(3px)',
-        zIndex: 9999,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 16
-      }}
-      onClick={e => {
+      className="ov on pf-ov"
+      onMouseDown={e => {
         if (e.target === e.currentTarget) onClose()
       }}
     >
       <div
-        className="modal-box"
-        style={{
-          background: '#ffffff',
-          borderRadius: 12,
-          boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)',
-          maxWidth: 600,
-          width: '100%',
-          maxHeight: '90vh',
-          display: 'flex',
-          flexDirection: 'column',
-          border: '1px solid #E2E8F0',
-          overflow: 'hidden'
-        }}
+        ref={boxRef}
+        tabIndex={-1}
+        className="modal pf-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="pfTitle"
       >
         {/* Header */}
-        <div
-          style={{
-            padding: '16px 20px',
-            borderBottom: '1px solid #F1F5F9',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            background: '#F8FAFC'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: '50%',
-                background: currentRole.bg,
-                color: currentRole.c,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              <Icon name="user" size="md" />
-            </div>
-            <div>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0F172A' }}>
-                ข้อมูลและสิทธิ์การใช้งานของฉัน
-              </h3>
-              <p style={{ margin: 0, fontSize: 12, color: '#64748B' }}>
-                โปรไฟล์ผู้ใช้และขอบเขตสิทธิ์ตามบทบาทองค์กร (RBAC)
-              </p>
-            </div>
+        <div className="mh">
+          <span className="mi" style={{ background: currentRole.bg, color: currentRole.c }}>
+            <Icon name="user" />
+          </span>
+          <div className="grow pf-ht">
+            <h3 id="pfTitle">ข้อมูลและสิทธิ์การใช้งานของฉัน</h3>
+            <p>โปรไฟล์ผู้ใช้และขอบเขตสิทธิ์ตามบทบาทองค์กร (RBAC)</p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="ปิดหน้าต่างโปรไฟล์"
-            style={{
-              border: 'none',
-              background: 'transparent',
-              cursor: 'pointer',
-              color: '#64748B',
-              fontSize: 18,
-              padding: 6,
-              borderRadius: 6
-            }}
-          >
-            ✕
+          <button type="button" className="ibtn" onClick={onClose} aria-label="ปิดหน้าต่างโปรไฟล์" title="ปิด (Esc)">
+            <Icon name="x" />
           </button>
         </div>
 
-        {/* Body Content */}
-        <div style={{ padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Identity Card */}
-          <div
-            style={{
-              background: '#F8FAFC',
-              border: '1px solid #E2E8F0',
-              borderRadius: 8,
-              padding: 14,
-              display: 'grid',
-              gridTemplateColumns: 'repeat(2, 1fr)',
-              gap: 12
-            }}
-          >
+        {/* Body */}
+        <div className="mb pf-body">
+          <div className="pf-id">
             <div>
-              <span style={{ fontSize: 11, color: '#64748B', display: 'block', fontWeight: 600 }}>ชื่อ - นามสกุล</span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>{currentUser.n}</span>
+              <span className="pf-l">ชื่อ - นามสกุล</span>
+              <span className="pf-v b">{currentUser.n}</span>
             </div>
             <div>
-              <span style={{ fontSize: 11, color: '#64748B', display: 'block', fontWeight: 600 }}>บทบาท (Role)</span>
-              <span
-                className="role-pill"
-                style={{
-                  background: currentRole.bg,
-                  color: currentRole.c,
-                  display: 'inline-block',
-                  marginTop: 2
-                }}
-              >
+              <span className="pf-l">บทบาท (Role)</span>
+              <span className="role-pill" style={{ background: currentRole.bg, color: currentRole.c }}>
                 {currentRole.n}
               </span>
             </div>
             <div>
-              <span style={{ fontSize: 11, color: '#64748B', display: 'block', fontWeight: 600 }}>อีเมลองค์กร (Entra ID)</span>
-              <span style={{ fontSize: 13, fontFamily: 'monospace', color: '#2563EB' }}>{currentUser.email}</span>
+              <span className="pf-l">อีเมลองค์กร (Entra ID)</span>
+              <span className="pf-v mono pf-mail">{currentUser.email}</span>
             </div>
             <div>
-              <span style={{ fontSize: 11, color: '#64748B', display: 'block', fontWeight: 600 }}>หน่วยงาน / สังกัด</span>
-              <span style={{ fontSize: 13, color: '#334155' }}>{currentUser.unit || '—'}</span>
+              <span className="pf-l">หน่วยงาน / สังกัด</span>
+              <span className="pf-v">{currentUser.unit || '—'}</span>
             </div>
             {currentUser.emp && (
               <div>
-                <span style={{ fontSize: 11, color: '#64748B', display: 'block', fontWeight: 600 }}>รหัสพนักงาน</span>
-                <span style={{ fontSize: 13, color: '#334155' }}>{currentUser.emp}</span>
+                <span className="pf-l">รหัสพนักงาน</span>
+                <span className="pf-v mono">{currentUser.emp}</span>
               </div>
             )}
           </div>
 
-          {/* Scope Access Card */}
-          <div style={{ background: '#ffffff', border: '1px solid #E2E8F0', borderRadius: 8, padding: 14 }}>
-            <h4 style={{ margin: '0 0 10px 0', fontSize: 13, fontWeight: 700, color: '#334155' }}>
-              ขอบเขตข้อมูลที่เข้าถึงได้ (Scope Access)
-            </h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12.5 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ color: '#64748B', width: 130 }}>บริษัทที่รับผิดชอบ:</span>
-                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                  {currentUser.co.length > 0 ? (
-                    currentUser.co.map(c => (
-                      <span
-                        key={c}
-                        style={{
-                          background: '#E2E8F0',
-                          color: '#1E293B',
-                          padding: '1px 8px',
-                          borderRadius: 4,
-                          fontWeight: 600,
-                          fontSize: 11
-                        }}
-                      >
-                        {c}
+          <section className="pf-card">
+            <h4>ขอบเขตข้อมูลที่เข้าถึงได้ (Scope Access)</h4>
+            <div className="pf-row">
+              <span className="pf-k">บริษัทที่รับผิดชอบ:</span>
+              <div className="pf-chips">
+                {currentUser.co.length > 0 ? (
+                  currentUser.co.map(c => (
+                    <span key={c} className="co">
+                      {c}
+                    </span>
+                  ))
+                ) : (
+                  <span className="muted">ทุกบริษัท (ผู้ดูแลระบบ)</span>
+                )}
+              </div>
+            </div>
+            {isEu && (
+              <div className="pf-row">
+                <span className="pf-k">Oracle Receiver:</span>
+                <div className="pf-chips">
+                  {accounts.length > 0 ? (
+                    accounts.map(a => (
+                      <span key={a} className="pf-acct">
+                        {a}
                       </span>
                     ))
                   ) : (
-                    <span style={{ color: '#64748B' }}>ทุกบริษัท (ผู้ดูแลระบบ)</span>
+                    <span className="muted">— ยังไม่มีบัญชีเชื่อมโยง</span>
                   )}
                 </div>
               </div>
+            )}
+          </section>
 
-              {isEu && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ color: '#64748B', width: 130 }}>Oracle Receiver:</span>
-                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                    {accounts.length > 0 ? (
-                      accounts.map(a => (
-                        <span
-                          key={a}
-                          style={{
-                            background: '#EFF6FF',
-                            color: '#1D4ED8',
-                            border: '1px solid #BFDBFE',
-                            padding: '1px 8px',
-                            borderRadius: 4,
-                            fontWeight: 600,
-                            fontSize: 11
-                          }}
-                        >
-                          {a}
-                        </span>
-                      ))
-                    ) : (
-                      <span style={{ color: '#64748B' }}>— ยังไม่มีบัญชีเชื่อมโยง</span>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Permissions Matrix */}
-          <div>
-            <h4 style={{ margin: '0 0 10px 0', fontSize: 13, fontWeight: 700, color: '#334155' }}>
-              สิทธิ์ที่ได้รับอนุญาต ({currentRole.p.length} รายการ)
-            </h4>
-            <div
-              style={{
-                border: '1px solid #E2E8F0',
-                borderRadius: 8,
-                overflow: 'hidden',
-                maxHeight: 220,
-                overflowY: 'auto'
-              }}
-            >
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <section>
+            <h4 className="pf-h4">สิทธิ์ที่ได้รับอนุญาต ({currentRole.p.length} รายการ)</h4>
+            <div className="tbl-wrap pf-perm">
+              <table className="t">
                 <thead>
-                  <tr style={{ background: '#F8FAFC', borderBottom: '1px solid #E2E8F0', textAlign: 'left' }}>
-                    <th style={{ padding: '8px 12px', width: 40, textAlign: 'center' }}>สถานะ</th>
-                    <th style={{ padding: '8px 12px', width: 140 }}>รหัสสิทธิ์</th>
-                    <th style={{ padding: '8px 12px' }}>คำอธิบายสิทธิ์</th>
+                  <tr>
+                    <th className="pf-c">สถานะ</th>
+                    <th style={{ width: 150 }}>รหัสสิทธิ์</th>
+                    <th>คำอธิบายสิทธิ์</th>
                   </tr>
                 </thead>
                 <tbody>
                   {currentRole.p.map(perm => (
-                    <tr key={perm} style={{ borderBottom: '1px solid #F1F5F9' }}>
-                      <td style={{ padding: '8px 12px', textAlign: 'center', color: '#16A34A', fontWeight: 'bold' }}>
-                        ✓
+                    <tr key={perm}>
+                      <td className="pf-c pf-ok">
+                        <Icon name="check" size="sm" />
                       </td>
-                      <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontWeight: 600, color: '#334155' }}>
-                        {perm}
-                      </td>
-                      <td style={{ padding: '8px 12px', color: '#475569' }}>
-                        {PERMISSION_DESCRIPTIONS[perm] || perm}
-                      </td>
+                      <td className="mono b">{perm}</td>
+                      <td>{PERMISSION_DESCRIPTIONS[perm] || perm}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </div>
+          </section>
         </div>
 
         {/* Footer */}
-        <div
-          style={{
-            padding: '12px 20px',
-            borderTop: '1px solid #F1F5F9',
-            background: '#F8FAFC',
-            display: 'flex',
-            justifyContent: 'flex-end'
-          }}
-        >
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              padding: '6px 16px',
-              borderRadius: 6,
-              border: '1px solid #CBD5E1',
-              background: '#fff',
-              fontSize: 12.5,
-              fontWeight: 600,
-              cursor: 'pointer',
-              color: '#334155'
-            }}
-          >
+        <div className="mf">
+          <button type="button" className="btn btn-sec" onClick={onClose}>
             ปิด
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 

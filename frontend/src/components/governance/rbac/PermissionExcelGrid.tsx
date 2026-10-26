@@ -6,7 +6,9 @@ import { ROLES } from '@/mock/users'
 import { AdUserSearchModal } from './AdUserSearchModal'
 import { SaveDiffModal, UserDiff } from './SaveDiffModal'
 import { useToastModal } from '@/context/ToastModalContext'
-import '@/styles/permissionGrid.css'
+import { Icon } from '../../common/Icon'
+import '@/styles/permissionGrid.css' // ยังใช้กับ modal (.modal-*, .perm-chip, .role-card)
+import '@/styles/aiva/user-admin.css'
 
 export interface ManagedUser {
   id: string
@@ -24,6 +26,12 @@ export interface ManagedUser {
 }
 
 const AVAILABLE_COMPANIES = ['AH', 'AHT', 'AHP', 'AM']
+
+/** ตัวอักษรแรกของชื่อ (ข้ามสระนำภาษาไทย) สำหรับอวาตาร์ */
+const initialOf = (name: string): string => {
+  const t = String(name || '').trim().replace(/^[เแโใไ]/, '')
+  return t ? t.charAt(0).toUpperCase() : '?'
+}
 
 export function PermissionExcelGrid() {
   const { toast } = useToastModal()
@@ -99,6 +107,11 @@ export function PermissionExcelGrid() {
   }, [users, initialUsers])
 
   const hasDirtyChanges = diffs.length > 0
+  // แถวที่ "ต่างจากค่าที่บันทึกไว้จริง" เท่านั้นที่ขึ้นป้ายแก้ไข (เลือกค่าเดิมกลับมาแล้วป้ายหายไป)
+  const modifiedIds = useMemo(
+    () => new Set(diffs.filter(d => d.type === 'modified').map(d => d.user.id)),
+    [diffs]
+  )
 
   const handleRoleChange = (id: string, newRole: RoleKey) => {
     setUsers(prev =>
@@ -215,114 +228,132 @@ export function PermissionExcelGrid() {
   }
 
   return (
-    <div className="perm-admin">
-      {/* Top Toolbar */}
-      <div className="perm-bar">
-        <div className="perm-ttl">
-          <span>สิทธิ์และการเชื่อมบัญชี (Admin Grid)</span>
-          <span style={{ fontSize: 11, background: '#E2E8F0', padding: '2px 8px', borderRadius: 999 }}>
-            {filteredUsers.length} คน
-          </span>
-        </div>
-
-        <div className="perm-srch">
+    <div className="ua">
+      {/* แถบเครื่องมือ — ปุ่มใช้ .btn ของธีม: เพิ่ม = รอง · บันทึก = หลัก */}
+      <div className="ua-bar">
+        <label className="ua-search">
+          <Icon name="search" />
           <input
             type="text"
             placeholder="ค้นหาชื่อ, username, email…"
+            aria-label="ค้นหาผู้ใช้"
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
-        </div>
-
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-          <button
-            type="button"
-            className="btn-xl-add"
-            onClick={() => setIsAddModalOpen(true)}
-          >
-            + เพิ่มผู้ใช้จาก AD (LDAP)
-          </button>
-
-          <button
-            type="button"
-            className="btn-xl-save"
-            disabled={!hasDirtyChanges || isSaving}
-            onClick={() => setIsDiffModalOpen(true)}
-          >
-            บันทึกการเปลี่ยนแปลง {hasDirtyChanges && `(${diffs.length})`}
-          </button>
-        </div>
+        </label>
+        <span className="ua-count">{filteredUsers.length} คน</span>
+        <span className="ua-sp" />
+        <button type="button" className="btn btn-sec" onClick={() => setIsAddModalOpen(true)}>
+          <Icon name="plus" size="sm" />
+          เพิ่มผู้ใช้จาก AD (LDAP)
+        </button>
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={!hasDirtyChanges || isSaving}
+          onClick={() => setIsDiffModalOpen(true)}
+        >
+          <Icon name="save" size="sm" />
+          บันทึกการเปลี่ยนแปลง{hasDirtyChanges ? ` (${diffs.length})` : ''}
+        </button>
       </div>
 
-      {/* Excel Sheet */}
-      <div className="perm-sheet">
-        {isLoading ? (
-          <div style={{ padding: 32, textAlign: 'center', color: '#64748B' }}>กำลังโหลดข้อมูลผู้ใช้…</div>
-        ) : (
-          <table className="xl-grid">
+      {isLoading ? (
+        <div className="ua-state">กำลังโหลดข้อมูลผู้ใช้…</div>
+      ) : (
+        <div className="ua-wrap">
+          <table className="ua-table">
             <thead>
               <tr>
-                <th className="n">#</th>
-                <th style={{ width: 170 }}>ชื่อ - นามสกุล</th>
-                <th style={{ width: 110 }}>Username</th>
-                <th style={{ width: 190 }}>Email (Canonical ID)</th>
-                <th style={{ width: 160 }}>สิทธิ์ (Role)</th>
+                <th className="c-user">ผู้ใช้ (ชื่อ · username · email)</th>
+                <th className="c-role">สิทธิ์ (Role)</th>
                 <th>ขอบเขต (Company / Oracle Receiver)</th>
-                <th style={{ width: 44, textAlign: 'center' }}>ลบ</th>
+                <th className="c-act" aria-label="การจัดการ" />
               </tr>
             </thead>
             <tbody>
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: 24, color: '#64748B' }}>
+                  <td colSpan={4} className="ua-state">
                     ไม่พบผู้ใช้ที่ตรงกับเงื่อนไข
                   </td>
                 </tr>
               ) : (
-                filteredUsers.map((u, idx) => {
-                  const isRowDirty = u.isNew || u.isDirty
+                filteredUsers.map(u => {
+                  const isRowDirty = u.isNew || modifiedIds.has(u.id)
                   return (
-                    <tr key={u.id} className={u.isNew ? 'newr' : isRowDirty ? 'dirty' : ''}>
-                      <td className="n">{idx + 1}</td>
-                      <td style={{ fontWeight: 600 }}>{u.name}</td>
-                      <td style={{ fontFamily: 'monospace', color: '#475569' }}>{u.samAccount}</td>
-                      <td style={{ fontFamily: 'monospace', color: '#2563EB' }}>{u.email}</td>
+                    <tr key={u.id} className={u.isNew ? 'is-new' : isRowDirty ? 'is-dirty' : ''}>
                       <td>
-                        <select
-                          className="perm-rin"
-                          value={u.role}
-                          onChange={e => handleRoleChange(u.id, e.target.value as RoleKey)}
-                        >
-                          {(['EU', 'ACC', 'APR', 'ADM', 'SA'] as RoleKey[]).map(rk => (
-                            <option key={rk} value={rk}>
-                              {rk} — {ROLES[rk].n}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="ua-person">
+                          <span
+                            className="ua-av"
+                            aria-hidden="true"
+                            style={{ background: ROLES[u.role].bg, color: ROLES[u.role].c }}
+                          >
+                            {initialOf(u.name)}
+                          </span>
+                          <div className="ua-id">
+                            <div className="ua-name">
+                              <span title={u.name}>{u.name}</span>
+                              {u.isNew ? (
+                                <span className="ua-tag new">ใหม่</span>
+                              ) : isRowDirty ? (
+                                <span className="ua-tag dirty">แก้ไข</span>
+                              ) : null}
+                            </div>
+                            <div className="ua-sub">
+                              <span className="mono">{u.samAccount}</span>
+                              <i>·</i>
+                              <span className="mono" title={u.email}>
+                                {u.email}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
                       </td>
                       <td>
-                        <div className="chip-wrap">
+                        <div className="ua-selwrap">
+                          <select
+                            className="ua-sel"
+                            aria-label={`สิทธิ์ของ ${u.name}`}
+                            value={u.role}
+                            onChange={e => handleRoleChange(u.id, e.target.value as RoleKey)}
+                          >
+                            {(['EU', 'ACC', 'APR', 'ADM', 'SA'] as RoleKey[]).map(rk => (
+                              <option key={rk} value={rk}>
+                                {rk} — {ROLES[rk].n}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="ua-chips">
                           {u.role === 'EU' ? (
                             <>
                               {u.receivers.map(r => (
-                                <span key={r} className="perm-chip">
+                                <span key={r} className="ua-chip rcv">
                                   {r}
-                                  <button onClick={() => handleRemoveReceiver(u.id, r)}>✕</button>
+                                  <button type="button" aria-label={`เอา ${r} ออก`} onClick={() => handleRemoveReceiver(u.id, r)}>
+                                    <Icon name="x" />
+                                  </button>
                                 </span>
                               ))}
                               <input
                                 type="text"
-                                placeholder="+ พิมพ์ Receiver กด Enter"
-                                style={{
-                                  border: 0,
-                                  outline: 0,
-                                  fontSize: 11,
-                                  width: 140,
-                                  background: 'transparent',
-                                }}
+                                className="ua-rcv-in"
+                                placeholder="+ เพิ่ม Receiver (กด Enter)"
+                                aria-label={`เพิ่ม Receiver ของ ${u.name}`}
                                 onKeyDown={e => {
                                   if (e.key === 'Enter') {
                                     e.preventDefault()
+                                    handleAddReceiver(u.id, e.currentTarget.value)
+                                    e.currentTarget.value = ''
+                                  }
+                                }}
+                                onBlur={e => {
+                                  // พิมพ์ค้างแล้วคลิกที่อื่น (เช่นปุ่มบันทึก) ก็ถือว่าเพิ่ม — กันค่าหาย
+                                  if (e.currentTarget.value.trim()) {
                                     handleAddReceiver(u.id, e.currentTarget.value)
                                     e.currentTarget.value = ''
                                   }
@@ -332,42 +363,33 @@ export function PermissionExcelGrid() {
                           ) : u.role === 'ACC' || u.role === 'APR' ? (
                             <>
                               {u.companies.map(co => (
-                                <span key={co} className="perm-chip co">
+                                <span key={co} className="ua-chip">
                                   {co}
-                                  <button onClick={() => handleRemoveCompany(u.id, co)}>✕</button>
+                                  <button type="button" aria-label={`เอา ${co} ออก`} onClick={() => handleRemoveCompany(u.id, co)}>
+                                    <Icon name="x" />
+                                  </button>
                                 </span>
                               ))}
                               {AVAILABLE_COMPANIES.filter(c => !u.companies.includes(c)).map(c => (
-                                <button
-                                  key={c}
-                                  onClick={() => handleAddCompany(u.id, c)}
-                                  style={{
-                                    border: '1px dashed #B8C0CC',
-                                    borderRadius: 4,
-                                    background: '#fff',
-                                    fontSize: 10,
-                                    padding: '1px 5px',
-                                    cursor: 'pointer',
-                                    color: '#64748B',
-                                  }}
-                                >
+                                <button key={c} type="button" className="ua-add" onClick={() => handleAddCompany(u.id, c)}>
                                   + {c}
                                 </button>
                               ))}
                             </>
                           ) : (
-                            <span style={{ fontSize: 11, color: '#94A3B8' }}>ไม่ใช้ขอบเขต (Admin ทั้งระบบ)</span>
+                            <span className="ua-none">ไม่ใช้ขอบเขต (Admin ทั้งระบบ)</span>
                           )}
                         </div>
                       </td>
-                      <td style={{ textAlign: 'center' }}>
+                      <td className="c-act">
                         <button
                           type="button"
-                          className="perm-del-btn"
+                          className="ua-del"
                           title="ลบผู้ใช้"
+                          aria-label={`ลบผู้ใช้ ${u.name}`}
                           onClick={() => handleDeleteUser(u.id)}
                         >
-                          ✕
+                          <Icon name="trash" />
                         </button>
                       </td>
                     </tr>
@@ -376,7 +398,11 @@ export function PermissionExcelGrid() {
               )}
             </tbody>
           </table>
-        )}
+        </div>
+      )}
+
+      <div className="ua-foot">
+        ชื่อ Receiver ต้องตรงกับค่า RECEIVER ใน Oracle ทุกตัวอักษร · ระบบจะแสดงรายการที่เปลี่ยนให้ตรวจก่อนบันทึกเสมอ
       </div>
 
       {/* Add User Modal */}

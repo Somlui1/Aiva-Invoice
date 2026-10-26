@@ -1,0 +1,26 @@
+{
+  "receipts": [
+    {
+      "po_number": "50000001",
+      "invoice_num": "SBX-INV-0001",
+      "supplier_tax_id": "1234567890121",
+      "rows": [
+        {
+          "ORG_ID": 103,
+          "RECEIPT_NUM": "RCV-0000012345",
+          "RECEIVER": "SMITH J.",
+          "LINE": 1,
+          "ITEM": "BRACKET ASSY",
+          "QTY": "10",
+          "UOM": "EA",
+          "UNIT_PRICE": "100.00",
+          "LINE_AMOUNT": "1000.00",
+          "PO_NUM": "50000001"
+        }
+      ]
+    }
+  ],
+  "po_supplier": {
+    "50000001": "1234567890121"
+  }
+}

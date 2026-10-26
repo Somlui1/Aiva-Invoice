@@ -1,0 +1,402 @@
+/* =====================================================================
+   AIVA UI-fix-1 · ตารางจัดการสิทธิ์ผู้ใช้ (.ua-*)
+   แทน Excel-grid เดิม (.perm-* / .xl-grid ใน permissionGrid.css — ยังใช้กับ modal เท่านั้น)
+
+   ปัญหาเดิม
+   · หัวตารางไล่เฉด (gradient) ด้วยสีตายตัว → ในโหมดมืดเป็นแถบขาว→ดำ "เป็นเงา" อ่านยาก
+   · ตารางมีเส้นกรอบทุกช่อง + พื้นหลังตายตัว + การ์ดซ้อนการ์ด (panel > perm-admin > perm-bar/perm-sheet)
+   · ปุ่มเป็นสีเขียว Excel / กรมท่าตายตัว ไม่ตรงกับปุ่มทั้งระบบ
+
+   ตอนนี้: พื้นผิวเดียว (อยู่ใน .panel) · หัวตารางไม่มีพื้น แค่ตัวเล็กสีจาง + เส้นบาง · แถวสูง 56px
+   เส้นคั่นบาง ๆ · hover ไฮไลต์ทั้งแถว · แถวที่แก้ไข/ใหม่มีแถบสีซ้ายและป้าย
+   ปุ่มใช้ .btn .btn-sec / .btn-primary ของธีม · ทุกสีมาจาก token → Dark/Light
+   ===================================================================== */
+
+.ua {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-family: var(--font, system-ui, sans-serif);
+  color: var(--s-800, #1d2939);
+}
+
+/* ---------- แถบเครื่องมือ ---------- */
+.ua-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line, #e3e7ef);
+}
+.ua-search {
+  position: relative;
+  flex: 0 1 320px;
+  min-width: 190px;
+}
+.ua-search > .ico {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  width: 15px;
+  height: 15px;
+  transform: translateY(-50%);
+  color: var(--s-400, #98a2b3);
+  pointer-events: none;
+}
+.ua-search input {
+  width: 100%;
+  height: 34px;
+  padding: 0 12px 0 34px;
+  border: 1px solid var(--line, #e3e7ef);
+  border-radius: var(--r-md, 10px);
+  background: var(--inp, var(--surface, #fff));
+  color: var(--s-900, #0b1220);
+  font: inherit;
+  font-size: 12.5px;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.ua-search input::placeholder {
+  color: var(--s-400, #98a2b3);
+}
+.ua-search input:hover {
+  border-color: var(--inp-hov, var(--line-strong, #ccd3e0));
+}
+.ua-search input:focus {
+  outline: none;
+  border-color: var(--focus-bd, #2563eb);
+  box-shadow: 0 0 0 3px var(--focus-ring, rgba(37, 99, 235, 0.2));
+}
+.ua-count {
+  font-size: 12px;
+  color: var(--s-500, #667085);
+  white-space: nowrap;
+}
+.ua-sp {
+  flex: 1 1 0;
+}
+.ua-bar .btn {
+  white-space: nowrap;
+}
+
+/* ---------- ตาราง ---------- */
+.ua-wrap {
+  max-height: min(68vh, 720px);
+  overflow: auto;
+}
+.ua-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.ua-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 9px 16px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--s-500, #667085);
+  background: var(--surface, #fff); /* ทึบ ไม่ไล่เฉด */
+  border-bottom: 1px solid var(--line, #e3e7ef);
+  white-space: nowrap;
+}
+.ua-table tbody td {
+  padding: 10px 16px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--line-soft, var(--line, #edf0f6));
+}
+.ua-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.ua-table tbody tr {
+  transition: background 0.12s;
+}
+.ua-table tbody tr:hover {
+  background: var(--hov, rgba(127, 127, 127, 0.07));
+}
+.ua-table tbody tr.is-dirty td:first-child {
+  box-shadow: inset 3px 0 0 var(--warn, #f59e0b);
+}
+.ua-table tbody tr.is-new td:first-child {
+  box-shadow: inset 3px 0 0 var(--teal, #14b3a8);
+}
+.ua-table .c-act {
+  width: 60px;
+  text-align: center;
+  padding-left: 8px;
+  padding-right: 12px;
+}
+.ua-table .c-role {
+  width: 250px;
+}
+.ua-table .c-user {
+  width: 36%;
+}
+
+/* ---------- ผู้ใช้ ---------- */
+.ua-person {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.ua-av {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 700;
+}
+.ua-id {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.ua-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--s-900, #0b1220);
+}
+.ua-name > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ua-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--s-500, #667085);
+  white-space: nowrap;
+}
+.ua-sub .mono {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11px;
+}
+.ua-sub i {
+  flex: none;
+  font-style: normal;
+  color: var(--s-300, #d0d5dd);
+}
+.ua-tag {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.ua-tag.dirty {
+  color: var(--t-warn, #b45309);
+  background: var(--t-warn-bg, rgba(245, 158, 11, 0.14));
+}
+.ua-tag.new {
+  color: var(--t-teal, #0d9488);
+  background: var(--t-teal-bg, rgba(20, 184, 166, 0.14));
+}
+
+/* ---------- เลือกบทบาท ---------- */
+.ua-selwrap {
+  position: relative;
+  max-width: 236px;
+}
+.ua-selwrap::after {
+  content: '';
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-right: 1.6px solid currentColor;
+  border-bottom: 1.6px solid currentColor;
+  transform: translateY(-70%) rotate(45deg);
+  color: var(--s-400, #98a2b3);
+  pointer-events: none;
+}
+.ua-sel {
+  width: 100%;
+  height: 32px;
+  padding: 0 30px 0 10px;
+  border: 1px solid var(--line, #e3e7ef);
+  border-radius: var(--r-md, 10px);
+  background-color: var(--inp, var(--surface, #fff));
+  color: var(--s-900, #0b1220);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  text-overflow: ellipsis;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.ua-sel:hover {
+  border-color: var(--inp-hov, var(--line-strong, #ccd3e0));
+}
+.ua-sel:focus {
+  outline: none;
+  border-color: var(--focus-bd, #2563eb);
+  box-shadow: 0 0 0 3px var(--focus-ring, rgba(37, 99, 235, 0.2));
+}
+.ua-sel option {
+  background: var(--surface, #fff);
+  color: var(--s-900, #0b1220);
+}
+
+/* ---------- ขอบเขต (บริษัท / Receiver) ---------- */
+.ua-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.ua-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 26px;
+  padding: 0 4px 0 10px;
+  border: 1px solid var(--info-bd, rgba(59, 130, 246, 0.38));
+  border-radius: 999px;
+  background: var(--t-blue-bg, rgba(59, 130, 246, 0.14));
+  color: var(--t-blue, #1d4ed8);
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ua-chip.rcv {
+  border-color: var(--line, #e3e7ef);
+  background: var(--surface-3, #eef2f7);
+  color: var(--s-800, #1d2939);
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11px;
+}
+.ua-chip button {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  opacity: 0.55;
+  cursor: pointer;
+}
+.ua-chip button .ico {
+  width: 11px;
+  height: 11px;
+}
+.ua-chip button:hover {
+  opacity: 1;
+  background: var(--err-bg, rgba(239, 68, 68, 0.14));
+  color: var(--err, #b91c1c);
+}
+.ua-add {
+  height: 26px;
+  padding: 0 11px;
+  border: 1px dashed var(--line-strong, #ccd3e0);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--s-500, #667085);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+.ua-add:hover {
+  border-style: solid;
+  border-color: var(--chip-on-bd, rgba(91, 155, 255, 0.55));
+  background: var(--hov, rgba(127, 127, 127, 0.08));
+  color: var(--accent-text, #1d4ed8);
+}
+.ua-rcv-in {
+  height: 26px;
+  width: 200px;
+  max-width: 100%;
+  padding: 0 12px;
+  border: 1px dashed var(--line-strong, #ccd3e0);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--s-900, #0b1220);
+  font: inherit;
+  font-size: 11.5px;
+  transition: border-color 0.12s, box-shadow 0.12s, background 0.12s;
+}
+.ua-rcv-in::placeholder {
+  color: var(--s-400, #98a2b3);
+}
+.ua-rcv-in:hover {
+  border-color: var(--inp-hov, var(--s-400, #98a2b3));
+}
+.ua-rcv-in:focus {
+  outline: none;
+  border-style: solid;
+  border-color: var(--focus-bd, #2563eb);
+  background: var(--inp, var(--surface, #fff));
+  box-shadow: 0 0 0 3px var(--focus-ring, rgba(37, 99, 235, 0.2));
+}
+.ua-none {
+  font-size: 12px;
+  color: var(--s-400, #98a2b3);
+}
+
+/* ---------- ปุ่มลบ ---------- */
+.ua-del {
+  width: 30px;
+  height: 30px;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-sm, 7px);
+  background: transparent;
+  color: var(--s-400, #98a2b3);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.ua-del .ico {
+  width: 15px;
+  height: 15px;
+}
+.ua-del:hover {
+  background: var(--err-bg, rgba(239, 68, 68, 0.14));
+  color: var(--err, #b91c1c);
+}
+
+/* ---------- สถานะว่าง/โหลด + ท้ายตาราง ---------- */
+.ua-state {
+  padding: 44px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--s-500, #667085);
+}
+.ua-foot {
+  padding: 10px 16px;
+  border-top: 1px solid var(--line, #e3e7ef);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--s-500, #667085);
+}
+
+@media (max-width: 900px) {
+  .ua-bar { padding: 10px 12px; }
+  .ua-table thead th,
+  .ua-table tbody td { padding-left: 12px; padding-right: 12px; }
+}

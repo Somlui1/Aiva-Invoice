@@ -1,45 +1,44 @@
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
-import { POST } from '../app/api/engine/ingest/route'
-import { NextRequest } from 'next/server'
+import request from 'supertest'
+import { createExpressApp } from '../../server/app'
 
 describe('POST /api/engine/ingest', () => {
+  const app = createExpressApp()
+
   it('ingests valid engine payload with idempotency check', async () => {
-    const raw = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), 'temp/paperless_invoices_v5/DMS-100_result.json'), 'utf-8'))
-    const req = new NextRequest('http://localhost:3000/api/engine/ingest', {
-      method: 'POST',
-      body: JSON.stringify(raw),
-      headers: { 'Content-Type': 'application/json' }
-    })
-    const res = await POST(req)
+    const raw = JSON.parse(
+      fs.readFileSync(path.resolve(process.cwd(), 'temp/paperless_invoices_v5/DMS-100_result.json'), 'utf-8'),
+    )
+    const res = await request(app)
+      .post('/api/engine/ingest')
+      .send(raw)
+
     expect(res.status).toBe(200)
-    const data = await res.json()
-    expect(data.ok).toBe(true)
-    expect(data.dmsDocId).toBe('DMS-100')
+    expect(res.body.ok).toBe(true)
+    expect(res.body.dmsDocId).toBe('DMS-100')
   })
 })
 
-/**
- * Coverage beyond the plan's single happy path: the point of this route is the
- * contract boundary plus idempotency, so those are what must be pinned down.
- * Runs against an isolated test database (see vitest global setup).
- */
 const DMS100 = () =>
   JSON.parse(
     fs.readFileSync(path.resolve(process.cwd(), 'temp/paperless_invoices_v5/DMS-100_result.json'), 'utf-8'),
   )
 
-const postJson = (body: unknown) =>
-  POST(
-    new NextRequest('http://localhost:3000/api/engine/ingest', {
-      method: 'POST',
-      body: typeof body === 'string' ? body : JSON.stringify(body),
-      headers: { 'Content-Type': 'application/json' },
-    }),
-  )
-
 describe('POST /api/engine/ingest — persistence & idempotency', () => {
+  const app = createExpressApp()
+
+  const postJson = (body: unknown) => {
+    if (typeof body === 'string') {
+      return request(app)
+        .post('/api/engine/ingest')
+        .set('Content-Type', 'application/json')
+        .send(body)
+    }
+    return request(app).post('/api/engine/ingest').send(body as any)
+  }
+
   it('persists Document + ValidationRun, storing the raw Engine payload', async () => {
     const { prisma } = await import('../lib/prisma')
     const raw = DMS100()
@@ -82,10 +81,9 @@ describe('POST /api/engine/ingest — persistence & idempotency', () => {
 
     const res = await postJson(raw)
     expect(res.status).toBe(200)
-    const data = await res.json()
-    expect(data.ok).toBe(true)
-    expect(data.idempotent_replay).toBe(true)
-    expect(data.dmsDocId).toBe('DMS-100')
+    expect(res.body.ok).toBe(true)
+    expect(res.body.idempotent_replay).toBe(true)
+    expect(res.body.dmsDocId).toBe('DMS-100')
 
     expect(await prisma.validationRun.count()).toBe(runsBefore)
     expect(await prisma.document.count()).toBe(docsBefore)
@@ -98,8 +96,7 @@ describe('POST /api/engine/ingest — persistence & idempotency', () => {
     clash.package.file_sha256 = 'sha256:' + '0'.repeat(64)
     const res = await postJson(clash)
     expect(res.status).toBe(409)
-    const data = await res.json()
-    expect(data.ok).toBe(false)
+    expect(res.body.ok).toBe(false)
   })
 
   it('accepts a genuinely new validation round and updates the document', async () => {
@@ -116,13 +113,12 @@ describe('POST /api/engine/ingest — persistence & idempotency', () => {
 
     const res = await postJson(round2)
     expect(res.status).toBe(200)
-    const data = await res.json()
-    expect(data.ok).toBe(true)
-    expect(data.idempotent_replay).toBe(false)
+    expect(res.body.ok).toBe(true)
+    expect(res.body.idempotent_replay).toBe(false)
 
     const runs = await prisma.validationRun.findMany({ where: { documentId: 'DMS-100' } })
     expect(runs.length).toBe(2)
-    expect(runs.map(r => r.validationRound).sort()).toEqual([1, 2])
+    expect(runs.map((r: any) => r.validationRound).sort()).toEqual([1, 2])
 
     // Document keeps exactly one row and reflects the latest round.
     expect(await prisma.document.count({ where: { id: 'DMS-100' } })).toBe(1)
@@ -140,10 +136,9 @@ describe('POST /api/engine/ingest — persistence & idempotency', () => {
 
     const res = await postJson(bad)
     expect(res.status).toBe(422)
-    const data = await res.json()
-    expect(data.ok).toBe(false)
-    expect(Array.isArray(data.errors)).toBe(true)
-    expect(data.errors.join(' ')).toContain('recommendation')
+    expect(res.body.ok).toBe(false)
+    expect(Array.isArray(res.body.errors)).toBe(true)
+    expect(res.body.errors.join(' ')).toContain('recommendation')
     expect(await prisma.document.count()).toBe(before)
   })
 
@@ -156,19 +151,19 @@ describe('POST /api/engine/ingest — persistence & idempotency', () => {
 
     const res = await postJson(bad)
     expect(res.status).toBe(422)
-    expect(((await res.json()).errors ?? []).join(' ')).toContain('ap_status')
+    expect((res.body.errors ?? []).join(' ')).toContain('ap_status')
     expect(await prisma.document.count()).toBe(before)
   })
 
   it('rejects a malformed JSON body with 400', async () => {
     const res = await postJson('{ this is not json')
     expect(res.status).toBe(400)
-    expect((await res.json()).ok).toBe(false)
+    expect(res.body.ok).toBe(false)
   })
 
   it('rejects a non-object body with 422', async () => {
     const res = await postJson({ unexpected: 'shape' })
     expect(res.status).toBe(422)
-    expect((await res.json()).ok).toBe(false)
+    expect(res.body.ok).toBe(false)
   })
 })

@@ -8,7 +8,9 @@ import { ToastModalProvider } from './context/ToastModalContext'
 import { InvoiceProvider, useInvoices } from './context/InvoiceContext'
 import { SimProvider } from './context/SimContext'
 import { Topbar } from './components/layout/Topbar'
-import { Sidebar, PageKey } from './components/layout/Sidebar'
+import { Sidebar, PageKey, useNavSections } from './components/layout/Sidebar'
+import { SplashScreen } from './components/shell/SplashScreen'
+import { CommandPalette } from './components/shell/CommandPalette'
 import { Modal } from './components/layout/Modal'
 import { Toast } from './components/layout/Toast'
 import { QueuePage } from './components/queue/QueuePage'
@@ -25,6 +27,7 @@ import { StandaloneViewerRoute } from './components/viewer/StandaloneViewerRoute
 export function PortalShell({ initialPage = 'queue' }: { initialPage?: PageKey }) {
   const { currentUser, isAuthenticated } = useAuth()
   const { isEvidenceDockOpen, closeEvidenceDock } = useInvoices()
+  const navSections = useNavSections()
   const [currentPage, setCurrentPage] = useState<PageKey>(initialPage)
   const [isNavCollapsed, setIsNavCollapsed] = useState<boolean>(() => {
     try {
@@ -48,29 +51,6 @@ export function PortalShell({ initialPage = 'queue' }: { initialPage?: PageKey }
       setCurrentPage('rbac')
     }
   }, [isAuthenticated, currentUser.id, currentUser.role, initialPage])
-
-  if (!isAuthenticated) {
-    return (
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100vh',
-          fontFamily: 'sans-serif',
-          color: 'var(--s-600, #475569)',
-          gap: 12,
-        }}
-        data-testid="auth-redirect-guard"
-      >
-        <div style={{ fontWeight: 600, fontSize: 16 }}>กำลังนำทางไปหน้าเข้าสู่ระบบ...</div>
-        <a href="/login" style={{ fontSize: 14, color: 'var(--teal-d, #0D9488)' }}>
-          คลิกที่นี่หากเบราว์เซอร์ไม่นำทางโดยอัตโนมัติ
-        </a>
-      </div>
-    )
-  }
 
   const handleNavigate = (page: PageKey) => {
     setCurrentPage(page)
@@ -97,6 +77,7 @@ export function PortalShell({ initialPage = 'queue' }: { initialPage?: PageKey }
 
   // Keyboard shortcut listener
   useEffect(() => {
+    if (!isAuthenticated) return
     const handleKeyDown = (e: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement).tagName)) {
         return
@@ -111,7 +92,20 @@ export function PortalShell({ initialPage = 'queue' }: { initialPage?: PageKey }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isEvidenceDockOpen, closeEvidenceDock])
+  }, [isAuthenticated, isEvidenceDockOpen, closeEvidenceDock])
+
+  // ชื่อหน้าสำหรับ breadcrumb ของ Topbar (AIVA › หน้า)
+  const pageTitle =
+    navSections.flatMap(sec => sec.items).find(it => it.key === currentPage)?.label || ''
+
+  if (!isAuthenticated) {
+    return (
+      <div className="auth-guard" data-testid="auth-redirect-guard">
+        <div style={{ fontWeight: 600, fontSize: 16 }}>กำลังนำทางไปหน้าเข้าสู่ระบบ...</div>
+        <a href="/login">คลิกที่นี่หากเบราว์เซอร์ไม่นำทางโดยอัตโนมัติ</a>
+      </div>
+    )
+  }
 
   const renderCurrentPage = () => {
     switch (currentPage) {
@@ -141,7 +135,7 @@ export function PortalShell({ initialPage = 'queue' }: { initialPage?: PageKey }
       className={`shell ${isNavCollapsed ? 'nav-c' : ''} ${isEvidenceDockOpen ? 'nav-auto' : ''}`}
       id="shell"
     >
-      <Topbar isNavCollapsed={isNavCollapsed} onToggleNav={toggleNav} />
+      <Topbar isNavCollapsed={isNavCollapsed} onToggleNav={toggleNav} pageTitle={pageTitle} />
       <div className="body">
         <Sidebar
           currentPage={currentPage}
@@ -154,6 +148,7 @@ export function PortalShell({ initialPage = 'queue' }: { initialPage?: PageKey }
       </div>
       <Modal />
       <Toast />
+      <CommandPalette onNavigate={handleNavigate} onToggleNav={toggleNav} />
     </div>
   )
 }
@@ -200,7 +195,12 @@ export function App({
   }
 
   if (currentPath === '/login') {
-    return <LoginPage />
+    return (
+      <>
+        <LoginPage />
+        <SplashScreen />
+      </>
+    )
   }
 
   const effectivePage = resolvePageFromPath(currentPath) || initialPage
@@ -212,6 +212,7 @@ export function App({
           <InvoiceProvider>
             <SimProvider>
               <PortalShell initialPage={effectivePage} />
+              <SplashScreen />
             </SimProvider>
           </InvoiceProvider>
         </ToastModalProvider>

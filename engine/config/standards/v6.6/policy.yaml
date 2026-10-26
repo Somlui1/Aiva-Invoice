@@ -77,6 +77,8 @@ confidence:            # OQ-09 provisional — recalibrate from eval set
   optional: {fields: [supplier_name, supplier_tax_id, invoice_date, release_num, description, currency, item_code], min: 0.70, require_agreement: false}
 signature:
   min_confidence: 0.80          # 2026-10-07: 28/98 docs at 0.80 (deliverer) went to MANUAL_REVIEW at 0.85
+  # engine 5.6: ไม่มีการอ่านค่านี้อีกแล้ว (V-06 v2.0 + stamp fallback ใน normalize ตัดสินจาก
+  # "เจอรอย = เซ็น" เท่านั้น; single_pass เองก็ไม่ส่ง confidence มาด้วย) เก็บไว้ให้ payload/มาตรฐานเดิมอ้างอิง
 ai:
   v05_name_min_confidence: 0.85
   v05_address_ai_enabled: true

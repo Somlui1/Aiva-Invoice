@@ -6,13 +6,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
 import { LoginPage } from '../features/login/LoginPage'
 
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({
-    replace: vi.fn(),
-    refresh: vi.fn(),
-    push: vi.fn(),
-  }),
-}))
 
 describe('LoginPage Component', () => {
   beforeEach(() => {

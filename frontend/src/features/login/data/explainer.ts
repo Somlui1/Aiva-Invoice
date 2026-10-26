@@ -291,12 +291,12 @@ export const SAMPLE_ROWS: [string, string, string, string[], string, string][] =
 
 /** [ป้าย, สถานะที่นับ (null = ทั้งหมด), ไอคอน, สีไอคอน, สีพื้นไอคอน] */
 export const KPIS: [string, string | null, IconName, string, string][] = [
-  ["ทั้งหมด", null, "layers", "#1D4ED8", "#EFF6FF"],
-  ["Auto-pass", "Auto-pass", "checkc", "#047857", "#ECFDF5"],
-  ["Review", "Review", "clock", "#B45309", "#FFFBEB"],
-  ["Hold", "Hold", "pause", "#B91C1C", "#FEF2F2"],
-  ["Manual Review", "Manual Review", "alert", "#6D28D9", "#F5F3FF"],
-  ["ซ้ำ (Portal)", "Duplicate", "copy", "#C2410C", "#FFF7ED"],
+  ["ทั้งหมด", null, "layers", "var(--t-blue)", "var(--t-blue-bg)"],
+  ["Auto-pass", "Auto-pass", "checkc", "var(--t-ok)", "var(--t-ok-bg)"],
+  ["Review", "Review", "clock", "var(--t-warn)", "var(--t-warn-bg)"],
+  ["Hold", "Hold", "pause", "var(--t-err)", "var(--t-err-bg)"],
+  ["Manual Review", "Manual Review", "alert", "var(--t-vio)", "var(--t-vio-bg)"],
+  ["ซ้ำ (Portal)", "Duplicate", "copy", "var(--t-org)", "var(--t-org-bg)"],
 ];
 
 export const QUEUE_FEATURES: { icon: IconName; title: string; text: string }[] = [

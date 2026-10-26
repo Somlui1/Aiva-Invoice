@@ -1,4 +1,5 @@
 import React from 'react'
+import { PRISM_ICONS, type PrismIconName } from './prismIcons'
 
 export const ICONS = {
   menu: 'M4 6h16M4 12h16M4 18h16',
@@ -52,7 +53,7 @@ export const ICONS = {
 } as const
 
 
-export type IconName = keyof typeof ICONS
+export type IconName = keyof typeof ICONS | PrismIconName
 
 export interface IconProps {
   name: IconName
@@ -63,7 +64,8 @@ export interface IconProps {
 
 export function Icon({ name, className = '', size = 'md', style }: IconProps) {
   const sizeClass = size === 'sm' ? 'sm' : size === 'lg' ? 'lg' : ''
-  const path = ICONS[name] || ''
+  // v5.3: ใช้ชุดไอคอน Prism (duotone) ของ aiva-react ก่อน ถ้าไม่มีจึงใช้ path เดิม
+  const prism = PRISM_ICONS[name]
 
   return (
     <svg
@@ -72,7 +74,15 @@ export function Icon({ name, className = '', size = 'md', style }: IconProps) {
       aria-hidden="true"
       style={style}
     >
-      <path d={path} />
+      {prism ? (
+        <>
+          {prism[1] ? <path className="f" d={prism[1]} /> : null}
+          <path d={prism[0]} />
+          {prism[2] ? <path className="a" d={prism[2]} /> : null}
+        </>
+      ) : (
+        <path d={(ICONS as Record<string, string>)[name] || ''} />
+      )}
     </svg>
   )
 }

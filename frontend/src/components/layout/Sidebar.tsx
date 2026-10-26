@@ -5,6 +5,7 @@ import { Icon, IconName } from '../common/Icon'
 import { useAuth } from '../../context/AuthContext'
 import { useInvoices } from '../../context/InvoiceContext'
 import { useToastModal } from '../../context/ToastModalContext'
+import { BrandTile } from '../shell/BrandTile'
 
 export type PageKey = 'queue' | 'ap' | 'rbac' | 'cases' | 'audit' | 'settings' | 'std' | 'sim'
 
@@ -14,7 +15,7 @@ interface SidebarProps {
   onToggleNav: () => void
 }
 
-interface NavItemConfig {
+export interface NavItemConfig {
   key: PageKey
   label: string
   icon: IconName
@@ -23,10 +24,16 @@ interface NavItemConfig {
   tag?: string
 }
 
-export function Sidebar({ currentPage, onNavigate, onToggleNav }: SidebarProps) {
+export interface NavSection {
+  title: string
+  isSpecial?: boolean
+  items: NavItemConfig[]
+}
+
+/** โครงเมนูตามบทบาท (ใช้ร่วมกันระหว่าง Sidebar และกล่องค้นหา Ctrl K) */
+export function useNavSections(): NavSection[] {
   const { currentUser, can } = useAuth()
   const { visibleDocs, docs } = useInvoices()
-  const { toast } = useToastModal()
 
 
   // Calculate dynamic badge counts
@@ -125,6 +132,12 @@ export function Sidebar({ currentPage, onNavigate, onToggleNav }: SidebarProps) 
     : isAdm
     ? [govSection, devSection]
     : [workSection, govSection]
+  return sections
+}
+
+export function Sidebar({ currentPage, onNavigate, onToggleNav }: SidebarProps) {
+  const { toast } = useToastModal()
+  const sections = useNavSections()
 
   const handleClick = (item: NavItemConfig) => {
     if (!item.isAllowed) {
@@ -137,18 +150,27 @@ export function Sidebar({ currentPage, onNavigate, onToggleNav }: SidebarProps) 
   return (
     <aside className="nav" aria-label="เมนูหลัก">
       <div className="nav-org">
-        <span className="av">AP</span>
-        <div>
-          <b>AAPICO AP Hub</b>
-          <span>ระบบตรวจสอบใบแจ้งหนี้อัตโนมัติ</span>
+        <BrandTile />
+        <div className="tx">
+          <b>AIVA</b>
+          <span>Auto Invoice Matching</span>
         </div>
+        <button
+          type="button"
+          className="ibtn nav-tg"
+          onClick={onToggleNav}
+          title="ย่อ / ขยายเมนู ( [ )"
+          aria-label="ย่อ / ขยายเมนู"
+        >
+          <Icon name="split" />
+        </button>
       </div>
 
-      <nav className="nav-list">
-        {sections.map(sec => (
+      <nav className="nav-list" id="navlist">
+        {sections.map((sec, si) => (
           <Fragment key={sec.title}>
-            <div className={`nav-sec ${sec.isSpecial ? 'sp' : ''}`}>{sec.title}</div>
-            {sec.items.map(it => {
+            <div className={`nav-sec ${sec.isSpecial ? 'sp' : ''}`} style={{ ['--i' as string]: si * 4 }}>{sec.title}</div>
+            {sec.items.map((it, ii) => {
               const isActive = currentPage === it.key
               return (
                 <button
@@ -159,6 +181,7 @@ export function Sidebar({ currentPage, onNavigate, onToggleNav }: SidebarProps) 
                   } ${it.count ? 'has-cnt' : ''}`}
                   title={`${it.label}${it.isAllowed ? '' : ' (ไม่มีสิทธิ์)'}`}
                   aria-current={isActive ? 'page' : undefined}
+                  style={{ ['--i' as string]: si * 4 + ii + 1 }}
                   onClick={() => handleClick(it)}
                 >
                   <Icon name={it.icon} size="lg" />
@@ -181,7 +204,7 @@ export function Sidebar({ currentPage, onNavigate, onToggleNav }: SidebarProps) 
 
       <div className="nav-foot">
         <span className="lbl grow">
-          <b style={{ color: '#CBD5E1' }}>Standard</b> v6.10 · schema 1.7
+          <b>Standard</b> v6.10 · schema 1.7
         </span>
         <button
           type="button"

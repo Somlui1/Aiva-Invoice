@@ -247,18 +247,20 @@ def normalize(ext: ExtractionResult, std: Standard) -> tuple[InvoiceDoc, dict]:
 
 
 def _receiver_from_stamp(ext: ExtractionResult, std: Standard, sigs: dict):
-    """Receiver slot undecided, but a warehouse receiving stamp was seen on a document page."""
+    """Receiver slot undecided, but a warehouse receiving stamp was seen on a document page.
+
+    v5.6: a mark is a mark.  The reader's yes/no is the whole answer, so the stamp's own confidence is
+    reported but never decides anything - ``policy.signature.min_confidence`` is no longer read here.
+    """
     cur = sigs.get("receiver")
-    th = float(std.policy.get("signature", {}).get("min_confidence", 0.5))
-    if cur is not None and cur.present is not None and (cur.confidence is None or cur.confidence >= th):
+    if cur is not None and cur.present is True:
         return None
     for rg in getattr(ext, "regions", ()) or ():
         label = str(rg.label or "").lower()
         if (rg.kind == "stamp" or "stamp" in label) and any(w in label for w in ("received", "receiving", "receiver")):
-            if (rg.confidence or 0) >= th:
-                from .contracts import Region, SignatureObs
-                return SignatureObs(present=True, confidence=rg.confidence, kind=rg.label or "received_stamp",
-                                    region=Region(page=rg.page, bbox=rg.bbox))
+            from .contracts import Region, SignatureObs
+            return SignatureObs(present=True, confidence=rg.confidence, kind=rg.label or "received_stamp",
+                                region=Region(page=rg.page, bbox=rg.bbox))
     return None
 
 
@@ -269,20 +271,19 @@ def _deliverer_from_stamp(ext: ExtractionResult, std: Standard, sigs: dict):
     The supplier's company stamp is the usual "deliverer" mark on Thai tax invoices; the page read
     reports it as a ``stamp`` region (text "stamped") rather than inside the deliverer signature box.
     Only used when policy.evidence.deliverer_from_stamp is on and the slot is truly undecided.
+    v5.6: like the receiver fallback, the stamp's confidence is carried as audit data, never a gate.
     """
     if not (std.policy.get("evidence") or {}).get("deliverer_from_stamp", False):
         return None
     cur = sigs.get("deliverer")
-    th = float(std.policy["signature"]["min_confidence"])
-    if cur is not None and cur.present is not None and (cur.confidence is None or cur.confidence >= th):
+    if cur is not None and cur.present is True:
         return None
     inv_pages = set()
     for d in ext.documents:
         if d.document_id == ext.invoice_document_id:
             inv_pages |= set(d.pages)
     for rg in ext.regions:
-        if rg.kind == "stamp" and rg.page in inv_pages and "stamped" in str(rg.text or "").lower() \
-                and (rg.confidence or 0) >= th:
+        if rg.kind == "stamp" and rg.page in inv_pages and "stamped" in str(rg.text or "").lower():
             from .contracts import Region, SignatureObs
             return SignatureObs(present=True, confidence=rg.confidence, kind="company_stamp_region",
                                 region=Region(page=rg.page, bbox=rg.bbox))

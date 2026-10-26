@@ -33,8 +33,12 @@ async function fromPaperless(dmsDocId: string, reasons: string[]) {
     return null
   }
 
-  const rawId = dmsDocId.replace(/^DMS-0*/, '') || dmsDocId
-  const url = `${base}/api/documents/${encodeURIComponent(rawId)}/download/`
+  const numeric = dmsDocId.match(/(\d+)$/)?.[1]
+  if (!numeric) {
+    reasons.push(`dms_live: "${dmsDocId}" has no numeric Paperless id`)
+    return null
+  }
+  const url = `${base}/api/documents/${numeric}/download/`
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
@@ -140,8 +144,15 @@ pdfProxyRouter.get('/:id/pdf', async (req, res) => {
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader('Content-Disposition', `inline; filename="${filename}"`)
     res.setHeader('X-PDF-Source', source)
-    res.setHeader('X-PDF-Pages', String(doc.pageCount ?? 1))
-    if (got.reason) res.setHeader('X-PDF-Reason', got.reason)
+    res.setHeader('Cache-Control', 'no-store')
+    res.setHeader('Accept-Ranges', 'none')
+    if (doc.pageCount) res.setHeader('X-PDF-Real-Pages', String(doc.pageCount))
+    res.setHeader('X-PDF-Pages', source === 'fallback_mock' ? '1' : String(doc.pageCount ?? 1))
+    if (source === 'fallback_mock') res.setHeader('X-PDF-Mock', 'true')
+    if (got.reason) {
+      res.setHeader('X-PDF-Fallback-Reason', got.reason.slice(0, 200))
+      res.setHeader('X-PDF-Reason', got.reason)
+    }
     if (got.length) res.setHeader('Content-Length', String(got.length))
 
     return res.end(got.buffer)

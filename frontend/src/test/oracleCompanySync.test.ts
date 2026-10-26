@@ -1,29 +1,28 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { POST } from '../app/api/oracle/sync-companies/route'
-import { NextRequest } from 'next/server'
+import request from 'supertest'
+import { createExpressApp } from '../../server/app'
 import { prisma } from '../lib/prisma'
 
 describe('Oracle Company Sync API (/api/oracle/sync-companies)', () => {
+  const app = createExpressApp()
+
   beforeEach(async () => {
     await prisma.auditLog.deleteMany({ where: { docId: 'MASTER_DATA' } })
   })
 
   it('handles company sync request and returns structured companies with audit logging', async () => {
-    const req = new NextRequest('http://localhost/api/oracle/sync-companies', {
-      method: 'POST',
-      body: JSON.stringify({ triggeredBy: 'itsupport' }),
-    })
-    const res = await POST(req)
+    const res = await request(app)
+      .post('/api/oracle/sync-companies')
+      .send({ triggeredBy: 'itsupport' })
     expect(res.status).toBe(200)
 
-    const data = await res.json()
-    expect(data.ok).toBe(true)
-    expect(data.source).toBeDefined()
-    expect(Array.isArray(data.companies)).toBe(true)
-    expect(data.companies.length).toBeGreaterThanOrEqual(4)
+    expect(res.body.ok).toBe(true)
+    expect(res.body.source).toBeDefined()
+    expect(Array.isArray(res.body.companies)).toBe(true)
+    expect(res.body.companies.length).toBeGreaterThanOrEqual(4)
 
     // Check AH company structure
-    const ah = data.companies.find((c: any) => c.code === 'AH')
+    const ah = res.body.companies.find((c: any) => c.code === 'AH')
     expect(ah).toBeDefined()
     expect(ah.name).toContain('อาปิโก')
     expect(ah.tax).toBe('0107545000179')

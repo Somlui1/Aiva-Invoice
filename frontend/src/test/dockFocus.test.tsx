@@ -156,7 +156,7 @@ describe('PDF Dock Focus Layout & Auto-Collapse', () => {
     })
     expect(screen.getByTestId('dock-state').textContent).toBe('true')
 
-    // Find and click the Topbar hamburger toggle button (aria-label="ย่อ / ขยายเมนู")
+    // Find and click the sidebar collapse toggle (.nav-org .nav-tg · aria-label="ย่อ / ขยายเมนู") — v5.3 ย้ายจาก Topbar มาไว้ที่หัวเมนูแบบ aiva-react
     const toggleBtn = screen.getByRole('button', { name: /ย่อ \/ ขยายเมนู/i })
     act(() => {
       toggleBtn.click()

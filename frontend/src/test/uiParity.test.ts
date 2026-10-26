@@ -19,11 +19,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { beforeAll, describe, expect, it } from 'vitest'
-import { NextRequest } from 'next/server'
-
-import { POST as ingest } from '../app/api/engine/ingest/route'
-import { GET as listDocuments } from '../app/api/documents/route'
-import { GET as getDocument } from '../app/api/documents/[id]/route'
+import request from 'supertest'
+import { createExpressApp } from '../../server/app'
 import { transformEngineResultToPortalDoc } from '../features/engine/adapters/engineToPortalAdapter'
 import {
   DEFAULT_DROPPED_ELEMENT_TYPES,
@@ -100,9 +97,11 @@ interface ListBody {
   error?: string
 }
 
+const app = createExpressApp()
+
 async function list(url: string): Promise<{ status: number; body: ListBody }> {
-  const res = await listDocuments(new NextRequest(`http://localhost${url}`))
-  return { status: res.status, body: (await res.json()) as ListBody }
+  const res = await request(app).get(url)
+  return { status: res.status, body: res.body as ListBody }
 }
 
 beforeAll(async () => {
@@ -118,14 +117,11 @@ beforeAll(async () => {
     expected.set(portal.id, portal)
     rawById.set(portal.id, raw)
 
-    const res = await ingest(
-      new NextRequest('http://localhost/api/engine/ingest', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(raw),
-      }),
-    )
-    const body = (await res.json()) as { ok: boolean; idempotent_replay?: boolean }
+    const res = await request(app)
+      .post('/api/engine/ingest')
+      .send(raw)
+
+    const body = res.body as { ok: boolean; idempotent_replay?: boolean }
     expect(body.ok, `ingest failed for ${file}: ${JSON.stringify(body)}`).toBe(true)
     expect(body.idempotent_replay, `${file} must be a fresh insert`).toBe(false)
   }
@@ -664,11 +660,9 @@ describe('GET /api/documents — live database connection', () => {
   })
 
   it('serves one document with its boxes for the evidence dock', async () => {
-    const res = await getDocument(new NextRequest('http://localhost/api/documents/DMS-100'), {
-      params: Promise.resolve({ id: 'DMS-100' }),
-    })
+    const res = await request(app).get('/api/documents/DMS-100')
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { ok: boolean; source: string; document: InvoiceDoc }
+    const body = res.body as { ok: boolean; source: string; document: InvoiceDoc }
     expect(body.source).toBe('portal_db')
     expect(body.document.doc).toBe('DMS-100')
     expect(body.document.raw_payload).toBeTruthy()
@@ -676,16 +670,11 @@ describe('GET /api/documents — live database connection', () => {
   })
 
   it('answers 404 for an unknown id and 400 for a forged one', async () => {
-    const missing = await getDocument(new NextRequest('http://localhost/api/documents/DMS-999999'), {
-      params: Promise.resolve({ id: 'DMS-999999' }),
-    })
+    const missing = await request(app).get('/api/documents/DMS-999999')
     expect(missing.status).toBe(404)
 
-    for (const bad of ['../etc/passwd', 'DMS-100 x', '']) {
-      const res = await getDocument(
-        new NextRequest(`http://localhost/api/documents/${encodeURIComponent(bad)}`),
-        { params: Promise.resolve({ id: bad }) },
-      )
+    for (const bad of ['../etc/passwd', 'DMS-100 x', ' ']) {
+      const res = await request(app).get(`/api/documents/${encodeURIComponent(bad)}`)
       expect(res.status, bad).toBe(400)
     }
   })
