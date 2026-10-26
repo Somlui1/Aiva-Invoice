@@ -2,11 +2,12 @@
  * Security Scoping Tests for /api/audit-logs
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { NextRequest } from 'next/server'
+import request from 'supertest'
+import { createExpressApp } from '../../server/app'
 import { prisma } from '../lib/prisma'
-import { GET } from '../app/api/audit-logs/route'
 
 describe('Audit Log Security Scoping API', () => {
+  const app = createExpressApp()
   const testIds: string[] = []
 
   beforeEach(async () => {
@@ -54,58 +55,50 @@ describe('Audit Log Security Scoping API', () => {
   })
 
   it('restricts EU and ACC users to only see their own audit logs', async () => {
-    const req = new NextRequest('http://localhost/api/audit-logs?whoId=u1&role=EU')
-    const res = await GET(req)
+    const res = await request(app).get('/api/audit-logs?whoId=u1&role=EU')
     expect(res.status).toBe(200)
-    const data = await res.json()
-    expect(data.ok).toBe(true)
+    expect(res.body.ok).toBe(true)
 
     // User u1 must see their own log
-    const hasU1 = data.logs.some((l: any) => l.doc === 'TEST-SCOPING-AH-1')
+    const hasU1 = res.body.logs.some((l: any) => l.doc === 'TEST-SCOPING-AH-1')
     expect(hasU1).toBe(true)
 
     // User u1 must NOT see logs of u2 or u6
-    const hasU2 = data.logs.some((l: any) => l.doc === 'TEST-SCOPING-AHT-2')
-    const hasU6 = data.logs.some((l: any) => l.doc === 'TEST-SCOPING-AH-3')
+    const hasU2 = res.body.logs.some((l: any) => l.doc === 'TEST-SCOPING-AHT-2')
+    const hasU6 = res.body.logs.some((l: any) => l.doc === 'TEST-SCOPING-AH-3')
     expect(hasU2).toBe(false)
     expect(hasU6).toBe(false)
   })
 
   it('allows APR to see audit logs within their assigned companies and own logs', async () => {
-    const req = new NextRequest('http://localhost/api/audit-logs?whoId=u6&role=APR&companies=AH')
-    const res = await GET(req)
+    const res = await request(app).get('/api/audit-logs?whoId=u6&role=APR&companies=AH')
     expect(res.status).toBe(200)
-    const data = await res.json()
-    expect(data.ok).toBe(true)
+    expect(res.body.ok).toBe(true)
 
     // APR on AH should see AH logs and own log
-    const hasU1 = data.logs.some((l: any) => l.doc === 'TEST-SCOPING-AH-1')
-    const hasU6 = data.logs.some((l: any) => l.doc === 'TEST-SCOPING-AH-3')
+    const hasU1 = res.body.logs.some((l: any) => l.doc === 'TEST-SCOPING-AH-1')
+    const hasU6 = res.body.logs.some((l: any) => l.doc === 'TEST-SCOPING-AH-3')
     expect(hasU1).toBe(true)
     expect(hasU6).toBe(true)
 
     // Should NOT see AHT log
-    const hasU2 = data.logs.some((l: any) => l.doc === 'TEST-SCOPING-AHT-2')
+    const hasU2 = res.body.logs.some((l: any) => l.doc === 'TEST-SCOPING-AHT-2')
     expect(hasU2).toBe(false)
   })
 
   it('allows ADM and itsupport to see all audit logs across the system', async () => {
     // itsupport
-    const reqSupport = new NextRequest('http://localhost/api/audit-logs?whoId=itsupport&role=SA')
-    const resSupport = await GET(reqSupport)
-    const dataSupport = await resSupport.json()
-    expect(dataSupport.ok).toBe(true)
+    const resSupport = await request(app).get('/api/audit-logs?whoId=itsupport&role=SA')
+    expect(resSupport.body.ok).toBe(true)
 
-    expect(dataSupport.logs.some((l: any) => l.doc === 'TEST-SCOPING-AH-1')).toBe(true)
-    expect(dataSupport.logs.some((l: any) => l.doc === 'TEST-SCOPING-AHT-2')).toBe(true)
-    expect(dataSupport.logs.some((l: any) => l.doc === 'TEST-SCOPING-AH-3')).toBe(true)
+    expect(resSupport.body.logs.some((l: any) => l.doc === 'TEST-SCOPING-AH-1')).toBe(true)
+    expect(resSupport.body.logs.some((l: any) => l.doc === 'TEST-SCOPING-AHT-2')).toBe(true)
+    expect(resSupport.body.logs.some((l: any) => l.doc === 'TEST-SCOPING-AH-3')).toBe(true)
 
     // ADM
-    const reqAdm = new NextRequest('http://localhost/api/audit-logs?whoId=u7&role=ADM')
-    const resAdm = await GET(reqAdm)
-    const dataAdm = await resAdm.json()
-    expect(dataAdm.ok).toBe(true)
-    expect(dataAdm.logs.some((l: any) => l.doc === 'TEST-SCOPING-AH-1')).toBe(true)
-    expect(dataAdm.logs.some((l: any) => l.doc === 'TEST-SCOPING-AHT-2')).toBe(true)
+    const resAdm = await request(app).get('/api/audit-logs?whoId=u7&role=ADM')
+    expect(resAdm.body.ok).toBe(true)
+    expect(resAdm.body.logs.some((l: any) => l.doc === 'TEST-SCOPING-AH-1')).toBe(true)
+    expect(resAdm.body.logs.some((l: any) => l.doc === 'TEST-SCOPING-AHT-2')).toBe(true)
   })
 })

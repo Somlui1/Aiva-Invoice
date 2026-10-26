@@ -78,6 +78,7 @@ documentsRouter.get('/', async (req, res) => {
       ok: true,
       source: 'portal_db',
       total: filtered.length,
+      count: page.length,
       limit: q.limit,
       offset: q.offset,
       documents: page,
@@ -89,42 +90,40 @@ documentsRouter.get('/', async (req, res) => {
   }
 })
 
+import { loadQueueDoc, UnreadableDocumentError } from '../../src/server/portalDocs'
+
 /**
  * GET /api/documents/:id
  */
 documentsRouter.get('/:id', async (req, res) => {
   const { id } = req.params
-  try {
-    const doc = await prisma.document.findUnique({
-      where: { id },
-      include: {
-        runs: { orderBy: { validationRound: 'desc' } },
-        bboxes: true,
-      },
+  if (!id || id.includes('..') || id.includes(' ') || id.includes('/') || id.includes('\\')) {
+    return res.status(400).json({
+      ok: false,
+      source: 'portal_db',
+      error: 'รหัสเอกสารไม่ถูกต้อง (รูปแบบที่รองรับ: DMS-ตามด้วยตัวเลข)',
     })
+  }
 
-    if (!doc) {
-      return res.status(404).json({ ok: false, error: `Document ${id} not found` })
+  try {
+    const document = await loadQueueDoc(id)
+    if (!document) {
+      return res.status(404).json({
+        ok: false,
+        source: 'portal_db',
+        error: `ไม่พบเอกสาร ${id} ในฐานข้อมูล`,
+      })
     }
-
-    let payload: any = {}
-    try {
-      payload = JSON.parse(doc.payloadJson)
-    } catch {}
-
     return res.json({
       ok: true,
-      document: {
-        ...payload,
-        id: doc.id,
-        status: doc.status,
-        isLocked: doc.isLocked,
-        apStatus: doc.apStatus,
-        validationRuns: doc.runs,
-      },
+      source: 'portal_db',
+      document,
     })
   } catch (err: any) {
-    return res.status(500).json({ ok: false, error: err.message })
+    if (err instanceof UnreadableDocumentError) {
+      return res.status(422).json({ ok: false, source: 'portal_db', error: err.message })
+    }
+    return res.status(500).json({ ok: false, source: 'portal_db', error: `อ่านฐานข้อมูลไม่สำเร็จ: ${err.message}` })
   }
 })
 
@@ -192,97 +191,150 @@ documentsRouter.post('/:id/actions', async (req, res) => {
       return res.status(423).json({ ok: false, error: `เอกสาร ${id} ถูกล็อกแล้ว (${doc.status}) ไม่อนุญาตให้แก้ไขสถานะ` })
     }
 
+    // 2. Role permission checks
     if (action === 'confirm' && userRole === 'EU') {
       return res.status(403).json({ ok: false, error: 'บทบาท ผู้ใช้งาน (EU) ไม่มีสิทธิ์ Confirm เอกสาร' })
     }
 
-    let nextStatus = doc.status
-    let assignedLane = doc.assignedRole || 'acc'
-    let apStatus = doc.apStatus || 'unconfirmed'
+    if (['manual_review', 'dup_override', 'unconfirm'].includes(action) && userRole !== 'APR' && userRole !== 'ADM') {
+      return res.status(403).json({ ok: false, error: 'การดำเนินการนี้สงวนไว้สำหรับหัวหน้าฝ่ายบัญชี (APR) เท่านั้น' })
+    }
+
+    // 3. State transition validity
+    const currentStatus = doc.status
+    let targetStatus = currentStatus
 
     switch (action) {
       case 'confirm':
-        nextStatus = 'Confirmed'
-        apStatus = 'confirmed'
+        if (!['Auto-pass', 'Review'].includes(currentStatus)) {
+          return res.status(422).json({ ok: false, error: `ไม่สามารถ Confirm เอกสารจากสถานะ "${currentStatus}" ได้` })
+        }
+        targetStatus = 'Confirmed'
         break
-      case 'unconfirm':
-        nextStatus = 'Review'
-        apStatus = 'unconfirmed'
-        break
+
       case 'review':
-        nextStatus = 'Review'
+        if (!['Hold', 'Auto-pass', 'Confirmed', 'Import Failed'].includes(currentStatus)) {
+          return res.status(422).json({ ok: false, error: `ไม่สามารถย้ายเอกสารจากสถานะ "${currentStatus}" เป็น Review ได้` })
+        }
+        targetStatus = 'Review'
         break
+
       case 'hold':
-        nextStatus = 'Hold'
+        if (!['Auto-pass', 'Review'].includes(currentStatus)) {
+          return res.status(422).json({ ok: false, error: `ไม่สามารถ Hold เอกสารจากสถานะ "${currentStatus}" ได้` })
+        }
+        if (!reason) {
+          return res.status(400).json({ ok: false, error: 'การ Hold เอกสารต้องระบุเหตุผลเสมอ' })
+        }
+        targetStatus = 'Hold'
         break
+
       case 'reject':
-        nextStatus = 'Rejected'
+        if (!['Auto-pass', 'Review', 'Hold'].includes(currentStatus)) {
+          return res.status(422).json({ ok: false, error: `ไม่สามารถ Reject เอกสารจากสถานะ "${currentStatus}" ได้` })
+        }
+        if (!reason) {
+          return res.status(400).json({ ok: false, error: 'การ Reject เอกสารต้องระบุเหตุผลเสมอ' })
+        }
+        targetStatus = 'Rejected'
         break
+
       case 'manual_review':
-        nextStatus = 'Manual Review'
+        if (currentStatus !== 'Manual Review') {
+          return res.status(422).json({ ok: false, error: `เอกสารไม่ได้อยู่ในสถานะ Manual Review (ปัจจุบัน: ${currentStatus})` })
+        }
+        targetStatus = 'Review'
         break
+
       case 'dup_override':
-        nextStatus = 'Review'
+        if (currentStatus !== 'Duplicate') {
+          return res.status(422).json({ ok: false, error: `เอกสารไม่ได้อยู่ในสถานะ Duplicate (ปัจจุบัน: ${currentStatus})` })
+        }
+        targetStatus = 'Review'
         break
+
+      case 'unconfirm':
+        if (currentStatus !== 'Confirmed') {
+          return res.status(422).json({ ok: false, error: `เอกสารไม่ได้อยู่ในสถานะ Confirmed (ปัจจุบัน: ${currentStatus})` })
+        }
+        targetStatus = 'Review'
+        break
+
       case 'returnf':
-        nextStatus = 'Review'
-        apStatus = 'unconfirmed'
+        if (currentStatus !== 'Import Failed') {
+          return res.status(422).json({ ok: false, error: `เอกสารไม่ได้อยู่ในสถานะ Import Failed (ปัจจุบัน: ${currentStatus})` })
+        }
+        targetStatus = 'Review'
         break
+
       case 'upload_revision':
-        nextStatus = (simOutcome as any) || 'Auto-pass'
+        targetStatus = (simOutcome as any) || 'Auto-pass'
         break
+
+      default:
+        return res.status(400).json({ ok: false, error: `Unknown action: ${action}` })
     }
 
-    let payload: any = {}
+    let payload: Record<string, any> = {}
     try {
-      payload = JSON.parse(doc.payloadJson)
-    } catch {}
+      payload = JSON.parse(doc.payloadJson || '{}')
+    } catch {
+      payload = {}
+    }
+    const history = Array.isArray(payload.history) ? [...payload.history] : []
+    const today = new Date().toISOString().slice(0, 10)
+    const nowTime = new Date().toTimeString().slice(0, 8)
+    const actTitle = ACTION_NAMES[action] || action.toUpperCase()
+    const detailStr = `${userName} (${userRole}) · ${reason}${note ? ' · ' + note : ''}`
 
-    payload.status = nextStatus
-    payload.apStatus = apStatus
-    const nowIso = new Date().toISOString()
-    const nowTime = nowIso.slice(11, 19)
-    const today = nowIso.slice(0, 10)
-
-    payload.history = payload.history || []
-    payload.history.push({
+    history.push({
       dt: today,
       t: nowTime,
-      who: `${userName} (${userRole})`,
-      act: ACTION_NAMES[action] || action,
-      d: `${doc.status} → ${nextStatus}${reason ? ' · ' + reason : ''}${note ? ' (' + note + ')' : ''}`,
-      k: 'h',
+      who: userName,
+      act: `${actTitle} (${currentStatus} → ${targetStatus})`,
+      d: detailStr,
+      k: action === 'confirm' ? 'g' : action === 'hold' || action === 'reject' ? 'c' : 'h',
+      rs: reason,
+      nt: note,
     })
 
-    const updated = await prisma.document.update({
-      where: { id },
-      data: {
-        status: nextStatus,
-        assignedRole: assignedLane,
-        apStatus,
-        payloadJson: JSON.stringify(payload),
-      },
-    })
+    payload.history = history
+    payload.status = targetStatus
 
-    await prisma.auditLog.create({
-      data: {
-        who: `${userName} (${userId})`,
-        role: userRole,
-        docId: id,
-        act: ACTION_NAMES[action] || action,
-        action,
-        reason: reason || undefined,
-        detail: `${doc.status} → ${nextStatus} · ${reason || 'ไม่มีเหตุผลระบุ'}${note ? ' · ' + note : ''}`,
-      },
-    })
+    const [updatedDoc] = await prisma.$transaction([
+      prisma.document.update({
+        where: { id },
+        data: {
+          status: targetStatus,
+          confirmedBy: action === 'confirm' ? userId : action === 'unconfirm' ? null : doc.confirmedBy,
+          confirmedAt: action === 'confirm' ? new Date() : action === 'unconfirm' ? null : doc.confirmedAt,
+          importError: action === 'returnf' ? null : doc.importError,
+          payloadJson: JSON.stringify(payload),
+        },
+      }),
+      prisma.auditLog.create({
+        data: {
+          docId: id,
+          whoId: userId,
+          who: userName,
+          role: userRole,
+          act: actTitle,
+          action: action.toUpperCase(),
+          fromStatus: currentStatus,
+          toStatus: targetStatus,
+          reason,
+          note,
+          detail: detailStr,
+        },
+      }),
+    ])
 
     return res.json({
       ok: true,
-      message: `${ACTION_NAMES[action]} เอกสาร ${id} สำเร็จ`,
+      message: `${actTitle} สำเร็จ (${currentStatus} → ${targetStatus})`,
       document: {
-        id: updated.id,
-        status: updated.status,
-        apStatus: updated.apStatus,
+        ...updatedDoc,
+        doc: updatedDoc.id,
       },
     })
   } catch (err: any) {

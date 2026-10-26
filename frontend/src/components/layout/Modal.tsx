@@ -4,10 +4,10 @@ import { Icon } from '../common/Icon'
 import { useToastModal } from '../../context/ToastModalContext'
 
 const TONE_STYLES: Record<string, { bg: string; color: string }> = {
-  ok: { bg: '#ECFDF5', color: '#047857' },
-  err: { bg: '#FEF2F2', color: '#B91C1C' },
-  warn: { bg: '#FFF7ED', color: '#C2410C' },
-  info: { bg: '#EFF6FF', color: '#1D4ED8' }
+  ok: { bg: 'var(--t-ok-bg)', color: 'var(--t-ok)' },
+  err: { bg: 'var(--t-err-bg)', color: 'var(--t-err)' },
+  warn: { bg: 'var(--t-org-bg)', color: 'var(--t-org)' },
+  info: { bg: 'var(--t-blue-bg)', color: 'var(--t-blue)' }
 }
 
 export function Modal() {

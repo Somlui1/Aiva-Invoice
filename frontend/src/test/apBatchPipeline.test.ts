@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { POST as createBatch, GET as listBatches } from '../app/api/ap/batches/route'
-import { POST as batchCallback } from '../app/api/ap/batches/[id]/callback/route'
-import { NextRequest } from 'next/server'
+import request from 'supertest'
+import { createExpressApp } from '../../server/app'
 import { prisma } from '../lib/prisma'
 
 describe('Oracle AP Batch Staging & Locking Pipeline', () => {
+  const app = createExpressApp()
   const doc1Id = 'DMS-AP-TEST-01'
   const doc2Id = 'DMS-AP-TEST-02'
 
@@ -60,46 +60,37 @@ describe('Oracle AP Batch Staging & Locking Pipeline', () => {
   })
 
   it('rejects batch creation when user role is not authorized (EU)', async () => {
-    const req = new NextRequest('http://localhost/api/ap/batches', {
-      method: 'POST',
-      headers: {
-        'x-user-id': 'u1',
-        'x-user-role': 'EU',
-        'x-user-name': encodeURIComponent('สมศักดิ์ ใจดี'),
-      },
-      body: JSON.stringify({
+    const res = await request(app)
+      .post('/api/ap/batches')
+      .set('x-user-id', 'u1')
+      .set('x-user-role', 'EU')
+      .set('x-user-name', encodeURIComponent('สมศักดิ์ ใจดี'))
+      .send({
         documentIds: [doc1Id],
         companyCode: 'AH',
-      }),
-    })
+      })
 
-    const res = await createBatch(req)
     expect(res.status).toBe(403)
   })
 
   it('creates AP batch, locks documents with Sent status, and records audit log', async () => {
-    const req = new NextRequest('http://localhost/api/ap/batches', {
-      method: 'POST',
-      headers: {
-        'x-user-id': 'u6',
-        'x-user-role': 'APR',
-        'x-user-name': encodeURIComponent('สมชาย วงศ์ทอง'),
-      },
-      body: JSON.stringify({
+    const res = await request(app)
+      .post('/api/ap/batches')
+      .set('x-user-id', 'u6')
+      .set('x-user-role', 'APR')
+      .set('x-user-name', encodeURIComponent('สมชาย วงศ์ทอง'))
+      .send({
         batchId: 'AP-TEST-001',
         documentIds: [doc1Id, doc2Id],
         companyCode: 'AH',
-      }),
-    })
+      })
 
-    const res = await createBatch(req)
     expect(res.status).toBe(200)
-    const data = await res.json()
-    expect(data.ok).toBe(true)
-    expect(data.batch.id).toBe('AP-TEST-001')
-    expect(data.batch.status).toBe('SENT')
-    expect(data.batch.totalDocs).toBe(2)
-    expect(data.batch.totalAmount).toBe(40000.0)
+    expect(res.body.ok).toBe(true)
+    expect(res.body.batch.id).toBe('AP-TEST-001')
+    expect(res.body.batch.status).toBe('SENT')
+    expect(res.body.batch.totalDocs).toBe(2)
+    expect(res.body.batch.totalAmount).toBe(40000.0)
 
     // Verify documents are locked and set to Sent
     const updatedDocs = await prisma.document.findMany({
@@ -133,12 +124,10 @@ describe('Oracle AP Batch Staging & Locking Pipeline', () => {
       },
     })
 
-    const req = new NextRequest('http://localhost/api/ap/batches', { method: 'GET' })
-    const res = await listBatches(req)
+    const res = await request(app).get('/api/ap/batches')
     expect(res.status).toBe(200)
-    const data = await res.json()
-    expect(data.ok).toBe(true)
-    const found = data.batches.find((b: any) => b.id === 'AP-TEST-EXISTING')
+    expect(res.body.ok).toBe(true)
+    const found = res.body.batches.find((b: any) => b.id === 'AP-TEST-EXISTING')
     expect(found).toBeDefined()
     expect(found.totalAmount).toBe(5000.0)
   })
@@ -166,14 +155,12 @@ describe('Oracle AP Batch Staging & Locking Pipeline', () => {
     })
 
     // Now call callback route
-    const req = new NextRequest('http://localhost/api/ap/batches/AP-TEST-CALLBACK/callback', {
-      method: 'POST',
-      headers: {
-        'x-user-id': 'oracle-system',
-        'x-user-role': 'SYSTEM',
-        'x-user-name': encodeURIComponent('Oracle AP Interface'),
-      },
-      body: JSON.stringify({
+    const res = await request(app)
+      .post('/api/ap/batches/AP-TEST-CALLBACK/callback')
+      .set('x-user-id', 'oracle-system')
+      .set('x-user-role', 'SYSTEM')
+      .set('x-user-name', encodeURIComponent('Oracle AP Interface'))
+      .send({
         results: [
           {
             documentId: doc1Id,
@@ -186,16 +173,11 @@ describe('Oracle AP Batch Staging & Locking Pipeline', () => {
             error: 'Tax ID mismatch with Oracle supplier master',
           },
         ],
-      }),
-    })
+      })
 
-    const res = await batchCallback(req, {
-      params: Promise.resolve({ id: 'AP-TEST-CALLBACK' }),
-    })
     expect(res.status).toBe(200)
-    const data = await res.json()
-    expect(data.ok).toBe(true)
-    expect(data.batch.status).toBe('PARTIAL')
+    expect(res.body.ok).toBe(true)
+    expect(res.body.batch.status).toBe('PARTIAL')
 
     // Verify doc1 is Posted and remains locked
     const doc1 = await prisma.document.findUnique({ where: { id: doc1Id } })

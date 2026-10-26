@@ -5,3 +5,13 @@
 @import './evidence.css';
 @import './components.css';
 @import './permissionGrid.css';
+/* ===== v5.3 · AIVA Dark / Light Premium (ดีไซน์เดียวกับ aiva-react) =====
+   ลำดับสำคัญ: dark-compat (:where → specificity 0) → theme (v5.2) → fx → login → shell */
+@import './aiva/dark-compat.css';
+@import './aiva/theme.css';
+@import './aiva/fx.css';
+@import './aiva/login-bridge.css';
+@import './aiva/login-theme.css';
+@import './aiva/shell.css';
+/* v5.3.1 */
+@import './aiva/profile-modal.css';

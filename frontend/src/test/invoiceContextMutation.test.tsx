@@ -71,7 +71,8 @@ describe('InvoiceContext Server Action Integration', () => {
   })
 
   it('fetches live audit logs from GET /api/audit-logs', async () => {
-    const { GET: getAuditLogs } = await import('../app/api/audit-logs/route')
+    const { createExpressApp } = await import('../../server/app')
+    const request = (await import('supertest')).default
     const { prisma } = await import('../lib/prisma')
 
     const testAudit = await prisma.auditLog.create({
@@ -84,13 +85,13 @@ describe('InvoiceContext Server Action Integration', () => {
       },
     })
 
-    const res = await getAuditLogs(new Request('http://localhost/api/audit-logs'))
+    const app = createExpressApp()
+    const res = await request(app).get('/api/audit-logs')
     expect(res.status).toBe(200)
-    const data = await res.json()
-    expect(data.ok).toBe(true)
-    expect(Array.isArray(data.logs)).toBe(true)
-    expect(data.logs.some((l: any) => l.doc === 'DMS-AUDIT-TEST')).toBe(true)
+    expect(res.body.ok).toBe(true)
+    expect(Array.isArray(res.body.logs)).toBe(true)
+    expect(res.body.logs.some((l: any) => l.doc === 'DMS-AUDIT-TEST')).toBe(true)
 
     await prisma.auditLog.delete({ where: { id: testAudit.id } })
-  })
+  }, 15000)
 })

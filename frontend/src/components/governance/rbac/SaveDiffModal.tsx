@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import { createPortal } from 'react-dom'
 
 export interface UserDiff {
   user: {
@@ -28,7 +29,8 @@ interface Props {
 export function SaveDiffModal({ isOpen, diffs, isSaving, onClose, onConfirm }: Props) {
   if (!isOpen) return null
 
-  return (
+  // v5.3.1: portal ไป document.body กัน overlay ถูกกักใน parent ที่มี transform/backdrop-filter (เช่นระหว่างแอนิเมชันเข้าแอป)
+  return createPortal(
     <div className="modal-ov" role="dialog" aria-modal="true">
       <div className="modal-box" style={{ maxWidth: 540 }}>
         <div className="modal-h">
@@ -128,5 +130,7 @@ export function SaveDiffModal({ isOpen, diffs, isSaving, onClose, onConfirm }: P
         </div>
       </div>
     </div>
+    ,
+    document.body,
   )
 }

@@ -1,0 +1,13 @@
+/* v4.18 — เมนูตั้งค่า */
+.bindtag{display:inline-flex;align-items:center;font-size:10.5px;font-weight:800;color:#fff;background:#0F766E;border-radius:4px;padding:1px 6px;white-space:nowrap;margin-left:4px}
+.kst{font-size:10.5px;font-weight:700;color:var(--err);margin-left:4px}
+.set-note{font-size:12px;color:var(--s-500);margin-top:6px}
+.chk{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:3px 0}
+.chk input{width:15px;height:15px}
+.radio-row{display:flex;flex-direction:column;gap:4px}
+.set-ta{width:100%;min-height:110px;font:inherit;font-size:12.5px;line-height:1.5;border:1px solid var(--line-strong);border-radius:6px;padding:7px 9px;resize:vertical}
+.set-ta:disabled,.inp:disabled,.sel:disabled{background:var(--sunken);color:var(--s-500);cursor:not-allowed}
+.lockrow td:first-child{box-shadow:inset 3px 0 0 var(--s-400)}
+.lockbadge{display:inline-flex;gap:4px;align-items:center;font-size:10.5px;font-weight:700;color:var(--s-600);background:var(--s-100);border:1px solid var(--s-200);border-radius:999px;padding:1px 8px}
+.rochip{display:inline-flex;gap:6px;align-items:center;font-size:11.5px;font-weight:700;color:#7C2D12;background:var(--warn-bg);border:1px solid var(--warn-bd);border-radius:6px;padding:3px 10px}
+.cochip{cursor:pointer}.cochip.off{opacity:.35;text-decoration:line-through}

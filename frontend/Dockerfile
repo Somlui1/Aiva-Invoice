@@ -1,5 +1,5 @@
 # -----------------------------------------------------------------------------
-# Stage 1: Install production dependencies
+# Stage 1: Install dependencies
 # -----------------------------------------------------------------------------
 FROM node:20-alpine AS deps
 WORKDIR /app
@@ -10,7 +10,7 @@ COPY package*.json ./
 RUN npm ci
 
 # -----------------------------------------------------------------------------
-# Stage 2: Build the Next.js application
+# Stage 2: Build the Vite SPA and compile assets
 # -----------------------------------------------------------------------------
 FROM node:20-alpine AS builder
 WORKDIR /app
@@ -26,13 +26,13 @@ RUN node scripts/copy-pdfjs-worker.mjs
 RUN DATABASE_URL="file:./prisma/dev.db" npx prisma db push --skip-generate
 RUN DATABASE_URL="file:./prisma/dev.db" npx tsx scripts/seed-invoices-v5.ts
 
-ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
+# Build the frontend with Vite (outputs to dist/)
 RUN npm run build
 
 # -----------------------------------------------------------------------------
-# Stage 3: Minimal production runner
+# Stage 3: Production runner (Express backend serving Vite SPA)
 # -----------------------------------------------------------------------------
 FROM node:20-alpine AS runner
 WORKDIR /app
@@ -40,10 +40,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
-ENV NEXT_TELEMETRY_DISABLED=1
 
-# Install wget/curl for healthchecks
-RUN apk add --no-cache wget curl
+# Install libc6-compat and curl/wget for healthchecks
+RUN apk add --no-cache libc6-compat wget curl
 
 # Non-root user for security
 RUN addgroup --system --gid 1001 nodejs && \
@@ -53,10 +52,13 @@ RUN addgroup --system --gid 1001 nodejs && \
 RUN mkdir -p /app/data /app/cache /app/prisma && \
     chown -R nextjs:nodejs /app
 
-# Copy public & static assets
-COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# Copy dependencies, built frontend, and server code
+COPY --from=builder --chown=nextjs:nodejs /app/package*.json ./
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nextjs:nodejs /app/dist ./dist
+COPY --from=builder --chown=nextjs:nodejs /app/server ./server
+COPY --from=builder --chown=nextjs:nodejs /app/src ./src
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
 # Copy prisma schema and initial seed db for persistent volume initialization
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
@@ -76,4 +78,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD wget -q -O- http://127.0.0.1:3000/api/health || exit 1
 
 ENTRYPOINT ["./docker-entrypoint.sh"]
-CMD ["node", "server.js"]
+CMD ["npx", "tsx", "server/index.ts"]

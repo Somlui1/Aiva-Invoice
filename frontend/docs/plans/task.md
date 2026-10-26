@@ -90,5 +90,4 @@
 | react-adapter-task-6 | Governance Routes Migration (Batches, Users, AD, Audit, Health) | completed | server/routes/governance.ts (users, AD search, audit logs, AP batches & callbacks, Oracle sync); 5/5 tests pass |
 | react-adapter-task-7 | Frontend SPA Root & Routing Adaptation | completed | src/App.tsx SPA routing, LoginPage & StandaloneViewerRoute, vite.config.ts alias, package.json scripts; tests pass |
 | react-adapter-task-8 | Full Verification, Build & Parity Regression Pass | completed | Full vitest 49/49 files (277/277 tests) pass; tsc clean (0 errors); vite build dist/ clean; engine 263 pytest pass |
-
-
+| purge-nextjs-complete-migration | Complete Next.js Purge & Full Migration to Vite + Express | completed | Deleted src/app, next.config.ts, next-env.d.ts; removed next from package.json; migrated 11 tests to Supertest; updated simulate-engine-push; updated Dockerfile for Vite+Express; full vitest 50/50 files (282/282 tests) pass; tsc & vite build clean |

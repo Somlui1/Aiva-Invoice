@@ -1,0 +1,27 @@
+/* =====================================================================
+   AIVA v5.3 — ส่วนเสริมของ shell สำหรับคอมโพเนนต์ React ที่ไม่มีใน aiva-react
+   (ปุ่มโปรไฟล์ใน topbar · สถานะ Engine · ปุ่มออกจากระบบ) · ใช้ token ของ theme.css ทั้งหมด
+   ===================================================================== */
+.topbar .who{display:flex;align-items:center;gap:6px}
+.topbar .user-profile-btn{display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 6px 0 4px;border-radius:999px;
+  border:1px solid var(--line);background:linear-gradient(180deg,var(--ctl-a),var(--ctl-b));color:var(--s-800);cursor:pointer;
+  box-shadow:var(--hi),var(--e-1);transition:border-color var(--t) var(--ease),background var(--t) var(--ease),transform var(--t) var(--ease)}
+.topbar .user-profile-btn:hover{border-color:var(--ctl-hbd);background:linear-gradient(180deg,var(--ctl-ha),var(--ctl-hb))}
+.topbar .user-profile-btn:active{transform:translateY(1px)}
+.topbar .user-profile-btn .uav{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:800;flex:none}
+.topbar .user-profile-btn .user-name{font-weight:600;font-size:12.5px;color:var(--s-800);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.topbar .user-profile-btn .role-pill{margin:0}
+.topbar .env.engine{cursor:pointer;font:inherit;font-size:11px}
+.topbar .env.engine.live i{background:var(--ok);box-shadow:0 0 0 3px var(--ok-bg)}
+.topbar .env.engine.sbx i{background:var(--warn);box-shadow:0 0 0 3px var(--warn-bg)}
+.topbar .logout-btn{color:var(--s-500)}
+.topbar .logout-btn:hover{color:var(--err);background:var(--err-bg)}
+.nav-foot .lbl b{color:var(--s-700)}
+/* breadcrumb · ปุ่มค้นหา ย่อเมื่อจอแคบ */
+@media (max-width:1100px){.topbar .user-profile-btn .user-name{display:none}}
+@media (max-width:900px){.cmdk-btn span:not(.kk){display:none}.cmdk-btn .kk{display:none}}
+/* กล่องค้นหา: badge สถานะเอกสาร */
+.cmdk-it .tt .badge{margin-left:6px}
+/* หน้า redirect ระหว่างไปหน้า login */
+.auth-guard{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:12px;color:var(--s-600);background:var(--canvas)}
+.auth-guard a{font-size:14px;color:var(--accent-text)}

@@ -243,19 +243,11 @@ export function RbacPage() {
                   type="button"
                   onClick={handleSyncCompanies}
                   disabled={isSyncing}
-                  className="btn-xl-add"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '6px 14px',
-                    fontSize: 12.5,
-                    cursor: isSyncing ? 'not-allowed' : 'pointer',
-                  }}
+                  className="btn btn-sec"
                 >
                   {isSyncing ? (
                     <>
-                      <span className="spin" style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%' }} />
+                      <span className="spin" style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid currentColor', borderTopColor: 'transparent', borderRadius: '50%' }} />
                       กำลังซิงค์ข้อมูลจาก Oracle…
                     </>
                   ) : (

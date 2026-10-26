@@ -29,7 +29,7 @@ usersRouter.get('/', async (_req: Request, res: Response) => {
       orderBy: { createdAt: 'asc' },
     })
 
-    const formatted = dbUsers.map(u => ({
+    const formatted = dbUsers.map((u: any) => ({
       id: u.id,
       email: u.email,
       name: u.name,
@@ -37,8 +37,8 @@ usersRouter.get('/', async (_req: Request, res: Response) => {
       empId: u.empId,
       unit: u.unit,
       role: u.role,
-      companies: u.companies.map(c => c.companyCode),
-      receivers: u.receivers.map(r => r.receiverName),
+      companies: u.companies.map((c: any) => c.companyCode),
+      receivers: u.receivers.map((r: any) => r.receiverName),
       isActive: u.isActive,
     }))
 
@@ -62,7 +62,7 @@ usersRouter.post('/', async (req: Request, res: Response) => {
   const adminId = (req.headers['x-user-id'] as string) || (req as any).user?.id || 'u7'
 
   try {
-    const user = await prisma.$transaction(async tx => {
+    const user = await prisma.$transaction(async (tx: any) => {
       // 1. Upsert User
       const u = await tx.user.upsert({
         where: { email: data.email },
@@ -210,7 +210,7 @@ auditLogsRouter.get('/', async (req: Request, res: Response) => {
         where: { companyCode: { in: companies } },
         select: { id: true },
       })
-      const companyDocIds = matchedDocs.map(d => d.id)
+      const companyDocIds = matchedDocs.map((d: any) => d.id)
 
       whereClause = {
         OR: [
@@ -235,7 +235,7 @@ auditLogsRouter.get('/', async (req: Request, res: Response) => {
       take: 100,
     })
 
-    const formatted = logs.map(l => ({
+    const formatted = logs.map((l: any) => ({
       id: l.id,
       dt: l.createdAt.toISOString().slice(0, 10),
       t: l.createdAt.toTimeString().slice(0, 8),
@@ -308,19 +308,19 @@ apRouter.post('/batches', async (req: Request, res: Response) => {
     }
 
     // Verify confirmation and locking state
-    const lockedDocs = docs.filter(d => d.isLocked)
+    const lockedDocs = docs.filter((d: any) => d.isLocked)
     if (lockedDocs.length > 0) {
       return res.status(423).json({
         ok: false,
-        error: `เอกสาร ${lockedDocs.map(d => d.id).join(', ')} ถูกล็อกอยู่ ไม่สามารถส่งซ้ำได้`,
+        error: `เอกสาร ${lockedDocs.map((d: any) => d.id).join(', ')} ถูกล็อกอยู่ ไม่สามารถส่งซ้ำได้`,
       })
     }
 
-    const unconfirmed = docs.filter(d => d.status !== 'Confirmed')
+    const unconfirmed = docs.filter((d: any) => d.status !== 'Confirmed')
     if (unconfirmed.length > 0) {
       return res.status(400).json({
         ok: false,
-        error: `เอกสาร ${unconfirmed.map(d => d.id).join(', ')} ยังไม่ได้รับการ Confirm`,
+        error: `เอกสาร ${unconfirmed.map((d: any) => d.id).join(', ')} ยังไม่ได้รับการ Confirm`,
       })
     }
 
@@ -331,11 +331,11 @@ apRouter.post('/batches', async (req: Request, res: Response) => {
       batchId = `AP-${todayStr}-${randNum}`
     }
 
-    const totalAmount = docs.reduce((acc, d) => acc + d.grandTotal, 0)
+    const totalAmount = docs.reduce((acc: number, d: any) => acc + d.grandTotal, 0)
     const effectiveCompany = companyCode || docs[0]?.companyCode || 'AH'
 
     // Build staged Oracle interface payload
-    const stagedPayload = docs.map(d => ({
+    const stagedPayload = docs.map((d: any) => ({
       BATCH_ID: batchId,
       INVOICE_NUM: d.invoiceNum,
       INVOICE_DATE: d.invoiceDate,
@@ -378,7 +378,7 @@ apRouter.post('/batches', async (req: Request, res: Response) => {
         },
       }),
       // Audit logs for each document
-      ...docs.map(d => {
+      ...docs.map((d: any) => {
         let history: any[] = []
         try {
           const parsed = JSON.parse(d.payloadJson)
@@ -455,7 +455,7 @@ apRouter.post('/batches/:id/callback', async (req: Request, res: Response) => {
     let failureCount = 0
 
     // Process each document result in a transaction
-    await prisma.$transaction(async tx => {
+    await prisma.$transaction(async (tx: any) => {
       for (const item of results) {
         const doc = await tx.document.findUnique({
           where: { id: item.documentId },

@@ -4,14 +4,23 @@ import { useEffect, useState } from 'react'
 import { Icon } from '../common/Icon'
 import { useAuth } from '../../context/AuthContext'
 import { checkBackendHealth, BackendHealth } from '../../lib/backendApi'
+import { logoutOut, initialOf } from '../../lib/fx'
 import { MyProfileModal } from './MyProfileModal'
+import { ThemeSwitch } from '../shell/ThemeSwitch'
+import { openCommandPalette } from '../shell/CommandPalette'
 
 interface TopbarProps {
   isNavCollapsed: boolean
   onToggleNav: () => void
+  /** ชื่อหน้าปัจจุบันสำหรับ breadcrumb (AIVA › หน้า) */
+  pageTitle?: string
 }
 
-export function Topbar({ onToggleNav }: TopbarProps) {
+/**
+ * v5.3 — แถบบนแบบ aiva-react: breadcrumb · ปุ่มค้นหา (Ctrl K) · สถานะ Engine · สวิตช์ธีม · โปรไฟล์ · ออกจากระบบ
+ * การทำงานเดิมคงไว้ทั้งหมด (ตรวจสถานะ Engine ทุก 30 วินาที · เปิด MyProfileModal · logout)
+ */
+export function Topbar({ pageTitle = '' }: TopbarProps) {
   const { currentUser, currentRole, logout } = useAuth()
   const [backendStatus, setBackendStatus] = useState<BackendHealth | null>(null)
   const [checking, setChecking] = useState<boolean>(false)
@@ -30,94 +39,82 @@ export function Topbar({ onToggleNav }: TopbarProps) {
     return () => clearInterval(timer)
   }, [])
 
+  const live = backendStatus?.mode === 'live'
+
   return (
     <header className="topbar">
+      <div className="crumb" title="AIVA · Auto Invoice Matching" style={{ ['--i' as string]: 0 }}>
+        <i className="d" />
+        <b>AIVA</b>
+        <svg className="sep" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M9 6l6 6-6 6" />
+        </svg>
+        <span className="pg-t" id="crumbT">
+          {pageTitle}
+        </span>
+      </div>
+
       <button
         type="button"
-        className="ibtn"
-        onClick={onToggleNav}
-        title="ย่อ / ขยายเมนู"
-        aria-label="ย่อ / ขยายเมนู"
+        className="cmdk-btn"
+        id="cmdkBtn"
+        aria-label="ค้นหา / คำสั่ง"
+        title="ค้นหา / คำสั่ง (Ctrl K)"
+        onClick={() => openCommandPalette()}
+        style={{ ['--i' as string]: 1 }}
       >
-        <Icon name="menu" size="lg" />
+        <Icon name="search" />
+        <span>ค้นหาเอกสาร / คำสั่ง…</span>
+        <span className="kk">
+          <kbd>Ctrl</kbd>
+          <kbd>K</kbd>
+        </span>
       </button>
-
-      <div className="brand">
-        <span className="brand-mark">AI</span>
-        <div>
-          <div className="brand-name">
-            AIVA Portal <span className="brand-ver">v5.2 React</span>
-          </div>
-          <div className="brand-sub">System A Engine · React 19 SPA Edition</div>
-        </div>
-      </div>
 
       <span className="grow" />
 
       {/* Backend Engine Status Indicator */}
       <button
         type="button"
-        className="env"
+        className={`env engine ${live ? 'live' : 'sbx'}`}
         onClick={verifyBackend}
-        style={{ cursor: 'pointer', background: 'transparent', border: 'none', display: 'flex', alignItems: 'center' }}
+        style={{ ['--i' as string]: 2 }}
         title={`คลิกเพื่อตรวจสอบสถานะ Engine ใหม่\nโหมด: ${backendStatus?.mode || 'sandbox'}\nเซอร์วิส: ${backendStatus?.service || 'System A'}`}
       >
-        <i
-          style={{
-            background: backendStatus?.mode === 'live' ? 'var(--clr-ok, #10b981)' : 'var(--clr-warn, #f59e0b)',
-            boxShadow: backendStatus?.mode === 'live' ? '0 0 6px rgba(16, 185, 129, 0.6)' : 'none',
-            display: 'inline-block',
-            width: 8,
-            height: 8,
-            borderRadius: '50%',
-            marginRight: 6
-          }}
-        />
+        <i />
         {checking
           ? 'Checking...'
-          : backendStatus?.mode === 'live'
-          ? `Engine: Live (${backendStatus.ruleset || 'v6.6'})`
+          : live
+          ? `Engine: Live (${backendStatus?.ruleset || 'v6.6'})`
           : 'Backend: Sandbox Mode'}
       </button>
 
-      <div className="who">
+      <ThemeSwitch />
+
+      <div className="who" style={{ ['--i' as string]: 4 }}>
         <button
           type="button"
           className="user-profile-btn"
           aria-label="โปรไฟล์และสิทธิ์"
           onClick={() => setIsProfileOpen(true)}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 8,
-            background: 'transparent',
-            border: '1px solid rgba(0, 0, 0, 0.08)',
-            borderRadius: 999,
-            padding: '4px 12px',
-            cursor: 'pointer'
-          }}
           title="คลิกเพื่อดูข้อมูลผู้ใช้และสิทธิ์การใช้งานของฉัน"
         >
-          <span className="user-name" style={{ fontWeight: 600, fontSize: 13, color: 'var(--s-800, #1E293B)' }}>
-            {currentUser.n}
+          <span className="uav" style={{ background: currentRole.bg, color: currentRole.c }} aria-hidden="true">
+            {initialOf(currentUser.n)}
           </span>
-          <span
-            className="role-pill"
-            id="rolebadge"
-            style={{ background: currentRole.bg, color: currentRole.c, margin: 0 }}
-          >
+          <span className="user-name">{currentUser.n}</span>
+          <span className="role-pill" id="rolebadge" style={{ background: currentRole.bg, color: currentRole.c }}>
             {currentRole.n}
           </span>
         </button>
         <button
           type="button"
-          className="ibtn"
-          onClick={logout}
+          className="ibtn logout-btn"
+          onClick={() => logoutOut(logout)}
           title="ออกจากระบบ (ไปหน้าเข้าสู่ระบบ)"
           aria-label="ออกจากระบบ"
-          style={{ marginLeft: 6 }}
         >
-          <Icon name="logout" size="md" />
+          <Icon name="logout" />
         </button>
       </div>
 

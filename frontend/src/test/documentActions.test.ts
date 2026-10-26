@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { POST } from '../app/api/documents/[id]/actions/route'
-import { NextRequest } from 'next/server'
+import request from 'supertest'
+import { createExpressApp } from '../../server/app'
 import { prisma } from '../lib/prisma'
 
 describe('Document Actions Mutation API', () => {
+  const app = createExpressApp()
   const docId = 'DMS-ACTION-TEST'
 
   beforeEach(async () => {
@@ -31,47 +32,41 @@ describe('Document Actions Mutation API', () => {
   })
 
   it('rejects action when document does not exist with 404', async () => {
-    const req = new NextRequest('http://localhost/api/documents/DMS-NONEXIST/actions', {
-      method: 'POST',
-      body: JSON.stringify({ action: 'confirm', reason: 'ทดสอบ' }),
-    })
-    const res = await POST(req, { params: Promise.resolve({ id: 'DMS-NONEXIST' }) })
+    const res = await request(app)
+      .post('/api/documents/DMS-NONEXIST/actions')
+      .send({ action: 'confirm', reason: 'ทดสอบ' })
     expect(res.status).toBe(404)
   })
 
   it('rejects action when document is locked with 423 Locked', async () => {
     await prisma.document.update({ where: { id: docId }, data: { isLocked: true } })
-    const req = new NextRequest(`http://localhost/api/documents/${docId}/actions`, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'confirm', reason: 'ทดสอบ' }),
-    })
-    const res = await POST(req, { params: Promise.resolve({ id: docId }) })
+    const res = await request(app)
+      .post(`/api/documents/${docId}/actions`)
+      .send({ action: 'confirm', reason: 'ทดสอบ' })
     expect(res.status).toBe(423)
-    const data = await res.json()
-    expect(data.error).toContain('ล็อก')
+    expect(res.body.error).toContain('ล็อก')
   })
 
   it('rejects confirm when role is EU with 403 Forbidden', async () => {
-    const req = new NextRequest(`http://localhost/api/documents/${docId}/actions`, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'confirm', reason: 'ผู้รับของพยายามกดยืนยัน' }),
-      headers: { 'x-user-id': 'u1', 'x-user-role': 'EU', 'x-user-name': encodeURIComponent('สมศักดิ์ ใจดี') },
-    })
-    const res = await POST(req, { params: Promise.resolve({ id: docId }) })
+    const res = await request(app)
+      .post(`/api/documents/${docId}/actions`)
+      .set('x-user-id', 'u1')
+      .set('x-user-role', 'EU')
+      .set('x-user-name', encodeURIComponent('สมศักดิ์ ใจดี'))
+      .send({ action: 'confirm', reason: 'ผู้รับของพยายามกดยืนยัน' })
     expect(res.status).toBe(403)
   })
 
   it('confirms document and writes AuditLog row in atomic transaction', async () => {
-    const req = new NextRequest(`http://localhost/api/documents/${docId}/actions`, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'confirm', reason: 'PO ตรงกับใบรับ' }),
-      headers: { 'x-user-id': 'u4', 'x-user-role': 'ACC', 'x-user-name': encodeURIComponent('ปณิดา รักงาน') },
-    })
-    const res = await POST(req, { params: Promise.resolve({ id: docId }) })
+    const res = await request(app)
+      .post(`/api/documents/${docId}/actions`)
+      .set('x-user-id', 'u4')
+      .set('x-user-role', 'ACC')
+      .set('x-user-name', encodeURIComponent('ปณิดา รักงาน'))
+      .send({ action: 'confirm', reason: 'PO ตรงกับใบรับ' })
     expect(res.status).toBe(200)
-    const json = await res.json()
-    expect(json.ok).toBe(true)
-    expect(json.document.status).toBe('Confirmed')
+    expect(res.body.ok).toBe(true)
+    expect(res.body.document.status).toBe('Confirmed')
 
     // Verify DB update
     const updatedDoc = await prisma.document.findUnique({ where: { id: docId } })
@@ -90,15 +85,14 @@ describe('Document Actions Mutation API', () => {
   })
 
   it('handles hold action with mandatory reason', async () => {
-    const req = new NextRequest(`http://localhost/api/documents/${docId}/actions`, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'hold', reason: 'รอยืนยันใบรับของรอบสอง', note: 'ติดต่อคุณสมศักดิ์แล้ว' }),
-      headers: { 'x-user-id': 'u4', 'x-user-role': 'ACC', 'x-user-name': encodeURIComponent('ปณิดา รักงาน') },
-    })
-    const res = await POST(req, { params: Promise.resolve({ id: docId }) })
+    const res = await request(app)
+      .post(`/api/documents/${docId}/actions`)
+      .set('x-user-id', 'u4')
+      .set('x-user-role', 'ACC')
+      .set('x-user-name', encodeURIComponent('ปณิดา รักงาน'))
+      .send({ action: 'hold', reason: 'รอยืนยันใบรับของรอบสอง', note: 'ติดต่อคุณสมศักดิ์แล้ว' })
     expect(res.status).toBe(200)
-    const json = await res.json()
-    expect(json.document.status).toBe('Hold')
+    expect(res.body.document.status).toBe('Hold')
 
     const updatedDoc = await prisma.document.findUnique({ where: { id: docId } })
     expect(updatedDoc?.status).toBe('Hold')
@@ -106,12 +100,12 @@ describe('Document Actions Mutation API', () => {
 
   it('rejects invalid action transition', async () => {
     // Current status is Auto-pass, unconfirm is only allowed from Confirmed
-    const req = new NextRequest(`http://localhost/api/documents/${docId}/actions`, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'unconfirm', reason: 'ยกเลิก' }),
-      headers: { 'x-user-id': 'u6', 'x-user-role': 'APR', 'x-user-name': encodeURIComponent('สมชาย วงศ์ทอง') },
-    })
-    const res = await POST(req, { params: Promise.resolve({ id: docId }) })
+    const res = await request(app)
+      .post(`/api/documents/${docId}/actions`)
+      .set('x-user-id', 'u6')
+      .set('x-user-role', 'APR')
+      .set('x-user-name', encodeURIComponent('สมชาย วงศ์ทอง'))
+      .send({ action: 'unconfirm', reason: 'ยกเลิก' })
     expect(res.status).toBe(422)
   })
 })

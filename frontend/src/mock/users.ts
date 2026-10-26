@@ -3,22 +3,22 @@ import { Role, RoleKey, User, AccountMapping } from '../types/auth'
 export const ROLES: Record<RoleKey, Role> = {
   EU: {
     n: 'ผู้ใช้งาน (Receiver)',
-    c: '#C2410C',
-    bg: '#FFF1E3',
+    c: 'var(--t-org)',
+    bg: 'var(--t-org-bg)',
     p: ['VIEW_OWN', 'DMS', 'UPLOAD_NEW'],
     scope: 'receiver'
   },
   ACC: {
     n: 'เจ้าหน้าที่บัญชี',
-    c: '#1E8A5F',
-    bg: '#E3F4E8',
+    c: 'var(--t-ok)',
+    bg: 'var(--t-ok-bg)',
     p: ['VIEW_CO', 'DMS', 'CONFIRM', 'REVIEW', 'HOLD', 'REJECT', 'VIEW_AP'],
     scope: 'company'
   },
   APR: {
     n: 'หัวหน้าฝ่ายบัญชี',
-    c: '#1E6FB2',
-    bg: '#E8F1FB',
+    c: 'var(--t-blue)',
+    bg: 'var(--t-blue-bg)',
     p: [
       'VIEW_CO',
       'DMS',
@@ -39,15 +39,15 @@ export const ROLES: Record<RoleKey, Role> = {
   },
   ADM: {
     n: 'ผู้ดูแลระบบ (IT)',
-    c: '#7A4A9E',
-    bg: '#F2E9F8',
+    c: 'var(--t-adm)',
+    bg: 'var(--t-adm-bg)',
     p: ['MAP', 'AUDIT'],
     scope: 'none'
   },
   SA: {
     n: 'ผู้ดูแลระบบระดับสูง (Super Admin)',
-    c: '#0D9488',
-    bg: '#CCFBF1',
+    c: 'var(--t-teal)',
+    bg: 'var(--t-teal-bg)',
     p: [
       'VIEW_CO',
       'VIEW_OWN',

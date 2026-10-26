@@ -16,8 +16,7 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
-import { NextRequest } from 'next/server'
-import { POST } from '../src/app/api/engine/ingest/route'
+import { ingestEngineResult } from '../src/server/ingestEngineResult'
 
 const DEFAULT_DIR = 'temp/paperless_invoices_v5'
 /** Only real Engine results count; `summary.json` is the Engine's own index. */
@@ -109,21 +108,26 @@ export async function runIngestSimulation(opts: SimOptions = {}): Promise<SimSta
     const body = fs.readFileSync(path.join(dir, file), 'utf-8')
 
     try {
-      const res = baseUrl
-        ? await fetch(`${baseUrl}/api/engine/ingest`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body,
-          })
-        : await POST(
-            new NextRequest('http://localhost/api/engine/ingest', {
-              method: 'POST',
-              body,
-              headers: { 'Content-Type': 'application/json' },
-            }),
-          )
+      let status: number
+      let payload: IngestResponse | null = null
+      let text: string = ''
 
-      const { status, payload, text } = await readIngestResponse(res)
+      if (baseUrl) {
+        const res = await fetch(`${baseUrl}/api/engine/ingest`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body,
+        })
+        const resp = await readIngestResponse(res)
+        status = resp.status
+        payload = resp.payload
+        text = resp.text
+      } else {
+        const res = await ingestEngineResult(JSON.parse(body))
+        status = res.http
+        payload = res
+        text = JSON.stringify(res)
+      }
       if (!payload) {
         stats.failed++
         stats.failures.push({ file, error: `HTTP ${status} non-JSON response: ${snip(text)}` })

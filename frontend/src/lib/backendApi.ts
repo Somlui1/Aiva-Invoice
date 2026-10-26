@@ -87,9 +87,9 @@ export async function ingestValidationResult(payload: Record<string, unknown>): 
  * into an InvoiceDoc for the Portal Queue.
  */
 export function convertSystemAResultToInvoiceDoc(payload: any): InvoiceDoc {
-  const norm = payload.normalized_fields || {}
-  const snap = payload.oracle_snapshot || {}
-  const recVal = payload.recommendation?.value || 'MANUAL_REVIEW'
+  const norm = payload.normalized_fields || payload.invoice || {}
+  const snap = payload.oracle_snapshot || payload.receipt || {}
+  const recVal = payload.recommendation?.value || payload.decision?.recommendation || 'MANUAL_REVIEW'
   const codes: string[] = payload.decision?.exception_codes || payload.recommendation?.exception_codes || []
 
   const statusMap: Record<string, InvoiceStatus> = {
@@ -102,14 +102,15 @@ export function convertSystemAResultToInvoiceDoc(payload: any): InvoiceDoc {
   const status: InvoiceStatus = statusMap[recVal] || 'Manual Review'
 
   // Extract rules
-  const rulesList: RuleCheck[] = (payload.rule_results || []).map((r: any) => {
+  const rawRules = payload.rule_results || payload.rules || []
+  const rulesList: RuleCheck[] = rawRules.map((r: any) => {
     const isPass = r.result === 'pass'
     const code = r.exception_code || (codes[0] && !isPass ? codes[0] : undefined)
     const sev = code ? SEVERITY_OF_CODE[code] : undefined
     return {
-      id: r.rule_id,
-      rule: r.rule_id,
-      name: `กฎ ${r.rule_id}`,
+      id: r.rule_id || r.id,
+      rule: r.rule_id || r.id,
+      name: `กฎ ${r.rule_id || r.id}`,
       status: isPass ? 'PASS' : r.result === 'not_evaluated' ? 'SKIP' : 'FAIL',
       result: r.result,
       exception_code: code,
@@ -120,7 +121,11 @@ export function convertSystemAResultToInvoiceDoc(payload: any): InvoiceDoc {
 
   const orgId = snap.org_id || 103
   const co = companyOfOrg(orgId) || companyOfTax(norm.customer_tax_id || '') || 'AH'
-  const docId = payload.request?.dms_doc_id ? `DMS-${payload.request.dms_doc_id}` : `SYS-${payload.request?.validation_id || Date.now()}`
+  const docId = payload.request?.dms_doc_id
+    ? `DMS-${payload.request.dms_doc_id}`
+    : payload.document?.dms_doc_id
+    ? (payload.document.dms_doc_id.startsWith('DMS-') ? payload.document.dms_doc_id : `DMS-${payload.document.dms_doc_id}`)
+    : `SYS-${payload.request?.validation_id || Date.now()}`
 
   return {
     doc: docId,
@@ -129,19 +134,19 @@ export function convertSystemAResultToInvoiceDoc(payload: any): InvoiceDoc {
     vendor: norm.supplier_name || 'SUPPLIER',
     stax: norm.supplier_tax_id || '—',
     dt: norm.invoice_date || new Date().toISOString().slice(0, 10),
-    up: (payload.request?.completed_at || new Date().toISOString()).slice(0, 10),
-    total: parseFloat(norm.grand_total || '0'),
-    sub: parseFloat(norm.sub_total || '0'),
-    vat: parseFloat(norm.vat || '0'),
-    po: norm.po_number || snap.query_keys?.po_number || '—',
-    rcv: snap.receipt_nums?.[0] || '—',
+    up: (payload.request?.completed_at || payload.document?.uploaded_at || new Date().toISOString()).slice(0, 10),
+    total: typeof norm.grand_total === 'number' ? norm.grand_total : parseFloat(norm.grand_total || '0'),
+    sub: typeof norm.sub_total === 'number' ? norm.sub_total : parseFloat(norm.sub_total || '0'),
+    vat: typeof norm.vat === 'number' ? norm.vat : parseFloat(norm.vat || '0'),
+    po: norm.po_number || snap.query_keys?.po_number || (Array.isArray(norm.po_numbers) ? norm.po_numbers[0] : '—'),
+    rcv: snap.receipt_nums?.[0] || snap.receive_id || '—',
     receiver: snap.receiver || undefined,
     receiverActive: !!snap.receiver,
     assigned: !snap.receiver ? 'acc' : codes.length > 0 ? 'eu' : 'acc',
     status,
     codes,
     rules: rulesList,
-    pages: payload.package?.page_count || 1,
+    pages: payload.package?.page_count || payload.document?.page_count || 1,
     history: [
       {
         dt: new Date().toISOString().slice(0, 10),

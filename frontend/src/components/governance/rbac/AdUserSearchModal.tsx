@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { RoleKey } from '@/types/auth'
 import { ROLES } from '@/mock/users'
 
@@ -118,7 +119,8 @@ export function AdUserSearchModal({ isOpen, onClose, onAddUser }: Props) {
     onClose()
   }
 
-  return (
+  // v5.3.1: portal ไป document.body กัน overlay ถูกกักใน parent ที่มี transform/backdrop-filter (เช่นระหว่างแอนิเมชันเข้าแอป)
+  return createPortal(
     <div className="modal-ov" role="dialog" aria-modal="true">
       <div className="modal-box">
         <div className="modal-h">
@@ -378,5 +380,7 @@ export function AdUserSearchModal({ isOpen, onClose, onAddUser }: Props) {
         </div>
       </div>
     </div>
+    ,
+    document.body,
   )
 }

@@ -2,8 +2,8 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import http from 'node:http'
 import path from 'node:path'
 import { AddressInfo } from 'node:net'
-import { NextRequest } from 'next/server'
-import { GET } from '../app/api/documents/[id]/pdf/route'
+import request from 'supertest'
+import { createExpressApp } from '../../server/app'
 
 /**
  * The PDF proxy has three sources (live DMS -> cached file -> synthetic mock)
@@ -13,10 +13,51 @@ import { GET } from '../app/api/documents/[id]/pdf/route'
  */
 const DOC_ID = 'DMS-100'
 
-const get = (id: string) =>
-  GET(new NextRequest(`http://localhost/api/documents/${encodeURIComponent(id)}/pdf`), {
-    params: Promise.resolve({ id }),
-  })
+const app = createExpressApp()
+
+const get = async (id: string) => {
+  const req = request(app)
+    .get(`/api/documents/${encodeURIComponent(id)}/pdf`)
+    .buffer(true)
+    .parse((res, callback) => {
+      const chunks: Buffer[] = []
+      res.on('data', chunk => chunks.push(Buffer.from(chunk)))
+      res.on('end', () => callback(null, Buffer.concat(chunks)))
+    })
+
+  const raw = await req
+  const buf: Buffer = Buffer.isBuffer(raw.body) ? raw.body : Buffer.from(raw.text || '')
+
+  return {
+    status: raw.status,
+    headers: {
+      get(name: string) {
+        const val = raw.header[name.toLowerCase()]
+        return val !== undefined ? String(val) : null
+      },
+      *[Symbol.iterator]() {
+        for (const [k, v] of Object.entries(raw.header)) {
+          yield [k, String(v)]
+        }
+      },
+    },
+    arrayBuffer: async () => {
+      const ab = new ArrayBuffer(buf.length)
+      const view = new Uint8Array(ab)
+      for (let i = 0; i < buf.length; ++i) {
+        view[i] = buf[i]
+      }
+      return ab
+    },
+    json: async () => {
+      try {
+        return JSON.parse(buf.toString('utf-8'))
+      } catch {
+        return raw.body
+      }
+    },
+  }
+}
 
 let prisma: any
 let originalBaseUrl: string | undefined

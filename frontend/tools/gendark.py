@@ -1,0 +1,116 @@
+import re,json,colorsys,sys
+from cssparse import *
+mp=json.load(open('tools/pairmap.json'))
+HEXRE=re.compile(r'#[0-9a-fA-F]{3,8}\b')
+RGBA=re.compile(r'rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+%?)\s*)?\)')
+KW=re.compile(r'(?<![\w-])(white|black)(?![\w-])')
+def hexrgb(h):
+    h=h[1:];a=None
+    if len(h) in (3,4):
+        if len(h)==4:a=h[3]*2
+        h=''.join(c*2 for c in h[:3])
+    elif len(h)==8:a=h[6:8]
+    return [int(h[i:i+2],16)/255 for i in (0,2,4)],a
+def hls(r):return colorsys.rgb_to_hls(*r)
+def conv_rgb(r):
+    h,l,s=hls(r)
+    if l<0.55:l2=min(.88,.58+(.5-l)*.75);s2=s*.8
+    else:l2=.06+.92*(1-l);s2=s*.65
+    return colorsys.hls_to_rgb(h,max(0,min(1,l2)),s2)
+def tohex(r):return '#'+''.join('%02x'%round(max(0,min(1,x))*255) for x in r)
+def conv_hex(h):
+    k=h.lower()
+    if k in mp:return mp[k]
+    r,a=hexrgb(k);o=tohex(conv_rgb(r))
+    return o+(a or '')
+def conv_val(v):
+    v=HEXRE.sub(lambda m:conv_hex(m.group(0)),v)
+    def rr(m):
+        r=[int(m.group(i))/255 for i in (1,2,3)];a=m.group(4)
+        c=[round(x*255) for x in conv_rgb(r)]
+        return 'rgba(%d,%d,%d,%s)'%(c[0],c[1],c[2],a) if a else 'rgb(%d,%d,%d)'%tuple(c)
+    v=RGBA.sub(rr,v)
+    v=KW.sub(lambda m:conv_hex('#fff' if m.group(1)=='white' else '#000'),v)
+    return v
+COLORPROPS=re.compile(r'^(color|background|background-color|background-image|border|border-(top|right|bottom|left)(-color)?|border-color|outline|outline-color|fill|stroke|caret-color|accent-color|text-decoration-color|column-rule|--[\w-]+)$')
+EXCL=re.compile(r'paper|pdf-?page|evd-page|ivp|canvas|bbox|hl-|textLayer|annotation',re.I)
+def first_color(v):
+    m=HEXRE.search(v)
+    if m:return hexrgb(m.group(0))[0]
+    m=RGBA.search(v)
+    if m and (m.group(4) is None or float(m.group(4).rstrip('%'))>0.5):return [int(m.group(i))/255 for i in (1,2,3)]
+    if re.search(r'\bwhite\b',v):return [1,1,1]
+    return None
+def hascolor(v):return bool(HEXRE.search(v) or RGBA.search(v) or KW.search(v))
+def split_sel(s):
+    out=[];d=0;cur=''
+    for c in s:
+        if c in '([':d+=1
+        if c in ')]':d-=1
+        if c==',' and d==0:out.append(cur.strip());cur='';continue
+        cur+=c
+    out.append(cur.strip());return [x for x in out if x]
+def scope(sel):
+    p=':where(:root[data-theme=dark])'
+    s=sel.strip()
+    if s.startswith(':root'):return s.replace(':root',':root[data-theme=dark]',1)
+    if s.startswith('html'):return 'html[data-theme=dark]'+s[4:]
+    if s.startswith('body'):return p+' '+s
+    return p+' '+s
+P='reference/aiva-styles/style-%02d.css'
+def norm(x):return re.sub(r'\s+',' ',re.sub(r'\s*([>+~,{}:;])\s*',r'\1',x)).strip().lower()
+KNOWN={};
+for a,b in [(0,1),(3,4),(5,6),(7,8),(9,10),(11,12),(13,14)]:
+    A=parse(open(P%a).read());B=parse(open(P%b).read())
+    for (c1,s1,b1),(c2,s2,b2) in zip(A,B):
+        if b1 is None or b2 is None:continue
+        k=norm(s1);ch=KNOWN.setdefault(k,{})
+        for (k1,v1),(k2,v2) in zip(decls(b1),decls(b2)):
+            if v1!=v2:ch[k1]=(v1,v2)
+CHROME=re.compile(r'^(\.topbar|\.nav\b|\.nav-|\.brand|\.env\b|\.who|\.role-pill)')
+def gen(path):
+    out=[];cnt=0
+    for ctx,sel,body in parse(open(path).read()):
+        if body is None or EXCL.search(sel):continue
+        ds=decls(body)
+        ns=norm(sel)
+        if ns in KNOWN:
+            ch=KNOWN[ns];nd=[]
+            for k,v in ds:
+                if k in ch and ch[k][0].lower()==v.lower():nd.append('%s:%s'%(k,ch[k][1]))
+                elif k in ch and COLORPROPS.match(k) and hascolor(v):nd.append('%s:%s'%(k,conv_val(v)))
+            if nd:
+                sels=','.join(scope(x) for x in split_sel(sel));rule=sels+'{'+';'.join(nd)+'}'
+                for c in reversed(ctx):rule=c+'{'+rule+'}'
+                out.append(rule);cnt+=1
+            continue
+        if all(CHROME.match(x) for x in split_sel(sel)):continue
+        bg=[first_color(v) for k,v in ds if k in('background','background-color')]
+        bg=[b for b in bg if b]
+        if bg:
+            h,l,s=hls(bg[0])
+            if l<0.3:continue                 # dark element: keep as-is
+            keep_bg = s>0.4 and 0.3<=l<=0.7   # saturated button: keep
+        else:keep_bg=False
+        nd=[]
+        for k,v in ds:
+            if not COLORPROPS.match(k) or not hascolor(v):continue
+            if k.startswith('--') and not (HEXRE.search(v) or RGBA.search(v)):continue
+            if keep_bg and k in ('background','background-color','color','border','border-color'):continue
+            if k=='color':
+                c=first_color(v)
+                if c and hls(c)[1]>0.93 and bg:continue
+            nv=conv_val(v)
+            if nv!=v:nd.append('%s:%s'%(k,nv))
+        if not nd:continue
+        sels=','.join(scope(x) for x in split_sel(sel))
+        rule=sels+'{'+';'.join(nd)+'}'
+        for c in reversed(ctx):rule=c+'{'+rule+'}'
+        out.append(rule);cnt+=1
+    return out,cnt
+if __name__=='__main__':
+    allout=['/* AUTO-GENERATED by tools/gendark.py — dark-mode compatibility for legacy (light) stylesheets.\n   ใช้ :where() เพื่อไม่เพิ่ม specificity: theme.css (v5.2) ที่โหลดทีหลังจึงชนะเสมอ */']
+    for p in sys.argv[2:]:
+        o,c=gen(p);allout.append('\n/* ---- %s (%d rules) ---- */'%(p.split('/src/')[-1],c));allout+=o
+        print(p,c,file=sys.stderr)
+    open(sys.argv[1],'w').write('\n'.join(allout)+'\n')

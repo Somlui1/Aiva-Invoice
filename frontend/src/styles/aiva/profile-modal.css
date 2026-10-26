@@ -1,0 +1,26 @@
+/* v5.3.1 · My Profile modal (ใช้ token ของ theme.css → รองรับ Dark/Light) */
+.ov.pf-ov{z-index:1000}
+.pf-modal{width:min(620px,100%);max-height:min(86vh,760px);outline:none}
+.pf-modal .mh{gap:12px}
+.pf-modal .mi{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;flex:none}
+.pf-ht h3{margin:0;font-size:15px;font-weight:700;color:var(--s-900)}
+.pf-ht p{margin:2px 0 0;font-size:12px;color:var(--s-500)}
+.pf-body{display:flex;flex-direction:column;gap:14px}
+.pf-id{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px;padding:14px;border:1px solid var(--line);
+  border-radius:var(--r-md);background:var(--sunken);box-shadow:var(--rim)}
+.pf-l{display:block;font-size:11px;font-weight:600;color:var(--s-500);margin-bottom:3px}
+.pf-v{font-size:13px;color:var(--s-800);word-break:break-word}
+.pf-v.b{font-size:14px;font-weight:700;color:var(--s-900)}
+.pf-mail{color:var(--accent-text)}
+.pf-card{padding:14px;border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface)}
+.pf-card h4,.pf-h4{margin:0 0 10px;font-size:13px;font-weight:700;color:var(--s-700)}
+.pf-row{display:flex;align-items:flex-start;gap:8px;font-size:12.5px;padding:3px 0}
+.pf-k{width:130px;flex:none;color:var(--s-500)}
+.pf-chips{display:flex;gap:4px;flex-wrap:wrap}
+.pf-acct{font-size:11px;font-weight:600;padding:1px 8px;border-radius:5px;color:var(--t-blue);background:var(--t-blue-bg);border:1px solid var(--info-bd)}
+.pf-perm{max-height:240px;overflow:auto;border:1px solid var(--line);border-radius:var(--r-md)}
+.pf-perm table{width:100%}
+.pf-perm thead th{position:sticky;top:0;z-index:1;background:var(--head)}
+.pf-c{width:56px;text-align:center}
+.pf-ok{color:var(--t-ok)}
+@media (max-width:560px){.pf-id{grid-template-columns:1fr}.pf-k{width:110px}}

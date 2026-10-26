@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { GET } from '../app/api/auth/me/route'
-import { NextRequest } from 'next/server'
+import request from 'supertest'
+import { createExpressApp } from '../../server/app'
 import { prisma } from '../lib/prisma'
 
 describe('Auth Me API (/api/auth/me)', () => {
+  const app = createExpressApp()
+
   beforeEach(async () => {
     // Upsert a test AD user in DB
     await prisma.user.upsert({
@@ -22,34 +24,27 @@ describe('Auth Me API (/api/auth/me)', () => {
   })
 
   it('returns 401 if no session cookie or header is provided', async () => {
-    const req = new NextRequest('http://localhost/api/auth/me')
-    const res = await GET(req)
+    const res = await request(app).get('/api/auth/me')
     expect(res.status).toBe(401)
-    const data = await res.json()
-    expect(data.ok).toBe(false)
+    expect(res.body.ok).toBe(false)
   })
 
   it('returns user profile via cookie for registered AD employee', async () => {
-    const req = new NextRequest('http://localhost/api/auth/me', {
-      headers: {
-        cookie: 'aiva_session=wajeepradit.p',
-      },
-    })
-    const res = await GET(req)
+    const res = await request(app)
+      .get('/api/auth/me')
+      .set('Cookie', 'aiva_session=wajeepradit.p')
+
     expect(res.status).toBe(200)
-    const data = await res.json()
-    expect(data.ok).toBe(true)
-    expect(data.user.id).toBe('wajeepradit.p')
-    expect(data.user.name).toBe('Wajeepradit Prompan (AH)')
-    expect(data.user.role).toBe('EU')
-    expect(Array.isArray(data.user.companies)).toBe(true)
+    expect(res.body.ok).toBe(true)
+    expect(res.body.user.id).toBe('wajeepradit.p')
+    expect(res.body.user.name).toBe('Wajeepradit Prompan (AH)')
+    expect(res.body.user.role).toBe('EU')
+    expect(Array.isArray(res.body.user.companies)).toBe(true)
   })
 
   it('enforces Zero-Trust: returns 404 for unknown or purged mock users (u1)', async () => {
-    const req = new NextRequest('http://localhost/api/auth/me?userId=u1')
-    const res = await GET(req)
+    const res = await request(app).get('/api/auth/me?userId=u1')
     expect(res.status).toBe(404)
-    const data = await res.json()
-    expect(data.ok).toBe(false)
+    expect(res.body.ok).toBe(false)
   })
 })

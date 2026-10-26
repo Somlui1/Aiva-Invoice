@@ -1,45 +1,39 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { POST } from '../app/api/auth/ldap/route'
-import { NextRequest } from 'next/server'
+import request from 'supertest'
+import { createExpressApp } from '../../server/app'
 import { prisma } from '../lib/prisma'
 
 describe('LDAP / Active Directory Authentication API', () => {
+  const app = createExpressApp()
+
   beforeEach(async () => {
     await prisma.auditLog.deleteMany({ where: { docId: 'AUTH' } })
   })
 
   it('rejects empty username or password with 400', async () => {
-    const req = new NextRequest('http://localhost/api/auth/ldap', {
-      method: 'POST',
-      body: JSON.stringify({ username: '', password: '' }),
-    })
-    const res = await POST(req)
+    const res = await request(app)
+      .post('/api/auth/ldap')
+      .send({ username: '', password: '' })
     expect(res.status).toBe(400)
   })
 
   it('rejects incorrect password with 401', async () => {
-    const req = new NextRequest('http://localhost/api/auth/ldap', {
-      method: 'POST',
-      body: JSON.stringify({ username: 'itsupport', password: 'wrongpassword' }),
-    })
-    const res = await POST(req)
+    const res = await request(app)
+      .post('/api/auth/ldap')
+      .send({ username: 'itsupport', password: 'wrongpassword' })
     expect(res.status).toBe(401)
-    const data = await res.json()
-    expect(data.error).toContain('ไม่ถูกต้อง')
+    expect(res.body.error).toContain('ไม่ถูกต้อง')
   })
 
   it('authenticates itsupport with password support and grants SA role', async () => {
-    const req = new NextRequest('http://localhost/api/auth/ldap', {
-      method: 'POST',
-      body: JSON.stringify({ username: 'itsupport', password: 'support' }),
-    })
-    const res = await POST(req)
+    const res = await request(app)
+      .post('/api/auth/ldap')
+      .send({ username: 'itsupport', password: 'support' })
     expect(res.status).toBe(200)
-    const data = await res.json()
-    expect(data.ok).toBe(true)
-    expect(data.user.id).toBe('itsupport')
-    expect(data.user.role).toBe('SA')
-    expect(data.user.name).toContain('IT Support')
+    expect(res.body.ok).toBe(true)
+    expect(res.body.user.id).toBe('itsupport')
+    expect(res.body.user.role).toBe('SA')
+    expect(res.body.user.name).toContain('IT Support')
 
     // Verify audit log
     const log = await prisma.auditLog.findFirst({

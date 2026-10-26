@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "../../lib/router";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { loginIn, loginOut, markJustLoggedIn } from "../../lib/fx";
 import { createHttpAuth } from "./auth/http";
 import { createMockAuth, toSessionUser, type MockControls } from "./auth/mock";
 import type { AuthAdapter, AuthFailKind, LoginMethod, SessionUser } from "./auth/types";
@@ -33,6 +34,12 @@ export interface LoginPageProps {
 
 export function LoginPage({ redirectTo, initialError = null, adapter, mock, showExplainer = true, onSuccess }: LoginPageProps) {
   const router = useRouter();
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // เปิดหน้า login แบบมีแอนิเมชัน (ถ้า splash กำลังแสดงอยู่ splash จะเรียกเองตอนจบ)
+  useEffect(() => {
+    if (!document.getElementById("splash")) loginIn();
+  }, []);
   const isMock = mock ?? LOGIN_CONFIG.mock;
   const toasts = useToasts();
 
@@ -55,6 +62,9 @@ export function LoginPage({ redirectTo, initialError = null, adapter, mock, show
         }
       } catch {}
       if (onSuccess) return onSuccess(user, method);
+      // v5.3 FX: วาร์ปออกจากโลโก้ + บอก SplashScreen ว่าเพิ่งเข้าสู่ระบบ (หลัง reload จะเล่นเอฟเฟกต์เข้าแอปแทน splash)
+      markJustLoggedIn();
+      loginOut(rootRef.current);
       router.replace(safeRedirect(redirectTo, LOGIN_CONFIG.defaultRedirect));
       router.refresh();
     },
@@ -76,7 +86,17 @@ export function LoginPage({ redirectTo, initialError = null, adapter, mock, show
   });
 
   return (
-    <div className="aiva-login" role="main" aria-label="เข้าสู่ระบบ AIVA Portal" data-busy={c.busy ? "1" : "0"} data-exiting={c.exiting ? "1" : "0"}>
+    <div
+      ref={rootRef}
+      id="lg"
+      className={`aiva-login${c.exiting ? " out" : ""}`}
+      role="main"
+      aria-label="เข้าสู่ระบบ AIVA Portal"
+      data-busy={c.busy ? "1" : "0"}
+      data-exiting={c.exiting ? "1" : "0"}
+    >
+      <span className="lg-orb" aria-hidden="true" />
+      <i className="lg-grid" aria-hidden="true" />
       <ProgressBar p={c.progress} />
       <div className="lg-stage">
         <div className="d3">
