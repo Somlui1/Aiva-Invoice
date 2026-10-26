@@ -29,6 +29,27 @@
 pytest ในเครื่องที่ตรวจ: **256 passed / 37 failed** — 37 ข้อเท่ากับก่อนแก้ทุกตัว (36 ไม่มี `openai` + 1 import `tests.test_single_pass`) — **ต้องรันซ้ำในเครื่องที่มี `openai`** (คาด 272 + 21 = 293 passed)
 **Golden (`--golden`):** baseline ก่อนแก้ก็ DRIFT 19/19 อยู่แล้ว ⇒ ต้อง repin หลัง review (จำนวน evidence เปลี่ยนโดยตั้งใจ)
 
+**สถานะซ้ำตอนติดตั้งเข้า working tree (session 2026-10-26 — เครื่องที่มี `openai` ครบ แทนบรรทัด “ต้องรันซ้ำ” ข้างบน):**
+engine **293 passed, exit 0** (`AIVA_EVIDENCE_STRICT=1 PYTHONPATH=src python -m pytest -q`) — 272 ของ v5.6 + 21 ข้อใหม่, ใส่ `--basetemp` ภายนอก repo เพราะบน Windows การลบ `temp/pt-base` โดน `PermissionError` (เป็น error ของ harness ไม่ใช่ test fail)
+· `system_a.cli scenarios` = **59/68** เท่า baseline แบบ row-by-row · `system_a.sandbox.scenarios` = **58/68 เท่า tree ก่อน patch ทุกแถว (diff ว่าง)** · `sandbox.scenarios --schema` = **all results valid** (result-3.1)
+
+**Offline replay 125 ฉบับ** (`tools/replay_results.py` รันด้วย tree ก่อน patch และหลัง patch, dump ลง `temp/evidence-baseline/` + `temp/evidence-after/`):
+
+| ตัวชี้วัด | v5.6 (E0) | v5.7 |
+|---|---|---|
+| `recommendation` / `exception_codes` / `max_severity` ที่ต่างกัน | — | **0 จาก 125 ฉบับ** |
+| แถวหลักฐานรวม (exception / review) | 244 (244 / 0) | **542 (528 / 14)** — เปลี่ยน 79 ฉบับ |
+| rule `manual_review` ที่ `evidence_ids` ว่าง | 2 | **0** |
+| violation `R3_NO_LOCATION_NO_REASON` | 18 | **0** |
+| violation `R7_REVIEW_WITHOUT_EVIDENCE` | 2 | **0** |
+| advisory `R2_WIDE_FINDING` | 7 | 5 (หมดนี้เป็น V-08/E14 กลุ่มราคา DMS-26 — ข้อยกเว้นที่ plan บันทึกไว้; ตัวตรวจไม่ให้ raise กับ R2) |
+| `bbox_missing_reason` | `NOT_LOCATED` 214 (ค่าเดียวทั้งชุด) | `NOT_LOCATED` 437 · `NOT_PRESENT` 38 · `PAGES_INCOMPLETE` 3 |
+| ผลตรวจ fixture | — | DMS-27 V-07 = **10 findings** ✓ · DMS-40 → `PAGES_INCOMPLETE` ✓ · DMS-139 V-06 → `signatures.deliverer` + `NOT_PRESENT` ✓ · DMS-95 V-01 แตกเป็น **10 ปุ่ม** (plan ประมาณไว้ 9 — เกณฑ์จริง “1 ปุ่มต่อ 1 ฟิลด์/1 บรรทัด” ถือว่าครบ) |
+
+**Golden repin แล้ว** — `tests/golden_legacy_integrity.json` จาก 19 → **68 sids** (ของเดิม drift 19/19 ตั้งแต่ *ก่อน* patch จึงไม่ใช่สัญญาณถอยหลังของรอบนี้) gate ใหม่: `sandbox.scenarios --golden` = **68/68 unchanged**
+
+**ยังไม่ทำ (ต้องได้รัน batch จริงก่อน):** ชุดผล `frontend/temp/paperless_invoices_v5_7/` — `replay_results.py` จำลอง Oracle/AI จึงเอา output ของมันมาแทน dataset จริงไม่ได้ (decision คนละชุดกับที่เก็บใน corpus) · ตามด้วย Portal F7 `backfill:findings`
+
 ## Engine v5.6 (candidate) — ลายเซ็น/ตรา V-06 ให้ตรงกับ Portal
 
 **สถานะ:** engine 231 passed (ส่วนที่ fail 37 ข้อเป็นของเดิมที่ fail อยู่แล้ว เพราะ sandbox ไม่มี `openai` ไม่มีข้อใหม่), sandbox 58/68 เท่ากับ v5.5 (S18 E08 ยังผ่าน)
