@@ -1,8 +1,6 @@
 'use client'
 
-import { useState } from 'react'
 import { Icon } from '../common/Icon'
-import { useAuth } from '../../context/AuthContext'
 import { StatusBadge } from '../common/StatusBadge'
 import { useInvoices, TODAY } from '../../context/InvoiceContext'
 import { useSettings } from '../../context/SettingsContext'
@@ -18,11 +16,6 @@ export function QueueTableView() {
     staleDocs
   } = useInvoices()
   const { orgSettings } = useSettings()
-  const { realUser, isPreview } = useAuth()
-  // v5.10: internal columns for a real Super Admin (hidden while previewing another role)
-  const canInternals = realUser.role === 'SA' && !isPreview
-  const [internals, setInternals] = useState(false)
-  const showInternals = canInternals && internals
 
   const calcAge = (upDate: string): number => {
     return Math.max(
@@ -62,18 +55,6 @@ export function QueueTableView() {
           <div className="tsrch">
             <SmartSearchBox id="tq" variant="table" />
           </div>
-          {canInternals && (
-            <button
-              type="button"
-              className={`chip${internals ? ' on' : ''}`}
-              aria-pressed={internals}
-              title="Super Admin: identityStatus · กฎ DR · เอกสารที่เกี่ยวข้อง"
-              onClick={() => setInternals(v => !v)}
-            >
-              <Icon name="code" size="sm" />
-              ข้อมูลภายใน
-            </button>
-          )}
           <span className="thint">
             <Icon name="split" size="sm" />
             คลิกแถว หรือ <kbd>Enter</kbd> เปิดแบบ 2 ฝั่ง
@@ -96,13 +77,6 @@ export function QueueTableView() {
                 <th>ผู้รับผิดชอบ</th>
                 <th>เข้าระบบ</th>
                 <th className="num">อายุ</th>
-                {showInternals && (
-                  <>
-                    <th title="identityStatus">identity</th>
-                    <th>DR</th>
-                    <th>dup / sup</th>
-                  </>
-                )}
               </tr>
             </thead>
             <tbody id="tbody">
@@ -170,19 +144,12 @@ export function QueueTableView() {
                           อายุ {age} วัน
                         </span>
                       </td>
-                      {showInternals && (
-                        <>
-                          <td className="mono xs">{d.identityStatus ?? '—'}</td>
-                          <td className="mono xs">{d.supRule || d.dupRule || '—'}</td>
-                          <td className="mono xs">{d.duplicate_of || d.supersedes || d.supersededBy || '—'}</td>
-                        </>
-                      )}
                     </tr>
                   )
                 })
               ) : (
                 <tr>
-                  <td colSpan={showInternals ? 15 : 12}>
+                  <td colSpan={12}>
                     <div className="empty">
                       <Icon name="inbox" />
                       ไม่มีเอกสารในขอบเขตสิทธิ์และตัวกรองนี้

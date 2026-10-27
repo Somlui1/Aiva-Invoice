@@ -1,6 +1,6 @@
 /**
  * v5.10 — who may see a document. ONE rule, used by the browser (AuthContext.scopeCheck), the
- * server under "view as" (src/server/viewAs.ts) and the SA "ทำไมเห็น / ไม่เห็น" panel, so the three
+ * server under "view as" (src/server/viewAs.ts), so the two
  * can never disagree.
  *
  * Behaviour kept exactly as AuthContext.scopeCheck before v5.10 (including: an EU with no bound

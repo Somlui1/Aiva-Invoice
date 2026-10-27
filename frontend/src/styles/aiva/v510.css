@@ -1,5 +1,5 @@
 /* =====================================================================================
-   v5.10 — Sidebar badge tones · SA "view as" banner / picker · visibility panel · stale Sent
+   v5.10 — Sidebar badge tones · SA "view as" banner / picker · stale Sent
    ===================================================================================== */
 
 /* ---------- Sidebar badge tones ---------- */
@@ -105,26 +105,9 @@
 .vap-fs legend, .vap-in > span { font-size: 11.5px; font-weight: 700; color: var(--s-600, #475569); margin-bottom: 4px; }
 .vap-cos { display: flex; flex-wrap: wrap; gap: 6px; }
 .vap-foot { display: flex; align-items: center; }
-.vap-warn, .vis-warn { margin: 0; font-size: 12px; color: #b45309; }
+.vap-warn { margin: 0; font-size: 12px; color: #b45309; }
 .vap-err { margin: 8px 0 0; font-size: 12.5px; color: #b91c1c; font-weight: 600; }
 @media (max-width: 520px) { .vap-roles { grid-template-columns: 1fr; } }
-
-/* ---------- Visibility panel (SA) ---------- */
-.vis { margin: 0 0 14px; border: 1px dashed #f59e0b; border-radius: 10px; background: rgba(245, 158, 11, 0.05); }
-.vis > summary { display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; list-style: none; font-size: 12.5px; }
-.vis > summary::-webkit-details-marker { display: none; }
-.vis > summary .muted { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.vis-n { margin-left: auto; font-weight: 700; font-size: 12px; color: #b45309; white-space: nowrap; }
-.vis[open] > summary { border-bottom: 1px dashed #f59e0b; }
-.vis > :not(summary) { margin: 10px 12px; }
-.vis-target { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 8px; font-size: 12.5px; }
-.vis-target.ok { background: #dcfce7; color: #166534; }
-.vis-target.no { background: #fee2e2; color: #991b1b; }
-.vis-t { width: calc(100% - 24px); font-size: 12px; }
-.vis-t td.fit-td { max-width: 240px; }
-.vis-no td { color: var(--s-500, #64748b); }
-.vis-ok { color: #15803d; font-weight: 700; }
-.vis-bad { color: #b91c1c; font-weight: 700; }
 
 /* ---------- Closed page: stale Sent ---------- */
 .cdp-stale {
@@ -145,5 +128,3 @@ tr.cdp-row-stale td:first-child { box-shadow: inset 3px 0 0 #f97316; }
 :where(:root[data-theme='dark']) .vap-list button,
 :where(:root[data-theme='dark']) .vap-ropt { background: #1d1d1d; }
 :where(:root[data-theme='dark']) .cdp-stale { background: #2d1a0b; color: #fdba74; border-color: #5a3214; }
-:where(:root[data-theme='dark']) .vis-target.ok { background: #0f2a19; color: #86efac; }
-:where(:root[data-theme='dark']) .vis-target.no { background: #2c1010; color: #fca5a5; }

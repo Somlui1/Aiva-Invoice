@@ -51,7 +51,7 @@ const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'
 
 export function ClosedDocsPage() {
-  const { currentUser, realUser, isPreview } = useAuth()
+  const { currentUser, isPreview } = useAuth()
   const { visibleDocs, isEvidenceDockOpen, closeEvidenceDock, dockSplitRatio, closedFocus } = useInvoices()
   const { toast } = useToastModal()
 
@@ -60,9 +60,6 @@ export function ClosedDocsPage() {
   /** v5.10: EU = "ผลการส่งเอกสาร" (ส่งจ่ายแล้ว · ถูกปฏิเสธ · ถูกแทนที่); others = closed work. */
   const groupDefs = useMemo(() => closedGroupsFor(role), [role])
   const allowedGroups = useMemo(() => groupDefs.map(g => g.key), [groupDefs])
-  /** Real SA, not previewing: internal columns are available. */
-  const canInternals = realUser.role === 'SA' && !isPreview
-  const [internals, setInternals] = useState(false)
   const warnStaleSent = role === 'APR' || role === 'SA'
   const [group, setGroup] = useState<ClosedGroup>('ap')
   const [sub, setSub] = useState<ClosedStatus | 'all'>('all')
@@ -222,18 +219,6 @@ export function ClosedDocsPage() {
           </button>
         )}
         <span className="grow" />
-        {canInternals && view === 'table' && (
-          <button
-            type="button"
-            className={`chip${internals ? ' on' : ''}`}
-            aria-pressed={internals}
-            title="Super Admin: แสดง identityStatus · assigned · DR · Batch / AP ID"
-            onClick={() => setInternals(v => !v)}
-          >
-            <Icon name="code" size="sm" />
-            ข้อมูลภายใน
-          </button>
-        )}
         {!isEu && (
           <button
             type="button"
@@ -347,14 +332,6 @@ export function ClosedDocsPage() {
                       <th>ปิดโดย</th>
                       <th>วันที่ปิด</th>
                       <th>{isEu ? 'ขั้นตอน / เหตุผล' : 'เหตุผล / อ้างอิง'}</th>
-                      {internals && canInternals && (
-                        <>
-                          <th title="identityStatus">identity</th>
-                          <th title="assigned lane">lane</th>
-                          <th>DR</th>
-                          <th>Batch / AP</th>
-                        </>
-                      )}
                     </tr>
                   </thead>
                   <tbody>
@@ -366,13 +343,12 @@ export function ClosedDocsPage() {
                           onOpen={open}
                           onRef={goToDoc}
                           forEu={isEu}
-                          internals={internals && canInternals}
                           stale={warnStaleSent && isSentStale(d)}
                         />
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={internals && canInternals ? 12 : 8}>
+                        <td colSpan={8}>
                           <div className="empty">
                             <Icon name="inbox" />
                             ไม่มีเอกสารที่ปิดแล้วในกลุ่มและตัวกรองนี้
@@ -486,14 +462,12 @@ function ClosedRow({
   onOpen,
   onRef,
   forEu = false,
-  internals = false,
   stale = false,
 }: {
   d: InvoiceDoc
   onOpen: (id: string) => void
   onRef: (id: string) => void
   forEu?: boolean
-  internals?: boolean
   stale?: boolean
 }) {
   const c = closureOf(d)
@@ -550,16 +524,6 @@ function ClosedRow({
           refText
         )}
       </td>
-      {internals && (
-        <>
-          <td className="mono xs">{d.identityStatus ?? '—'}</td>
-          <td className="mono xs">{d.assigned ?? '—'}</td>
-          <td className="mono xs">{d.supRule || d.dupRule || '—'}</td>
-          <td className="mono xs fit-td" title={[d.batch, d.apId].filter(Boolean).join(' · ') || undefined}>
-            {[d.batch, d.apId].filter(Boolean).join(' · ') || '—'}
-          </td>
-        </>
-      )}
     </tr>
   )
 }

@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Icon } from '../common/Icon'
 import { StatusBadge } from '../common/StatusBadge'
-import { VisibilityPanel } from '../viewas/VisibilityPanel'
 import { InvoiceDoc, EvidenceSelection, type Finding, type RuleCheck } from '../../types/invoice'
 import { EvidenceButton } from '../evidence/EvidenceButton'
 import { findingsOf } from '../../features/evidence/findings'
@@ -365,9 +364,6 @@ export function InvoiceDetailPane({ doc, onOpenActionModal, readOnly = false, cl
                   </div>
                 </div>
               )}
-
-              {/* v5.10: Super Admin only (renders nothing for anyone else) */}
-              <VisibilityPanel doc={doc} />
 
               <div className="sec-h">
                 <h3>ข้อยกเว้นจาก AIVA ({failRules.length})</h3>
@@ -878,15 +874,6 @@ export function InvoiceDetailPane({ doc, onOpenActionModal, readOnly = false, cl
                 onClick={() => onOpenActionModal('hold')}
               >
                 <Icon name="pause" size="sm" /> Hold
-              </button>
-              <button
-                type="button"
-                className="btn btn-sec"
-                disabled={!allowedAction(doc, 'review').ok}
-                title={allowedAction(doc, 'review').why}
-                onClick={() => onOpenActionModal('review')}
-              >
-                <Icon name="clock" size="sm" /> Review
               </button>
               <button
                 type="button"
