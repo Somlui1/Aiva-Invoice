@@ -13,10 +13,12 @@ interface Props {
   c: LoginController;
   mock: boolean;
   onSupport: () => void;
+  /** v5.7: server ตั้งค่า Microsoft 365 (Entra ID) แล้วหรือยัง · false = ปิดแท็บ Microsoft 365 */
+  m365Available?: boolean;
 }
 
 /** ฝั่งซ้ายของหน้า Login: เลือกวิธี (Microsoft 365 / LDAP) + ฟอร์ม + กล่องแจ้งผล */
-export function LoginForm({ c, mock, onSupport }: Props) {
+export function LoginForm({ c, mock, onSupport, m365Available = true }: Props) {
   const [showPw, setShowPw] = useState(false);
   const [caps, setCaps] = useState(false);
 
@@ -63,7 +65,15 @@ export function LoginForm({ c, mock, onSupport }: Props) {
         </div>
 
         <div className="seg lg-seg" role="tablist" aria-label="วิธีเข้าสู่ระบบ">
-          <button type="button" role="tab" aria-selected={c.method === "m365"} className={c.method === "m365" ? "on" : ""} onClick={() => c.switchMethod("m365")}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={c.method === "m365"}
+            className={c.method === "m365" ? "on" : ""}
+            disabled={!m365Available}
+            title={m365Available ? undefined : "ผู้ดูแลระบบยังไม่ได้ตั้งค่า Microsoft 365 (Entra ID)"}
+            onClick={() => c.switchMethod("m365")}
+          >
             <MicrosoftLogo />
             Microsoft 365 <kbd>Alt+1</kbd>
           </button>
@@ -80,7 +90,7 @@ export function LoginForm({ c, mock, onSupport }: Props) {
                 type="button"
                 className={`lg-msbtn go ${busyMs ? "is-busy" : ""}`}
                 data-m="m365"
-                disabled={disabled}
+                disabled={disabled || !m365Available}
                 onClick={() => void c.go("m365")}
               >
                 <MicrosoftLogo />
@@ -89,7 +99,9 @@ export function LoginForm({ c, mock, onSupport }: Props) {
               </button>
               <div className="lg-msnote">
                 <Icon name="shield" size="sm" />
-                บัญชีที่ทำงานหรือโรงเรียน · Single Sign-On · รองรับ MFA
+                {m365Available
+                  ? "บัญชีที่ทำงานหรือโรงเรียน · Single Sign-On · รองรับ MFA"
+                  : "Microsoft 365 ยังไม่เปิดใช้งานบนเซิร์ฟเวอร์นี้ · ใช้ LDAP ภายในแทน"}
               </div>
             </div>
           ) : (

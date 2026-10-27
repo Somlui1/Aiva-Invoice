@@ -25,6 +25,11 @@ export function QueueListItem({ doc, isSelected, onClick }: QueueListItemProps) 
   }
 
   const age = calcAge(doc.up)
+  const amount = doc.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  // v5.8: every line that can be cut off carries its full text as a hover tooltip
+  const poLine = `PO ${doc.po ?? '—'}${doc.release ? `-${doc.release}` : ''} · ${
+    doc.receiver ? `Receiver ${doc.receiver}${doc.receiverActive ? '' : ' (ยังไม่เชื่อมบัญชี)'}` : 'ไม่มี Receiver'
+  }`
   const isOld = ['Review', 'Hold', 'Manual Review', 'Duplicate'].includes(doc.status) && age > orgSettings.staleDays
 
   return (
@@ -35,19 +40,22 @@ export function QueueListItem({ doc, isSelected, onClick }: QueueListItemProps) 
       aria-selected={isSelected}
       data-doc={doc.doc}
       onClick={onClick}
+      title={`${doc.inv} · ${doc.company} · ${doc.status}\n${doc.vendor}\n${poLine}\nยอด ${amount}`}
     >
       <div className="r1">
-        <span className="inv">
+        <span className="inv fit" title={doc.inv}>
           {doc.inv}
           <span className="co">{doc.company}</span>
         </span>
         <StatusBadge status={doc.status} />
       </div>
 
-      <div className="v">{doc.vendor}</div>
+      <div className="v fit" title={doc.vendor}>
+        {doc.vendor}
+      </div>
 
       <div className="r2">
-        <span>
+        <span className="fit2" title={poLine}>
           PO {doc.po}
           {doc.release ? `-${doc.release}` : ''} ·{' '}
           {doc.receiver ? (
@@ -59,9 +67,7 @@ export function QueueListItem({ doc, isSelected, onClick }: QueueListItemProps) 
             <span className="warn">ไม่มี Receiver</span>
           )}
         </span>
-        <span className="mono">
-          {doc.total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-        </span>
+        <span className="mono">{amount}</span>
       </div>
 
       <div className="r3">

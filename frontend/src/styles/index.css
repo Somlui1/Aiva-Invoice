@@ -15,3 +15,11 @@
 @import './aiva/shell.css';
 /* v5.3.1 */
 @import './aiva/profile-modal.css';
+/* v5.7: PDF focus mode · queue drawer · search date filter · loading states */
+@import './aiva/v57.css';
+/* v5.8: date range tool · smart search · full text on hover */
+@import './aiva/v58.css';
+/* v5.9: closed documents page */
+@import './aiva/v59.css';
+/* v5.10: sidebar tones · view as · visibility · stale Sent */
+@import './aiva/v510.css';

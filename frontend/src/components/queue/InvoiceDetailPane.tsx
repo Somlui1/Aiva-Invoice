@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Icon } from '../common/Icon'
 import { StatusBadge } from '../common/StatusBadge'
+import { VisibilityPanel } from '../viewas/VisibilityPanel'
 import { InvoiceDoc, EvidenceSelection, type Finding, type RuleCheck } from '../../types/invoice'
 import { EvidenceButton } from '../evidence/EvidenceButton'
 import { findingsOf } from '../../features/evidence/findings'
@@ -16,9 +17,16 @@ import { getValidationCategory } from '../../features/pdf-viewer/lib/validationC
 interface InvoiceDetailPaneProps {
   doc: InvoiceDoc
   onOpenActionModal: (act: ActionType) => void
+  /**
+   * v5.9 closed-documents page: no action bar at all (no Confirm / Reject / Hold / Review / upload
+   * can render, so none can be clicked); the closing summary is shown in its place.
+   */
+  readOnly?: boolean
+  /** Rendered instead of the action bar when `readOnly`. */
+  closureSlot?: React.ReactNode
 }
 
-export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneProps) {
+export function InvoiceDetailPane({ doc, onOpenActionModal, readOnly = false, closureSlot }: InvoiceDetailPaneProps) {
   const { currentUser, can, scopeCheck } = useAuth()
   const {
     activeDetailTab,
@@ -137,7 +145,7 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
             <div className="dh-title">
               <h1>{doc.inv}</h1>
               <StatusBadge status={doc.status} />
-              <span className="pill">
+              <span className="pill fit" title={`${doc.company} · ${COMPANIES[doc.company]?.name ?? ''}`}>
                 <Icon name="building" size="sm" />
                 {doc.company} · {COMPANIES[doc.company]?.name}
               </span>
@@ -206,34 +214,34 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
           <div className="meta">
             <div>
               <div className="m-l">ผู้ขาย</div>
-              <div className="m-v">{doc.vendor}</div>
-              <div className="m-h">Tax ID {doc.stax}</div>
+              <div className="m-v" title={doc.vendor}>{doc.vendor}</div>
+              <div className="m-h" title={`Tax ID ${doc.stax}`}>Tax ID {doc.stax}</div>
             </div>
             <div>
               <div className="m-l">ชื่อผู้ขายใน Oracle</div>
-              <div className="m-v">{doc.oname || '—'}</div>
+              <div className="m-v" title={doc.oname || undefined}>{doc.oname || '—'}</div>
             </div>
             <div>
               <div className="m-l">
                 PO <span className="tag-ro">ไม่ตรวจ</span>
               </div>
-              <div className="m-v mono">{doc.po}</div>
+              <div className="m-v mono" title={doc.po || undefined}>{doc.po}</div>
               <div className="m-h">Release {doc.release ?? '—'}</div>
             </div>
             <div>
               <div className="m-l">ใบรับ</div>
-              <div className="m-v mono">{doc.rcv || '—'}</div>
+              <div className="m-v mono" title={doc.rcv || undefined}>{doc.rcv || '—'}</div>
             </div>
             <div>
               <div className="m-l">ORG_ID</div>
-              <div className="m-v">
+              <div className="m-v" title={doc.org ? `${doc.org} ${ORG_NAMES[doc.org] || ''}`.trim() : undefined}>
                 {doc.org ? `${doc.org} ${ORG_NAMES[doc.org] || ''}` : '—'}
               </div>
               <div className="m-h">{doc.org ? '' : 'ยังไม่เรียก Oracle'}</div>
             </div>
             <div>
               <div className="m-l">Receiver</div>
-              <div className="m-v mono">
+              <div className="m-v mono" title={doc.receiver || undefined}>
                 {doc.receiver ? (
                   doc.receiver
                 ) : (
@@ -247,7 +255,7 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
             <div>
               <div className="m-l">วันที่ใบแจ้งหนี้</div>
               <div className="m-v">{doc.dt}</div>
-              <div className="m-h">{doc.doc} · {doc.pages} หน้า</div>
+              <div className="m-h" title={`${doc.doc} · ${doc.pages} หน้า`}>{doc.doc} · {doc.pages} หน้า</div>
             </div>
             <div>
               <div className="m-l">วันที่เข้าระบบ</div>
@@ -358,13 +366,16 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
                 </div>
               )}
 
+              {/* v5.10: Super Admin only (renders nothing for anyone else) */}
+              <VisibilityPanel doc={doc} />
+
               <div className="sec-h">
                 <h3>ข้อยกเว้นจาก AIVA ({failRules.length})</h3>
                 <p>มาตรฐาน v6.10 · schema 1.7</p>
               </div>
 
               {failRules.length > 0 ? (
-                failRules.map(r => {
+                failRules.map((r, rIdx) => {
                   const review = isReview(r)
                   // A review card has no exception code; it must not borrow E01 from the old default.
                   const c = r.exception_code || (review ? '' : 'E01')
@@ -391,7 +402,8 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
 
                   return (
                     <div
-                      key={r.id || r.rule}
+                      // id/rule can repeat (one rule, several exceptions) → index keeps keys unique
+                      key={`${r.id || r.rule}-${rIdx}`}
                       data-rule={r.rule}
                       data-sel={picked ? '1' : undefined}
                       className={`exc ${sev}${picked ? ' is-active sel' : ''} cat-${catKey}`}
@@ -434,9 +446,9 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
                       </div>
                       {findings.length > 1 && (
                         <ul className="fnd-list" aria-label={`หลักฐานของ ${r.rule}`}>
-                          {shown.map(f => (
+                          {shown.map((f, fIdx) => (
                             <li
-                              key={f.id}
+                              key={`${f.id}-${fIdx}`}
                               className={`fnd${activeFindingId === f.id ? ' on' : ''}`}
                               data-finding={f.id}
                             >
@@ -581,7 +593,7 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
                             พบรายการรับ <b>{rcvLines.length}</b> รายการ · อ้างอิง{' '}
                             <b>{uniquePos.length}</b> PO:{' '}
                             {uniquePos.map(po => (
-                              <span key={po} className="pill mono po-pill" style={{ marginLeft: 4 }}>
+                              <span key={`${po}`} className="pill mono po-pill" style={{ marginLeft: 4 }}>
                                 PO {po}
                               </span>
                             ))}
@@ -654,7 +666,7 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
                           </thead>
                           <tbody>
                             {displayedLines.map((l, idx) => (
-                              <tr key={l.rcvLineId || idx} data-rcv-line={l.lineNo || idx + 1}>
+                              <tr key={`${l.rcvLineId ?? ''}-${idx}`} data-rcv-line={l.lineNo || idx + 1}>
                                 <td>{l.lineNo || idx + 1}</td>
                                 <td>
                                   <span className="pill mono po-pill">{l.poNumber || '—'}</span>
@@ -708,12 +720,12 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
                   </tr>
                 </thead>
                 <tbody>
-                  {doc.rules.map(r => {
+                  {doc.rules.map((r, rIdx) => {
                     const passed = r.status === 'PASS' || r.status === 'SKIP'
                     const findings = passed ? [] : findingsOf(r, doc)
                     return (
                     <tr
-                      key={r.id || r.rule}
+                      key={`${r.id || r.rule}-${rIdx}`}
                       className={r.status === 'FAIL' || r.result === 'fail' ? 'row-bad' : ''}
                     >
                       <td>{ruleTitle(r)}</td>
@@ -810,6 +822,10 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
           )}
         </div>
 
+        {readOnly ? (
+          closureSlot ?? null
+        ) : (
+        <>
         {/* Action Bar */}
         <div className="abar">
           {currentUser.role === 'EU' ? (
@@ -849,6 +865,7 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
                 type="button"
                 className="btn btn-danger"
                 disabled={!allowedAction(doc, 'reject').ok}
+                title={allowedAction(doc, 'reject').why}
                 onClick={() => onOpenActionModal('reject')}
               >
                 <Icon name="ban" size="sm" /> Reject
@@ -857,6 +874,7 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
                 type="button"
                 className="btn btn-warn"
                 disabled={!allowedAction(doc, 'hold').ok}
+                title={allowedAction(doc, 'hold').why}
                 onClick={() => onOpenActionModal('hold')}
               >
                 <Icon name="pause" size="sm" /> Hold
@@ -865,6 +883,7 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
                 type="button"
                 className="btn btn-sec"
                 disabled={!allowedAction(doc, 'review').ok}
+                title={allowedAction(doc, 'review').why}
                 onClick={() => onOpenActionModal('review')}
               >
                 <Icon name="clock" size="sm" /> Review
@@ -873,6 +892,7 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
                 type="button"
                 className="btn btn-success"
                 disabled={!allowedAction(doc, 'confirm').ok}
+                title={allowedAction(doc, 'confirm').why}
                 onClick={() => onOpenActionModal('confirm')}
               >
                 <Icon name="check" size="sm" /> Confirm
@@ -880,6 +900,8 @@ export function InvoiceDetailPane({ doc, onOpenActionModal }: InvoiceDetailPaneP
             </>
           )}
         </div>
+        </>
+        )}
       </div>
     </section>
   )

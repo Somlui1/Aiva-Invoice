@@ -41,11 +41,27 @@ model Document {
   oracleInvoiceId String?
   importError     String?
 
+  // Business identity & duplicate resolution (DR-01..07).
+  // `id` / `dmsDocId` stay the only technical unique keys. The business keys below are deliberately
+  // NOT unique: Superseded / Duplicate documents of the same invoice must stay stored as history.
+  identityStatus  String?  // RESOLVED | NOT_FOUND | UNRESOLVED (null = row written before v5.6)
+  receiveId       String?  // primary business key — RESOLVED only (normalised receive_id)
+  secondaryKey    String?  // normalised supplier_tax_id|invoice_num — RESOLVED / NOT_FOUND only, never UNRESOLVED
+  missingKeys     String?  // JSON string[] — UNRESOLVED only
+  supersedesId    String?  // the older document this one replaced (DR-01 / DR-02)
+  supersededById  String?  // the newer document that replaced this one
+  duplicateOfId   String?  // the current document this one duplicates (DR-03 / DR-04)
+  drRule          String?  // DR rule applied when this row was ingested
+  drMatchedBy     String?  // RECEIVE_ID | SECONDARY_KEY
+
   payloadJson     String   // Full Portal Document JSON (Structured)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   runs            ValidationRun[]
   bboxes          DocumentBBox[]
+
+  @@index([receiveId])
+  @@index([secondaryKey])
 }
 
 model ValidationRun {

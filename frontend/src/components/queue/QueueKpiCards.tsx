@@ -38,9 +38,8 @@ export function QueueKpiCards() {
         { k: 'mine', label: 'รอฉันแก้ไข' },
         { k: 'all', label: 'ใบรับของฉัน' },
         { k: 'Hold', label: 'Hold' },
-        { k: 'Review', label: 'Review' },
-        { k: 'Rejected', label: 'ปฏิเสธ' },
-        { k: 'Superseded', label: 'ถูกแทนที่' }
+        { k: 'Review', label: 'Review' }
+        // v5.10: ปฏิเสธ / ถูกแทนที่ → menu "ผลการส่งเอกสาร"
       ]
     : [
         { k: 'all', label: 'ทั้งหมด' },

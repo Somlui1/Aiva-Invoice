@@ -34,6 +34,8 @@ interface Options {
   defaultMethod?: LoginMethod;
   /** ข้อผิดพลาดจากการ redirect กลับมา (เช่น /login?error=noaccess) */
   initialError?: AuthFailKind | null;
+  /** v5.7: ข้อความแจ้งเมื่อเปิดหน้า (เช่น เซสชันหมดอายุ) · แสดงครั้งเดียวตอน mount */
+  initialNotice?: { kind: AlertKind; title: string; message: string } | null;
   onSupport: () => void;
   toast: (msg: string) => void;
 }
@@ -50,7 +52,7 @@ const b = (n: ReactNode) => createElement("strong", null, n);
  * ตัวควบคุมหน้า Login (state machine)
  * idle → busy → (สำเร็จ → exiting → onSuccess) | (ไม่สำเร็จ → idle + alert) | (ผิดครบ maxFail → locked)
  */
-export function useLogin({ adapter, onSuccess, defaultMethod = "m365", initialError, onSupport, toast }: Options) {
+export function useLogin({ adapter, onSuccess, defaultMethod = "m365", initialError, initialNotice, onSupport, toast }: Options) {
   const [method, setMethod] = useState<LoginMethod>(defaultMethod);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -339,8 +341,19 @@ export function useLogin({ adapter, onSuccess, defaultMethod = "m365", initialEr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialError]);
 
+  // v5.7: ข้อความแจ้งตอนเปิดหน้า (เซสชันหมดอายุ ฯลฯ) · initialError มาก่อนถ้ามีทั้งคู่
+  useEffect(() => {
+    if (!initialNotice || initialError) return;
+    showAlert(initialNotice.kind, initialNotice.title, initialNotice.message);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialNotice?.title]);
+
+  /** สลับวิธีเข้าสู่ระบบจากภายนอก (เช่น ปิด Microsoft 365 เมื่อ server ไม่ได้ตั้งค่า) */
+  const forceMethod = useCallback((m: LoginMethod) => setMethod(m), []);
+
   return {
     method,
+    forceMethod,
     username,
     password,
     keep,

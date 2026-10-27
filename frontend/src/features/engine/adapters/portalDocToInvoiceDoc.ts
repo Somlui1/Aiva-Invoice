@@ -422,9 +422,17 @@ export function portalDocToInvoiceDoc(
     history: historyOf(doc),
     unres: !doc.receiverName,
     up: dateOnly(doc.updatedAt) || dateOnly(doc.createdAt),
+    created: dateOnly(doc.createdAt) || dateOnly(doc.updatedAt),
   }
 
   if (doc.receiverName) out.receiver = doc.receiverName
+  // Business identity & duplicate-resolution links (v5.6). All absent on rows written before it.
+  if (doc.identity) out.identityStatus = doc.identity.status
+  if (doc.supersedes) out.supersedes = doc.supersedes
+  if (doc.supersededBy) out.supersededBy = doc.supersededBy
+  if (doc.duplicateOf) out.duplicate_of = doc.duplicateOf
+  if (doc.supRule) out.supRule = doc.supRule
+  if (doc.dupRule) out.dupRule = doc.dupRule
   if (opts.includeBoxes) {
     out.bboxes = doc.bboxes
     out.raw_payload = portalBboxesToRawPayload(doc, opts) as unknown as Record<string, unknown>

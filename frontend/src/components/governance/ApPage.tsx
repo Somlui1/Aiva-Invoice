@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Icon } from '../common/Icon'
 import { useAuth } from '../../context/AuthContext'
-import { useInvoices, inPerOf } from '../../context/InvoiceContext'
+import { useInvoices, inPerDoc } from '../../context/InvoiceContext'
 import { USERS } from '../../mock/users'
 
 interface BatchItem {
@@ -18,7 +18,7 @@ const INITIAL_BATCHES: BatchItem[] = [
   { id: 'B-261001-01', at: '2026-10-01 16:30', by: 'u6', docs: ['DMS-2026-000095'] }
 ]
 
-export function ApPage() {
+export function ApPage({ initialTab = 'pending' }: { initialTab?: 'pending' | 'sent' | 'done' | 'failed' } = {}) {
   const { currentUser, can } = useAuth()
   const {
     docs,
@@ -29,7 +29,7 @@ export function ApPage() {
     batchPost
   } = useInvoices()
 
-  const [apTab, setApTab] = useState<'pending' | 'sent' | 'done' | 'failed'>('pending')
+  const [apTab, setApTab] = useState<'pending' | 'sent' | 'done' | 'failed'>(initialTab)
   const [apSel, setApSel] = useState<Set<string>>(new Set())
   const [batches, setBatches] = useState<BatchItem[]>(INITIAL_BATCHES)
   const [coFilter] = useState<string>('')
@@ -95,7 +95,7 @@ export function ApPage() {
         currentUser.co.includes(d.company)
     )
     .filter(d => (!coFilter || d.company === coFilter) && (!byFilter || d.confirmedBy === byFilter))
-    .filter(d => inPerOf(d.up, periodFilter))
+    .filter(d => inPerDoc(d, periodFilter))
 
   const selRows = rows.filter(d => apSel.has(d.doc))
   const canSend = can('POST')

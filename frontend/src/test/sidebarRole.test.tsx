@@ -43,7 +43,7 @@ async function renderSidebarFor(userOrId: string | User) {
     </AuthProvider>,
   )
   if (user.role === 'ADM') {
-    await screen.findByText('เครื่องมือทดสอบและพัฒนา')
+    await screen.findByText('สิทธิ์และการเชื่อมบัญชี')
   } else if (user.role === 'APR' || user.role === 'SA') {
     await screen.findByText('คิวตรวจสอบ')
   } else {
@@ -51,66 +51,41 @@ async function renderSidebarFor(userOrId: string | User) {
   }
 }
 
-describe('Sidebar Role-Based Menu Visibility', () => {
-  it('hides test tools and developer items for regular End User (EU)', async () => {
-    // u1 = สมศักดิ์ ใจดี (EU)
-    await renderSidebarFor('u1')
+const REMOVED_V57 = ['ชุดเอกสารทดสอบ', 'มาตรฐาน Payload', 'Document Simulation', 'เครื่องมือทดสอบและพัฒนา', 'ตั้งค่า']
 
-    // Regular work items should exist
+function expectRemovedMenusAbsent() {
+  for (const label of REMOVED_V57) expect(screen.queryByText(label)).toBeNull()
+}
+
+describe('Sidebar Role-Based Menu Visibility (v5.7: test tools + settings removed)', () => {
+  it('End User (EU): work + governance only', async () => {
+    await renderSidebarFor('u1')
     expect(screen.getByText('งานของฉัน')).not.toBeNull()
     expect(screen.getByText('สิทธิ์และการเชื่อมบัญชี')).not.toBeNull()
-
-    // Test & dev tools must NOT be rendered
-    expect(screen.queryByText('ชุดเอกสารทดสอบ')).toBeNull()
-    expect(screen.queryByText('มาตรฐาน Payload')).toBeNull()
-    expect(screen.queryByText('Document Simulation')).toBeNull()
-    expect(screen.queryByText('สำหรับนักพัฒนา')).toBeNull()
-    expect(screen.queryByText('เครื่องมือพิเศษ')).toBeNull()
+    expectRemovedMenusAbsent()
   })
 
-  it('hides test tools and developer items for Accounting Lead (APR)', async () => {
-    // u6 = สมชาย วงศ์ทอง (APR)
+  it('Accounting Lead (APR): queue, AP, audit', async () => {
     await renderSidebarFor('u6')
-
-    // Real production items should exist
     expect(screen.getByText('คิวตรวจสอบ')).not.toBeNull()
     expect(screen.getByText('ส่งเข้า AP Interface')).not.toBeNull()
     expect(screen.getByText('บันทึกการเข้าถึง')).not.toBeNull()
-
-    // Test & dev tools must NOT be rendered
-    expect(screen.queryByText('ชุดเอกสารทดสอบ')).toBeNull()
-    expect(screen.queryByText('มาตรฐาน Payload')).toBeNull()
-    expect(screen.queryByText('Document Simulation')).toBeNull()
+    expectRemovedMenusAbsent()
   })
 
-  it('shows test tools and dev items under IT section for Admin (ADM)', async () => {
-    // u7 = อนุชา ไอที (ADM)
+  it('Admin (ADM): governance only — no test / dev section any more', async () => {
     await renderSidebarFor('u7')
-
-    // IT testing & dev tools should exist
-    expect(screen.getByText('ชุดเอกสารทดสอบ')).not.toBeNull()
-    expect(screen.getByText('มาตรฐาน Payload')).not.toBeNull()
-    expect(screen.getByText('Document Simulation')).not.toBeNull()
-    expect(screen.getByText('เครื่องมือทดสอบและพัฒนา')).not.toBeNull()
+    expect(screen.getByText('สิทธิ์และการเชื่อมบัญชี')).not.toBeNull()
+    expect(screen.queryByText('คิวตรวจสอบ')).toBeNull()
+    expectRemovedMenusAbsent()
   })
 
-  it('shows ALL menu sections (Work, Governance, Dev/Testing) for Support Admin (itsupport)', async () => {
-    // itsupport user
+  it('Support Admin (itsupport): work + governance, no settings / dev tools', async () => {
     await renderSidebarFor('itsupport')
-
-    // Work items must exist
     expect(screen.getByText('คิวตรวจสอบ')).not.toBeNull()
     expect(screen.getByText('ส่งเข้า AP Interface')).not.toBeNull()
-
-    // Governance items must exist
     expect(screen.getByText('สิทธิ์และการเชื่อมบัญชี')).not.toBeNull()
     expect(screen.getByText('บันทึกการเข้าถึง')).not.toBeNull()
-    expect(screen.getByText('ตั้งค่า')).not.toBeNull()
-
-    // Dev/Testing tools must ALSO exist
-    expect(screen.getByText('เครื่องมือทดสอบและพัฒนา')).not.toBeNull()
-    expect(screen.getByText('ชุดเอกสารทดสอบ')).not.toBeNull()
-    expect(screen.getByText('มาตรฐาน Payload')).not.toBeNull()
-    expect(screen.getByText('Document Simulation')).not.toBeNull()
+    expectRemovedMenusAbsent()
   })
 })

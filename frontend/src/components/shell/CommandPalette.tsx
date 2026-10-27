@@ -24,6 +24,8 @@ import {
 import { createPortal } from 'react-dom'
 import { Icon, type IconName } from '../common/Icon'
 import { StatusBadge } from '../common/StatusBadge'
+import { openViewAsPicker } from '../viewas/ViewAs'
+import { isClosedViewStatus } from '../../lib/closedDocs'
 import { useAuth } from '../../context/AuthContext'
 import { useInvoices } from '../../context/InvoiceContext'
 import { useToastModal } from '../../context/ToastModalContext'
@@ -87,7 +89,7 @@ interface Props {
 }
 
 export function CommandPalette({ onNavigate, onToggleNav }: Props) {
-  const { currentUser, currentRole, logout } = useAuth()
+  const { currentUser, currentRole, logout, realUser, isPreview, stopViewAs } = useAuth()
   const inv = useInvoices()
   const { toast } = useToastModal()
   const sections = useNavSections()
@@ -119,6 +121,12 @@ export function CommandPalette({ onNavigate, onToggleNav }: Props) {
   /* เปิดเอกสาร: ไปหน้าคิว → ถ้าเอกสารถูกตัวกรองซ่อนอยู่ ล้าง/ปรับตัวกรองให้เห็น → เลือกเอกสาร */
   const openDoc = useCallback(
     (d: InvoiceDoc) => {
+      // v5.10: closed documents live on their own page
+      if (isClosedViewStatus(d.status)) {
+        inv.focusClosedDoc(d.doc)
+        onNavigate('closed')
+        return
+      }
       onNavigate('queue')
       const base = {
         docs: inv.visibleDocs,
@@ -165,7 +173,7 @@ export function CommandPalette({ onNavigate, onToggleNav }: Props) {
           t: it.label,
           d: `ไปที่หน้า · ${sec.title}`,
           tag: it.count ? String(it.count) : it.tag,
-          tone: it.key === 'sim' ? 'warn' : 'info',
+          tone: 'info',
           icon: it.icon,
           run: () => onNavigate(it.key),
         })
@@ -220,6 +228,30 @@ export function CommandPalette({ onNavigate, onToggleNav }: Props) {
       kw: 'sidebar เมนู ย่อ ขยาย',
       run: onToggleNav,
     })
+    if (realUser.role === 'SA') {
+      L.push({
+        k: 'sys',
+        t: isPreview ? 'สลับมุมมอง…' : 'ดูในมุมมองของ…',
+        d: 'Super Admin · ดูหน้าจอแบบที่ role / ผู้ใช้อื่นเห็น (อ่านอย่างเดียว)',
+        tag: 'View as',
+        tone: 'vio',
+        icon: 'eye',
+        kw: 'view as impersonate preview debug มุมมอง สลับ role ผู้ใช้',
+        run: openViewAsPicker,
+      })
+      if (isPreview) {
+        L.push({
+          k: 'sys',
+          t: 'ออกจากมุมมอง',
+          d: 'กลับเป็น Super Admin',
+          tag: 'View as',
+          tone: 'err',
+          icon: 'logout',
+          kw: 'exit view as ออก มุมมอง',
+          run: () => stopViewAs('user'),
+        })
+      }
+    }
     L.push({
       k: 'sys',
       t: 'ออกจากระบบ',
@@ -231,7 +263,7 @@ export function CommandPalette({ onNavigate, onToggleNav }: Props) {
       run: () => logoutOut(logout),
     })
     return L
-  }, [open, sections, inv.visibleDocs, currentUser, currentRole, onNavigate, onToggleNav, openDoc, logout])
+  }, [open, sections, inv.visibleDocs, currentUser, currentRole, onNavigate, onToggleNav, openDoc, logout, realUser.role, isPreview, stopViewAs])
 
   const counts = useMemo(() => {
     const c: Record<Tab, number> = { all: all.length, page: 0, doc: 0, sys: 0 }

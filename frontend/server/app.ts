@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 import { sessionMiddleware } from './middleware/session'
+import { viewAsMiddleware } from '../src/server/viewAs'
 import { errorHandler } from './middleware/errorHandler'
 import { authRouter } from './routes/auth'
 import { documentsRouter } from './routes/documents'
@@ -52,6 +53,8 @@ export function createExpressApp(): Express {
   app.use(express.json({ limit: '50mb' }))
   app.use(express.urlencoded({ extended: true, limit: '50mb' }))
   app.use(sessionMiddleware)
+  // v5.10: SA "view as" — read-only, re-scopes req.sessionUser to the target (see src/server/viewAs.ts)
+  app.use(viewAsMiddleware)
 
   // ---- API routes: every guard is visible here -------------------------------------------------
   //  public            /api/auth/*, /api/health

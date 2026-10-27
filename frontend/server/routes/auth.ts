@@ -4,6 +4,24 @@ import { authenticateWithAd, type AdUserData } from '../../src/lib/adAuth'
 import { bootstrapAdmins, devAuthEnabled, isProduction, sessionSecret, sessionTtlSec } from '../../src/server/auth/config'
 import { SESSION_COOKIE, signSession } from '../../src/server/auth/sessionToken'
 import { loginLimiter } from '../../src/server/auth/loginLimiter'
+import { parseViewAs, resolveViewAs } from '../../src/server/viewAs'
+import {
+  EntraError,
+  OIDC_COOKIE,
+  OIDC_COOKIE_PATH,
+  OIDC_TTL_SEC,
+  authorizeUrl,
+  decodeJwtPayload,
+  entraConfig,
+  entraEnabled,
+  exchangeCode,
+  identityFromClaims,
+  newTransaction,
+  openTransaction,
+  safeNext,
+  sealTransaction,
+  type EntraIdentity,
+} from '../../src/server/auth/entra'
 
 export const authRouter = Router()
 
@@ -30,6 +48,73 @@ async function audit(who: string, role: string, action: string, act: string, det
   try {
     await prisma.auditLog.create({ data: { who, role, docId: 'AUTH', act, action, detail } })
   } catch {}
+}
+
+type AccessResult =
+  | { ok: true; userId: string; role: RoleKey; companies: string[]; receivers: string[] }
+  | { ok: false; error: string; auditRole: string; auditDetail: string }
+
+/**
+ * Portal provisioning rule, shared by LDAP and Microsoft 365 (v5.7): the person must already exist
+ * (added by an ADM in the permission screen) and be active. Exceptions: AUTH_BOOTSTRAP_ADMINS become
+ * SA on first sign-in; development gives unknown users EU. Creates / refreshes the user row.
+ */
+export async function resolvePortalAccess(adUser: AdUserData, via: 'LDAP' | 'Microsoft 365'): Promise<AccessResult> {
+  const adSam = adUser.samAccount.toLowerCase()
+  const existing = await prisma.user.findFirst({
+    where: { OR: [{ email: adUser.email }, { samAccount: adUser.samAccount }] },
+    include: { companies: true, receivers: true },
+  })
+
+  if (existing && existing.isActive === false) {
+    return { ok: false, error: 'บัญชีนี้ถูกปิดการใช้งานใน AIVA Portal', auditRole: existing.role, auditDetail: `บัญชีถูกปิดใช้งานใน Portal (${via}): ${adSam}` }
+  }
+
+  let role: RoleKey
+  let companies: string[]
+  let receivers: string[]
+  if (existing) {
+    role = existing.role as RoleKey
+    companies = existing.companies.map((c: any) => c.companyCode)
+    receivers = existing.receivers.map((r: any) => r.receiverName)
+  } else if (bootstrapAdmins().includes(adSam)) {
+    role = 'SA'
+    companies = ALL_COMPANIES
+    receivers = []
+  } else if (devAuthEnabled()) {
+    role = adSam === 'itsupport' ? 'SA' : 'EU'
+    companies = ALL_COMPANIES
+    receivers = []
+  } else {
+    return {
+      ok: false,
+      error: 'ยังไม่ได้รับสิทธิ์ใช้งาน AIVA Portal กรุณาติดต่อผู้ดูแลระบบ',
+      auditRole: 'GUEST',
+      auditDetail: `ผ่าน ${via === 'LDAP' ? 'AD' : via} แต่ยังไม่ได้รับสิทธิ์ใน Portal: ${adSam}`,
+    }
+  }
+
+  const userId = existing?.id || adUser.samAccount
+  try {
+    await prisma.user.upsert({
+      where: { email: existing?.email || adUser.email },
+      create: {
+        id: userId,
+        email: adUser.email,
+        name: adUser.name,
+        samAccount: adUser.samAccount,
+        empId: adUser.empId || null,
+        unit: adUser.unit || null,
+        role,
+        companies: { create: companies.map(c => ({ companyCode: c })) },
+        receivers: { create: receivers.map(r => ({ receiverName: r, assignedBy: 'SYSTEM' })) },
+      },
+      update: { name: adUser.name, samAccount: adUser.samAccount, empId: adUser.empId || undefined, unit: adUser.unit || undefined },
+    })
+  } catch (e) {
+    console.warn('[auth] user upsert warning:', e)
+  }
+  return { ok: true, userId, role, companies, receivers }
 }
 
 /**
@@ -91,57 +176,12 @@ authRouter.post('/ldap', async (req, res) => {
     }
 
     const adUser = adResult.user
-    const adSam = adUser.samAccount.toLowerCase()
-    const existing = await prisma.user.findFirst({
-      where: { OR: [{ email: adUser.email }, { samAccount: adUser.samAccount }] },
-      include: { companies: true, receivers: true },
-    })
-
-    if (existing && existing.isActive === false) {
-      await audit(adUser.name, existing.role, 'login_noaccess', 'เข้าสู่ระบบไม่สำเร็จ', `บัญชีถูกปิดใช้งานใน Portal: ${adSam}`)
-      return res.status(403).json({ ok: false, kind: 'noaccess', error: 'บัญชีนี้ถูกปิดการใช้งานใน AIVA Portal' })
+    const access = await resolvePortalAccess(adUser, 'LDAP')
+    if (!access.ok) {
+      await audit(adUser.name, access.auditRole, 'login_noaccess', 'เข้าสู่ระบบไม่สำเร็จ', access.auditDetail)
+      return res.status(403).json({ ok: false, kind: 'noaccess', error: access.error })
     }
-
-    let role: RoleKey
-    let companies: string[]
-    let receivers: string[]
-    if (existing) {
-      role = existing.role as RoleKey
-      companies = existing.companies.map((c: any) => c.companyCode)
-      receivers = existing.receivers.map((r: any) => r.receiverName)
-    } else if (bootstrapAdmins().includes(adSam)) {
-      role = 'SA'
-      companies = ALL_COMPANIES
-      receivers = []
-    } else if (devAuthEnabled()) {
-      role = adSam === 'itsupport' ? 'SA' : 'EU'
-      companies = ALL_COMPANIES
-      receivers = []
-    } else {
-      await audit(adUser.name, 'GUEST', 'login_noaccess', 'เข้าสู่ระบบไม่สำเร็จ', `ผ่าน AD แต่ยังไม่ได้รับสิทธิ์ใน Portal: ${adSam}`)
-      return res.status(403).json({ ok: false, kind: 'noaccess', error: 'ยังไม่ได้รับสิทธิ์ใช้งาน AIVA Portal กรุณาติดต่อผู้ดูแลระบบ' })
-    }
-
-    const userId = existing?.id || adUser.samAccount
-    try {
-      await prisma.user.upsert({
-        where: { email: adUser.email },
-        create: {
-          id: userId,
-          email: adUser.email,
-          name: adUser.name,
-          samAccount: adUser.samAccount,
-          empId: adUser.empId || null,
-          unit: adUser.unit || null,
-          role,
-          companies: { create: companies.map(c => ({ companyCode: c })) },
-          receivers: { create: receivers.map(r => ({ receiverName: r, assignedBy: 'SYSTEM' })) },
-        },
-        update: { name: adUser.name, samAccount: adUser.samAccount, empId: adUser.empId || undefined, unit: adUser.unit || undefined },
-      })
-    } catch (e) {
-      console.warn('[auth] user upsert warning:', e)
-    }
+    const { userId, role, companies } = access
 
     loginLimiter.success(sam)
     await audit(adUser.name, role, 'login_ldap', 'เข้าสู่ระบบสำเร็จ', `เข้าสู่ระบบสำเร็จผ่าน Active Directory (LDAP): ${adUser.samAccount}`)
@@ -149,7 +189,7 @@ authRouter.post('/ldap', async (req, res) => {
 
     return res.json({
       ok: true,
-      user: { id: userId, email: adUser.email, name: adUser.name, role, companies, oracleAccounts: receivers, unit: adUser.unit || 'General' },
+      user: { id: userId, email: adUser.email, name: adUser.name, role, companies, oracleAccounts: access.receivers, unit: adUser.unit || 'General' },
     })
   } catch (err: any) {
     console.error('[auth] LDAP error:', err)
@@ -187,6 +227,40 @@ authRouter.post('/dev-login', async (req, res) => {
 })
 
 /** GET /api/auth/me — the signed-in user (from the session cookie only). */
+/**
+ * v5.10 — POST /api/auth/view-as  { target: "user:<id>" | "role:EU;co=AH;rcv=..." }
+ * Validates (real SA only, target not SA / inactive), writes the audit line and returns the resolved
+ * target so the browser shows exactly what the server will apply. DELETE = leave (audit only).
+ * Lives under /api/auth so it is never blocked by the read-only rule of the view-as middleware.
+ */
+authRouter.post('/view-as', async (req, res) => {
+  const real = req.sessionUser
+  if (!real) return res.status(401).json({ ok: false, error: 'Unauthenticated' })
+  if (String(real.role).toUpperCase() !== 'SA') return res.status(403).json({ ok: false, code: 'VIEW_AS_FORBIDDEN', error: 'เฉพาะ Super Admin' })
+  const parsed = parseViewAs(req.body?.target)
+  if (!parsed) return res.status(400).json({ ok: false, code: 'VIEW_AS_INVALID', error: 'รูปแบบเป้าหมายไม่ถูกต้อง' })
+  const target = await resolveViewAs(parsed)
+  if (!target.ok) return res.status(400).json({ ok: false, code: 'VIEW_AS_INVALID', error: target.error })
+  await audit(real.name, 'SA', 'view_as_start', 'เริ่มดูในมุมมองของผู้อื่น', `ดูในมุมมอง ${target.label} (อ่านอย่างเดียว)`)
+  const u = target.user
+  return res.json({
+    ok: true,
+    label: target.label,
+    user: { id: u.id, name: u.name, email: u.email, role: u.role, companies: u.companies, oracleAccounts: u.receivers ?? [] },
+  })
+})
+
+authRouter.delete('/view-as', async (req, res) => {
+  const real = req.sessionUser
+  if (!real) return res.status(401).json({ ok: false, error: 'Unauthenticated' })
+  const label = typeof req.body?.label === 'string' ? req.body.label.slice(0, 200) : ''
+  const reason = typeof req.body?.reason === 'string' ? req.body.reason.slice(0, 40) : 'user'
+  if (String(real.role).toUpperCase() === 'SA') {
+    await audit(real.name, 'SA', 'view_as_stop', 'ออกจากมุมมองของผู้อื่น', `${label || 'ไม่ระบุ'} · ${reason}`)
+  }
+  return res.json({ ok: true })
+})
+
 authRouter.get('/me', (req, res) => {
   if (!req.sessionUser) return res.status(401).json({ ok: false, error: 'Unauthenticated', user: null })
   const { id, email, name, role, companies, receivers } = req.sessionUser
@@ -194,14 +268,100 @@ authRouter.get('/me', (req, res) => {
 })
 
 /**
- * GET /api/auth/microsoft/start — Microsoft 365 (Entra ID) sign-in is not implemented on the server.
- * Production answers 501 instead of the old "?bypass=true" redirect.
+ * GET /api/auth/providers — which sign-in methods this server offers (the login page hides the
+ * Microsoft 365 tab when Entra ID is not configured). Public; reveals no configuration values.
  */
-authRouter.get('/microsoft/start', (_req, res) => {
-  if (!devAuthEnabled()) {
-    return res.status(501).json({ ok: false, error: 'Microsoft 365 sign-in is not configured on this server' })
+authRouter.get('/providers', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store')
+  return res.json({ ok: true, ldap: true, m365: entraEnabled() })
+})
+
+function oidcCookieOptions(req: Request) {
+  return {
+    httpOnly: true,
+    // Lax: the callback is a top-level GET navigation from login.microsoftonline.com.
+    sameSite: 'lax' as const,
+    secure: isProduction() || req.secure || req.headers['x-forwarded-proto'] === 'https',
+    path: OIDC_COOKIE_PATH,
   }
-  return res.json({ ok: true, redirectUrl: '/login?method=m365&bypass=true' })
+}
+
+/** Callback URL registered in Entra (env first; otherwise derived from the request — dev only). */
+function redirectUriFor(req: Request): string {
+  const configured = entraConfig().redirectUri
+  if (configured) return configured
+  const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'http').split(',')[0].trim()
+  return `${proto}://${req.get('host')}/api/auth/microsoft/callback`
+}
+
+/** Back to the login page with a reason the page already knows how to explain. */
+function loginError(res: Response, kind: 'cred' | 'noaccess' | 'timeout') {
+  return res.redirect(302, `/login?method=m365&error=${kind}`)
+}
+
+/**
+ * GET /api/auth/microsoft/start?next=/path — Microsoft 365 (Entra ID) sign-in, step 1.
+ * Not configured: development keeps the old mock shortcut; production returns to /login with an error.
+ */
+authRouter.get('/microsoft/start', (req, res) => {
+  if (!entraEnabled()) {
+    if (devAuthEnabled()) return res.json({ ok: true, redirectUrl: '/login?method=m365&bypass=true' })
+    return loginError(res, 'timeout')
+  }
+  const tx = newTransaction(String(req.query.next ?? '/'))
+  res.cookie(OIDC_COOKIE, sealTransaction(tx, sessionSecret()), { ...oidcCookieOptions(req), maxAge: OIDC_TTL_SEC * 1000 })
+  res.setHeader('Cache-Control', 'no-store')
+  return res.redirect(302, authorizeUrl(entraConfig(), tx, redirectUriFor(req)))
+})
+
+/** GET /api/auth/microsoft/callback?code&state — step 2: code → id_token → Portal session. */
+authRouter.get('/microsoft/callback', async (req, res) => {
+  const ip = clientIp(req)
+  const tx = openTransaction(req.cookies?.[OIDC_COOKIE], sessionSecret())
+  res.clearCookie(OIDC_COOKIE, oidcCookieOptions(req))
+  res.setHeader('Cache-Control', 'no-store')
+
+  if (!entraEnabled()) return loginError(res, 'timeout')
+
+  // The user cancelled, or Entra refused (consent / conditional access / not assigned to the app).
+  if (req.query.error) {
+    const code = String(req.query.error)
+    await audit('—', 'GUEST', 'login_failed', 'เข้าสู่ระบบไม่สำเร็จ', `Microsoft 365: ${code} จาก ${ip}`)
+    return loginError(res, code === 'access_denied' ? 'noaccess' : 'cred')
+  }
+  const code = typeof req.query.code === 'string' ? req.query.code : ''
+  const state = typeof req.query.state === 'string' ? req.query.state : ''
+  if (!tx || !code || !state || state !== tx.state) {
+    await audit('—', 'GUEST', 'login_failed', 'เข้าสู่ระบบไม่สำเร็จ', `Microsoft 365: state ไม่ถูกต้องหรือหมดอายุ จาก ${ip}`)
+    return loginError(res, 'cred')
+  }
+
+  let identity: EntraIdentity
+  try {
+    const cfg = entraConfig()
+    const tokens = await exchangeCode(cfg, code, tx.verifier, redirectUriFor(req))
+    identity = identityFromClaims(decodeJwtPayload(tokens.id_token), cfg, tx.nonce)
+  } catch (e) {
+    const err = e instanceof EntraError ? e : new EntraError('timeout', String((e as Error)?.message || e))
+    console.warn('[auth] Microsoft 365 sign-in failed:', err.message)
+    await audit('—', 'GUEST', 'login_failed', 'เข้าสู่ระบบไม่สำเร็จ', `Microsoft 365: ${err.message} จาก ${ip}`)
+    return loginError(res, err.kind)
+  }
+
+  try {
+    const adUser: AdUserData = { samAccount: identity.sam, name: identity.name, email: identity.email }
+    const access = await resolvePortalAccess(adUser, 'Microsoft 365')
+    if (!access.ok) {
+      await audit(identity.name, access.auditRole, 'login_noaccess', 'เข้าสู่ระบบไม่สำเร็จ', access.auditDetail)
+      return loginError(res, 'noaccess')
+    }
+    await audit(identity.name, access.role, 'login_m365', 'เข้าสู่ระบบสำเร็จ', `เข้าสู่ระบบสำเร็จผ่าน Microsoft 365 (Entra ID): ${identity.username}`)
+    issueSessionCookie(req, res, access.userId)
+    return res.redirect(302, `/login?sso=1&next=${encodeURIComponent(safeNext(tx.next))}`)
+  } catch (err) {
+    console.error('[auth] Microsoft 365 provisioning error:', err)
+    return loginError(res, 'timeout')
+  }
 })
 
 /** POST /api/auth/logout — the httpOnly cookie can only be cleared by the server. */

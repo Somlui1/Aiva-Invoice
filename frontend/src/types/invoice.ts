@@ -102,6 +102,8 @@ export interface InvoiceDoc {
   assigned?: 'eu' | 'acc'
   status: InvoiceStatus
   up: string
+  /** v5.7: วันที่สร้างเอกสารใน Portal (YYYY-MM-DD) — ตัวกรอง "วันที่สร้างเอกสาร" · ไม่มี = ใช้ `up` */
+  created?: string
   codes: string[]
   rules: RuleCheck[]
   lines?: InvoiceLineItem[]
@@ -109,6 +111,11 @@ export interface InvoiceDoc {
   pages: number
   history: DocumentHistoryEntry[]
   unres?: boolean
+  /**
+   * Business identity of the document (RESOLVED | NOT_FOUND | UNRESOLVED). UNRESOLVED = OCR could
+   * not read the lookup keys: APR only, Confirm disabled, Reject allowed. Absent on pre-v5.6 rows.
+   */
+  identityStatus?: 'RESOLVED' | 'NOT_FOUND' | 'UNRESOLVED'
   grp?: string
   duplicate_of?: string
   dup?: string

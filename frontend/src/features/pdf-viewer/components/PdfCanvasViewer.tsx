@@ -24,6 +24,8 @@ export interface PdfCanvasViewerProps {
   status: PdfViewerStatus
   /** CSS px size of the rendered page, from the same hook. */
   pageSize: SizeBox
+  /** PDF.js is painting the page (from `usePdfViewer`). */
+  rendering?: boolean
   boxes: OverlayBox[]
   onSelect?: (box: OverlayBox) => void
   onHover?: (box: OverlayBox | null) => void
@@ -40,6 +42,7 @@ export function PdfCanvasViewer({
   canvasRef,
   status,
   pageSize,
+  rendering = false,
   boxes,
   onSelect,
   onHover,
@@ -49,9 +52,18 @@ export function PdfCanvasViewer({
   onRetry,
   onClose,
 }: PdfCanvasViewerProps) {
-  const ready = status.state === 'ready' && pageSize.width > 0 && pageSize.height > 0
+  const painted = pageSize.width > 0 && pageSize.height > 0
+  const ready = status.state === 'ready' && painted
+  /**
+   * v5.7: "loading" = downloading the bytes OR parsed-but-not-painted. In both cases the preview is
+   * hidden and only the spinner shows — previously the gap between `ready` and the first paint fell
+   * through to the simulated-document fallback, which flashed a fake invoice while the real one loaded.
+   */
+  const firstLoad = status.state === 'loading' || (status.state === 'ready' && !painted)
+  /** Page turn / zoom / rotate on an already painted document: keep the page, overlay the spinner. */
+  const repainting = ready && rendering
   const progressState: 'idle' | 'loading' | 'ready' | 'error' =
-    status.state === 'loading'
+    firstLoad || repainting
       ? 'loading'
       : ready
         ? 'ready'
@@ -60,11 +72,17 @@ export function PdfCanvasViewer({
           : 'idle'
 
   return (
-    <div className="evd-pdf" data-pdf-source={status.source ?? 'none'} data-pdf-state={status.state}>
+    <div
+      className="evd-pdf"
+      data-pdf-source={status.source ?? 'none'}
+      data-pdf-state={firstLoad ? 'loading' : status.state}
+      aria-busy={firstLoad || repainting}
+    >
       <PdfTopProgressBar state={progressState} />
-      {ready ? null : status.state === 'loading' ? (
-        <div className="evd-loading-minimal" role="status">
-          <span className="spin lg" aria-label="กำลังโหลดเอกสาร" />
+      {ready ? null : firstLoad ? (
+        <div className="evd-loading-minimal" role="status" aria-live="polite" data-testid="pdf-loading">
+          <span className="spin lg" aria-hidden="true" />
+          <span className="evd-loading-txt">กำลังโหลดเอกสาร…</span>
         </div>
       ) : status.state === 'error' && status.error ? (
         <PdfErrorView
@@ -85,9 +103,14 @@ export function PdfCanvasViewer({
           {placeholder}
         </div>
       )}
+      {repainting && (
+        <div className="evd-repaint" role="status" aria-live="polite" data-testid="pdf-repainting">
+          <span className="spin lg" aria-label="กำลังแสดงหน้าเอกสาร" />
+        </div>
+      )}
 
       <div
-        className={`evd-page evd-pdf-page${ready ? ' on' : ''}`}
+        className={`evd-page evd-pdf-page${ready ? ' on' : ''}${repainting ? ' is-repainting' : ''}`}
         style={{ width: pageSize.width || undefined, height: pageSize.height || undefined }}
       >
         <canvas ref={canvasRef} className="evd-pdf-canvas" />

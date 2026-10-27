@@ -1,7 +1,7 @@
 {
   "name": "aiva-portal",
   "private": true,
-  "version": "5.3.0",
+  "version": "5.10.0",
   "type": "module",
   "scripts": {
     "postinstall": "node scripts/copy-pdfjs-worker.mjs",

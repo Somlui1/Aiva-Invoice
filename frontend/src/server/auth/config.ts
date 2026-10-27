@@ -6,6 +6,7 @@
  * default that would let production run with a demo secret, an unencrypted LDAP link or open ingest.
  */
 import crypto from 'node:crypto'
+import { entraConfigProblems } from './entra'
 
 type Env = Record<string, string | undefined>
 
@@ -98,5 +99,7 @@ export function productionConfigProblems(env: Env = process.env): string[] {
   if (!trim(env.PAPERLESS_TOKEN || env.PAPERLESS_API_TOKEN)) p.push('PAPERLESS_TOKEN: required (read-only Paperless user)')
   if (flag(env.AUTH_DEV_LOGIN)) p.push('AUTH_DEV_LOGIN: must not be set in production')
   if (flag(env.VITE_AUTH_MOCK) || flag(env.VITE_AUTH_BYPASS)) p.push('VITE_AUTH_MOCK / VITE_AUTH_BYPASS: must be false for the production build')
+  // Microsoft 365 (Entra ID) is optional; when any ENTRA_* is set, all of it must be right.
+  p.push(...entraConfigProblems(env))
   return p
 }

@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { docVisibleTo } from '../../src/server/viewAs'
 import fs from 'node:fs'
 import path from 'node:path'
 import { Readable } from 'node:stream'
@@ -119,8 +120,14 @@ pdfProxyRouter.get('/:id/pdf', async (req, res) => {
 
   const doc = await prisma.document.findFirst({
     where: { OR: [{ id }, { dmsDocId: id }] },
-    select: { id: true, dmsDocId: true, pageCount: true },
+    select: { id: true, dmsDocId: true, pageCount: true, companyCode: true, receiverName: true },
   })
+
+  // v5.10: "view as" → the PDF is served only if the target user could open it
+  if (doc && req.viewAs && req.sessionUser) {
+    const vis = docVisibleTo({ company: doc.companyCode, receiver: doc.receiverName }, req.sessionUser)
+    if (!vis.ok) return res.status(403).json({ ok: false, code: 'OUT_OF_SCOPE', error: vis.why, http: 403 })
+  }
 
   if (!doc) {
     return res.status(404).json({ ok: false, error: `Document ${id} not found`, http: 404 })

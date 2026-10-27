@@ -168,6 +168,22 @@ export const engineDocumentSchema = z.object({
 })
 
 /**
+ * Optional `identity` block (Portal standard `identity.*`, see temp/schemas/web_schema.json).
+ *
+ * Deliberately lenient here: the cross-field rules (RESOLVED needs receive_id, NOT_FOUND needs
+ * receive_id = null, UNRESOLVED needs missing_keys) live in `src/server/businessKey.ts` so that a
+ * violation is reported as one readable 422 instead of a zod union error. Engines that do not send
+ * the block yet (v6.6 corpus) keep working: the Portal derives the identity from `oracle_snapshot`.
+ */
+export const engineIdentitySchema = z.object({
+  status: z.enum(['RESOLVED', 'NOT_FOUND', 'UNRESOLVED']),
+  reason: z.enum(['FOUND', 'RECEIPT_NOT_FOUND', 'HALTED_BEFORE_LOOKUP', 'KEYS_UNREADABLE']).optional(),
+  receive_id: z.string().nullable().optional(),
+  lookup_path: z.string().nullable().optional(),
+  missing_keys: z.array(z.string()).optional(),
+})
+
+/**
  * Portal-owned workflow fields that MUST NOT appear in an Engine payload
  * (`not.anyOf` in the JSON Schema). This is the decoupling guard: the Engine
  * reports findings, the Portal owns workflow state.
@@ -199,6 +215,8 @@ export const engineResultV3Schema = z
       pages_complete: z.boolean().optional(),
       coordinate_system: coordinateSystemSchema,
     }),
+    // Optional: see engineIdentitySchema. Absent = derived from oracle_snapshot by the Portal.
+    identity: engineIdentitySchema.optional(),
     pages: z.array(enginePageSchema),
     documents: z.array(engineDocumentSchema),
     ocr: z.object({ elements: z.array(engineOcrElementSchema) }),
@@ -237,6 +255,7 @@ export type EngineRuleResult = z.infer<typeof engineRuleResultSchema>
 export type EngineEvidence = z.infer<typeof engineEvidenceSchema>
 export type EngineException = z.infer<typeof engineExceptionSchema>
 export type EngineRecommendation = z.infer<typeof engineRecommendationSchema>
+export type EngineIdentity = z.infer<typeof engineIdentitySchema>
 export type EngineRequest = z.infer<typeof engineRequestSchema>
 export type EnginePage = z.infer<typeof enginePageSchema>
 export type EngineDocument = z.infer<typeof engineDocumentSchema>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment, type ReactNode } from 'react'
 import type { User } from './types/auth'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { SettingsProvider } from './context/SettingsContext'
@@ -14,19 +14,26 @@ import { CommandPalette } from './components/shell/CommandPalette'
 import { Modal } from './components/layout/Modal'
 import { Toast } from './components/layout/Toast'
 import { QueuePage } from './components/queue/QueuePage'
+import { ClosedDocsPage } from './components/closed/ClosedDocsPage'
+import { ViewAsBanner, ViewAsPicker } from './components/viewas/ViewAs'
 import { ApPage } from './components/governance/ApPage'
 import { RbacPage } from './components/governance/RbacPage'
-import { CasesPage } from './components/governance/CasesPage'
 import { AuditPage } from './components/governance/AuditPage'
-import { SettingsPage } from './components/governance/SettingsPage'
-import { StdPage } from './components/governance/StdPage'
-import { SimPage } from './components/governance/SimPage'
 import { LoginPage } from './features/login/LoginPage'
 import { StandaloneViewerRoute } from './components/viewer/StandaloneViewerRoute'
 
+/**
+ * v5.10: starting / switching / leaving "view as" remounts everything below — documents are reloaded
+ * through the server with the new scope, and no selection, filter or open PDF can leak across views.
+ */
+function ViewAsBoundary({ children }: { children: ReactNode }) {
+  const { viewAsKey } = useAuth()
+  return <Fragment key={viewAsKey || 'self'}>{children}</Fragment>
+}
+
 export function PortalShell({ initialPage = 'queue' }: { initialPage?: PageKey }) {
-  const { currentUser, isAuthenticated } = useAuth()
-  const { isEvidenceDockOpen, closeEvidenceDock } = useInvoices()
+  const { currentUser, isAuthenticated, isPreview } = useAuth()
+  const { isEvidenceDockOpen, closeEvidenceDock, viewMode, selectedDoc } = useInvoices()
   const navSections = useNavSections()
   const [currentPage, setCurrentPage] = useState<PageKey>(initialPage)
   const [isNavCollapsed, setIsNavCollapsed] = useState<boolean>(() => {
@@ -52,7 +59,16 @@ export function PortalShell({ initialPage = 'queue' }: { initialPage?: PageKey }
     }
   }, [isAuthenticated, currentUser.id, currentUser.role, initialPage])
 
+  // v5.7: PDF open in split view = focus mode — the app menu hides completely (and the queue column
+  // becomes a drawer, see QueuePage) so Validate + PDF use the whole width.
+  const pdfFocus =
+    (currentPage === 'queue' && viewMode === 'split' && isEvidenceDockOpen && !!selectedDoc) ||
+    // v5.9: the closed page owns its own selection and closes the dock itself when it is not shown
+    (currentPage === 'closed' && isEvidenceDockOpen)
+
   const handleNavigate = (page: PageKey) => {
+    // v5.9: every page change closes the PDF (each page has its own selection)
+    if (page !== currentPage && isEvidenceDockOpen) closeEvidenceDock()
     setCurrentPage(page)
     try {
       if (typeof window !== 'undefined') {
@@ -63,6 +79,12 @@ export function PortalShell({ initialPage = 'queue' }: { initialPage?: PageKey }
   }
 
   const toggleNav = () => {
+    // In PDF focus mode the menu is hidden, not collapsed: "show menu" = leave focus mode only,
+    // without flipping the user's saved collapsed/expanded preference.
+    if (pdfFocus) {
+      closeEvidenceDock()
+      return
+    }
     if (isEvidenceDockOpen) {
       closeEvidenceDock()
     }
@@ -92,7 +114,17 @@ export function PortalShell({ initialPage = 'queue' }: { initialPage?: PageKey }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isAuthenticated, isEvidenceDockOpen, closeEvidenceDock])
+  }, [isAuthenticated, isEvidenceDockOpen, closeEvidenceDock, pdfFocus])
+
+  // v5.10: a page the current (or previewed) role has no menu for is never rendered — e.g. EU on
+  // /ap after a role switch, or /failed once the last failed document is fixed.
+  const allowedPages = navSections.flatMap(sec => sec.items).filter(it => it.isAllowed).map(it => it.key)
+  const pageAllowed = allowedPages.includes(currentPage)
+  useEffect(() => {
+    if (isAuthenticated && !pageAllowed && allowedPages.length) {
+      setCurrentPage(allowedPages.includes('queue') ? 'queue' : allowedPages[0])
+    }
+  }, [isAuthenticated, pageAllowed, allowedPages.join('|')]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ชื่อหน้าสำหรับ breadcrumb ของ Topbar (AIVA › หน้า)
   const pageTitle =
@@ -111,20 +143,17 @@ export function PortalShell({ initialPage = 'queue' }: { initialPage?: PageKey }
     switch (currentPage) {
       case 'queue':
         return <QueuePage />
+      case 'closed':
+        return <ClosedDocsPage />
       case 'ap':
-        return <ApPage />
+        return <ApPage key="ap" />
+      case 'failed':
+        // v5.10: "นำเข้า Oracle ไม่สำเร็จ" = the AP page opened on its failed tab
+        return <ApPage key="failed" initialTab="failed" />
       case 'rbac':
         return <RbacPage />
-      case 'cases':
-        return <CasesPage />
       case 'audit':
         return <AuditPage />
-      case 'settings':
-        return <SettingsPage />
-      case 'std':
-        return <StdPage />
-      case 'sim':
-        return <SimPage />
       default:
         return <QueuePage />
     }
@@ -132,30 +161,33 @@ export function PortalShell({ initialPage = 'queue' }: { initialPage?: PageKey }
 
   return (
     <div
-      className={`shell ${isNavCollapsed ? 'nav-c' : ''} ${isEvidenceDockOpen ? 'nav-auto' : ''}`}
+      className={`shell ${isNavCollapsed ? 'nav-c' : ''} ${pdfFocus ? 'nav-auto' : ''}`}
       id="shell"
     >
-      <Topbar isNavCollapsed={isNavCollapsed} onToggleNav={toggleNav} pageTitle={pageTitle} />
+      <Topbar isNavCollapsed={isNavCollapsed} onToggleNav={toggleNav} pageTitle={pageTitle} navHidden={pdfFocus} />
       <div className="body">
         <Sidebar
           currentPage={currentPage}
           onNavigate={handleNavigate}
           onToggleNav={toggleNav}
         />
-        <main className="main" id="app">
-          {renderCurrentPage()}
+        <main className={`main${isPreview ? ' is-preview' : ''}`} id="app">
+          <ViewAsBanner />
+          {pageAllowed || !allowedPages.length ? renderCurrentPage() : null}
         </main>
       </div>
       <Modal />
       <Toast />
       <CommandPalette onNavigate={handleNavigate} onToggleNav={toggleNav} />
+      <ViewAsPicker />
     </div>
   )
 }
 
 function resolvePageFromPath(path: string): PageKey | undefined {
   const clean = path.replace(/^\//, '').split('/')[0]
-  const validPages: PageKey[] = ['queue', 'ap', 'rbac', 'cases', 'audit', 'settings', 'std', 'sim']
+  // v5.7: /cases, /std, /sim, /settings were removed — old bookmarks fall back to the queue.
+  const validPages: PageKey[] = ['queue', 'closed', 'ap', 'failed', 'rbac', 'audit']
   if (validPages.includes(clean as PageKey)) {
     return clean as PageKey
   }
@@ -209,12 +241,14 @@ export function App({
     <AuthProvider initialUser={initialUser}>
       <SettingsProvider>
         <ToastModalProvider>
-          <InvoiceProvider>
-            <SimProvider>
-              <PortalShell initialPage={effectivePage} />
-              <SplashScreen />
-            </SimProvider>
-          </InvoiceProvider>
+          <ViewAsBoundary>
+            <InvoiceProvider>
+              <SimProvider>
+                <PortalShell initialPage={effectivePage} />
+                <SplashScreen />
+              </SimProvider>
+            </InvoiceProvider>
+          </ViewAsBoundary>
         </ToastModalProvider>
       </SettingsProvider>
     </AuthProvider>

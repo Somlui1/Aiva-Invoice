@@ -14,7 +14,8 @@ vi.mock('../features/pdf-viewer/components/StandaloneBBoxViewer', () => ({
       <span>{title}</span>
     </div>
   ),
-  mapBBoxType: vi.fn(() => 'inv'),
+  mapBBoxType: vi.fn(() => 'field'),
+  bboxTagOf: vi.fn(() => 'field'),
 }))
 
 describe('SPA Client Routing (App.tsx)', () => {

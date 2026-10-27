@@ -8,10 +8,13 @@ import { logoutOut, initialOf } from '../../lib/fx'
 import { MyProfileModal } from './MyProfileModal'
 import { ThemeSwitch } from '../shell/ThemeSwitch'
 import { openCommandPalette } from '../shell/CommandPalette'
+import { openViewAsPicker } from '../viewas/ViewAs'
 
 interface TopbarProps {
   isNavCollapsed: boolean
   onToggleNav: () => void
+  /** v5.7: the app menu is hidden (PDF focus mode) — show a button that brings it back. */
+  navHidden?: boolean
   /** ชื่อหน้าปัจจุบันสำหรับ breadcrumb (AIVA › หน้า) */
   pageTitle?: string
 }
@@ -20,8 +23,8 @@ interface TopbarProps {
  * v5.3 — แถบบนแบบ aiva-react: breadcrumb · ปุ่มค้นหา (Ctrl K) · สถานะ Engine · สวิตช์ธีม · โปรไฟล์ · ออกจากระบบ
  * การทำงานเดิมคงไว้ทั้งหมด (ตรวจสถานะ Engine ทุก 30 วินาที · เปิด MyProfileModal · logout)
  */
-export function Topbar({ pageTitle = '' }: TopbarProps) {
-  const { currentUser, currentRole, logout } = useAuth()
+export function Topbar({ pageTitle = '', navHidden = false, onToggleNav }: TopbarProps) {
+  const { currentUser, currentRole, logout, realUser, isPreview } = useAuth()
   const [backendStatus, setBackendStatus] = useState<BackendHealth | null>(null)
   const [checking, setChecking] = useState<boolean>(false)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
@@ -43,6 +46,17 @@ export function Topbar({ pageTitle = '' }: TopbarProps) {
 
   return (
     <header className="topbar">
+      {navHidden && (
+        <button
+          type="button"
+          className="ibtn tb-menu"
+          onClick={onToggleNav}
+          title="แสดงเมนู (ปิด PDF) · [ "
+          aria-label="แสดงเมนูหลัก"
+        >
+          <Icon name="menu" />
+        </button>
+      )}
       <div className="crumb" title="AIVA · Auto Invoice Matching" style={{ ['--i' as string]: 0 }}>
         <i className="d" />
         <b>AIVA</b>
@@ -88,6 +102,18 @@ export function Topbar({ pageTitle = '' }: TopbarProps) {
           ? `Engine: Live (${backendStatus?.ruleset || 'v6.6'})`
           : 'Backend: Sandbox Mode'}
       </button>
+
+      {realUser.role === 'SA' && (
+        <button
+          type="button"
+          className={`ibtn tb-viewas${isPreview ? ' on' : ''}`}
+          onClick={openViewAsPicker}
+          title={isPreview ? 'สลับมุมมอง (กำลังดูในมุมมองของผู้อื่น)' : 'ดูในมุมมองของ… (Super Admin · อ่านอย่างเดียว)'}
+          aria-label="ดูในมุมมองของผู้ใช้หรือบทบาทอื่น"
+        >
+          <Icon name="eye" />
+        </button>
+      )}
 
       <ThemeSwitch />
 

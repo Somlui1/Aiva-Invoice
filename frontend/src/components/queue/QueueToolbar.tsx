@@ -4,19 +4,10 @@ import { Icon } from '../common/Icon'
 import { FilterChip } from '../common/FilterChip'
 import { useAuth } from '../../context/AuthContext'
 import { useSettings } from '../../context/SettingsContext'
-import { useInvoices, perRange } from '../../context/InvoiceContext'
+import { useInvoices } from '../../context/InvoiceContext'
+import { DateRangeTool } from './DateRangeTool'
 import { COMPANIES } from '../../mock/companies'
 import { acctsOf } from '../../mock/users'
-
-const PER_OPTIONS = [
-  { k: 'all', label: 'ทั้งหมด' },
-  { k: 'today', label: 'วันนี้' },
-  { k: '7d', label: '7 วันล่าสุด' },
-  { k: 'month', label: 'เดือนนี้' },
-  { k: 'lastm', label: 'เดือนก่อน' },
-  { k: 'period', label: 'เลือกงวด' },
-  { k: 'custom', label: 'กำหนดเอง' }
-]
 
 export function QueueToolbar() {
   const { currentUser } = useAuth()
@@ -29,9 +20,6 @@ export function QueueToolbar() {
     receiverFilter,
     setReceiverFilter,
     periodFilter,
-    setPeriodFilter,
-    showClosed,
-    toggleShowClosed,
     viewMode,
     setViewMode,
     clearFilters
@@ -45,12 +33,7 @@ export function QueueToolbar() {
     companyFilter.size > 0 ||
     Boolean(receiverFilter) ||
     periodFilter.k !== 'all' ||
-    (isEu ? false : showClosed)
-
-  const range = perRange(periodFilter)
-  const rangeLabel = range
-    ? `${range[0] === '0000-01-01' ? '…' : range[0]} – ${range[1] === '9999-12-31' ? '…' : range[1]}`
-    : 'ทุกช่วงเวลา'
+    false
 
   return (
     <div className="tbar" id="tbar">
@@ -119,72 +102,10 @@ export function QueueToolbar() {
 
       <span className="vsep" aria-hidden="true" />
 
-      {/* Period Selector */}
+      {/* v5.8: one date tool — which date (เข้าระบบ / สร้าง / ใบแจ้งหนี้) + range */}
       <span className="lab">ช่วงเวลา</span>
-      <select
-        className="sel"
-        aria-label="ช่วงเวลา"
-        value={periodFilter.k}
-        onChange={e =>
-          setPeriodFilter({
-            k: e.target.value,
-            ym: e.target.value === 'period' ? '2026-10' : undefined
-          })
-        }
-      >
-        {PER_OPTIONS.map(opt => (
-          <option key={opt.k} value={opt.k}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
+      <DateRangeTool />
 
-      {periodFilter.k === 'period' && (
-        <input
-          type="month"
-          className="inp"
-          aria-label="งวด"
-          value={periodFilter.ym || '2026-10'}
-          onChange={e => setPeriodFilter({ ...periodFilter, ym: e.target.value })}
-        />
-      )}
-
-      {periodFilter.k === 'custom' && (
-        <>
-          <input
-            type="date"
-            className="inp"
-            aria-label="ตั้งแต่วันที่"
-            value={periodFilter.from || ''}
-            onChange={e => setPeriodFilter({ ...periodFilter, from: e.target.value })}
-          />
-          <span className="muted sm">ถึง</span>
-          <input
-            type="date"
-            className="inp"
-            aria-label="ถึงวันที่"
-            value={periodFilter.to || ''}
-            onChange={e => setPeriodFilter({ ...periodFilter, to: e.target.value })}
-          />
-        </>
-      )}
-
-      <span className="scope-note">
-        <Icon name="clock" size="sm" />
-        ตามวันที่เข้าระบบ · <b>{rangeLabel}</b>
-      </span>
-
-      {!isEu && (
-        <button
-          type="button"
-          className={`chip ${showClosed ? 'on' : ''}`}
-          aria-pressed={showClosed}
-          onClick={toggleShowClosed}
-          title="Posted / Rejected / Superseded"
-        >
-          รวมที่ปิดแล้ว
-        </button>
-      )}
 
       {hasActiveFilters && (
         <button type="button" className="chip" onClick={clearFilters}>

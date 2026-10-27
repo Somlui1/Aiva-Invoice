@@ -6,8 +6,13 @@ import { useAuth } from '../../context/AuthContext'
 import { useInvoices } from '../../context/InvoiceContext'
 import { useToastModal } from '../../context/ToastModalContext'
 import { BrandTile } from '../shell/BrandTile'
+import { closedVisibleFor } from '../../lib/closedDocs'
 
-export type PageKey = 'queue' | 'ap' | 'rbac' | 'cases' | 'audit' | 'settings' | 'std' | 'sim'
+/**
+ * v5.7: menus "ชุดเอกสารทดสอบ" (cases), "มาตรฐาน Payload" (std), "Document Simulation" (sim) and
+ * the whole "ตั้งค่า" (settings) entry were removed from the navigation and the router.
+ */
+export type PageKey = 'queue' | 'closed' | 'ap' | 'failed' | 'rbac' | 'audit'
 
 interface SidebarProps {
   currentPage: PageKey
@@ -22,6 +27,8 @@ export interface NavItemConfig {
   isAllowed: boolean
   count?: number
   tag?: string
+  /** v5.10 badge tone: act = work to do · alert = urgent · ref = reference count (gray). */
+  tone?: 'act' | 'alert' | 'ref'
 }
 
 export interface NavSection {
@@ -33,7 +40,7 @@ export interface NavSection {
 /** โครงเมนูตามบทบาท (ใช้ร่วมกันระหว่าง Sidebar และกล่องค้นหา Ctrl K) */
 export function useNavSections(): NavSection[] {
   const { currentUser, can } = useAuth()
-  const { visibleDocs, docs } = useInvoices()
+  const { visibleDocs } = useInvoices()
 
 
   // Calculate dynamic badge counts
@@ -45,94 +52,60 @@ export function useNavSections(): NavSection[] {
   ).length
 
   const apCount = visibleDocs.filter(d => d.status === 'Confirmed').length
-  const unboundCount = 0 // IT admin unbound indicator
+  const closedCount = visibleDocs.filter(d => closedVisibleFor(d.status, currentUser.role)).length
 
+  const failedCount = visibleDocs.filter(d => d.status === 'Import Failed').length
+  const isEu = currentUser.role === 'EU'
   const isAdm = currentUser.role === 'ADM'
-  const isSupport = currentUser.role === 'SA'
 
-  const workSection = {
-    title: 'งานหลัก',
+  /**
+   * v5.10 — grouped by the work flow: ต้องดำเนินการ → ส่งจ่าย (AP) → ติดตามและประวัติ → การกำกับดูแล.
+   * Badge tone: `act` (needs work, coloured) · `alert` (urgent) · `ref` (reference only, gray).
+   */
+  const todo: NavSection = {
+    title: 'ต้องดำเนินการ',
     items: [
-      {
-        key: 'queue' as PageKey,
-        label: currentUser.role === 'EU' ? 'งานของฉัน' : 'คิวตรวจสอบ',
-        icon: 'inbox' as IconName,
-        isAllowed: true,
-        count: qn
-      },
-      {
-        key: 'ap' as PageKey,
-        label: 'ส่งเข้า AP Interface',
-        icon: 'send' as IconName,
-        isAllowed: can('VIEW_AP'),
-        count: can('VIEW_AP') ? apCount : undefined
-      }
-    ]
+      { key: 'queue', label: isEu ? 'งานของฉัน' : 'คิวตรวจสอบ', icon: 'inbox', isAllowed: true, count: qn, tone: 'act' },
+    ],
   }
 
-  const govSection = {
+  const ap: NavSection = {
+    title: 'ส่งจ่าย (AP)',
+    items: [
+      { key: 'ap', label: 'ส่งเข้า AP Interface', icon: 'send', isAllowed: true, count: apCount, tone: 'act' },
+      // Only while there is something to fix — an empty "failed" menu is noise.
+      ...(failedCount > 0
+        ? [{ key: 'failed' as PageKey, label: 'นำเข้า Oracle ไม่สำเร็จ', icon: 'alert' as IconName, isAllowed: true, count: failedCount, tone: 'alert' as const }]
+        : []),
+    ],
+  }
+
+  const track: NavSection = {
+    title: 'ติดตามและประวัติ',
+    items: [
+      {
+        key: 'closed',
+        // EU sees the outcome of what they sent; accounting sees closed work.
+        label: isEu ? 'ผลการส่งเอกสาร' : 'เอกสารที่ปิดแล้ว',
+        icon: 'history',
+        isAllowed: true,
+        count: closedCount,
+        tone: 'ref',
+      },
+    ],
+  }
+
+  const gov: NavSection = {
     title: 'การกำกับดูแล',
     items: [
-      {
-        key: 'rbac' as PageKey,
-        label: 'สิทธิ์และการเชื่อมบัญชี',
-        icon: 'shield' as IconName,
-        isAllowed: true
-      },
-      {
-        key: 'audit' as PageKey,
-        label: 'บันทึกการเข้าถึง',
-        icon: 'log' as IconName,
-        isAllowed: can('AUDIT')
-      },
-      {
-        key: 'settings' as PageKey,
-        label: 'ตั้งค่า',
-        icon: 'sliders' as IconName,
-        isAllowed: true,
-        count: unboundCount ? unboundCount : undefined
-      }
-    ]
+      { key: 'rbac', label: 'สิทธิ์และการเชื่อมบัญชี', icon: 'shield', isAllowed: true },
+      { key: 'audit', label: 'บันทึกการเข้าถึง', icon: 'log', isAllowed: can('AUDIT') },
+    ],
   }
 
-  const devSection = {
-    title: 'เครื่องมือทดสอบและพัฒนา',
-    isSpecial: true,
-    items: [
-      {
-        key: 'cases' as PageKey,
-        label: 'ชุดเอกสารทดสอบ',
-        icon: 'layers' as IconName,
-        isAllowed: true,
-        count: docs.length
-      },
-      {
-        key: 'std' as PageKey,
-        label: 'มาตรฐาน Payload',
-        icon: 'code' as IconName,
-        isAllowed: true,
-        tag: 'API'
-      },
-      {
-        key: 'sim' as PageKey,
-        label: 'Document Simulation',
-        icon: 'flask' as IconName,
-        isAllowed: true,
-        tag: 'SIM'
-      }
-    ]
-  }
-
-  const sections: Array<{
-    title: string
-    isSpecial?: boolean
-    items: NavItemConfig[]
-  }> = isSupport
-    ? [workSection, govSection, devSection]
-    : isAdm
-    ? [govSection, devSection]
-    : [workSection, govSection]
-  return sections
+  // Sections a role has no item in are not shown at all (no "locked" menus to wonder about).
+  if (isAdm) return [gov]
+  return [todo, ...(can('VIEW_AP') ? [ap] : []), track, gov]
 }
 
 export function Sidebar({ currentPage, onNavigate, onToggleNav }: SidebarProps) {
@@ -176,7 +149,7 @@ export function Sidebar({ currentPage, onNavigate, onToggleNav }: SidebarProps) 
                 <button
                   key={it.key}
                   type="button"
-                  className={`nav-it ${it.key === 'sim' ? 'sim' : ''} ${isActive ? 'on' : ''} ${
+                  className={`nav-it ${isActive ? 'on' : ''} ${
                     it.isAllowed ? '' : 'dis'
                   } ${it.count ? 'has-cnt' : ''}`}
                   title={`${it.label}${it.isAllowed ? '' : ' (ไม่มีสิทธิ์)'}`}
@@ -191,9 +164,7 @@ export function Sidebar({ currentPage, onNavigate, onToggleNav }: SidebarProps) 
                       <Icon name="lock" size="sm" />
                     </span>
                   )}
-                  {it.tag === 'SIM' && <span className="tagsim">SIM</span>}
-                  {it.tag === 'API' && <span className="tagdev">API</span>}
-                  {!!it.count && <span className="cnt">{it.count}</span>}
+                  {!!it.count && <span className={`cnt cnt-${it.tone ?? 'act'}`}>{it.count}</span>}
                 </button>
               )
             })}

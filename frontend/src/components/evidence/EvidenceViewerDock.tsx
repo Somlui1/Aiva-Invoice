@@ -118,7 +118,7 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
   const fit = mockPageFitScale(bodyWidth)
   const surfaceStyle = mockSurfaceStyle({ fit, zoom, rotation })
 
-  const { status, canvasRef, pageSize, reload } = usePdfViewer({
+  const { status, canvasRef, pageSize, reload, rendering } = usePdfViewer({
     documentId: doc.doc,
     containerWidth: Math.max(0, bodyWidth - DOCK_BODY_INSET),
     page: currentPage,
@@ -385,9 +385,10 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
   // the two loading indicators can never disagree. Unmounting (dock closed
   // mid-flight) must not leave the button spinning.
   useEffect(() => {
-    setIsPdfLoading(status.state === 'loading')
+    // Downloading, or parsed but the first page is not painted yet: both are "loading" to the user.
+    setIsPdfLoading(status.state === 'loading' || (status.state === 'ready' && pageSize.width === 0))
     return () => setIsPdfLoading(false)
-  }, [status.state, setIsPdfLoading])
+  }, [status.state, pageSize.width, setIsPdfLoading])
 
   /**
    * Drag the dock edge. The width that matters is `.work`'s, because `--mc`/`--dc`
@@ -501,6 +502,7 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
           canvasRef={canvasRef}
           status={status}
           pageSize={pageSize}
+          rendering={rendering}
           boxes={pdfOverlayBoxes}
           visible={showEvidence}
           hoveredId={hoveredId}

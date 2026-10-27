@@ -19,6 +19,8 @@ import { acctsOf } from '../mock/users'
 import type { Role, RoleKey, User } from '../types/auth'
 import type { ActionType } from '../mock/rules'
 import type { InvoiceDoc, InvoiceStatus } from '../types/invoice'
+import { smartMatch } from './smartSearch'
+import { closedDateOf } from './closedDocs'
 
 /** The mockup's frozen "today"; the whole demo runs on one fixed clock. */
 export const TODAY = '2026-10-07'
@@ -52,6 +54,20 @@ export interface PeriodFilter {
   ym?: string
   from?: string
   to?: string
+  /**
+   * v5.8: which date the period applies to — `updated` วันที่เข้าระบบ (default, as before) ·
+   * `created` วันที่สร้างเอกสาร · `invoice` วันที่ในใบแจ้งหนี้. One filter, one source of truth
+   * (replaces the v5.7 separate search-box date filter).
+   */
+  field?: PeriodField
+}
+
+/** v5.9: `closed` = วันที่ปิดงาน (closed-documents page only). */
+export type PeriodField = 'updated' | 'created' | 'invoice' | 'closed'
+
+/** The period test on the date the filter is set to. */
+export function inPerDoc(d: InvoiceDoc, p: PeriodFilter): boolean {
+  return inPerOf(docDateFor(d, p.field ?? 'updated'), p)
 }
 
 /** `AuthContext.scopeCheck`, as a plain function so tests can call the real one. */
@@ -105,11 +121,59 @@ export function perRange(p: PeriodFilter): [string, string] | null {
     }
     case 'period':
       return mRange(p.ym || ym)
-    case 'custom':
-      return p.from || p.to ? [p.from || '0000-01-01', p.to || '9999-12-31'] : null
+    case 'custom': {
+      if (!p.from && !p.to) return null
+      const lo = p.from || '0000-01-01'
+      const hi = p.to || '9999-12-31'
+      // v5.8: a reversed range is read the way the user meant it
+      return lo <= hi ? [lo, hi] : [hi, lo]
+    }
     default:
       return null
   }
+}
+
+// ---------------------------------------------------------------------------
+// Date filter attached to the document search box (v5.7)
+// ---------------------------------------------------------------------------
+
+/**
+ * `created` = วันที่สร้างเอกสาร (the Portal row's createdAt) · `invoice` = วันที่ในใบแจ้งหนี้
+ * (normalized_fields.invoice_date). Independent of the period selector, which works on `up`.
+ */
+export type DateSearchField = 'created' | 'invoice'
+
+export interface DateSearchFilter {
+  field: DateSearchField
+  /** Inclusive, YYYY-MM-DD; empty = open-ended. */
+  from?: string
+  to?: string
+}
+
+export const EMPTY_DATE_FILTER: DateSearchFilter = Object.freeze({ field: 'created' }) as DateSearchFilter
+
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/
+
+export function isDateFilterActive(f?: DateSearchFilter | null): boolean {
+  return !!f && (!!f.from || !!f.to)
+}
+
+/** The date a document is filtered on; '' when it has none that can be compared. */
+export function docDateFor(d: InvoiceDoc, field: DateSearchField | 'updated' | 'closed'): string {
+  if (field === 'closed') return closedDateOf(d)
+  const raw = field === 'invoice' ? d.dt : field === 'created' ? d.created || d.up : d.up
+  const day = (raw || '').slice(0, 10)
+  return ISO_DAY.test(day) ? day : ''
+}
+
+/** A document without that date never matches an active range (an invoice with no readable date). */
+export function matchesDateFilter(d: InvoiceDoc, f?: DateSearchFilter | null): boolean {
+  if (!f || !isDateFilterActive(f)) return true
+  const day = docDateFor(d, f.field)
+  if (!day) return false
+  // A reversed range is read the way the user meant it.
+  const [lo, hi] = f.from && f.to && f.from > f.to ? [f.to, f.from] : [f.from, f.to]
+  return (!lo || day >= lo) && (!hi || day <= hi)
 }
 
 /** A document with no readable date is only ever in the "all periods" view. */
@@ -161,6 +225,8 @@ export interface QueueFilterInput {
   companyFilter: ReadonlySet<string>
   periodFilter: PeriodFilter
   searchQuery: string
+  /** v5.7: date range attached to the search box (created / invoice date). */
+  dateFilter?: DateSearchFilter | null
   showClosed: boolean
   role: RoleKey
 }
@@ -189,13 +255,12 @@ function inCompany(d: InvoiceDoc, companyFilter: ReadonlySet<string>): boolean {
   return companyFilter.size === 0 || companyFilter.has(d.company)
 }
 
-/** The mockup's `q()`: one string searched across everything the table shows. */
+/**
+ * v5.8: dynamic search — every word must match anything the document carries (status in EN/ไทย,
+ * codes, rules, dates in any format, amounts, parties…). See `lib/smartSearch.ts`.
+ */
 export function matchesSearchQuery(d: InvoiceDoc, rawQuery: string): boolean {
-  const q = rawQuery.trim().toLowerCase()
-  if (!q) return true
-  const codes = d.codes.join(' ')
-  const str = `${d.inv} ${d.po || ''} ${d.release || ''} ${d.vendor} ${d.stax} ${d.doc} ${codes}`.toLowerCase()
-  return str.includes(q)
+  return smartMatch(d, rawQuery)
 }
 
 /**
@@ -220,8 +285,9 @@ export function filterDocsFor(input: QueueFilterInput): InvoiceDoc[] {
     input.docs
       .filter(d => matchStatusFor(input.statusFilter, d, input))
       .filter(d => inCompany(d, input.companyFilter))
-      .filter(d => inPerOf(d.up, input.periodFilter))
-      .filter(d => matchesSearchQuery(d, input.searchQuery)),
+      .filter(d => inPerDoc(d, input.periodFilter))
+      .filter(d => matchesSearchQuery(d, input.searchQuery))
+      .filter(d => matchesDateFilter(d, input.dateFilter)),
     input.statusFilter,
   )
 }
@@ -229,7 +295,8 @@ export function filterDocsFor(input: QueueFilterInput): InvoiceDoc[] {
 /** KPI card keys, in the order the cards render (mockup `kpis()`). */
 export function kpiKeysFor(role: RoleKey): string[] {
   return role === 'EU'
-    ? ['mine', 'all', 'Hold', 'Review', 'Rejected', 'Superseded']
+    ? // v5.10: Rejected / Superseded moved to "ผลการส่งเอกสาร" — the EU queue shows work only
+      ['mine', 'all', 'Hold', 'Review']
     : ['all', 'Auto-pass', 'Review', 'Hold', 'Manual Review', 'unres', 'bind', 'Duplicate', 'Superseded']
 }
 
@@ -238,7 +305,7 @@ export function kpiCountsFor(input: QueueFilterInput, keys: string[] = kpiKeysFo
   for (const k of keys) {
     counts[k] = input.docs.filter(
       d =>
-        matchStatusFor(k, d, input) && inCompany(d, input.companyFilter) && inPerOf(d.up, input.periodFilter),
+        matchStatusFor(k, d, input) && inCompany(d, input.companyFilter) && inPerDoc(d, input.periodFilter),
     ).length
   }
   return counts
@@ -253,7 +320,7 @@ export function companyCountsFor(input: QueueFilterInput): Record<string, number
   const counts: Record<string, number> = {}
   for (const d of input.docs) {
     if (!matchStatusFor(input.statusFilter, d, input)) continue
-    if (!inPerOf(d.up, input.periodFilter)) continue
+    if (!inPerDoc(d, input.periodFilter)) continue
     counts[d.company] = (counts[d.company] || 0) + 1
   }
   return counts
@@ -262,7 +329,7 @@ export function companyCountsFor(input: QueueFilterInput): Record<string, number
 /** Open documents that fall outside the chosen period ("ค้างนอกงวด"). */
 export function staleDocsFor(input: QueueFilterInput): InvoiceDoc[] {
   return input.docs.filter(
-    d => OPEN_STATUSES.includes(d.status) && inCompany(d, input.companyFilter) && !inPerOf(d.up, input.periodFilter),
+    d => OPEN_STATUSES.includes(d.status) && inCompany(d, input.companyFilter) && !inPerDoc(d, input.periodFilter),
   )
 }
 
@@ -301,6 +368,12 @@ export function allowedActionFor(
   if (act === 'upload') return no('อัปโหลดเอกสารใหม่ทำโดย End User')
   if (['Sent', 'Posted', 'Rejected', 'Superseded'].includes(st)) {
     return no('เอกสารปิดหรืออยู่ระหว่าง Import')
+  }
+  // UNRESOLVED (OCR could not read the lookup keys): no key and no owner, so only APR decides, and
+  // the only decision is Reject. Confirm and every other move stay closed.
+  if (d.identityStatus === 'UNRESOLVED') {
+    if (ctx.role !== 'APR') return no('เอกสาร UNRESOLVED: เฉพาะหัวหน้าฝ่ายบัญชี (APR) ตัดสินได้')
+    return act === 'reject' ? yes('REJECT') : no('UNRESOLVED: Reject เท่านั้น (ไม่มีคีย์ใบรับ จึง Confirm ไม่ได้)')
   }
   if (pendingBind(d)) {
     return no(`รอผูกบัญชี: IT Admin ต้องผูก Oracle account ${d.receiver} ก่อน (มีรหัสที่ Receiver ต้องแก้)`)

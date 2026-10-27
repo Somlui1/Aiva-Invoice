@@ -96,6 +96,8 @@ export interface UsePdfViewerResult {
   pageSize: SizeBox
   /** Re-fetch the document (used by the dock's retry affordance). */
   reload: () => void
+  /** PDF.js is painting the visible page; the viewer shows a spinner instead of a half-drawn page. */
+  rendering: boolean
 }
 
 export function generateRefCode(id: string | null): string {
@@ -124,6 +126,8 @@ export function usePdfViewer({
   const [attempt, setAttempt] = useState(0)
   const [status, setStatus] = useState<PdfViewerStatus>(INITIAL_STATUS)
   const [pageSize, setPageSize] = useState<SizeBox>(EMPTY_PAGE)
+  /** True while PDF.js paints the visible page (first paint, page turn, zoom, rotate). */
+  const [rendering, setRendering] = useState(false)
 
   const reload = useCallback(() => setAttempt(n => n + 1), [])
 
@@ -132,11 +136,14 @@ export function usePdfViewer({
     const httpCode = statusMatch ? `DMS-${statusMatch[1]}` : 'DMS-500'
     const isNotFound = httpCode === 'DMS-404' || reason.toLowerCase().includes('not found')
     const isAuth = httpCode === 'DMS-401' || httpCode === 'DMS-403'
+    const isExpired = httpCode === 'DMS-401'
     const code = isNotFound ? 'DMS-404' : httpCode
     const retryable = !isNotFound && !isAuth
     const message = isNotFound
       ? 'ไม่พบไฟล์เอกสารในระบบจัดเก็บเอกสาร (DMS)'
-      : isAuth
+      : isExpired
+        ? 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่'
+        : isAuth
         ? 'ไม่มีสิทธิ์เข้าถึงเอกสารนี้ในระบบ DMS'
         : 'การเชื่อมต่อเซิร์ฟเวอร์ DMS ขัดข้อง หรือหมดเวลาการเชื่อมต่อ'
     const ref = generateRefCode(docId ?? null)
@@ -165,6 +172,7 @@ export function usePdfViewer({
 
     pdfRef.current = null
     setPageSize(EMPTY_PAGE)
+    setRendering(false)
     if (!documentId) {
       setStatus(INITIAL_STATUS)
       return
@@ -179,6 +187,9 @@ export function usePdfViewer({
         // answered; `fallback_mock` means there is no PDF to draw.
         const res = await fetch(`/api/documents/${encodeURIComponent(documentId)}/pdf`, {
           cache: 'no-store',
+          // The httpOnly aiva_session cookie must travel with it; a 401 here is caught by the
+          // session interceptor (lib/session.ts) which sends the user to /login?expired=1.
+          credentials: 'same-origin',
         })
         if (!res.ok) throw new Error(`PDF request failed (${res.status})`)
 
@@ -230,6 +241,7 @@ export function usePdfViewer({
 
     let disposed = false
     const pageNumber = Math.min(Math.max(1, page), pdf.numPages)
+    setRendering(true)
 
     void (async () => {
       try {
@@ -272,6 +284,7 @@ export function usePdfViewer({
         renderRef.current = null
         if (disposed) return
 
+        setRendering(false)
         setPageSize(prev =>
           Math.abs(prev.width - viewport.width) < 0.5 && Math.abs(prev.height - viewport.height) < 0.5
             ? prev
@@ -280,6 +293,7 @@ export function usePdfViewer({
       } catch (err) {
         if (disposed) return
         renderRef.current = null
+        setRendering(false)
         // A page that cannot be painted is worse than no PDF at all: the mock
         // page keeps the analyst working, and the badge says why.
         fallBack(err instanceof Error ? err.message : String(err), status.source, documentId)
@@ -292,5 +306,5 @@ export function usePdfViewer({
       renderRef.current = null
     }
   }, [status.state, status.source, page, rotation, zoom, containerWidth, devicePixelRatio, fallBack])
-  return { status, canvasRef, pageSize, reload }
+  return { status, canvasRef, pageSize, reload, rendering }
 }

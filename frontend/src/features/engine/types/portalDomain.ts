@@ -274,6 +274,21 @@ export interface PortalBoundingBox {
   findingIds?: string[]
 }
 
+/**
+ * Business identity of a document (v5.6). `receiveId` is the primary business key (RESOLVED only);
+ * NOT_FOUND falls back to `secondaryKey` (supplier_tax_id + invoice_num); UNRESOLVED has no key.
+ * Written by ingestion (`src/server/businessKey.ts`) — never by the Engine adapter.
+ */
+export interface PortalIdentity {
+  status: 'RESOLVED' | 'NOT_FOUND' | 'UNRESOLVED'
+  reason: 'FOUND' | 'RECEIPT_NOT_FOUND' | 'HALTED_BEFORE_LOOKUP' | 'KEYS_UNREADABLE'
+  receiveId: string | null
+  secondaryKey: string | null
+  missingKeys: string[]
+  lookupPath?: string | null
+  source: 'payload' | 'derived'
+}
+
 export interface PortalInvoiceDocument {
   // 1. Identity & DMS Reference
   id: string
@@ -336,4 +351,15 @@ export interface PortalInvoiceDocument {
   createdAt: string
   updatedAt: string
   history: PortalHistoryEntry[]
+
+  // 7. Business identity & duplicate resolution (Portal owned, written at ingest; absent on older rows)
+  identity?: PortalIdentity
+  /** DR-01 / DR-02: the older document this one replaced. */
+  supersedes?: string
+  /** The newer document that replaced this one (set on the old row when it becomes Superseded). */
+  supersededBy?: string
+  /** DR-03 / DR-04: the current document this one duplicates. */
+  duplicateOf?: string
+  supRule?: string
+  dupRule?: string
 }

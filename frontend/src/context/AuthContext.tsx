@@ -1,11 +1,23 @@
 'use client'
 
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react'
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react'
 import { User, Role, RoleKey, Permission } from '../types/auth'
 import { InvoiceDoc } from '../types/invoice'
 import { AuditEntry } from '../types/audit'
 import { USERS, ROLES, acctsOf } from '../mock/users'
-import { LOGIN_CONFIG } from '../features/login/config'
+import { SESSION_EXPIRED_EVENT, expireSession, hasClientSession, verifySession, watchSessionOnFocus } from '../lib/session'
+import {
+  VIEW_AS_EVENT,
+  VIEW_AS_TTL_MS,
+  clearViewAs,
+  headerFor,
+  readViewAs,
+  viewAsKeyOf,
+  writeViewAs,
+  type ViewAsState,
+  type ViewAsTarget,
+} from '../lib/viewAs'
+import { explainScope } from '../lib/docScope'
 
 export const ANONYMOUS_USER: User = {
   id: '',
@@ -29,6 +41,17 @@ interface AuthContextType {
   logout: () => void
   auditLogs: AuditEntry[]
   logAudit: (act: string, doc: string, detail: string) => void
+  /** v5.10: the signed-in person (differs from `currentUser` only while a SA uses "view as"). */
+  realUser: User
+  /** Active SA "view as" (read-only), or null. */
+  viewAs: ViewAsState | null
+  /** '' when not previewing; changes on every start / switch / stop (used to remount app state). */
+  viewAsKey: string
+  isPreview: boolean
+  startViewAs: (target: ViewAsTarget) => Promise<{ ok: boolean; error?: string }>
+  stopViewAs: (reason?: 'user' | 'expired' | 'logout') => void
+  /** Oracle accounts of `currentUser` (the target's while previewing). */
+  accountsOf: (u?: User) => string[]
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
@@ -44,7 +67,7 @@ export function AuthProvider({
   children: React.ReactNode
   initialUser?: User | null
 }) {
-  const [currentUser, setCurrentUser] = useState<User>(() => {
+  const [realUser, setCurrentUser] = useState<User>(() => {
     if (initialUser !== undefined) return initialUser || ANONYMOUS_USER
     if (typeof window !== 'undefined') {
       try {
@@ -100,51 +123,176 @@ export function AuthProvider({
   })
   const [auditLogs, setAuditLogs] = useState<AuditEntry[]>(INITIAL_AUDIT)
 
-  // Sync latest user profile & permissions from /api/auth/me
+  // ---- v5.10 SA "view as" -----------------------------------------------------------------------
+  const [viewAs, setViewAsState] = useState<ViewAsState | null>(() => readViewAs())
+  // Only a real SA can be in view-as; anything else found in storage is dropped.
+  const activeViewAs = viewAs && realUser.role === 'SA' ? viewAs : null
+  const currentUser: User = useMemo(() => {
+    if (!activeViewAs) return realUser
+    const t = activeViewAs.user
+    return {
+      id: t.id,
+      n: t.name,
+      email: t.email,
+      role: t.role,
+      rcvName: t.receivers[0] ?? '—',
+      emp: null,
+      co: t.companies,
+      unit: 'มุมมองจำลอง',
+    }
+  }, [activeViewAs, realUser])
+
+  useEffect(() => {
+    if (viewAs && realUser.id && realUser.role !== 'SA') {
+      clearViewAs()
+      setViewAsState(null)
+    }
+  }, [viewAs, realUser.id, realUser.role])
+
+  // Other code (expiry, logout, session expiry, another component) changes the stored view → follow it.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const sync = () => setViewAsState(readViewAs())
+    window.addEventListener(VIEW_AS_EVENT, sync)
+    return () => window.removeEventListener(VIEW_AS_EVENT, sync)
+  }, [])
+
+  const stopViewAs = useCallback((reason: 'user' | 'expired' | 'logout' = 'user') => {
+    const cur = readViewAs(0) ?? viewAs
+    clearViewAs()
+    setViewAsState(null)
+    if (cur && typeof fetch === 'function') {
+      void fetch('/api/auth/view-as', {
+        method: 'DELETE',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: cur.label, reason }),
+      }).catch(() => undefined)
+    }
+  }, [viewAs])
+
+  // Expiry: checked every 15 s (and on focus); the stored entry also self-expires on read.
+  useEffect(() => {
+    if (!activeViewAs) return
+    const check = () => {
+      if (Date.now() >= activeViewAs.expiresAt) stopViewAs('expired')
+    }
+    const id = window.setInterval(check, 15_000)
+    window.addEventListener('focus', check)
+    return () => {
+      window.clearInterval(id)
+      window.removeEventListener('focus', check)
+    }
+  }, [activeViewAs, stopViewAs])
+
+  const startViewAs = useCallback(
+    async (target: ViewAsTarget): Promise<{ ok: boolean; error?: string }> => {
+      if (realUser.role !== 'SA') return { ok: false, error: 'เฉพาะ Super Admin' }
+      if (target.kind === 'role' && (target.role as string) === 'SA') return { ok: false, error: 'เลือก SA ไม่ได้' }
+      let resolved: ViewAsState['user'] | null = null
+      let label = ''
+      let serverChecked = false
+      try {
+        const res = await fetch('/api/auth/view-as', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ target: headerFor(target) }),
+        })
+        const data = await res.json().catch(() => null)
+        if (res.ok && data?.ok && data.user) {
+          resolved = {
+            id: data.user.id,
+            name: data.user.name,
+            email: data.user.email || '',
+            role: data.user.role,
+            companies: data.user.companies || [],
+            receivers: data.user.oracleAccounts || [],
+          }
+          label = data.label
+          serverChecked = true
+        } else if (res.status === 400 || res.status === 403) {
+          return { ok: false, error: data?.error || 'เลือกเป้าหมายนี้ไม่ได้' }
+        }
+      } catch {
+        /* no backend (mock / offline) → local resolution below */
+      }
+      if (!resolved) {
+        if (target.kind === 'user') {
+          const u = USERS.find(x => x.id === target.userId)
+          if (!u || u.role === 'SA') return { ok: false, error: 'ไม่พบผู้ใช้ หรือเลือกผู้ใช้นี้ไม่ได้' }
+          resolved = { id: u.id, name: u.n, email: u.email, role: u.role, companies: u.co, receivers: acctsOf(u) }
+          label = `${u.n} (${u.role})`
+        } else {
+          const companies = target.companies.length ? target.companies : ['AH', 'AHA', 'AHT', 'AHP', 'AM']
+          resolved = { id: `view-as:${target.role}`, name: `มุมมอง ${target.role}`, email: '', role: target.role, companies, receivers: target.receivers }
+          label = `role ${target.role} · ${companies.join(',')}`
+        }
+      }
+      if (resolved.role === 'SA') return { ok: false, error: 'ดูในมุมมองของ Super Admin คนอื่นไม่ได้' }
+      const now = Date.now()
+      const next: ViewAsState = { target, user: resolved, label, startedAt: now, expiresAt: now + VIEW_AS_TTL_MS, serverChecked }
+      writeViewAs(next)
+      setViewAsState(next)
+      return { ok: true }
+    },
+    [realUser.role],
+  )
+
+  // v5.7: verify the server session on load (and when the tab comes back) — the cached profile in
+  // localStorage is only a hint; the httpOnly `aiva_session` cookie is the truth. Invalid → clear the
+  // cache, tell the user "เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่" on /login and redirect (lib/session.ts).
   useEffect(() => {
     if (typeof window === 'undefined') return
     if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') return
+    if (window.localStorage.getItem('aiva.test.unauthenticated') === 'true') return
 
-    const unauth = window.localStorage.getItem('aiva.test.unauthenticated') === 'true'
-    if (unauth) return
-
-    // v5.5: the server identifies the user by the signed session cookie only (no ?userId=).
-    fetch('/api/auth/me', { credentials: 'same-origin' })
-      .then(res => {
-        // The session expired / was revoked: drop the cached profile and go to the login page —
-        // otherwise the UI looks signed in while every API call answers 401.
-        if (res.status === 401 && !LOGIN_CONFIG.mock && window.localStorage.getItem('aiva.auth.profile')) {
-          window.localStorage.removeItem('aiva.auth.user')
-          window.localStorage.removeItem('aiva.auth.profile')
+    let alive = true
+    void verifySession().then(r => {
+      if (!alive) return
+      if (r.state === 'invalid') {
+        if (hasClientSession()) {
           setCurrentUser(ANONYMOUS_USER)
-          if (!window.location.pathname.startsWith('/login')) window.location.href = '/login'
-          return null
+          expireSession('startup_check')
         }
-        return res.ok ? res.json() : null
-      })
-      .then(data => {
-        if (data?.ok && data.user) {
-          const u = data.user
-          const companies = Array.isArray(u.companies) && u.companies.length > 0 ? u.companies : ['AH', 'AHA', 'AHT', 'AHP', 'AM']
-          const rcv = Array.isArray(u.oracleAccounts) && u.oracleAccounts.length > 0 ? u.oracleAccounts[0] : '—'
-          setCurrentUser(prev => ({
-            id: u.id,
-            n: u.name || prev.n || u.id,
-            email: u.email || prev.email,
-            role: u.role || prev.role,
-            rcvName: rcv,
-            emp: u.empId ? parseInt(String(u.empId).replace(/\D/g, ''), 10) || null : prev.emp,
-            co: companies,
-            unit: u.unit || prev.unit || 'AH',
-          }))
-          window.localStorage.setItem('aiva.auth.profile', JSON.stringify(u))
-        }
-      })
-      .catch(() => {})
+        return
+      }
+      if (r.state !== 'valid') return
+      const u = r.user
+      const companies = Array.isArray(u.companies) && u.companies.length > 0 ? u.companies : ['AH', 'AHA', 'AHT', 'AHP', 'AM']
+      const rcv = Array.isArray(u.oracleAccounts) && u.oracleAccounts.length > 0 ? u.oracleAccounts[0] : '—'
+      setCurrentUser(prev => ({
+        id: u.id,
+        n: u.name || prev.n || u.id,
+        email: u.email || prev.email,
+        role: (u.role as RoleKey) || prev.role,
+        rcvName: rcv,
+        emp: prev.emp,
+        co: companies,
+        unit: u.unit || prev.unit || 'AH',
+      }))
+      window.localStorage.setItem('aiva.auth.user', u.id)
+      window.localStorage.setItem('aiva.auth.profile', JSON.stringify(u))
+    })
+
+    // A 401 caught by the fetch interceptor anywhere in the app drops the in-memory user at once.
+    const onExpired = () => setCurrentUser(ANONYMOUS_USER)
+    window.addEventListener(SESSION_EXPIRED_EVENT, onExpired)
+    const stopWatch = watchSessionOnFocus()
+    return () => {
+      alive = false
+      window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired)
+      stopWatch()
+    }
   }, [])
 
-  const isAuthenticated = Boolean(currentUser && currentUser.id !== '' && currentUser.id !== ANONYMOUS_USER.id)
+  const isAuthenticated = Boolean(realUser && realUser.id !== '' && realUser.id !== ANONYMOUS_USER.id)
   const currentRole = ROLES[currentUser.role]
+
+  const accountsOf = useCallback(
+    (u: User = currentUser): string[] => (activeViewAs && u.id === currentUser.id ? activeViewAs.user.receivers : acctsOf(u)),
+    [activeViewAs, currentUser],
+  )
 
   const can = useCallback((permission: Permission): boolean => {
     if (!isAuthenticated) return false
@@ -155,29 +303,10 @@ export function AuthProvider({
     if (!isAuthenticated) {
       return { ok: false, why: 'ยังไม่ได้เข้าสู่ระบบ' }
     }
-    const r = currentRole
-    if (r.scope === 'none') {
-      return { ok: false, why: 'บทบาทนี้ไม่เข้าถึงเนื้อหาเอกสาร' }
-    }
-    if (r.scope === 'all' || currentUser.co.includes('ALL')) {
-      return { ok: true }
-    }
-    if (currentUser.co.length > 0 && !currentUser.co.includes(doc.company)) {
-      return { ok: false, why: `เอกสารอยู่นอกบริษัทที่ได้รับมอบหมาย (${doc.company})` }
-    }
-    if (r.scope === 'receiver') {
-      const myAccts = acctsOf(currentUser)
-      if (myAccts.length > 0) {
-        if (!doc.receiver) {
-          return { ok: false, why: 'เอกสารยังไม่มี Receiver ในใบรับ · ฝ่ายบัญชีดำเนินการ' }
-        }
-        if (!myAccts.includes(doc.receiver)) {
-          return { ok: false, why: `ไม่ได้เป็น Receiver ของใบรับนี้ (Receiver = ${doc.receiver})` }
-        }
-      }
-    }
-    return { ok: true }
-  }, [currentRole, currentUser, isAuthenticated])
+    // v5.10: one shared rule (lib/docScope) — the server applies the same one under "view as".
+    const r = explainScope(doc, { role: currentUser.role, companies: currentUser.co, accounts: accountsOf(currentUser) })
+    return r.ok ? { ok: true } : { ok: false, why: r.why }
+  }, [currentUser, isAuthenticated, accountsOf])
 
   const logAudit = useCallback((act: string, doc: string, detail: string) => {
     const now = new Date().toTimeString().slice(0, 8)
@@ -186,15 +315,15 @@ export function AuthProvider({
       {
         dt: today,
         t: now,
-        who: currentUser.n,
-        role: currentRole.n,
+        who: realUser.n,
+        role: ROLES[realUser.role].n,
         act,
         doc,
         detail
       },
       ...prev
     ])
-  }, [currentUser, currentRole])
+  }, [realUser])
 
   const switchUser = useCallback((userId: string) => {
     const user: User = USERS.find(u => u.id === userId) || {
@@ -230,6 +359,7 @@ export function AuthProvider({
   }, [])
 
   const logout = useCallback(() => {
+    if (readViewAs(0)) stopViewAs('logout')
     try {
       if (typeof window !== 'undefined') {
         window.localStorage.removeItem('aiva.auth.user')
@@ -242,7 +372,7 @@ export function AuthProvider({
         fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).then(go, go)
       }
     } catch {}
-  }, [])
+  }, [stopViewAs])
 
   return (
     <AuthContext.Provider
@@ -256,7 +386,14 @@ export function AuthProvider({
         switchUser,
         logout,
         auditLogs,
-        logAudit
+        logAudit,
+        realUser,
+        viewAs: activeViewAs,
+        viewAsKey: viewAsKeyOf(activeViewAs),
+        isPreview: !!activeViewAs,
+        startViewAs,
+        stopViewAs,
+        accountsOf
       }}
     >
       {children}

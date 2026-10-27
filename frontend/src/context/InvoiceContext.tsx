@@ -10,6 +10,8 @@ import { useSettings } from './SettingsContext'
 import { useToastModal } from './ToastModalContext'
 import { ROLES } from '../mock/users'
 import { convertSystemAResultToInvoiceDoc } from '../lib/backendApi'
+import { isClosedViewStatus } from '../lib/closedDocs'
+import { PREVIEW_BLOCK_REASON } from '../lib/viewAs'
 import {
   TODAY,
   OPEN_STATUSES,
@@ -26,14 +28,18 @@ import {
   allowedActionFor,
   precheckPostFor,
   applyLiveDocs,
+  inPerDoc,
   type PeriodFilter,
+  type PeriodField,
 } from '../lib/queueFilters'
 
 export {
   TODAY,
   perRange,
   inPerOf,
+  inPerDoc,
   type PeriodFilter,
+  type PeriodField,
 }
 
 interface InvoiceContextType {
@@ -92,6 +98,9 @@ interface InvoiceContextType {
   evidenceSelection: EvidenceSelection | null
   setEvidenceSelection: (selection: EvidenceSelection | null) => void
   allowedAction: (doc: InvoiceDoc, act: ActionType) => { ok: boolean; why?: string; perm?: string }
+  /** v5.10: ask the closed-documents page to open a document (Ctrl K, links). */
+  closedFocus: { id: string; nonce: number } | null
+  focusClosedDoc: (id: string) => void
   hasHighSeverity: (doc: InvoiceDoc) => boolean
   isEuPending: (doc: InvoiceDoc) => boolean
   pendingBind: (doc: InvoiceDoc) => boolean
@@ -111,7 +120,7 @@ interface InvoiceContextType {
 const InvoiceContext = createContext<InvoiceContextType | null>(null)
 
 export function InvoiceProvider({ children }: { children: React.ReactNode }) {
-  const { currentUser, currentRole, can, scopeCheck, logAudit } = useAuth()
+  const { currentUser, currentRole, can, scopeCheck, logAudit, isPreview } = useAuth()
   const { orgSettings } = useSettings()
   const { toast } = useToastModal()
 
@@ -123,7 +132,8 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
   const [periodFilter, setPeriodFilterState] = useState<PeriodFilter>({
     k: currentUser.role === 'EU' ? 'all' : orgSettings.period || 'month'
   })
-  const [showClosed, setShowClosed] = useState<boolean>(!orgSettings.hideClosed)
+  // v5.9: closed documents have their own page ("เอกสารที่ปิดแล้ว"); the queue never mixes them in.
+  const [showClosed, setShowClosed] = useState<boolean>(false)
   const [searchQuery, setSearchQuery] = useState<string>('')
   const [viewMode, setViewMode] = useState<'table' | 'split'>('table')
   const [activeDetailTab, setActiveDetailTab] = useState<string>('sum')
@@ -135,6 +145,8 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
   const focusNonce = useRef(0)
   const nextNonce = useCallback(() => (focusNonce.current = Math.max(Date.now(), focusNonce.current + 1)), [])
   const [evidenceSelection, setEvidenceSelection] = useState<EvidenceSelection | null>(null)
+  const [closedFocus, setClosedFocus] = useState<{ id: string; nonce: number } | null>(null)
+  const focusClosedDoc = useCallback((id: string) => setClosedFocus({ id, nonce: Date.now() }), [])
 
   useEffect(() => {
     let active = true
@@ -235,7 +247,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
     setReceiverFilter(null)
     setStatusFilter(currentUser.role === 'EU' ? 'mine' : 'all')
     setSearchQuery('')
-    setPeriodFilterState({ k: 'all' })
+    setPeriodFilterState(p => ({ k: 'all', field: p.field }))
   }, [currentUser.role])
 
   // Scope check visible docs
@@ -271,10 +283,13 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
       showClosed,
       role: currentUser.role,
     })
+    // v5.9: closed documents live on their own page. A status card that names a closed status
+    // explicitly (EU "Rejected"/"Superseded", APR "Duplicate" override) still lists those.
+    const open = list.filter(d => !isClosedViewStatus(d.status) || statusFilter === d.status)
     if (currentUser.role === 'EU' && receiverFilter) {
-      return list.filter(d => d.receiver === receiverFilter)
+      return open.filter(d => d.receiver === receiverFilter)
     }
-    return list
+    return open
   }, [visibleDocs, statusFilter, companyFilter, periodFilter, searchQuery, showClosed, currentUser.role, receiverFilter])
 
   // Selected doc
@@ -283,32 +298,48 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
     return docs.find(d => d.doc === selectedDocId) || null
   }, [docs, selectedDocId])
 
+  const selectedIdRef = useRef(selectedDocId)
+  selectedIdRef.current = selectedDocId
   const selectDoc = useCallback((id: string | null) => {
+    if (selectedIdRef.current !== id) {
+      // v5.7: a finding / box picked on the previous document must not follow the user to the
+      // next one (its ids do not exist there). The dock, if open, restarts on page 1.
+      setEvidenceSelection(null)
+      setEvidenceDockFocus(f => (f ? focusForPage(1, undefined, nextNonce()) : null))
+    }
     setSelectedDocId(id)
-  }, [])
+  }, [nextNonce])
 
   // Dynamic KPI counts
   const kpiCounts = useMemo(() => {
     const docsToCount = currentUser.role === 'EU' && receiverFilter
       ? visibleDocs.filter(d => d.receiver === receiverFilter)
       : visibleDocs
-    return kpiCountsFor({
-      docs: docsToCount,
-      statusFilter,
-      companyFilter,
-      periodFilter,
-      searchQuery,
-      showClosed,
-      role: currentUser.role,
-    })
+    const input = { docs: docsToCount, statusFilter, companyFilter, periodFilter, searchQuery, showClosed, role: currentUser.role }
+    // v5.10: cards count what the list can show — closed documents only on a card that names their
+    // status (ACC/APR "ซ้ำ" / "ถูกแทนที่"), never inside "ทั้งหมด" / "ใบรับของฉัน".
+    const counts = kpiCountsFor({ ...input, docs: docsToCount.filter(d => !isClosedViewStatus(d.status)) })
+    const full = kpiCountsFor(input)
+    for (const k of Object.keys(counts)) if (isClosedViewStatus(k)) counts[k] = full[k]
+    return counts
   }, [visibleDocs, statusFilter, companyFilter, periodFilter, searchQuery, showClosed, currentUser.role, receiverFilter])
 
   // Allowed action calculation per SRS v1.1
   const allowedAction = useCallback(
     (d: InvoiceDoc, act: ActionType): { ok: boolean; why?: string; perm?: string } => {
-      return allowedActionFor(d, act, { role: currentUser.role, can: p => can(p as any) })
+      const r = allowedActionFor(d, act, { role: currentUser.role, can: p => can(p as any) })
+      // v5.10: "view as" is read-only. The target's own answer is kept in the message, so the SA
+      // still sees whether that user *could* do it — but nothing can be executed.
+      if (isPreview) {
+        return {
+          ok: false,
+          perm: r.perm,
+          why: r.ok ? `${PREVIEW_BLOCK_REASON} · ผู้ใช้นี้ทำได้` : `${PREVIEW_BLOCK_REASON} · ผู้ใช้นี้ทำไม่ได้: ${r.why ?? 'ไม่มีสิทธิ์'}`,
+        }
+      }
+      return r
     },
-    [currentUser.role, can]
+    [currentUser.role, can, isPreview]
   )
 
   // Execute workflow action
@@ -714,6 +745,8 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
         evidenceSelection,
         setEvidenceSelection,
         allowedAction,
+        closedFocus,
+        focusClosedDoc,
         hasHighSeverity,
         isEuPending,
         pendingBind,

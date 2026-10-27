@@ -2,8 +2,9 @@ import { Router } from 'express'
 import { z } from 'zod'
 import { prisma } from '../../src/lib/prisma'
 import { loadQueueDocs } from '../../src/server/portalDocs'
-import { matchesSearchQuery, sortDocsFor } from '../../src/lib/queueFilters'
+import { docDateFor, matchesSearchQuery, sortDocsFor } from '../../src/lib/queueFilters'
 import type { InvoiceDoc } from '../../src/types/invoice'
+import { auditViewAs, docVisibleTo } from '../../src/server/viewAs'
 
 export const documentsRouter = Router()
 
@@ -38,6 +39,8 @@ const LIST_QUERY = z.object({
   q: z.string().max(120).optional(),
   from: isoDate.optional(),
   to: isoDate.optional(),
+  /** v5.7: which date from/to apply to — `updated` (default, as before) · `created` · `invoice`. */
+  date_field: z.enum(['updated', 'created', 'invoice']).default('updated'),
   limit: z.coerce.number().int().min(1).max(500).default(200),
   offset: z.coerce.number().int().min(0).max(100_000).default(0),
   include: z.enum(['boxes']).optional(),
@@ -67,9 +70,12 @@ documentsRouter.get('/', async (req, res) => {
     const filtered = docs
       .filter((d) => (q.status ? d.status === q.status : true))
       .filter((d) => (q.assigned ? d.assigned === q.assigned : true))
-      .filter((d) => (q.from ? d.up >= q.from : true))
-      .filter((d) => (q.to ? d.up <= q.to : true))
+      .filter((d) => (q.from || q.to ? !!docDateFor(d, q.date_field) : true))
+      .filter((d) => (q.from ? docDateFor(d, q.date_field) >= q.from : true))
+      .filter((d) => (q.to ? docDateFor(d, q.date_field) <= q.to : true))
       .filter((d) => matchesSearchQuery(d, q.q ?? ''))
+      // v5.10: under "view as" the server answers with the target's scope (what that user really gets)
+      .filter((d) => (req.viewAs && req.sessionUser ? docVisibleTo(d, req.sessionUser).ok : true))
 
     const sorted = sortDocsFor(filtered, q.status ?? 'all')
     const page = sorted.slice(q.offset, q.offset + q.limit)
@@ -113,6 +119,11 @@ documentsRouter.get('/:id', async (req, res) => {
         source: 'portal_db',
         error: `ไม่พบเอกสาร ${id} ในฐานข้อมูล`,
       })
+    }
+    if (req.viewAs && req.sessionUser) {
+      const vis = docVisibleTo(document, req.sessionUser)
+      void auditViewAs(req, id, vis.ok ? 'เปิดดูเอกสาร' : `ถูกปฏิเสธ: ${vis.why}`)
+      if (!vis.ok) return res.status(403).json({ ok: false, code: 'OUT_OF_SCOPE', error: vis.why })
     }
     return res.json({
       ok: true,
@@ -194,6 +205,18 @@ documentsRouter.post('/:id/actions', async (req, res) => {
       return res.status(423).json({ ok: false, error: `เอกสาร ${id} ถูกล็อกแล้ว (${doc.status}) ไม่อนุญาตให้แก้ไขสถานะ` })
     }
 
+    // UNRESOLVED (OCR could not read the lookup keys): no key, owner Unknown. APR only, Confirm is
+    // closed, Reject is the one decision. Enforced here as well as in the UI (src/lib/queueFilters.ts).
+    const isUnresolved = doc.identityStatus === 'UNRESOLVED'
+    if (isUnresolved) {
+      if (userRole !== 'APR') {
+        return res.status(403).json({ ok: false, error: 'เอกสาร UNRESOLVED (อ่านคีย์ไม่ได้) ตัดสินได้เฉพาะหัวหน้าฝ่ายบัญชี (APR)' })
+      }
+      if (action !== 'reject') {
+        return res.status(422).json({ ok: false, error: 'เอกสาร UNRESOLVED ไม่มีคีย์ใบรับ: ทำได้เฉพาะ Reject (Confirm ไม่ได้)' })
+      }
+    }
+
     // 2. Role permission checks
     if (action === 'confirm' && userRole === 'EU') {
       return res.status(403).json({ ok: false, error: 'บทบาท ผู้ใช้งาน (EU) ไม่มีสิทธิ์ Confirm เอกสาร' })
@@ -233,7 +256,7 @@ documentsRouter.post('/:id/actions', async (req, res) => {
         break
 
       case 'reject':
-        if (!['Auto-pass', 'Review', 'Hold'].includes(currentStatus)) {
+        if (!['Auto-pass', 'Review', 'Hold', ...(isUnresolved ? ['Manual Review'] : [])].includes(currentStatus)) {
           return res.status(422).json({ ok: false, error: `ไม่สามารถ Reject เอกสารจากสถานะ "${currentStatus}" ได้` })
         }
         if (!reason) {

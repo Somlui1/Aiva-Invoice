@@ -127,13 +127,13 @@
 }
 
 /* `?finding=` (plan F8): the finding's boxes stand out, the rest step back. */
-.box.focus {
+.box.bx-focus {
   border-width: 3px;
   box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.9), 0 0 14px rgba(245, 158, 11, 0.6);
   z-index: 5;
 }
 
-.box.dim {
+.box.bx-dim {
   opacity: 0.35;
 }
 
@@ -144,4 +144,130 @@
   background: rgba(245, 158, 11, 0.18);
   border: 1px solid rgba(245, 158, 11, 0.6);
   white-space: nowrap;
+}
+
+/* ---------------- v5.7: element_type tags (same as engine/src/test-portal) ---------------- */
+.standalone-bar .tg {
+  font-size: 12px;
+  border: 1px solid #777;
+  background: transparent;
+  color: #ddd;
+  padding: 1px 8px 1px 6px;
+  border-radius: 10px;
+  gap: 5px;
+}
+.standalone-bar .tg input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+.standalone-bar .tg.on {
+  background: #3a3a3a;
+  color: #fff;
+}
+.standalone-bar .tg:not(.on) {
+  opacity: 0.55;
+}
+.standalone-bar .tg:focus-within {
+  outline: 2px solid #fbbf24;
+  outline-offset: 1px;
+}
+.standalone-bar .tg .sw {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.standalone-bar .tg .tg-n {
+  font: 600 10.5px ui-monospace, Menlo, Consolas, monospace;
+  opacity: 0.8;
+}
+.standalone-bar .bar-count {
+  margin-left: auto;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+/* Box = drawn exactly as delivered; thinner border like the engine viewer */
+.standalone-pages .box {
+  border-width: 1.5px;
+}
+.standalone-pages .box span {
+  font-size: 10px;
+  line-height: 13px;
+  top: -14px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.standalone-pages .box.bx-ev {
+  border-style: solid;
+  border-width: 2px;
+}
+.standalone-pages .box.bx-sev-high {
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.55);
+}
+.standalone-pages .box.bx-sev-medium {
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.5);
+}
+
+/* Loading: pages stay hidden behind the spinner until page 1 is painted */
+.standalone-loading {
+  position: fixed;
+  inset: 0;
+  top: 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  color: #e5e7eb;
+  font-size: 13px;
+  z-index: 50;
+  pointer-events: none;
+}
+.standalone-pages.is-loading {
+  visibility: hidden;
+}
+.sv-spin {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #fff;
+  animation: svSpin 0.8s linear infinite;
+}
+@keyframes svSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sv-spin {
+    animation-duration: 2.4s;
+  }
+}
+.standalone-error {
+  margin: 12px auto 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: rgba(220, 38, 38, 0.15);
+  border: 1px solid rgba(220, 38, 38, 0.6);
+  color: #fecaca;
+  font-size: 13px;
+}
+
+/* v5.7.1: a box is an outline only — never a fill (the app's global `.ev` card style made
+   evidence boxes solid dark). Scoped to the viewer so no app class can leak in again. */
+.standalone-pages .box {
+  background: transparent !important;
+  border-radius: 0;
+  padding: 0;
+  margin: 0;
+  min-height: 0;
+  display: block;
+}
+.standalone-pages .box:hover {
+  background: rgba(255, 230, 0, 0.18) !important;
 }

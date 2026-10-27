@@ -3,8 +3,43 @@ import { parseViewerQuery, viewerFocusFor } from '../../features/evidence/viewer
 import {
   StandaloneBBoxViewer,
   type BBoxItem,
-  mapBBoxType,
+  bboxTagOf,
 } from '../../features/pdf-viewer/components/StandaloneBBoxViewer'
+
+/**
+ * Boxes for the inspector, from the Portal payload (`bboxes[]`, flattened from System A's
+ * `ocr.elements[]` by the engine adapter) or — for rows stored before that — the raw result/3.0.
+ * Tag = `element_type`; nothing is moved, resized or invented.
+ */
+export function bboxItemsFromDocument(d: any): BBoxItem[] {
+  const fromPortal = Array.isArray(d?.bboxes) && d.bboxes.length > 0
+  const raw: any[] = fromPortal
+    ? d.bboxes
+    : Array.isArray(d?.raw_payload?.ocr?.elements)
+      ? d.raw_payload.ocr.elements
+      : []
+  const out: BBoxItem[] = []
+  raw.forEach((b: any, idx: number) => {
+    const box = b.bbox
+    if (!Array.isArray(box) || box.length !== 4 || box.some((v: unknown) => typeof v !== 'number' || !Number.isFinite(v))) return
+    const elementType = b.elementType ?? b.element_type
+    const fieldName = b.fieldName ?? b.field_name
+    const rawValue = b.rawValue ?? b.raw_value ?? (b.normalized_value == null ? '' : String(b.normalized_value))
+    const code = b.exceptionCode ?? b.exception_code
+    out.push({
+      id: b.id || b.element_id || `b-${idx}`,
+      pageNo: b.pageNo || b.page_no || 1,
+      type: bboxTagOf(elementType),
+      label: fieldName || bboxTagOf(elementType),
+      text: rawValue ?? '',
+      bbox_norm: [box[0], box[1], box[2], box[3]],
+      confidence: typeof b.confidence === 'number' ? b.confidence : undefined,
+      codes: code ? [String(code)] : undefined,
+      severity: b.severity,
+    })
+  })
+  return out
+}
 
 export function StandaloneViewerRoute({ docId: propDocId }: { docId?: string }) {
   let docId = propDocId
@@ -17,47 +52,30 @@ export function StandaloneViewerRoute({ docId: propDocId }: { docId?: string }) 
   const [doc, setDoc] = useState<any>(null)
   const [items, setItems] = useState<BBoxItem[]>([])
   const [pageCount, setPageCount] = useState(1)
+  const [docLoading, setDocLoading] = useState(true)
 
   useEffect(() => {
-    if (!effectiveId || effectiveId === 'DMS-UNKNOWN') return
+    if (!effectiveId || effectiveId === 'DMS-UNKNOWN') {
+      setDocLoading(false)
+      return
+    }
     let active = true
+    setDocLoading(true)
 
-    fetch(`/api/documents/${effectiveId}`)
+    // credentials: the httpOnly session cookie; a 401 is handled by the session guard (main.tsx).
+    fetch(`/api/documents/${effectiveId}`, { credentials: 'same-origin', cache: 'no-store' })
       .then(res => (res.ok ? res.json() : null))
       .then(data => {
-        if (!active) return
-        if (data?.document) {
-          const d = data.document
-          setDoc(d)
-          setPageCount(d.pages || 1)
-          const rawBoxes =
-            Array.isArray(d.bboxes) && d.bboxes.length > 0
-              ? d.bboxes
-              : Array.isArray(d.raw_payload?.ocr?.elements)
-                ? d.raw_payload.ocr.elements.map((el: any) => ({
-                    id: el.element_id,
-                    pageNo: el.page_no,
-                    bbox: el.bbox,
-                    fieldName: el.field_name,
-                    rawValue: el.raw_value,
-                    elementType: el.element_type,
-                  }))
-                : []
-
-          const mapped: BBoxItem[] = rawBoxes.map((b: any, idx: number) => ({
-            id: b.id || `b-${idx}`,
-            pageNo: b.pageNo || b.page_no || 1,
-            type: mapBBoxType(b.fieldName || b.field_name, b.elementType || b.element_type),
-            label: b.fieldName || b.field_name || b.elementType || b.element_type || `box_${idx + 1}`,
-            text: b.rawValue ?? b.raw_value ?? '',
-            bbox_norm: b.bbox || [0, 0, 0, 0],
-          }))
-          setItems(mapped)
-        }
+        if (!active || !data?.document) return
+        const d = data.document
+        setDoc(d)
+        setPageCount(d.pages || 1)
+        setItems(bboxItemsFromDocument(d))
       })
       .catch(err => {
         console.warn('Could not load doc for standalone viewer:', err)
       })
+      .finally(() => active && setDocLoading(false))
 
     return () => {
       active = false
@@ -81,6 +99,7 @@ export function StandaloneViewerRoute({ docId: propDocId }: { docId?: string }) 
       pdfUrl={`/api/documents/${effectiveId}/pdf`}
       items={items}
       pageCount={pageCount}
+      loading={docLoading}
     />
   )
 }
