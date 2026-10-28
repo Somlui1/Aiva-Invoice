@@ -4,9 +4,32 @@
 
 /* ---------- Sidebar badge tones ---------- */
 .nav-it .cnt.cnt-ref {
-  background: rgba(148, 163, 184, 0.22) !important;
-  color: #cbd5e1 !important;
+  background: var(--s-300, #3d3d47) !important;
+  color: var(--s-900, #f4f4f7) !important;
   box-shadow: none !important;
+}
+.nav-it:hover .cnt.cnt-ref {
+  background: var(--s-400, #50505c) !important;
+  color: var(--nav-fg-hi, #ffffff) !important;
+}
+.nav-it.on .cnt.cnt-ref {
+  background: var(--s-400, #50505c) !important;
+  color: var(--nav-fg-hi, #ffffff) !important;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.16) !important;
+}
+
+:root[data-theme='light'] .nav-it .cnt.cnt-ref {
+  background: var(--s-200, #e4e7ec) !important;
+  color: var(--s-800, #1d2939) !important;
+}
+:root[data-theme='light'] .nav-it:hover .cnt.cnt-ref {
+  background: var(--s-300, #d0d5dd) !important;
+  color: var(--s-900, #0b1220) !important;
+}
+:root[data-theme='light'] .nav-it.on .cnt.cnt-ref {
+  background: var(--s-300, #d0d5dd) !important;
+  color: var(--s-900, #0b1220) !important;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08) !important;
 }
 .nav-it .cnt.cnt-alert {
   background: #dc2626 !important;
