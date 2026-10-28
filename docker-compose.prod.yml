@@ -10,7 +10,9 @@ services:
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile.frontend
+      dockerfile: Dockerfile
+      args:
+        NODE_VERSION: 22.23.4-alpine
     image: aiva-portal-frontend:latest
     container_name: aiva-portal-frontend
     restart: unless-stopped

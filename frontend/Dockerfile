@@ -7,8 +7,11 @@
 #  - Runs as a non-root user; the database lives on a volume (SQLite) or in SQL Server (DATABASE_URL).
 # =============================================================================
 
+# Node runtime: 22.23.4-alpine to resolve CVE-2024-* / EOL on Node 20 (GitLab Issue #261)
+ARG NODE_VERSION=22.23.4-alpine
+
 # ---- Stage 1: dependencies --------------------------------------------------
-FROM node:20-alpine AS deps
+FROM node:22.23.4-alpine AS deps
 WORKDIR /app
 RUN apk add --no-cache libc6-compat
 COPY package*.json ./
@@ -16,7 +19,7 @@ COPY scripts/copy-pdfjs-worker.mjs ./scripts/copy-pdfjs-worker.mjs
 RUN npm ci
 
 # ---- Stage 2: build ---------------------------------------------------------
-FROM node:20-alpine AS builder
+FROM node:22.23.4-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -26,7 +29,7 @@ ENV NODE_ENV=production
 RUN npm run build
 
 # ---- Stage 3: runner --------------------------------------------------------
-FROM node:20-alpine AS runner
+FROM node:22.23.4-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production \
     PORT=3000 \
