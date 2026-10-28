@@ -119,7 +119,7 @@ export function installViewAsInterceptor(): void {
   if (typeof window === 'undefined' || installed || typeof window.fetch !== 'function') return
   installed = true
   const original = window.fetch.bind(window)
-  window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+  window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
     const v = readViewAs()
     if (!v || !scopedApiPath(input)) return original(input, init)
     const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined))
@@ -130,7 +130,7 @@ export function installViewAsInterceptor(): void {
     }
     headers.set('X-View-As', headerFor(v.target))
     return original(input, { ...init, headers })
-  }
+  }) as typeof fetch
 }
 
 /** Test hook. */

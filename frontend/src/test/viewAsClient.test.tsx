@@ -4,7 +4,7 @@
  * @vitest-environment jsdom
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, render, screen, type RenderResult } from '@testing-library/react'
+import { act, cleanup, render, screen, type RenderResult } from '@testing-library/react'
 import { AuthProvider, useAuth } from '../context/AuthContext'
 import { SettingsProvider } from '../context/SettingsContext'
 import { ToastModalProvider } from '../context/ToastModalContext'
@@ -25,8 +25,9 @@ import {
 } from '../lib/viewAs'
 import type { User } from '../types/auth'
 
-const SA = USERS.find(u => u.role === 'SA') as User
-const ACC = USERS.find(u => u.role === 'ACC') as User
+const SA: User = { id: 'sa.test', n: 'SA Tester', email: 'sa@aapico.com', role: 'SA', rcvName: '—', emp: null, co: ['AH', 'AHT'], unit: 'IT' }
+const ACC: User = { id: 'acc.test', n: 'ACC Tester', email: 'acc@aapico.com', role: 'ACC', rcvName: '—', emp: null, co: ['AH', 'AHT'], unit: 'Accounting' }
+const EU: User = { id: 'eu.test', n: 'EU Tester', email: 'eu@aapico.com', role: 'EU', rcvName: 'R1', emp: null, co: ['AH', 'AHT'], unit: 'Plant' }
 
 function state(over: Partial<ViewAsState> = {}): ViewAsState {
   const now = Date.now()
@@ -62,7 +63,10 @@ beforeEach(() => {
   __resetViewAsForTests()
   sessionStorage.clear()
 })
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 
 describe('viewAs storage + header', () => {
   it('expired or SA-target entries are dropped on read', () => {
@@ -143,7 +147,7 @@ describe('v5.10 sidebar', () => {
   })
 
   it('EU: no AP section, closed menu is named for the Receiver', async () => {
-    const eu = USERS.find(u => u.role === 'EU') as User
+    const eu = EU
     const { container } = await mount(<Sidebar currentPage="queue" onNavigate={() => {}} onToggleNav={() => {}} />, eu)
     const secs = Array.from(container.querySelectorAll('.nav-sec')).map(e => e.textContent)
     expect(secs).toEqual(['ต้องดำเนินการ', 'ติดตามและประวัติ', 'การกำกับดูแล'])

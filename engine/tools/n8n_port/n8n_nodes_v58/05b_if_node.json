@@ -1,0 +1,23 @@
+{
+ "conditions": {
+  "options": {
+   "caseSensitive": true,
+   "leftValue": "",
+   "typeValidation": "strict",
+   "version": 2
+  },
+  "conditions": [
+   {
+    "id": "has-pages",
+    "leftValue": "={{ ($json.selected_invoice_pages || []).length }}",
+    "rightValue": 0,
+    "operator": {
+     "type": "number",
+     "operation": "gt"
+    }
+   }
+  ],
+  "combinator": "and"
+ },
+ "options": {}
+}

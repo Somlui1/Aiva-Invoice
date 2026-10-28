@@ -59,7 +59,7 @@
 
 /* ---------- Picker ---------- */
 .vap-ov { z-index: 1100; }
-.modal.vap { width: min(620px, calc(100vw - 24px)); max-height: calc(100vh - 32px); display: flex; flex-direction: column; }
+.modal.vap { width: min(620px, calc(var(--app-w, 100vw) - 24px)); max-height: calc(var(--app-h, 100vh) - 32px); display: flex; flex-direction: column; }
 .vap .mh { display: flex; gap: 12px; align-items: flex-start; }
 .vap .mh h3 { margin: 0; }
 .vap .mh p { margin: 2px 0 0; }

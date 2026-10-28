@@ -5,7 +5,7 @@
 /* ---------- Anchored popover (portal → never clipped by the queue column) ---------- */
 .apop {
   z-index: 1000;
-  max-height: calc(100vh - 16px);
+  max-height: calc(var(--app-h, 100vh) - 16px);
   overflow: auto;
   background: var(--surface, #fff);
   color: var(--s-900, #0f172a);

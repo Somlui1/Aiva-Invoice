@@ -5,6 +5,7 @@
   font-family: 'Inter', Tahoma, -apple-system, BlinkMacSystemFont, sans-serif;
   background: #525659;
   min-height: 100vh;
+  min-height: var(--app-h, 100vh);
   display: flex;
   flex-direction: column;
 }

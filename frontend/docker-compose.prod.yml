@@ -22,7 +22,7 @@ services:
       - PORT=3000
       - HOSTNAME=0.0.0.0
       - TRUST_PROXY=1
-      - DATABASE_URL=${DATABASE_URL:-file:/app/data/aiva.db}
+      - DATABASE_URL=${DOCKER_DATABASE_URL:-file:/app/data/aiva.db}
       # --- session ---
       - AUTH_SECRET=${AUTH_SECRET:?AUTH_SECRET is required (openssl rand -hex 32)}
       - AUTH_SESSION_TTL_HOURS=${AUTH_SESSION_TTL_HOURS:-8}
@@ -34,6 +34,7 @@ services:
       - LDAP_SEARCH_BASE=${LDAP_SEARCH_BASE:?LDAP_SEARCH_BASE is required}
       - LDAP_UPN_SUFFIX=${LDAP_UPN_SUFFIX:-aapico.com}
       - LDAP_CA_FILE=/run/secrets/ldap_ca.pem
+      - ALLOW_ITSUPPORT_BIND=${ALLOW_ITSUPPORT_BIND:-false}
       # --- Microsoft 365 / Entra ID (optional: all four or none) ---
       - ENTRA_TENANT_ID=${ENTRA_TENANT_ID:-}
       - ENTRA_CLIENT_ID=${ENTRA_CLIENT_ID:-}

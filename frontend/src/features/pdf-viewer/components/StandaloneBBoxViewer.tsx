@@ -22,6 +22,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import '../styles/standaloneViewer.css'
 import { loadPdfjs } from '../hooks/usePdfViewer'
+import { uiZoom } from '../../../lib/uiZoom'
 
 /** System A's element types, in the order the engine's test portal lists them. */
 export const BBOX_TAGS = ['field', 'row', 'cell', 'table', 'section', 'signature', 'stamp', 'word', 'page'] as const
@@ -394,8 +395,8 @@ export function StandaloneBBoxViewer({
                     onMouseMove={e => {
                       setTooltip({
                         visible: true,
-                        x: e.clientX,
-                        y: e.clientY,
+                        x: e.clientX / uiZoom(),
+                        y: e.clientY / uiZoom(),
                         text: `[${item.type}] ${item.label || ''}: ${item.text ?? ''}${conf}${codes}  [x y w h ${item.bbox_norm.map(v => (+v).toFixed(3)).join(' ')}]`,
                       })
                     }}

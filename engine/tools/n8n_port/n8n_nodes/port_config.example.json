@@ -1,0 +1,14 @@
+{
+  "impl": "http://10.10.20.87:8799/n8n_nodes/21_impl.js",
+  "bundle": "http://10.10.20.87:8799/dist/bundle.js",
+  "standard": "http://10.10.20.87:8799/standard.json",
+  "fixture": "http://10.10.20.87:8799/fixtures/extraction.json",
+  "oracleUrl": "http://ahebs.aapico.com:8080/mcp",
+  "oracleToken": "<<ORACLE_MCP_TOKEN>>",
+  "fixtureCase": "",
+  "timeoutMs": 120000,
+  "_comment": "Copy to n8n_nodes/port_config.json (gitignored) and fill in. ORACLE_MCP_URL / ORACLE_MCP_TOKEN in the environment override the file, so a build can run without a token on disk. oracleToken is the same Keycloak bearer token the flow's other Oracle nodes use; it expires, and node 21 then fails loudly.",
+  "fixtureModels": {},
+  "_comment_models": "fixture mode sends fixtureModels as versions.models so the run reproduces the engine sha bit-for-bit; live mode records the flow's OCR model",
+  "_comment_secret": "never commit port_config.json: it holds a live bearer token"
+}

@@ -2,6 +2,7 @@
 .shell {
   height: 100vh;
   height: 100dvh;
+  height: var(--app-h, 100dvh);
   min-height: 640px;
   display: grid;
   grid-template-rows: var(--hdr-h) minmax(0, 1fr);

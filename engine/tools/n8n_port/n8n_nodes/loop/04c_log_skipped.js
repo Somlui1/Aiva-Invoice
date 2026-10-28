@@ -1,0 +1,14 @@
+// leaf node: จด doc ที่ "ข้าม" (blackbox พัง / ไม่ได้รูปกลับมา) ลง staticData
+// เพื่อให้ node 16 สรุปครบว่ารอบนี้ อะไรไม่ผ่านและเพราะอะไร (ไม่ throw เพราะเป้าหมายคือรันให้ครบทุกเอกสาร)
+const st = $getWorkflowStaticData('global');
+const bag = (st[$execution.id] = st[$execution.id] || { done: [], skipped: [] });
+for (const it of $input.all()) {
+  const j = it.json || {};
+  bag.skipped.push({
+    doc_id: j.doc_id || null,
+    doc_title: j.title || null,
+    reason: j.bb_skip_reason || 'unknown',
+    at: new Date().toISOString()
+  });
+}
+return [{ json: { skipped_this_pass: $input.all().length, total_skipped: bag.skipped.length, total_done: bag.done.length } }];

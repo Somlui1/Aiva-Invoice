@@ -5,11 +5,15 @@ mkdir -p /app/data /app/cache
 # Database schema.
 #  - SQLite (DATABASE_URL=file:…): create / update the schema in place. The database starts EMPTY —
 #    no demo invoices are copied in any more; documents arrive from the Engine.
-#  - SQL Server (sqlserver://…): apply versioned migrations (prisma/migrations) — see the SQL Server
-#    task in docs/plans/2026-10-26-production-hardening.md.
+#  - PostgreSQL (DATABASE_URL=postgres://… or postgresql://…): push schema.
+#  - SQL Server (sqlserver://…): apply versioned migrations (prisma/migrations).
 case "${DATABASE_URL:-}" in
   file:*)
     echo "[aiva-init] prisma db push (SQLite)"
+    npx prisma db push --skip-generate
+    ;;
+  postgres:*|postgresql:*)
+    echo "[aiva-init] prisma db push (PostgreSQL)"
     npx prisma db push --skip-generate
     ;;
   sqlserver:*)

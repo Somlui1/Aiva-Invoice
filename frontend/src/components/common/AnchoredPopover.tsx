@@ -13,6 +13,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
+import { uiZoom } from '../../lib/uiZoom'
 
 export interface AnchoredPopoverProps {
   open: boolean
@@ -50,9 +51,12 @@ export function AnchoredPopover({
     const a = anchorRef.current
     const p = popRef.current
     if (!a || typeof window === 'undefined') return
-    const r = a.getBoundingClientRect()
-    const vw = window.innerWidth
-    const vh = window.innerHeight
+    // v5.10.2: visual px (rect, innerWidth) → layout px of the zoomed root (style values)
+    const z = uiZoom()
+    const vr = a.getBoundingClientRect()
+    const r = { left: vr.left / z, right: vr.right / z, top: vr.top / z, bottom: vr.bottom / z }
+    const vw = window.innerWidth / z
+    const vh = window.innerHeight / z
     const w = Math.min(width, vw - EDGE * 2)
     const h = p?.offsetHeight ?? 0
     let left = align === 'end' ? r.right - w : r.left

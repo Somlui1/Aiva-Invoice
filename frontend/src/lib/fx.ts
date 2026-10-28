@@ -8,6 +8,7 @@
    ===================================================================== */
 
 import { PRISM_ICONS } from '../components/common/prismIcons'
+import { uiZoom } from './uiZoom'
 
 export type ThemeName = 'dark' | 'light'
 
@@ -66,8 +67,10 @@ function anim(e: Element, kf: Keyframe[], opt: KeyframeAnimationOptions): Animat
 }
 
 export function centerOf(node: Element | null | undefined, fx: number, fy: number): [number, number] {
+  // v5.10.2: returned in layout px of the zoomed root (fallbacks are given in visual px)
+  const z = uiZoom()
   const r = node && node.getBoundingClientRect ? node.getBoundingClientRect() : null
-  return r && r.width ? [r.left + r.width / 2, r.top + r.height / 2] : [fx, fy]
+  return r && r.width ? [(r.left + r.width / 2) / z, (r.top + r.height / 2) / z] : [fx / z, fy / z]
 }
 
 export function esc(s: unknown): string {
@@ -189,7 +192,9 @@ function hud(light: boolean) {
 
 /* ---------------- Theme switch FX ---------------- */
 export function themeSwitchFx(x: number, y: number, toLight: boolean, from?: Element | null) {
-  const R = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y)) + 40
+  const vw = window.innerWidth / uiZoom()
+  const vh = window.innerHeight / uiZoom()
+  const R = Math.hypot(Math.max(x, vw - x), Math.max(y, vh - y)) + 40
   if (from && (from as HTMLElement).classList) {
     ;(from as HTMLElement).classList.add('pop')
     window.setTimeout(() => (from as HTMLElement).classList.remove('pop'), 950)

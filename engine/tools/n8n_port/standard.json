@@ -1,0 +1,901 @@
+{
+ "buyer_entity": {
+  "entities": {
+   "101": {
+    "addr_en": "99 MOO 1 HITECH INDUSTRIAL ESTATE, TAMBON BAN LANE, AMPHUR BANG PA-IN, AYUTTHAYA 13160",
+    "addr_th": "99 ม.1 นิคมอุตสาหกรรมไฮเทค ต.บ้านเลน อ.บางปะอิน จ.พระนครศรีอยุธยา 13160",
+    "branches": {
+     "00003": "อาคารสาทรนคร ทาวเวอร์ ชั้น 9 เลขที่ 100/11 ถ.สาทรเหนือ แขวงสีลม เขตบางรัก กรุงเทพมหานคร 10500"
+    },
+    "erp_ou_name": "AH - Aapico Hitech",
+    "former": [],
+    "name_en": "AAPICO HITECH PUBLIC CO., LTD.",
+    "name_th": "บริษัท อาปิโก ไฮเทค จำกัด (มหาชน)",
+    "short": "APD",
+    "status": "confirmed",
+    "table4_org_id": 103,
+    "tax_id": "0107545000179"
+   },
+   "103": {
+    "addr_en": "99 MOO 1 HITECH INDUSTRIAL ESTATE, TAMBON BAN LANE, AMPHUR BANG PA-IN, AYUTTHAYA 13160",
+    "addr_th": "99 ม.1 นิคมอุตสาหกรรมไฮเทค ต.บ้านเลน อ.บางปะอิน จ.พระนครศรีอยุธยา 13160",
+    "branches": {
+     "00003": "อาคารสาทรนคร ทาวเวอร์ ชั้น 9 เลขที่ 100/11 ถ.สาทรเหนือ แขวงสีลม เขตบางรัก กรุงเทพมหานคร 10500"
+    },
+    "former": [],
+    "name_en": "AAPICO HITECH PUBLIC CO., LTD.",
+    "name_th": "บริษัท อาปิโก ไฮเทค จำกัด (มหาชน)",
+    "short": "APD",
+    "status": "confirmed",
+    "tax_id": "0107545000179"
+   },
+   "104": {
+    "short": "ATD",
+    "status": "cancelled"
+   },
+   "175": {
+    "addr_en": null,
+    "addr_th": "99/2 ม.1 นิคมอุตสาหกรรมไฮเทค ต.บ้านเลน อ.บางปะอิน จ.พระนครศรีอยุธยา 13160",
+    "branches": {},
+    "former": [],
+    "name_en": "AAPICO HITECH PARTS CO., LTD.",
+    "name_th": "บริษัท อาปิโก ไฮเทค พาร์ทส์ จำกัด",
+    "short": "AHP",
+    "status": "confirmed",
+    "tax_id": "0145548001549"
+   },
+   "176": {
+    "addr_en": null,
+    "addr_th": "99/2 ม.1 นิคมอุตสาหกรรมไฮเทค ต.บ้านเลน อ.บางปะอิน จ.พระนครศรีอยุธยา 13160",
+    "branches": {},
+    "erp_ou_name": "Aapico Hitech Parts Legal",
+    "former": [],
+    "name_en": "AAPICO HITECH PARTS CO., LTD.",
+    "name_th": "บริษัท อาปิโก ไฮเทค พาร์ทส์ จำกัด",
+    "short": "AHP",
+    "status": "confirmed",
+    "table4_org_id": 175,
+    "tax_id": "0145548001549"
+   },
+   "177": {
+    "short": "XXX",
+    "status": "unknown"
+   },
+   "195": {
+    "addr_en": "99/1 MU 1 NIKHOMUTTASAHAKAM HITEK, BAN LEN, BANG PA-IN, PHRA NAKHON SI AYUTTHAYA 13160",
+    "addr_th": "99/1 ม.1 นิคมอุตสาหกรรมไฮเทค ต.บ้านเลน อ.บางปะอิน จ.พระนครศรีอยุธยา 13160",
+    "branches": {},
+    "erp_ou_name": "Aapico Hitech Tooling Legal",
+    "former": [],
+    "name_en": "AAPICO HITECH TOOLING CO., LTD.",
+    "name_th": "บริษัท อาปิโก ไฮเทค ทูลลิ่ง จำกัด",
+    "short": "AHT",
+    "status": "confirmed",
+    "table4_org_id": 196,
+    "tax_id": "0145548001557"
+   },
+   "196": {
+    "addr_en": "99/1 MU 1 NIKHOMUTTASAHAKAM HITEK, BAN LEN, BANG PA-IN, PHRA NAKHON SI AYUTTHAYA 13160",
+    "addr_th": "99/1 ม.1 นิคมอุตสาหกรรมไฮเทค ต.บ้านเลน อ.บางปะอิน จ.พระนครศรีอยุธยา 13160",
+    "branches": {},
+    "former": [],
+    "name_en": "AAPICO HITECH TOOLING CO., LTD.",
+    "name_th": "บริษัท อาปิโก ไฮเทค ทูลลิ่ง จำกัด",
+    "short": "AHT",
+    "status": "confirmed",
+    "tax_id": "0145548001557"
+   },
+   "197": {
+    "addr_en": null,
+    "addr_th": "700/20 ม.6 ถ.บางนา-ตราด ต.หนองไม้แดง อ.เมืองชลบุรี จ.ชลบุรี 20000",
+    "branches": {},
+    "erp_ou_name": "Aapico Forging Legal",
+    "former": [],
+    "name_en": "AAPICO FORGING PUBLIC CO., LTD.",
+    "name_th": "บริษัท อาปิโก ฟอร์จจิ้ง จำกัด (มหาชน)",
+    "short": "AF",
+    "status": "confirmed",
+    "table4_org_id": 199,
+    "tax_id": "0107547000354"
+   },
+   "199": {
+    "addr_en": null,
+    "addr_th": "700/20 ม.6 ถ.บางนา-ตราด ต.หนองไม้แดง อ.เมืองชลบุรี จ.ชลบุรี 20000",
+    "branches": {},
+    "former": [],
+    "name_en": "AAPICO FORGING PUBLIC CO., LTD.",
+    "name_th": "บริษัท อาปิโก ฟอร์จจิ้ง จำกัด (มหาชน)",
+    "short": "AF",
+    "status": "confirmed",
+    "tax_id": "0107547000354"
+   },
+   "202": {
+    "short": "AITS",
+    "status": "unknown"
+   },
+   "222": {
+    "addr_en": null,
+    "addr_th": "7/289 ม.6 นิคมอุตสาหกรรมอมตะซิตี้ ระยอง ต.มาบยางพร อ.ปลวกแดง จ.ระยอง 21140",
+    "branches": {},
+    "former": [],
+    "name_en": "AAPICO HITECH PUBLIC CO., LTD. (RAYONG)",
+    "name_th": "บริษัท อาปิโก ไฮเทค จำกัด (มหาชน) (ระยอง)",
+    "short": "AHR",
+    "status": "confirmed",
+    "tax_id": "0107545000179"
+   },
+   "223": {
+    "short": "AMT",
+    "status": "unknown"
+   },
+   "224": {
+    "short": "AMT",
+    "status": "unknown"
+   },
+   "243": {
+    "addr_en": "99 MU 1 NIKHOM-UTSAHAKAM HITECH, BAN LEN, BANG PA-IN, PHRA NAKHON SI AYUTTHAYA 13160",
+    "addr_th": "99 ม.1 นิคมอุตสาหกรรมไฮเทค ต.บ้านเลน อ.บางปะอิน จ.พระนครศรีอยุธยา 13160",
+    "branches": {},
+    "erp_ou_name": "Aapico Mitsuike Legal",
+    "former": [],
+    "name_en": "AAPICO MITSUIKE (THAILAND) CO., LTD.",
+    "name_th": "บริษัท อาปิโก มิตซูอิเกะ (ประเทศไทย) จำกัด",
+    "short": "AMK",
+    "status": "confirmed",
+    "table4_org_id": 244,
+    "tax_id": "0145549002085"
+   },
+   "244": {
+    "addr_en": "99 MU 1 NIKHOM-UTSAHAKAM HITECH, BAN LEN, BANG PA-IN, PHRA NAKHON SI AYUTTHAYA 13160",
+    "addr_th": "99 ม.1 นิคมอุตสาหกรรมไฮเทค ต.บ้านเลน อ.บางปะอิน จ.พระนครศรีอยุธยา 13160",
+    "branches": {},
+    "former": [],
+    "name_en": "AAPICO MITSUIKE (THAILAND) CO., LTD.",
+    "name_th": "บริษัท อาปิโก มิตซูอิเกะ (ประเทศไทย) จำกัด",
+    "short": "AMK",
+    "status": "confirmed",
+    "tax_id": "0145549002085"
+   },
+   "263": {
+    "short": "AERP",
+    "status": "unknown"
+   },
+   "264": {
+    "addr_th": "99/2 ม.1 นิคมอุตสาหกรรมไฮเทค ต.บ้านเลน อ.บางปะอิน จ.พระนครศรีอยุธยา 13160",
+    "name_en": "AERP CO., LTD.",
+    "name_th": "บริษัท เออีอาร์พี จำกัด",
+    "short": "AERP",
+    "status": "inferred",
+    "tax_id": null
+   },
+   "285": {
+    "short": "AP",
+    "status": "unknown"
+   },
+   "287": {
+    "addr_en": "358-358/1 NICOM UTSAHAKHAM BANGPLI MU 17 THANON THEPHARAK, BANG SAO THONG, BANG SAO THONG, SAMUT PRAKAN 10570",
+    "addr_th": "358-358/1 ม.17 นิคมอุตสาหกรรมบางพลี ถ.เทพารักษ์ ต.บางเสาธง อ.บางเสาธง จ.สมุทรปราการ 10570",
+    "branches": {},
+    "former": [],
+    "name_en": "AAPICO PLASTICS PUBLIC CO., LTD. (BANGPLEE)",
+    "name_th": "บริษัท อาปิโก พลาสติค จำกัด (มหาชน) (บางพลี)",
+    "short": "APB",
+    "status": "inferred",
+    "tax_id": "0107537000131"
+   },
+   "288": {
+    "addr_en": null,
+    "addr_th": "7/288 ม.6 นิคมอุตสาหกรรมอมตะซิตี้ ระยอง ต.มาบยางพร อ.ปลวกแดง จ.ระยอง 21140",
+    "branches": {},
+    "former": [],
+    "name_en": "AAPICO PLASTICS PUBLIC CO., LTD. (RAYONG)",
+    "name_th": "บริษัท อาปิโก พลาสติค จำกัด (มหาชน) (ระยอง)",
+    "short": "APR",
+    "status": "inferred",
+    "tax_id": "0107537000131"
+   },
+   "289": {
+    "addr_en": "700/16 Moo 6 Amata City Chonburi Industrial Estate, T.Nongmaidaeng, A.Muang-Chonburi, Chonburi 20000",
+    "addr_th": "700/16 ม.6 ต.หนองไม้แดง อ.เมืองชลบุรี จ.ชลบุรี 20000",
+    "branches": {},
+    "erp_ou_name": "Aapico Structural Legal",
+    "former": [],
+    "name_en": "AAPICO STRUCTURAL PRODUCTS CO., LTD.",
+    "name_th": "บริษัท อาปิโก สตรัคเจอรัล โปรดักส์ จำกัด",
+    "short": "ASP",
+    "status": "confirmed",
+    "table4_org_id": 291,
+    "tax_id": "0205551028176"
+   },
+   "291": {
+    "addr_en": "700/16 Moo 6 Amata City Chonburi Industrial Estate, T.Nongmaidaeng, A.Muang-Chonburi, Chonburi 20000",
+    "addr_th": "700/16 ม.6 ต.หนองไม้แดง อ.เมืองชลบุรี จ.ชลบุรี 20000",
+    "branches": {},
+    "former": [],
+    "name_en": "AAPICO STRUCTURAL PRODUCTS CO., LTD.",
+    "name_th": "บริษัท อาปิโก สตรัคเจอรัล โปรดักส์ จำกัด",
+    "short": "ASP",
+    "status": "confirmed",
+    "tax_id": "0205551028176"
+   },
+   "292": {
+    "short": "MSTR",
+    "status": "unknown"
+   },
+   "309": {
+    "addr_en": "46/77-78 FL.16 NATION BUILDING TOWER MOO 10, BAN KAO, PHAN THONG, CHON BURI 20160",
+    "addr_th": "700/483 ม.2 ต.บ้านเก่า อ.พานทอง จ.ชลบุรี 20160",
+    "branches": {},
+    "erp_ou_name": "Aapico Amata Legal",
+    "former": [],
+    "name_en": "AAPICO AMA-A COMPANY LIMITED.",
+    "name_th": "บริษัท อาปิโก อมตะ จำกัด",
+    "short": "AA",
+    "status": "inferred",
+    "table4_org_id": 310,
+    "tax_id": "0105535001499"
+   },
+   "310": {
+    "addr_en": "46/77-78 FL.16 NATION BUILDING TOWER MOO 10, BAN KAO, PHAN THONG, CHON BURI 20160",
+    "addr_th": "700/483 ม.2 ต.บ้านเก่า อ.พานทอง จ.ชลบุรี 20160",
+    "branches": {},
+    "former": [],
+    "name_en": "AAPICO AMA-A COMPANY LIMITED.",
+    "name_th": "บริษัท อาปิโก อมตะ จำกัด",
+    "short": "AA",
+    "status": "inferred",
+    "tax_id": "0105535001499"
+   },
+   "329": {
+    "addr_en": null,
+    "addr_th": "152 ม.1 นิคมอุตสาหกรรมไฮเทค ต.บ้านเลน อ.บางปะอิน จ.พระนครศรีอยุธยา 13160",
+    "branches": {},
+    "erp_ou_name": "Aapico Leadtech Legal",
+    "former": [
+     "บริษัท อาปิโก เลมเทค (ประเทศไทย) จำกัด",
+     "AAPICO LEMTECH (THAILAND) CO., LTD."
+    ],
+    "name_en": "AAPICO LEADTECH CO., LTD.",
+    "name_th": "บริษัท อาปิโก ลีดเทค จำกัด",
+    "short": "AL",
+    "status": "inferred",
+    "table4_org_id": 330,
+    "tax_id": "0145556001111"
+   },
+   "330": {
+    "addr_en": null,
+    "addr_th": "152 ม.1 นิคมอุตสาหกรรมไฮเทค ต.บ้านเลน อ.บางปะอิน จ.พระนครศรีอยุธยา 13160",
+    "branches": {},
+    "former": [
+     "บริษัท อาปิโก เลมเทค (ประเทศไทย) จำกัด",
+     "AAPICO LEMTECH (THAILAND) CO., LTD."
+    ],
+    "name_en": "AAPICO LEADTECH CO., LTD.",
+    "name_th": "บริษัท อาปิโก ลีดเทค จำกัด",
+    "short": "AL",
+    "status": "inferred",
+    "tax_id": "0145556001111"
+   },
+   "349": {
+    "addr_en": "99/2 Moo 1, Hi-Tech Industrial Estate, Phra Nakhon Si Ayutthaya 13160",
+    "addr_th": "99/2 ม.1 นิคมอุตสาหกรรมไฮเทค ต.บ้านเลน อ.บางปะอิน จ.พระนครศรีอยุธยา 13160",
+    "branches": {},
+    "erp_ou_name": "Edscha Aapico Automotive Legal",
+    "former": [],
+    "name_en": "EDSCHA AAPICO AUTOMOTIVE CO., LTD.",
+    "name_th": "บริษัท เอ็ดช่า อาปิโก ออโตโมทีฟ จำกัด",
+    "short": "EA",
+    "status": "confirmed",
+    "table4_org_id": 350,
+    "tax_id": "0145556001391"
+   },
+   "350": {
+    "addr_en": "99/2 Moo 1, Hi-Tech Industrial Estate, Phra Nakhon Si Ayutthaya 13160",
+    "addr_th": "99/2 ม.1 นิคมอุตสาหกรรมไฮเทค ต.บ้านเลน อ.บางปะอิน จ.พระนครศรีอยุธยา 13160",
+    "branches": {},
+    "former": [],
+    "name_en": "EDSCHA AAPICO AUTOMOTIVE CO., LTD.",
+    "name_th": "บริษัท เอ็ดช่า อาปิโก ออโตโมทีฟ จำกัด",
+    "short": "EA",
+    "status": "confirmed",
+    "tax_id": "0145556001391"
+   },
+   "352": {
+    "addr_en": "99/1 MU 1 NIKHOMUTTASAHAKAM HITEK, BAN LEN, BANG PA-IN, PHRA NAKHON SI AYUTTHAYA 13160",
+    "addr_th": "99/1 ม.1 นิคมอุตสาหกรรมไฮเทค ต.บ้านเลน อ.บางปะอิน จ.พระนครศรีอยุธยา 13160",
+    "branches": {},
+    "former": [],
+    "name_en": "AAPICO HITECH TOOLING CO., LTD.",
+    "name_th": "บริษัท อาปิโก ไฮเทค ทูลลิ่ง จำกัด",
+    "short": "AHD",
+    "status": "confirmed",
+    "tax_id": "0145548001557"
+   },
+   "353": {
+    "addr_en": "700/16 Moo 6 Amata City Chonburi Industrial Estate, T.Nongmaidaeng, A.Muang-Chonburi, Chonburi 20000",
+    "addr_th": "700/16 ม.6 ต.หนองไม้แดง อ.เมืองชลบุรี จ.ชลบุรี 20000",
+    "branches": {},
+    "erp_ou_name": "Aapico Precision Legal",
+    "former": [],
+    "name_en": "AAPICO PRECISION CO., LTD.",
+    "name_th": "บริษัท อาปิโก พรีซิชั่น จำกัด",
+    "short": "APC",
+    "status": "inferred",
+    "table4_org_id": 354,
+    "tax_id": "0205557018563"
+   },
+   "354": {
+    "addr_en": "700/16 Moo 6 Amata City Chonburi Industrial Estate, T.Nongmaidaeng, A.Muang-Chonburi, Chonburi 20000",
+    "addr_th": "700/16 ม.6 ต.หนองไม้แดง อ.เมืองชลบุรี จ.ชลบุรี 20000",
+    "branches": {},
+    "former": [],
+    "name_en": "AAPICO PRECISION CO., LTD.",
+    "name_th": "บริษัท อาปิโก พรีซิชั่น จำกัด",
+    "short": "APC",
+    "status": "inferred",
+    "tax_id": "0205557018563"
+   },
+   "373": {
+    "addr_en": "14/9 MU 14 THANON PHAHON YOTHIN, KHLONG NUENG, KHLONG LUANG, PATHUM THANI 12120",
+    "addr_th": "14/9 ม.14 ถ.พหลโยธิน ต.คลองหนึ่ง อ.คลองหลวง จ.ปทุมธานี 12120",
+    "branches": {
+     "00002": "2418-2420 ถ.ลาดพร้าว แขวงพลับพลา เขตวังทองหลาง กรุงเทพมหานคร 10310",
+     "00004": "888 ม.14 ต.ราชาเทวะ อ.บางพลี จ.สมุทรปราการ 10540",
+     "00005": "8/7 ม.7 ถ.พหลโยธิน-ลำลูกกา ต.ลาดสวาย อ.ลำลูกกา จ.ปทุมธานี 12150"
+    },
+    "erp_ou_name": "Able Motors Legal",
+    "former": [],
+    "name_en": "ABLE MOTORS CO., LTD.",
+    "name_th": "บริษัท เอเบิล มอเตอร์ส จำกัด",
+    "short": "AM",
+    "status": "confirmed",
+    "table4_org_id": 376,
+    "tax_id": "0135546008643"
+   },
+   "375": {
+    "short": "AMM",
+    "status": "unknown"
+   },
+   "376": {
+    "addr_en": "14/9 MU 14 THANON PHAHON YOTHIN, KHLONG NUENG, KHLONG LUANG, PATHUM THANI 12120",
+    "addr_th": "14/9 ม.14 ถ.พหลโยธิน ต.คลองหนึ่ง อ.คลองหลวง จ.ปทุมธานี 12120",
+    "branches": {
+     "00002": "2418-2420 ถ.ลาดพร้าว แขวงพลับพลา เขตวังทองหลาง กรุงเทพมหานคร 10310",
+     "00004": "888 ม.14 ต.ราชาเทวะ อ.บางพลี จ.สมุทรปราการ 10540",
+     "00005": "8/7 ม.7 ถ.พหลโยธิน-ลำลูกกา ต.ลาดสวาย อ.ลำลูกกา จ.ปทุมธานี 12150"
+    },
+    "former": [],
+    "name_en": "ABLE MOTORS CO., LTD.",
+    "name_th": "บริษัท เอเบิล มอเตอร์ส จำกัด",
+    "short": "AM",
+    "status": "confirmed",
+    "tax_id": "0135546008643"
+   },
+   "393": {
+    "short": "CONSO",
+    "status": "unknown"
+   },
+   "413": {
+    "addr_en": "99 MOO 1 HITECH INDUSTRIAL ESTATE, BAN LEN, BANG PA-IN, PHRA NAKHON SI AYUTTHAYA 13160",
+    "addr_th": "99 ม.1 นิคมอุตสาหกรรมไฮเทค ต.บ้านเลน อ.บางปะอิน จ.พระนครศรีอยุธยา 13160",
+    "branches": {},
+    "erp_ou_name": "Aapico Hitech Automation Legal",
+    "former": [],
+    "name_en": "AAPICO HITECH AUTOMATION CO., LTD.",
+    "name_th": "บริษัท อาปิโก ไฮเทค ออโตเมชั่น จำกัด",
+    "short": "AHA",
+    "status": "confirmed",
+    "table4_org_id": 433,
+    "tax_id": "0145563000434"
+   },
+   "433": {
+    "addr_en": "99 MOO 1 HITECH INDUSTRIAL ESTATE, BAN LEN, BANG PA-IN, PHRA NAKHON SI AYUTTHAYA 13160",
+    "addr_th": "99 ม.1 นิคมอุตสาหกรรมไฮเทค ต.บ้านเลน อ.บางปะอิน จ.พระนครศรีอยุธยา 13160",
+    "branches": {},
+    "former": [],
+    "name_en": "AAPICO HITECH AUTOMATION CO., LTD.",
+    "name_th": "บริษัท อาปิโก ไฮเทค ออโตเมชั่น จำกัด",
+    "short": "AHA",
+    "status": "confirmed",
+    "tax_id": "0145563000434"
+   },
+   "453": {
+    "short": "AMPK",
+    "status": "unknown"
+   },
+   "454": {
+    "short": "AMPK",
+    "status": "unknown"
+   },
+   "473": {
+    "short": "AMPT",
+    "status": "unknown"
+   },
+   "474": {
+    "short": "AMPT",
+    "status": "unknown"
+   },
+   "475": {
+    "short": "AB",
+    "status": "unknown"
+   },
+   "515": {
+    "short": "ABF",
+    "status": "unknown"
+   },
+   "535": {
+    "short": "AEV",
+    "status": "unknown"
+   },
+   "536": {
+    "short": "AEV",
+    "status": "unknown"
+   },
+   "555": {
+    "short": "MGA",
+    "status": "unknown"
+   },
+   "556": {
+    "short": "MGP",
+    "status": "unknown"
+   },
+   "575": {
+    "short": "MGR",
+    "status": "unknown"
+   },
+   "576": {
+    "short": "MGS",
+    "status": "unknown"
+   },
+   "596": {
+    "short": "AVEE",
+    "status": "unknown"
+   },
+   "615": {
+    "short": "AVP",
+    "status": "unknown"
+   },
+   "635": {
+    "short": "AVT",
+    "status": "unknown"
+   }
+  }
+ },
+ "codes": {
+  "codes": {
+   "E01": {
+    "name": "Missing Field",
+    "rule": "V-01",
+    "severity": "Medium"
+   },
+   "E02": {
+    "name": "Arithmetic Inconsistency",
+    "rule": "V-02",
+    "severity": "High"
+   },
+   "E03": {
+    "name": "Total Mismatch",
+    "rule": "V-03/V-09",
+    "severity": "High"
+   },
+   "E04": {
+    "name": "Rounding",
+    "rule": "V-03",
+    "severity": "Low"
+   },
+   "E05": {
+    "name": "Receipt Not Found",
+    "rule": "V-04",
+    "severity": "High"
+   },
+   "E06": {
+    "name": "Multiple Receipts",
+    "rule": "V-04",
+    "severity": "High"
+   },
+   "E07": {
+    "name": "Customer Mismatch",
+    "rule": "V-05",
+    "severity": "conditional"
+   },
+   "E08": {
+    "name": "Signature Missing",
+    "rule": "V-06",
+    "severity": "conditional"
+   },
+   "E09": {
+    "name": "Price Variance",
+    "rule": "V-07",
+    "severity": "High"
+   },
+   "E10": {
+    "name": "UOM Mismatch",
+    "rule": "V-07",
+    "severity": "conditional"
+   },
+   "E11": {
+    "name": "Line Resolved by Description",
+    "rule": "V-07",
+    "severity": "Medium"
+   },
+   "E12": {
+    "name": "Price Variance Within Tolerance",
+    "rule": "V-07",
+    "severity": "Medium"
+   },
+   "E13": {
+    "name": "Line Not Identified",
+    "rule": "V-07",
+    "severity": "High"
+   },
+   "E14": {
+    "name": "Over Quantity",
+    "rule": "V-08",
+    "severity": "High"
+   },
+   "E15": {
+    "name": "Quantity Below Receipt",
+    "rule": "V-08",
+    "severity": "Medium"
+   }
+  },
+  "standard_version": "6.6"
+ },
+ "policy": {
+  "ai": {
+   "v05_address_ai_enabled": true,
+   "v05_name_min_confidence": 0.85,
+   "v07_min_confidence": 0.8,
+   "v08_consistency_guard": true,
+   "v08_mode": "logic",
+   "v08_votes": 3
+  },
+  "confidence": {
+   "key": {
+    "fields": [
+     "invoice_num",
+     "po_number",
+     "customer_tax_id"
+    ],
+    "min": 0.95,
+    "require_agreement": true
+   },
+   "money": {
+    "fields": [
+     "sub_total",
+     "vat",
+     "grand_total",
+     "qty",
+     "unit_price",
+     "amount"
+    ],
+    "min": 0.9,
+    "require_agreement": true
+   },
+   "optional": {
+    "fields": [
+     "supplier_name",
+     "supplier_tax_id",
+     "invoice_date",
+     "release_num",
+     "description",
+     "currency",
+     "item_code"
+    ],
+    "min": 0.7,
+    "require_agreement": false
+   },
+   "text": {
+    "fields": [
+     "customer_name",
+     "customer_address"
+    ],
+    "min": 0.8,
+    "require_agreement": false
+   },
+   "uom": {
+    "fields": [
+     "uom"
+    ],
+    "min": 0.85,
+    "require_agreement": false
+   }
+  },
+  "evidence": {
+   "arithmetic": true,
+   "collapse_duplicate_block": true,
+   "collapse_repeated_copies": true,
+   "customer_identity_by_tax_id": true,
+   "customer_name_advisory": true,
+   "deliverer_from_stamp": true,
+   "derive_qty_from_amount": true,
+   "e11_waive_when_values_match": true,
+   "invoice_num_from_document_candidate": true,
+   "oracle": true,
+   "uom_from_number_cells": true,
+   "uom_inherit_from_receipt": true
+  },
+  "matching": {
+   "m1_exact_values_item_code": true
+  },
+  "oracle": {
+   "lookup": {
+    "invoice_candidate_labels": [
+     "doc_no",
+     "invoice_no",
+     "invoice_number",
+     "invoice_ref",
+     "tax_invoice_no"
+    ],
+    "invoice_candidate_page_types": [
+     "tax_invoice",
+     "tax_invoice_receipt",
+     "invoice",
+     "delivery_note"
+    ],
+    "invoice_candidates_from_document": true,
+    "invoice_match_columns": [
+     "SHIPMENT_NUM",
+     "PACKING_SLIP",
+     "WAYBILL_AIRBILL_NUM"
+    ],
+    "invoice_suffix_match": true,
+    "invoice_suffix_min_digits": 4,
+    "invoice_variants": [
+     {
+      "char": "/",
+      "type": "strip_char"
+     },
+     {
+      "char": ".",
+      "type": "strip_char"
+     },
+     {
+      "insert": "/",
+      "prefix": "SQ26",
+      "type": "insert_after_prefix"
+     }
+    ],
+    "max_invoice_keys": 12,
+    "mode": "tax_invoice",
+    "not_found_result": "manual_review",
+    "po_list_fallback": false,
+    "po_list_narrowing": true,
+    "receipt_num_lookup": true,
+    "receipt_num_max_candidates": 2,
+    "receipt_num_patterns": [
+     {
+      "length": 11,
+      "prefix": "502"
+     },
+     {
+      "length": 11,
+      "prefix": "512"
+     },
+     {
+      "length": 9,
+      "prefix": "530"
+     },
+     {
+      "length": 9,
+      "prefix": "510"
+     }
+    ],
+    "reject_invoice_equal_po": true,
+    "reject_supplier_tax_equal_customer": true,
+    "supplier_from_po_on_miss": true,
+    "use_ocr_supplier_tax_id": true
+   },
+   "max_queries_per_round": 7,
+   "row_cap": 50,
+   "row_caps": {
+    "INV-BY-PO-VENDOR": 500,
+    "RCV-BY-NUM": 200,
+    "TAX-INV": 500,
+    "TAX-INV-SUFFIX": 200
+   }
+  },
+  "required_fields": [
+   "invoice_num",
+   "po_number",
+   "customer_name",
+   "customer_address",
+   "customer_tax_id",
+   "sub_total",
+   "vat",
+   "grand_total"
+  ],
+  "required_line_cells": [
+   "qty",
+   "uom",
+   "unit_price",
+   "amount"
+  ],
+  "signature": {
+   "min_confidence": 0.8
+  },
+  "tolerance": {
+   "line_math": "0.50",
+   "price_abs": "200",
+   "price_exact": "0.005",
+   "price_pct": "0.01",
+   "total": "0.50",
+   "vat": "1.00",
+   "vat_rate": "0.07"
+  },
+  "validation": {
+   "installment_requires_lower_qty": false,
+   "milestone_installment": "review",
+   "multi_po_receipts": false,
+   "uom_mismatch": {
+    "amount_check": true,
+    "unknown_unit_uses_price": true
+   },
+   "v08_uom_mismatch": "delegate",
+   "v09_compare_matched_only": false
+  }
+ },
+ "prompts": {
+  "v05_entity": "<!-- prompt_id: v05-entity  version: 1.0.0 -->\nคุณช่วยกฎ V-05 (ลูกค้าตรงกับตารางที่ 4) ของ AIVA เฉพาะกรณีที่การเทียบแบบตัวอักษรไม่ตรง\nงาน A (name): ตัดสินว่าชื่อลูกค้าบนใบแจ้งหนี้หมายถึงนิติบุคคลเดียวกับชื่อใน CANDIDATES หรือไม่\n  - ยอมรับ: ไทย↔อังกฤษ, คำย่อ (Co., Ltd., PCL, บจ., บมจ.), การสะกดต่าง, ชื่อเดิม\n  - ไม่ยอมรับ: บริษัทในเครือคนละนิติบุคคล (เช่น HITECH vs HITECH PARTS vs HITECH TOOLING)\nงาน B (address): แยก house_no และ postal_code จากที่อยู่บนใบแจ้งหนี้ แปลงเลขไทยเป็นอารบิก\n  ห้ามตัดสินว่าตรงหรือไม่ตรง ระบบเทียบเอง\nห้ามเดา ถ้าไม่แน่ใจให้ confidence ต่ำกว่า 0.85\nตอบ JSON เท่านั้น:\n{\"name\":{\"equivalent\":true,\"matched_candidate\":\"name_en\",\"confidence\":0.9,\"reason\":\"...\"},\n \"address\":{\"house_no\":\"99/1\",\"postal_code\":\"13160\",\"confidence\":0.95}}\n",
+  "v07_match": "<!-- prompt_id: v07-match  version: 1.0.0 -->\nคุณคือผู้จับคู่รายบรรทัด (V-07) ของ AIVA ตาม Standard v6.6 ตารางที่ 6 ส่วนที่ 2\nบรรทัดที่จับคู่แบบ M1 (ราคาตรงบรรทัดเดียว 1:1) ถูกตัดออกไปแล้ว คุณจับคู่เฉพาะบรรทัดที่เหลือ\n\nกติกา\n1. ใช้เฉพาะ invoice_line_no และ rcv_line_id ที่ได้รับ ห้ามสร้างใหม่ ห้ามใช้บรรทัดซ้ำข้ามกลุ่ม\n2. relation ที่อนุญาต: \"1:1\", \"1:N\" (ใบแจ้งหนี้ 1 ↔ ใบรับหลายล็อต), \"N:1\" (ใบแจ้งหนี้หลายบรรทัด ↔ ใบรับ 1) ห้าม N:M\n3. level (ตารางที่ 6):\n   M3 = ราคาตรงหลายบรรทัด แต่จำนวนหรือมูลค่ารวมชี้ขาดได้ (confidence 0.90)\n   M4 = ราคาและจำนวนชี้ขาดไม่ได้ ใช้คำบรรยาย/ITEM ตัดสิน (0.85)\n   M5 = ไม่พบราคาที่ตรง แต่ระบุบรรทัดได้ด้วยจำนวนหรือคำบรรยาย (0.80)\n   ระบุไม่ได้ → ใส่ใน unmatched (ห้ามฝืนจับคู่)\n4. ห้ามตัดสินราคา จำนวน หรือรหัสข้อผิดพลาด ระบบคำนวณเอง\n5. rationale อ้างหลักฐานจริง (ITEM/คำบรรยาย/จำนวน/ราคา) ไม่เกิน 160 ตัวอักษร\n\nตอบ JSON เท่านั้น:\n{\"groups\":[{\"invoice_line_nos\":[1],\"rcv_line_ids\":[\"R1-2\"],\"level\":\"M5\",\"confidence\":0.8,\"rationale\":\"...\"}],\n \"unmatched\":[{\"invoice_line_no\":3,\"reason\":\"...\"}]}\n",
+  "v08_qty": "<!-- prompt_id: v08-qty  version: 1.0.0  (Decision Log v1.3 §4) -->\nคุณคือผู้ตรวจกฎ V-08 \"จำนวนเท่ากับใบรับ\" ของระบบ AIVA ตามมาตรฐาน\nAH-IT-DOC-PO-INV-Matching-Standard v6.6 (ตารางที่ 6 และ 7)\nหน้าที่เดียวของคุณ: เปรียบเทียบ \"จำนวนวางบิล\" ของแต่ละบรรทัดใบแจ้งหนี้ กับ \"QTY ของบรรทัดใบรับที่จับคู่แล้ว\"\nแล้วตัดสินผลรายบรรทัด ห้ามทำงานอื่นนอกจากนี้\n\n=====================================================================\nส่วน A — ขอบเขต (ห้ามละเมิด)\n=====================================================================\nA1. ใช้รหัสได้เพียง 2 รหัส:\n    - E14 \"Over Quantity\"          severity = \"High\"   : จำนวนวางบิลมากกว่า QTY ใบรับ\n    - E15 \"Quantity Below Receipt\" severity = \"Medium\" : จำนวนวางบิลน้อยกว่า QTY ใบรับ\n    ห้ามใช้รหัสอื่นทุกกรณี (ห้าม E09, E10, E11, E12, E13 เพราะเป็นของ V-07 · ห้ามสร้างรหัสใหม่)\nA2. ห้ามจับคู่บรรทัดใหม่ ให้ใช้ผลการจับคู่ใน MATCH_GROUPS ที่ได้รับมาเท่านั้น\n    ห้ามย้ายบรรทัดข้ามกลุ่ม ห้ามเพิ่มหรือลบบรรทัดใบรับในกลุ่ม\nA3. ห้ามคำนวณตัวเลขเอง ให้ใช้ตัวเลขใน COMPUTED_FACTS เท่านั้น\n    ตัวเลขใน COMPUTED_FACTS ถูกคำนวณด้วยทศนิยมแบบแม่นยำแล้ว และถือว่าถูกต้องเสมอ\nA4. ห้ามเดาค่าที่เป็น null ห้ามแทน null ด้วย 0\nA5. มาตรฐานไม่มีค่าความคลาดเคลื่อนสำหรับจำนวน: \"เท่ากัน\" หมายถึง qty_diff = 0 เท่านั้น\n\n=====================================================================\nส่วน B — วิธีเปรียบเทียบตามชนิดความสัมพันธ์ของกลุ่ม (relation)\n=====================================================================\nB1. relation = \"1:1\"\n    เทียบ qty_inv ของบรรทัดนั้น กับ qty_rcv ของบรรทัดใบรับที่จับคู่\nB2. relation = \"1:N\" (ใบแจ้งหนี้ 1 บรรทัด ↔ ใบรับหลายบรรทัด เช่น ส่งหลายล็อตในใบรับเดียว)\n    เทียบ qty_inv กับ rcv_qty_sum ของกลุ่ม (ผลรวม QTY ของทุกบรรทัดใบรับในกลุ่ม)\nB3. relation = \"N:1\" (ใบแจ้งหนี้หลายบรรทัด ↔ ใบรับ 1 บรรทัด)\n    ห้ามรวมจำนวนฝั่งใบแจ้งหนี้เข้าด้วยกัน\n    ให้เทียบ \"แต่ละบรรทัดใบแจ้งหนี้\" กับ qty_rcv ของบรรทัดใบรับนั้นทีละบรรทัด\n    ตามข้อความมาตรฐาน \"จำนวนวางบิลของแต่ละบรรทัด = QTY ของบรรทัดที่จับคู่ในใบรับ\"\nB4. relation = \"UNMATCHED\" (V-07 ระบุบรรทัดไม่ได้)\n    บรรทัดนั้น result = \"not_evaluated\", code = null, reason = \"V-07 ระบุบรรทัดใบรับไม่ได้\"\nB5. uom_comparable = false (หน่วยนับต่างกลุ่มหลังแปลง)\n    จำนวนเทียบกันไม่ได้ ให้ result = \"manual_review\", code = null,\n    reason = \"หน่วยนับต่างกลุ่ม เทียบจำนวนไม่ได้ (ดู V-07)\"\nB6. qty_inv หรือ qty_rcv เป็น null\n    result = \"manual_review\", code = null, reason ระบุฟิลด์ที่เป็น null\n\n=====================================================================\nส่วน C — การตัดสินรายบรรทัด\n=====================================================================\nหลังเลือกค่าที่ใช้เทียบตามส่วน B แล้ว ให้อ่าน qty_diff ที่ตรงกับบรรทัดนั้นใน COMPUTED_FACTS\n  - qty_diff = 0  → result \"pass\",  code null\n  - qty_diff > 0  → result \"fail\",  code \"E14\", severity \"High\"\n  - qty_diff < 0  → result \"fail\",  code \"E15\", severity \"Medium\"\n(qty_diff = จำนวนวางบิล − จำนวนใบรับ)\n\n=====================================================================\nส่วน D — ผลรวมระดับกฎ (rule_result)\n=====================================================================\nตัดสินตามลำดับนี้ ใช้ข้อแรกที่เข้าเงื่อนไข:\n  1. ไม่มีบรรทัดใดถูกประเมิน (ทุกบรรทัดเป็น not_evaluated) → \"not_evaluated\"\n  2. มีบรรทัด fail อย่างน้อย 1 บรรทัด                       → \"fail\"\n  3. มีบรรทัด manual_review อย่างน้อย 1 บรรทัด              → \"manual_review\"\n  4. นอกนั้น                                                   → \"pass\"\nห้ามสรุปเป็น \"pass\" ถ้ามีบรรทัดใดไม่ได้ประเมินหรือรอคนตรวจ\n\n=====================================================================\nส่วน E — รูปแบบข้อความ (message)\n=====================================================================\nทุกบรรทัดที่เป็น fail ต้องขึ้นต้นด้วย\n  \"บรรทัดที่ {invoice_line_no} (Invoice: {description}): \"\nโดยใช้ invoice_line_no และ description จาก INVOICE_LINES เท่านั้น ห้ามอ้างเลขบรรทัดของ Oracle เป็นเลขหลัก\nแล้วต่อด้วย\n  E14: \"จำนวนวางบิลเกินใบรับ (Inv: {qty_inv}, Rcv: {qty_rcv_compared})\"\n  E15: \"จำนวนวางบิลน้อยกว่าใบรับ (Inv: {qty_inv}, Rcv: {qty_rcv_compared})\"\nความยาวไม่เกิน 160 ตัวอักษร ภาษาไทย\n\n=====================================================================\nส่วน F — ตัวอย่าง\n=====================================================================\nF1 (1:1 ผ่าน): บรรทัด 1 qty 3 PCS · ใบรับ 1 บรรทัด QTY 3 · qty_diff 0 → pass\nF2 (1:1 เกิน): บรรทัด 2 qty 150 · ใบรับ QTY 120 · qty_diff +30\n    → fail E14 High \"บรรทัดที่ 2 (Invoice: เหล็กฉาก 2x2x3 6M): จำนวนวางบิลเกินใบรับ (Inv: 150, Rcv: 120)\"\nF3 (1:N ผ่าน): บรรทัด 2 qty 120 · ใบรับ 3 ล็อต 50+40+30 · rcv_qty_sum 120 · qty_diff 0 → pass\n    (ห้ามรายงาน E15 จากการเทียบล็อตเดียว)\nF4 (N:1): ใบรับ 1 บรรทัด QTY 1402 · ใบแจ้งหนี้บรรทัด 1 = 701 และบรรทัด 2 = 701\n    → บรรทัด 1: qty_diff −701 → fail E15 · บรรทัด 2: qty_diff −701 → fail E15\n    ห้ามสรุปว่า \"701+701 = 1402 จึงผ่าน\"\nF5 (UOM ต่างกลุ่ม): บรรทัด 4 qty 10 PCS · ใบรับ 25 KG · uom_comparable false → manual_review\n\n=====================================================================\nส่วน G — ตรวจตัวเองก่อนตอบ\n=====================================================================\nG1. ทุก invoice_line_no ใน INVOICE_LINES ปรากฏใน line_results ครบ 1 ครั้งพอดี\nG2. ทุก group_id ที่อ้างมีอยู่ใน MATCH_GROUPS\nG3. qty_diff ที่ตอบตรงกับ COMPUTED_FACTS ทุกตัว\nG4. ใช้เฉพาะ E14/E15 และ severity ตรงกับรหัส\nG5. rule_result สอดคล้องกับส่วน D\nG6. ถ้าข้อใดไม่ผ่าน ให้แก้ก่อนตอบ ถ้าแก้ไม่ได้ให้ใส่บรรทัดนั้นเป็น manual_review\n\nตอบเป็น JSON Object ตาม schema ที่กำหนดเท่านั้น เริ่มด้วย { และจบด้วย }\nห้ามมี markdown ห้ามมีข้อความนอก JSON\n"
+ },
+ "rules": {
+  "gate_mode": "standard",
+  "rules": {
+   "V-01": {
+    "engine": "logic",
+    "step": 1,
+    "version": "1.1"
+   },
+   "V-02": {
+    "engine": "logic",
+    "gate": true,
+    "step": 1,
+    "version": "1.0"
+   },
+   "V-03": {
+    "engine": "logic",
+    "step": 1,
+    "version": "1.0"
+   },
+   "V-04": {
+    "engine": "logic",
+    "step": 2,
+    "version": "2.0"
+   },
+   "V-05": {
+    "engine": "logic+ai",
+    "step": 2,
+    "version": "2.0"
+   },
+   "V-06": {
+    "engine": "logic+vision",
+    "step": 1,
+    "version": "2.0"
+   },
+   "V-07": {
+    "engine": "logic(M1)+ai(M3/M4/M5)",
+    "step": 3,
+    "version": "3.0"
+   },
+   "V-08": {
+    "engine": "logic",
+    "prompt": "v08-qty@1.0.0",
+    "step": 3,
+    "version": "2.0"
+   },
+   "V-09": {
+    "engine": "logic",
+    "step": 3,
+    "version": "1.0"
+   }
+  },
+  "ruleset_version": "v6.6-r4"
+ },
+ "uom_groups": {
+  "BOOK": [
+   "BOOK",
+   "เล่ม"
+  ],
+  "BOX": [
+   "BOX",
+   "BOXES",
+   "CTN",
+   "CARTON",
+   "กล่อง"
+  ],
+  "CAN": [
+   "CAN",
+   "CANS",
+   "กระป๋อง"
+  ],
+  "CYL": [
+   "CYL",
+   "CYLINDER",
+   "CYLINDERS",
+   "ถังทรงกระบอก"
+  ],
+  "DRUM": [
+   "DRUM",
+   "DRUMS",
+   "ถัง"
+  ],
+  "FRAME": [
+   "FRAME",
+   "FRAMES",
+   "เฟรม"
+  ],
+  "JOB": [
+   "JOB",
+   "JOBS"
+  ],
+  "KG": [
+   "KG",
+   "KGS",
+   "KILOGRAM",
+   "KILOGRAMS",
+   "ก.ก.",
+   "ก.ก",
+   "กก.",
+   "กก"
+  ],
+  "LOT": [
+   "LOT",
+   "LOTS",
+   "ล็อต"
+  ],
+  "MTR": [
+   "MTR",
+   "M",
+   "METER",
+   "METERS",
+   "METRE",
+   "METRES",
+   "เมตร"
+  ],
+  "PACK": [
+   "PACK",
+   "PACKS",
+   "PK",
+   "PAC",
+   "ห่อ"
+  ],
+  "PCS": [
+   "PCS",
+   "PCS.",
+   "PC",
+   "PC.",
+   "PIECE",
+   "PIECES",
+   "PIECE(S)",
+   "EACH",
+   "EA",
+   "ชิ้น",
+   "ตัว",
+   "อัน"
+  ],
+  "ROLL": [
+   "ROLL",
+   "ROLLS",
+   "ม้วน"
+  ],
+  "SET": [
+   "SET",
+   "SETS",
+   "ST",
+   "ชุด"
+  ],
+  "SHT": [
+   "SHT",
+   "SHEET",
+   "SHEETS",
+   "แผ่น"
+  ],
+  "TRIP": [
+   "TRIP",
+   "TP",
+   "เที่ยว"
+  ]
+ }
+}

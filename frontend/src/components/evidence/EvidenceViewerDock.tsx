@@ -46,6 +46,7 @@ import {
   mockSurfaceStyle,
   type SizeBox,
 } from '../../features/pdf-viewer/lib/coordinateTransform'
+import { uiZoom } from '../../lib/uiZoom'
 
 const EMPTY_SIZE: SizeBox = { width: 0, height: 0 }
 
@@ -409,7 +410,8 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
 
     const onPointerMove = (moveEvent: PointerEvent) => {
       // Pulling the handle left widens the dock, so the delta is inverted.
-      const next = initialRatio + (startX - moveEvent.clientX) / workWidth
+      // v5.10.2: clientX is visual px, clientWidth is layout px → scale by the app zoom
+      const next = initialRatio + (startX - moveEvent.clientX) / (workWidth * uiZoom())
       const clamped = Math.min(DOCK_RATIO_MAX, Math.max(DOCK_RATIO_MIN, next))
       setDockSplitRatio(Number(clamped.toFixed(3)))
     }

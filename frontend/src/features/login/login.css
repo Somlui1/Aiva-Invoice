@@ -87,6 +87,7 @@
   -webkit-font-smoothing: antialiased;
   height: 100vh;
   height: 100dvh;
+  height: var(--app-h, 100dvh);
   min-height: 560px;
   display: flex;
   flex-direction: column;

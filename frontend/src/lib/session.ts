@@ -146,7 +146,10 @@ export type SessionCheck =
   | { state: 'unknown' }
 
 /** Ask the server who the cookie belongs to. Never throws. */
-export async function verifySession(fetchImpl: typeof fetch = fetch): Promise<SessionCheck> {
+/** Structural fetch type (the global `typeof fetch` also carries `preconnect` under bun-types). */
+export type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+
+export async function verifySession(fetchImpl: FetchLike = fetch): Promise<SessionCheck> {
   try {
     const res = await fetchImpl('/api/auth/me', { credentials: 'same-origin', cache: 'no-store' })
     if (res.status === 401) return { state: 'invalid' }
@@ -166,13 +169,13 @@ export function installSessionInterceptor(): void {
   if (typeof window === 'undefined' || installed || typeof window.fetch !== 'function') return
   installed = true
   const original = window.fetch.bind(window)
-  window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+  window.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const res = await original(input, init)
     if (res.status === 401 && hasClientSession() && isSessionExpiryResponse(apiPathOf(input), res.status)) {
       expireSession('api_401')
     }
     return res
-  }
+  }) as typeof fetch
 }
 
 /** Re-check the session when a tab that sat in the background for a while becomes visible again. */

@@ -1,0 +1,40 @@
+# Everything real in this folder stays out of git; the code that produces it does not.
+#   fixtures/  recorded VLM extractions, Oracle tapes and engine payloads  = real invoice data
+#   live/      canvas dumps + backups + execution data (contains ORDS/paperless/LLM tokens)
+#   dist/      rebuilt by build.mjs / build_n8n_inline.mjs from src_*.js + standard.json
+fixtures/
+live/
+dist/
+node_modules/
+__pycache__/
+
+# ... and the files that CARRY credentials, which live outside live/:
+#   n8n_nodes/port_config.json  live Keycloak bearer token (committed template: port_config.example.json)
+#   nodes/                      canvas dump of node 00 (paperless token, LLM key)
+#   blackbox.json               whole-workflow dump: node 00 secrets + real invoice payloads
+#   parent_dump.json            parent workflow dump: node 00 secrets
+# A '#' only starts a comment at the beginning of a line - a trailing comment becomes part of the pattern
+# and silently stops the rule from matching, which is how this block first shipped and matched nothing.
+n8n_nodes/port_config.json
+nodes/
+blackbox.json
+parent_dump.json
+
+# Scratch from debugging sessions (an MCP argument, a curl body, a one-off probe image). They are not
+# evidence: `live/` holds the real canvas/execution dumps, and the tests rebuild whatever they need.
+_*.json
+_*.txt
+
+# ---- secret hygiene (28 Oct): raw canvas dumps and built nodes carry instance credentials -------
+# Every file below contains, verbatim, the paperless API token, the LiteLLM key and the ORDS bearer token
+# (either as node 00 assignments or embedded in node 21's jsCode). They are working artifacts on this disk;
+# none of them has ever been committed (git log -- engine/tools/n8n_port = 0 commits, 0 tracked files), and
+# these rules make sure a future `git add engine/tools/n8n_port` cannot put them into version history.
+live/
+nodes/
+blackbox.json
+parent_dump.json
+dist/
+n8n_nodes/port_config.json
+harness/py_full.py
+# artifacts that ARE meant to be shared are written redacted by harness/secret_guard.py and live in workflow/
