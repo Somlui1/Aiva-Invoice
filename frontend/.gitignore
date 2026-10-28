@@ -23,4 +23,5 @@ prisma/backups/
 public/pdfjs/
 
 *.patch
+*.zip
 vite.local*.config.*
