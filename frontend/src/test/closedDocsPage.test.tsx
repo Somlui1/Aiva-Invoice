@@ -4,7 +4,7 @@
  * @vitest-environment jsdom
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, render, screen, within, type RenderResult } from '@testing-library/react'
+import { act, cleanup, render, screen, within, type RenderResult } from '@testing-library/react'
 import { InvoiceProvider, useInvoices } from '../context/InvoiceContext'
 import { AuthProvider } from '../context/AuthContext'
 import { SettingsProvider } from '../context/SettingsContext'
@@ -62,7 +62,10 @@ beforeEach(() => {
   ))
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
 })
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 
 describe('ClosedDocsPage', () => {
   it('three group tabs with counts; AP Flow shows Confirmed → Sent → Posted', async () => {
@@ -101,7 +104,7 @@ describe('ClosedDocsPage', () => {
   })
 
   it('End User does not get the duplicate group', async () => {
-    const eu = { ...(USERS.find(u => u.role === 'EU') as User), co: ['AH', 'AHT'] }
+    const eu: User = { id: 'u_eu', n: 'Receiver User', email: 'eu@aapico.com', role: 'EU', rcvName: 'RECEIVER', emp: null, co: ['AH', 'AHT'], unit: 'Warehouse' }
     await mount(<ClosedDocsPage />, eu)
     expect(screen.queryByRole('tab', { name: /เอกสารซ้ำ/ })).toBeNull()
     // v5.10: the Receiver's page is "ผลการส่งเอกสาร" with three tabs and no Export

@@ -36,6 +36,8 @@ export interface User {
   emp: number | null
   co: string[]       // Company codes: AH, AHT, AHP, AM
   unit: string       // Department/Unit name
+  /** v5.11.1: every Oracle account bound to the user (from /api/auth/me). `rcvName` is only the first. */
+  accts?: string[]
 }
 
 export interface AccountMapping {

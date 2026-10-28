@@ -6,7 +6,7 @@
  * Groups (spec):
  *   ap         AP Flow              Confirmed → Sent → Posted
  *   rejected   ปฏิเสธ (Terminated)  Rejected
- *   dup        เอกสารซ้ำ             Superseded (DR-01/02) · Duplicate (DR-03/04)
+ *   dup        เอกสารซ้ำ             Superseded (DR-01/02 · ผูกใบรับ) · Duplicate (DR-03/04/06)
  *
  * `Import Failed` is NOT closed: it still needs someone (returned to the AP page / queue).
  */
@@ -23,7 +23,7 @@ export const CLOSED_GROUPS: ReadonlyArray<{
 }> = Object.freeze([
   { key: 'ap', label: 'AP Flow', hint: 'อนุมัติแล้วและเข้าสู่กระบวนการจ่ายเงิน', statuses: ['Confirmed', 'Sent', 'Posted'] },
   { key: 'rejected', label: 'ปฏิเสธ', hint: 'เอกสารที่ถูกปฏิเสธ (มีเหตุผลใน Audit Log)', statuses: ['Rejected'] },
-  { key: 'dup', label: 'เอกสารซ้ำ', hint: 'ปิดโดยกฎเอกสารซ้ำ DR-01 – DR-04', statuses: ['Superseded', 'Duplicate'] },
+  { key: 'dup', label: 'เอกสารซ้ำ', hint: 'ปิดโดยกฎเอกสารซ้ำ DR-01 – DR-06 หรือการผูกใบรับ', statuses: ['Superseded', 'Duplicate'] },
 ])
 
 export const CLOSED_VIEW_STATUSES: readonly ClosedStatus[] = Object.freeze(
@@ -38,7 +38,7 @@ export const CLOSED_STATUS_META: Readonly<Record<ClosedStatus, { th: string; ico
     Posted: { th: 'เข้า Oracle สำเร็จ', icon: 'send', desc: 'ตั้งหนี้ใน Oracle Payables สำเร็จ · ปิดงาน 100%' },
     Rejected: { th: 'ปฏิเสธ', icon: 'ban', desc: 'ถูกปฏิเสธ · เหตุผลบันทึกใน Audit Log' },
     Superseded: { th: 'ถูกแทนที่', icon: 'layers', desc: 'ฉบับเก่าที่ถูกฉบับใหม่แทนที่ (DR-01 / DR-02)' },
-    Duplicate: { th: 'เอกสารซ้ำ', icon: 'copy', desc: 'ซ้ำกับเอกสารที่สมบูรณ์หรือ Confirmed แล้ว (DR-03 / DR-04)' },
+    Duplicate: { th: 'เอกสารซ้ำ', icon: 'copy', desc: 'ซ้ำกับเอกสารที่สมบูรณ์หรือ Confirmed แล้ว หรือใบรับเป็นของใบแจ้งหนี้อื่น (DR-03 / DR-04 / DR-06) · Reject ได้อย่างเดียว' },
   })
 
 /** Roles that may see the duplicate-resolution group (EU / ADM do not). */

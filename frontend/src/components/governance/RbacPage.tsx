@@ -38,7 +38,7 @@ export function RbacPage() {
           nextMap[c.code] = { name: c.name, tax: c.tax, orgs: c.orgs }
         }
         setCompaniesData(nextMap)
-        setSyncStatus(`ซิงค์ข้อมูลสำเร็จ จาก ${data.source === 'oracle_mcp' ? 'Oracle ERP' : 'ระบบสำรอง'}`)
+        setSyncStatus(data.source === 'oracle_mcp' ? 'ซิงค์ข้อมูลจาก Oracle ERP สำเร็จ' : data.warning || 'ไม่ได้ซิงค์จาก Oracle · แสดงข้อมูลบริษัทในระบบ')
         setSyncedAt(new Date().toLocaleTimeString('th-TH'))
       } else {
         setSyncStatus(`ซิงค์ข้อมูลไม่สำเร็จ: ${data.error || 'Unknown'}`)

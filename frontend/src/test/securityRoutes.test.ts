@@ -81,6 +81,11 @@ describe('permissions come from the ROLES table', () => {
 })
 
 describe('machine keys', () => {
+  afterEach(() => {
+    delete process.env.ENGINE_INGEST_KEY
+    delete process.env.ORACLE_CALLBACK_KEY
+  })
+
   it('engine ingest: with ENGINE_INGEST_KEY set, no key / wrong key = 401, right key passes the guard', async () => {
     process.env.ENGINE_INGEST_KEY = 'engine-key-for-test'
     expect((await request(app).post('/api/engine/ingest').send({})).status).toBe(401)

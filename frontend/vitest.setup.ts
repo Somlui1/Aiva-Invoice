@@ -10,6 +10,18 @@ process.env.NODE_ENV = 'test'
 process.env.DATABASE_URL = TEST_DATABASE_URL
 // v5.5: sessions are HMAC-signed. A fixed secret keeps test cookies (src/test/helpers/session.ts) valid.
 process.env.AUTH_SECRET = 'test-only-secret-0123456789abcdef0123456789abcdef'
-// Machine keys stay unset in tests (= open outside production); securityGuards.test.ts sets them per test.
-delete process.env.ENGINE_INGEST_KEY
-delete process.env.ORACLE_CALLBACK_KEY
+import { beforeEach, afterEach } from 'vitest'
+
+const cleanEnv = () => {
+  delete process.env.ENGINE_INGEST_KEY
+  delete process.env.ORACLE_CALLBACK_KEY
+  delete process.env.RECEIPT_LOOKUP_URL
+  delete process.env.RECEIPT_LOOKUP_KEY
+  delete process.env.RECEIPT_LOOKUP_FIXTURE
+  delete process.env.ORACLE_MCP_URL
+  delete process.env.ORACLE_MCP_TOKEN
+}
+
+cleanEnv()
+beforeEach(cleanEnv)
+afterEach(cleanEnv)

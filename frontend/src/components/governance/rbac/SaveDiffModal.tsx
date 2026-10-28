@@ -3,6 +3,8 @@
 import React from 'react'
 import { createPortal } from 'react-dom'
 
+import type { RoleKey } from '@/types/auth'
+
 export interface UserDiff {
   user: {
     id: string
@@ -11,9 +13,10 @@ export interface UserDiff {
     samAccount?: string | null
     empId?: string | null
     unit?: string | null
-    role: string
+    role: RoleKey
     companies: string[]
     receivers: string[]
+    isNew?: boolean
   }
   type: 'added' | 'modified' | 'deleted'
 }

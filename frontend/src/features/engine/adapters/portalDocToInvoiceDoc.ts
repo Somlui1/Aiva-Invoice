@@ -426,6 +426,11 @@ export function portalDocToInvoiceDoc(
   }
 
   if (doc.receiverName) out.receiver = doc.receiverName
+  if (Array.isArray(doc.pages) && doc.pages.length) {
+    out.pageFrames = doc.pages
+      .filter(p => p && Number(p.widthPt) > 0 && Number(p.heightPt) > 0)
+      .map(p => ({ pageNo: p.pageNo, widthPt: Number(p.widthPt), heightPt: Number(p.heightPt), rotation: Number(p.rotation) || 0 }))
+  }
   // Business identity & duplicate-resolution links (v5.6). All absent on rows written before it.
   if (doc.identity) out.identityStatus = doc.identity.status
   if (doc.supersedes) out.supersedes = doc.supersedes

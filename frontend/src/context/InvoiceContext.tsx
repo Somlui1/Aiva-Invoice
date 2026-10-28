@@ -27,6 +27,7 @@ import {
   staleDocsFor,
   allowedActionFor,
   precheckPostFor,
+  statusForAction,
   applyLiveDocs,
   inPerDoc,
   type PeriodFilter,
@@ -113,7 +114,8 @@ interface InvoiceContextType {
     uploadFile?: string
   ) => Promise<{ ok: boolean; msg: string }>
   precheckPost: (doc: InvoiceDoc) => { ok: boolean; code?: string; why: string }
-  batchPost: (docIds: string[]) => { ok: boolean; count: number; msg: string }
+  batchPost: (docIds: string[]) => Promise<{ ok: boolean; count: number; msg: string }>
+  refreshQueue: () => Promise<boolean>
   ingestResultToQueue: (payload: any) => void
 }
 
@@ -537,26 +539,50 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
         return { ok: true, msg: `อัปโหลดแล้ว · ${rule}` }
       }
 
-      // Normal state transitions
-      let newStatus: InvoiceStatus = doc.status
+      // Normal state transitions.
+      // v5.11: the server decides first. Before, the UI changed the row optimistically and ignored the
+      // server's answer, so a refused Confirm (422 / 409) still showed "Confirmed" until reload.
+      // Only when the server cannot be reached at all (mock / offline demo) does the local rule apply.
+      let serverStatus: InvoiceStatus | null = null
+      try {
+        const res = await fetch(`/api/documents/${encodeURIComponent(docId)}/actions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': currentUser.id,
+            'x-user-role': currentUser.role,
+            'x-user-name': encodeURIComponent(currentUser.n),
+          },
+          body: JSON.stringify({ action, reason, note, simOutcome, uploadFile }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok || data?.ok === false) {
+          const err = data?.error || `ดำเนินการไม่สำเร็จ (HTTP ${res.status})`
+          toast(err, true)
+          return { ok: false, msg: err }
+        }
+        if (typeof data?.toStatus === 'string') serverStatus = data.toStatus as InvoiceStatus
+      } catch (err) {
+        console.warn('Action persistence network error (applied locally only):', err)
+      }
+
+      const newStatus: InvoiceStatus = serverStatus ?? statusForAction(action) ?? doc.status
       let msg = ''
       let k = 'h'
 
-      if (action === 'confirm') {
-        newStatus = 'Confirmed'
+      if (newStatus === 'Confirmed') {
         k = 'g'
         msg = 'Confirmed · ย้ายไปหน้า AP Interface'
-      } else if (action === 'review' || action === 'unconfirm' || action === 'returnf') {
-        newStatus = 'Review'
+      } else if (newStatus === 'Review') {
         msg = 'ย้ายเป็น Review แล้ว'
-      } else if (action === 'hold') {
-        newStatus = 'Hold'
+      } else if (newStatus === 'Hold') {
         k = 'c'
         msg = 'Hold แล้ว'
-      } else if (action === 'reject') {
-        newStatus = 'Rejected'
+      } else if (newStatus === 'Rejected') {
         k = 'c'
         msg = 'Reject แล้ว'
+      } else {
+        msg = `${ACTION_CONFIG[action].title} แล้ว`
       }
 
       setDocs(prev =>
@@ -590,29 +616,6 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
       logAudit(ACTION_CONFIG[action].title, doc.doc, `${fromStatus} → ${newStatus} · ${reason}`)
       toast(msg)
 
-      // Persist to server API
-      try {
-        const actionType = action
-        await fetch(`/api/documents/${encodeURIComponent(docId)}/actions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-user-id': currentUser.id,
-            'x-user-role': currentUser.role,
-            'x-user-name': encodeURIComponent(currentUser.n),
-          },
-          body: JSON.stringify({
-            action: actionType,
-            reason,
-            note,
-            simOutcome,
-            uploadFile,
-          }),
-        })
-      } catch (err) {
-        console.warn('Action persistence network error:', err)
-      }
-
       return { ok: true, msg }
     },
     [docs, allowedAction, currentUser, hasHighSeverity, logAudit, toast]
@@ -621,51 +624,30 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
   // AP Precheck
   const precheckPost = useCallback(
     (d: InvoiceDoc): { ok: boolean; code?: string; why: string } => {
-      return precheckPostFor(d, { userId: currentUser.id, postMax: currentRole.postMax })
+      return precheckPostFor(d, { userId: currentUser.id, postMax: currentRole?.postMax })
     },
-    [currentUser.id, currentRole.postMax]
+    [currentUser.id, currentRole?.postMax]
   )
 
-  // AP Batch post
+  // AP Batch post.
+  // v5.11: the server is the authority — it may take documents out as Duplicate (receive_id guard),
+  // and only the documents it actually sent become Sent here.
   const batchPost = useCallback(
-    (docIds: string[]): { ok: boolean; count: number; msg: string } => {
+    async (docIds: string[]): Promise<{ ok: boolean; count: number; msg: string }> => {
       if (!can('POST')) return { ok: false, count: 0, msg: 'ไม่มีสิทธิ์ส่งเอกสารเข้า AP Interface' }
 
-      const batchId = `AP-${TODAY.replace(/-/g, '')}-${Math.floor(Math.random() * 900 + 100)}`
+      let batchId = `AP-${TODAY.replace(/-/g, '')}-${Math.floor(Math.random() * 900 + 100)}`
       const nowTime = new Date().toTimeString().slice(0, 8)
+      const eligible = docIds.filter(id => {
+        const d = docs.find(x => x.doc === id)
+        return !!d && precheckPost(d).ok
+      })
+      if (!eligible.length) return { ok: false, count: 0, msg: 'ไม่มีเอกสารที่ผ่านการตรวจก่อนส่ง' }
 
-      let count = 0
-      setDocs(prev =>
-        prev.map(d => {
-          if (!docIds.includes(d.doc)) return d
-          const chk = precheckPost(d)
-          if (!chk.ok) return d
-          count++
-          return {
-            ...d,
-            status: 'Sent' as InvoiceStatus,
-            batch: batchId,
-            history: [
-              ...d.history,
-              {
-                dt: TODAY,
-                t: nowTime,
-                who: currentUser.n,
-                act: `ส่งเข้า AP Interface (${batchId})`,
-                d: `ส่งโดย ${currentUser.n} (หัวหน้าฝ่ายบัญชี)`,
-                k: 'g'
-              }
-            ]
-          }
-        })
-      )
-
-      logAudit('ส่งเข้า AP Interface', `${count} ฉบับ`, `Batch ${batchId}`)
-      toast(`ส่งเข้า AP Interface แล้ว ${count} ฉบับ (${batchId})`)
-
-      // Persist AP batch to server
+      let sent = eligible
+      let excluded: { id: string; duplicateOf: string; receiveId: string }[] = []
       try {
-        fetch('/api/ap/batches', {
+        const res = await fetch('/api/ap/batches', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -673,21 +655,75 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
             'x-user-role': currentUser.role,
             'x-user-name': encodeURIComponent(currentUser.n),
           },
-          body: JSON.stringify({
-            batchId,
-            documentIds: docIds,
-          }),
-        }).catch(err => {
-          console.warn('AP batch persistence error:', err)
+          body: JSON.stringify({ batchId, documentIds: eligible }),
         })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok || data?.ok === false) {
+          const err = data?.error || `ส่ง Batch ไม่สำเร็จ (HTTP ${res.status})`
+          toast(err, true)
+          return { ok: false, count: 0, msg: err }
+        }
+        if (Array.isArray(data?.documentIds)) sent = data.documentIds
+        if (Array.isArray(data?.excluded)) excluded = data.excluded
+        if (data?.batch?.id) batchId = data.batch.id
       } catch (err) {
-        console.warn('AP batch request error:', err)
+        console.warn('AP batch persistence error (applied locally only):', err)
       }
 
-      return { ok: true, count, msg: `ส่ง ${count} ฉบับสำเร็จ (${batchId})` }
+      setDocs(prev =>
+        prev.map(d => {
+          if (sent.includes(d.doc)) {
+            return {
+              ...d,
+              status: 'Sent' as InvoiceStatus,
+              batch: batchId,
+              history: [
+                ...d.history,
+                { dt: TODAY, t: nowTime, who: currentUser.n, act: `ส่งเข้า AP Interface (${batchId})`, d: `ส่งโดย ${currentUser.n} (หัวหน้าฝ่ายบัญชี)`, k: 'g' }
+              ]
+            }
+          }
+          const ex = excluded.find(e => e.id === d.doc)
+          if (ex) {
+            return {
+              ...d,
+              status: 'Duplicate' as InvoiceStatus,
+              duplicate_of: ex.duplicateOf,
+              dupRule: 'AP-GUARD',
+              history: [
+                ...d.history,
+                { dt: TODAY, t: nowTime, who: 'ระบบ Portal', act: 'Duplicate (ตัดออกจาก Batch)', d: `ใบรับ ${ex.receiveId} ถูกใช้โดย ${ex.duplicateOf} แล้ว`, k: 'c' }
+              ]
+            }
+          }
+          return d
+        })
+      )
+
+      const count = sent.length
+      const exTxt = excluded.length ? ` · ตัดออก ${excluded.length} ฉบับ (ใบรับซ้ำ → Duplicate)` : ''
+      if (count) logAudit('ส่งเข้า AP Interface', `${count} ฉบับ`, `Batch ${batchId}${exTxt}`)
+      toast(count ? `ส่งเข้า AP Interface แล้ว ${count} ฉบับ (${batchId})${exTxt}` : `ไม่มีเอกสารถูกส่ง${exTxt}`, !count)
+      return { ok: count > 0, count, msg: count ? `ส่ง ${count} ฉบับสำเร็จ (${batchId})${exTxt}` : `ไม่มีเอกสารถูกส่ง${exTxt}` }
     },
-    [can, precheckPost, currentUser.id, currentUser.role, currentUser.n, logAudit, toast]
+    [can, docs, precheckPost, currentUser.id, currentUser.role, currentUser.n, logAudit, toast]
   )
+
+  /** Re-read the queue from the server (after a change the server decided, e.g. ผูกใบรับ). */
+  const refreshQueue = useCallback(async (): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/documents?include=boxes')
+      if (!res.ok) return false
+      const data = await res.json()
+      if (data?.ok && Array.isArray(data.documents)) {
+        setDocs(data.documents)
+        return true
+      }
+    } catch (err) {
+      console.warn('Queue refresh failed:', err)
+    }
+    return false
+  }, [])
 
   const ingestResultToQueue = useCallback(
     (payload: any) => {
@@ -753,6 +789,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
         executeAction,
         precheckPost,
         batchPost,
+        refreshQueue,
         ingestResultToQueue
       }}
     >

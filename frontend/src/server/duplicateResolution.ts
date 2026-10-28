@@ -18,7 +18,16 @@
  *   DR-03  new worse         old stays current, new = Duplicate
  *   DR-04  old Confirmed / Sent / Posted / Import Failed (or locked) → never superseded, new = Duplicate
  *   DR-05  only history rows match (all Duplicate / Superseded / Rejected) → new = Engine status
+ *   DR-06  same receive_id but a DIFFERENT invoice (supplier_tax_id + invoice_num) → new = Duplicate.
+ *          1 invoice = 1 receive_id, so this is conflicting data, never a second legitimate invoice;
+ *          there is no override (v5.11).
  *   DR-07  nothing matches, or the document is UNRESOLVED → new document, never auto-matched
+ *
+ * v5.11 — 1 invoice = 1 receive_id in both directions:
+ *   • same receive_id, different invoice → DR-06 (above)
+ *   • same invoice, different receive_id → the same document; DR-01 … DR-04 apply as usual
+ *
+ * `decideBind` is the decision for "ผูกใบรับ" (a person binds a receipt to a document that had none).
  */
 import type { DocumentIdentity } from './businessKey'
 
@@ -36,7 +45,7 @@ export const PROTECTED_STATUSES: readonly string[] = Object.freeze(['Confirmed',
 /** History rows. They never act as the document a new scan is compared with. */
 export const IGNORED_STATUSES: readonly string[] = Object.freeze(['Duplicate', 'Superseded', 'Rejected'])
 
-export type DrRule = 'DR-01' | 'DR-02' | 'DR-03' | 'DR-04' | 'DR-05' | 'DR-07'
+export type DrRule = 'DR-01' | 'DR-02' | 'DR-03' | 'DR-04' | 'DR-05' | 'DR-06' | 'DR-07'
 export type DrMatchedBy = 'RECEIVE_ID' | 'SECONDARY_KEY'
 
 /** The columns of an existing `Document` the decision needs. */
@@ -59,7 +68,7 @@ export interface DrDecision {
   matchedBy: DrMatchedBy | null
   /** Set for DR-01 / DR-02: the old document to mark Superseded. */
   supersede: DrCandidate | null
-  /** Set for DR-03 / DR-04: the current document the new one duplicates. */
+  /** Set for DR-03 / DR-04 / DR-06: the current document the new one duplicates. */
   duplicateOf: DrCandidate | null
   /** One English sentence for logs; the Thai history text is built by the caller. */
   reason: string
@@ -79,33 +88,32 @@ export function isProtected(c: Pick<DrCandidate, 'status' | 'isLocked'>): boolea
 }
 
 /**
- * How (if at all) `candidate` is "the same invoice" as the new document.
+ * How (if at all) `candidate` is "the same invoice" (or the same receipt) as the new document.
  *
  *  - UNRESOLVED (either side) never matches: no reliable key, no automatic matching.
- *  - RESOLVED new   → primary key `receive_id`. A previous NOT_FOUND document has no receive_id, so
- *                     it is located through the secondary key (NOT_FOUND → RESOLVED).
- *  - NOT_FOUND new  → secondary key. Any earlier document carrying the same supplier_tax_id +
- *                     invoice_num is the same invoice, including one that has meanwhile been
- *                     RESOLVED — otherwise a re-scan whose lookup failed could slip past a
- *                     Confirmed document and be paid twice.
- *  Two RESOLVED documents with different receive_ids are different receipts even if the invoice
- *  number happens to be equal, so the secondary key is deliberately NOT used between them.
+ *  - Same receive_id (both sides have one)              → RECEIVE_ID
+ *  - Same secondary key (supplier_tax_id + invoice_num) → SECONDARY_KEY, whatever either side's
+ *    receive_id is. v5.11: 1 invoice = 1 receive_id, so two RESOLVED rows of one invoice with
+ *    different receive_ids are the same document (before v5.11 they were treated as two receipts).
+ *  A RECEIVE_ID match whose secondary keys differ is DR-06 in `decide`.
  */
 export function matchKind(identity: DocumentIdentity, c: DrCandidate): DrMatchedBy | null {
   if (identity.status === 'UNRESOLVED') return null
   if (c.identityStatus === 'UNRESOLVED' || c.identityStatus == null) return null
-
-  if (identity.status === 'RESOLVED') {
-    if (identity.receiveId && c.receiveId && c.receiveId === identity.receiveId) return 'RECEIVE_ID'
-    if (c.identityStatus === 'NOT_FOUND' && identity.secondaryKey && c.secondaryKey === identity.secondaryKey) {
-      return 'SECONDARY_KEY'
-    }
-    return null
-  }
-
-  // NOT_FOUND
-  if (identity.secondaryKey && c.secondaryKey === identity.secondaryKey) return 'SECONDARY_KEY'
+  if (identity.receiveId && c.receiveId && c.receiveId === identity.receiveId) return 'RECEIVE_ID'
+  if (identity.secondaryKey && c.secondaryKey && c.secondaryKey === identity.secondaryKey) return 'SECONDARY_KEY'
   return null
+}
+
+/** Same receive_id but both sides name a different invoice: conflicting data (DR-06). */
+export function isReceiveConflict(identity: Pick<DocumentIdentity, 'receiveId' | 'secondaryKey'>, c: DrCandidate): boolean {
+  return (
+    !!identity.receiveId &&
+    c.receiveId === identity.receiveId &&
+    !!identity.secondaryKey &&
+    !!c.secondaryKey &&
+    c.secondaryKey !== identity.secondaryKey
+  )
 }
 
 const time = (v: Date | string | number): number => {
@@ -120,7 +128,7 @@ const newestFirst = (a: DrCandidate, b: DrCandidate): number =>
 /**
  * The authoritative document among the matching rows, or null when only history remains.
  * AP-protected documents win outright; otherwise the best Engine rank; the newest row only breaks a
- * tie. (An APR `dup_override` can legitimately leave two open rows for one invoice.)
+ * tie. (Two open rows of one invoice can only come from data written before v5.11.)
  */
 export function selectCurrent(matching: readonly DrCandidate[]): DrCandidate | null {
   const open = matching.filter(c => !IGNORED_STATUSES.includes(c.status))
@@ -182,6 +190,20 @@ export function decide(input: {
   }
   const matchedBy = matches.find(m => m.c.id === current.id)!.by
 
+  // DR-06: an open document already carries this receive_id for ANOTHER invoice.
+  const conflict = matches.find(m => !IGNORED_STATUSES.includes(m.c.status) && isReceiveConflict(identity, m.c))
+  if (conflict) {
+    return {
+      rule: 'DR-06',
+      newStatus: 'Duplicate',
+      current: conflict.c,
+      matchedBy: 'RECEIVE_ID',
+      supersede: null,
+      duplicateOf: conflict.c,
+      reason: `receive_id ${identity.receiveId} already belongs to another invoice (${conflict.c.id})`,
+    }
+  }
+
   if (isProtected(current)) {
     return {
       rule: 'DR-04',
@@ -215,5 +237,54 @@ export function decide(input: {
     supersede: current,
     duplicateOf: null,
     reason: `${engineStatus} is ${rankNew < rankOld ? 'better than' : 'equal to'} the current ${current.status} (${current.id})`,
+  }
+}
+
+// ---------------------------------------------------------------------------- ผูกใบรับ (bind receipt)
+
+export interface BindDecision {
+  /** Status of the bound document: Confirmed, or Duplicate when the receipt is already held. */
+  newStatus: 'Confirmed' | 'Duplicate'
+  rule: 'BIND' | 'DR-04' | 'DR-06'
+  /** The document holding this receive_id / invoice in the AP flow (Duplicate case). */
+  duplicateOf: DrCandidate | null
+  /** Open, not-yet-confirmed documents of the same receipt / invoice: they become Superseded. */
+  supersede: DrCandidate[]
+  reason: string
+}
+
+/**
+ * A person bound a receipt to a document that had none, after checking the receipt lines.
+ * Agreed rules (v5.11):
+ *   • a matching document already in the AP flow (Confirmed / Sent / Posted / Import Failed, or
+ *     locked) → the bound document becomes Duplicate of it (DR-04, or DR-06 when it is another
+ *     invoice on the same receipt); nothing else changes
+ *   • otherwise every open matching document (Auto-pass / Review / Hold / Manual Review) becomes
+ *     Superseded, and the bound document is Confirmed straight away
+ * `identity` is the RESOLVED identity the bound document gets. Candidates must exclude the document
+ * itself.
+ */
+export function decideBind(input: { identity: DocumentIdentity; candidates: readonly DrCandidate[] }): BindDecision {
+  const { identity } = input
+  const matches = input.candidates.filter(c => matchKind(identity, c) !== null && !IGNORED_STATUSES.includes(c.status))
+
+  const held = matches.filter(isProtected).sort(newestFirst)
+  if (held.length) {
+    const h = held[0]
+    const rule = isReceiveConflict(identity, h) ? 'DR-06' : 'DR-04'
+    return {
+      newStatus: 'Duplicate',
+      rule,
+      duplicateOf: h,
+      supersede: [],
+      reason: `${h.id} already holds this receipt/invoice (${h.isLocked ? 'locked' : h.status})`,
+    }
+  }
+  return {
+    newStatus: 'Confirmed',
+    rule: 'BIND',
+    duplicateOf: null,
+    supersede: [...matches].sort(newestFirst),
+    reason: matches.length ? `supersedes ${matches.map(m => m.id).join(', ')}` : 'no other open document',
   }
 }

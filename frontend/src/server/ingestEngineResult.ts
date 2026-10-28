@@ -155,12 +155,13 @@ function identityInputFor(engine: EngineResultV3, doc: PortalInvoiceDocument) {
 }
 
 /** Earlier documents that could be "the same invoice" (the pure rules re-check every one). */
-async function findCandidates(db: any, identity: DocumentIdentity, excludeId: string): Promise<DrCandidate[]> {
+export async function findCandidates(db: any, identity: DocumentIdentity, excludeId: string): Promise<DrCandidate[]> {
   const or: Record<string, unknown>[] = []
   if (identity.status === 'RESOLVED' && identity.receiveId) {
     or.push({ receiveId: identity.receiveId })
-    // NOT_FOUND → RESOLVED: the earlier scan has no receive_id, only the secondary key.
-    if (identity.secondaryKey) or.push({ identityStatus: 'NOT_FOUND', secondaryKey: identity.secondaryKey })
+    // Same invoice under any receive_id (v5.11: 1 invoice = 1 receive_id), including an earlier
+    // NOT_FOUND scan that has no receive_id at all.
+    if (identity.secondaryKey) or.push({ secondaryKey: identity.secondaryKey })
   } else if (identity.status === 'NOT_FOUND' && identity.secondaryKey) {
     or.push({ secondaryKey: identity.secondaryKey })
   }
@@ -227,6 +228,13 @@ function historyFor(
         entry(
           `Duplicate ของ ${cur!.id} (DR-04)`,
           `ฉบับเดิม ${cur!.id} อยู่ในสถานะ ${cur!.status} → ฉบับใหม่ Duplicate ทันที · จับคู่ด้วย ${matchedByText(identity, decision.matchedBy)}`,
+        ),
+      ]
+    case 'DR-06':
+      return [
+        entry(
+          `Duplicate ของ ${cur!.id} (DR-06)`,
+          `receive_id ${identity.receiveId} เป็นของใบแจ้งหนี้อื่นอยู่แล้ว (${cur!.id} · ${cur!.status}) → ฉบับใหม่ Duplicate · 1 ใบแจ้งหนี้ = 1 ใบรับ ข้อมูลขัดแย้ง ต้องตรวจเอกสาร`,
         ),
       ]
     default:

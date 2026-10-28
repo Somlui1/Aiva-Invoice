@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { RoleKey } from '@/types/auth'
 import { ROLES } from '@/mock/users'
+import { COMPANIES } from '@/mock/companies'
 
 interface DirectoryEmployee {
   samAccount: string
@@ -14,7 +15,8 @@ interface DirectoryEmployee {
   unit: string
 }
 
-const AVAILABLE_COMPANIES = ['AH', 'AHT', 'AHP', 'AM']
+/** v5.11.1: from the company master (the hard-coded list missed AHA). */
+const AVAILABLE_COMPANIES = Object.keys(COMPANIES).filter(k => k !== '?')
 
 interface Props {
   isOpen: boolean
@@ -80,12 +82,9 @@ export function AdUserSearchModal({ isOpen, onClose, onAddUser }: Props) {
     setSelectedEmp(emp)
     setSearchQuery('')
     setSearchResults([])
-    // Auto-map Oracle receiver default if EU
-    if (emp.name) {
-      // Suggest capitalized name as standard Oracle receiver
-      const suggestedRcv = emp.name.toUpperCase()
-      setReceivers([suggestedRcv])
-    }
+    // v5.11.1: no guessed Oracle account. The AD display name upper-cased is not an Oracle receiver
+    // name, and a wrong binding silently showed the End User nothing — the admin types the real one.
+    setReceivers([])
   }
 
   const toggleCompany = (co: string) => {
@@ -93,8 +92,8 @@ export function AdUserSearchModal({ isOpen, onClose, onAddUser }: Props) {
   }
 
   const handleAddReceiver = () => {
-    const val = receiverInput.trim().toUpperCase()
-    if (val && !receivers.includes(val)) {
+    const val = receiverInput.normalize('NFKC').replace(/\s+/g, ' ').trim()
+    if (val && !receivers.some(r => r.toUpperCase() === val.toUpperCase())) {
       setReceivers(prev => [...prev, val])
       setReceiverInput('')
     }
@@ -104,8 +103,16 @@ export function AdUserSearchModal({ isOpen, onClose, onAddUser }: Props) {
     setReceivers(prev => prev.filter(r => r !== rcv))
   }
 
+  const scopeMissing =
+    role === 'EU' && receivers.length === 0
+      ? 'End User ต้องผูก Oracle account อย่างน้อย 1 บัญชี'
+      : (role === 'ACC' || role === 'APR') && companies.length === 0
+        ? 'ฝ่ายบัญชีต้องเลือกบริษัทอย่างน้อย 1 บริษัท'
+        : null
+  const canConfirm = !!selectedEmp && !scopeMissing
+
   const handleConfirm = () => {
-    if (!selectedEmp) return
+    if (!selectedEmp || scopeMissing) return
     onAddUser({
       name: selectedEmp.name,
       email: selectedEmp.email,
@@ -350,7 +357,13 @@ export function AdUserSearchModal({ isOpen, onClose, onAddUser }: Props) {
         </div>
 
         <div className="modal-f">
+          {selectedEmp && scopeMissing && (
+            <span role="status" style={{ marginRight: 'auto', fontSize: 12, color: '#B45309' }}>
+              {scopeMissing}
+            </span>
+          )}
           <button
+            type="button"
             onClick={onClose}
             style={{
               padding: '6px 14px',
@@ -364,15 +377,16 @@ export function AdUserSearchModal({ isOpen, onClose, onAddUser }: Props) {
           </button>
           <button
             onClick={handleConfirm}
-            disabled={!selectedEmp}
+            disabled={!canConfirm}
+            title={scopeMissing ?? undefined}
             style={{
               padding: '6px 16px',
               borderRadius: 5,
               border: 0,
-              background: selectedEmp ? '#217346' : '#94A3B8',
+              background: canConfirm ? '#217346' : '#94A3B8',
               color: '#fff',
               fontWeight: 600,
-              cursor: selectedEmp ? 'pointer' : 'not-allowed',
+              cursor: canConfirm ? 'pointer' : 'not-allowed',
             }}
           >
             เพิ่มผู้ใช้

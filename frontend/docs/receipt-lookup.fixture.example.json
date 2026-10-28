@@ -1,0 +1,631 @@
+{
+  "receipts": [
+    {
+      "receiveId": "510517699",
+      "receiptDate": "2026-07-08",
+      "supplierTaxId": "0135537003456",
+      "supplierName": "บริษัท จรูญรัตน์ โปรดักส์ จำกัด",
+      "invoiceNum": "SQ26/071249",
+      "companyCode": "AH",
+      "companyName": "บริษัท อาปิโก ไฮเทค จำกัด (มหาชน)",
+      "orgId": 101,
+      "receiverName": "K.Example Receiver",
+      "poNumbers": [
+        "40117545"
+      ],
+      "lines": [
+        {
+          "poNumber": "40117545",
+          "receiptNum": "510517699",
+          "lineNo": 1,
+          "rcvLineId": "510517699-1",
+          "itemCode": "A-01",
+          "itemDesc": "ตัวอย่างรายการรับ",
+          "qty": 10,
+          "uom": "PCS",
+          "unitPrice": 44.2,
+          "lineAmount": 442,
+          "qtyBilled": 0,
+          "lineStatus": "FULLY RECEIVED"
+        }
+      ]
+    },
+    {
+      "receiveId": "50220043395",
+      "receiptDate": "2026-08-15",
+      "supplierTaxId": "0105521010334",
+      "supplierName": "JUTHA WAN METAL LTD.",
+      "invoiceNum": "TFAM26A00021",
+      "companyCode": "AHT",
+      "companyName": "อาปิโก ไฮเทค ทูลลิ่ง",
+      "orgId": 195,
+      "receiverName": "AHT Receiver",
+      "poNumbers": [
+        "42051910"
+      ],
+      "lines": [
+        {
+          "poNumber": "42051910",
+          "receiptNum": "50220043395",
+          "lineNo": 1,
+          "rcvLineId": "50220043395-1",
+          "itemCode": "RAW-STL-01",
+          "itemDesc": "STEEL PLATE JUTHAWAN 2.0MM",
+          "qty": 50,
+          "uom": "SHT",
+          "unitPrice": 385.628,
+          "lineAmount": 19281.4,
+          "qtyBilled": 0,
+          "lineStatus": "FULLY RECEIVED"
+        }
+      ]
+    },
+    {
+      "receiveId": "50220043396",
+      "receiptDate": "2026-08-16",
+      "supplierTaxId": "0105521010334",
+      "supplierName": "บริษัท จุฑาวัณ Metals จำกัด",
+      "invoiceNum": "OTAM26A00022",
+      "companyCode": "AHT",
+      "companyName": "อาปิโก ไฮเทค ทูลลิ่ง",
+      "orgId": 195,
+      "receiverName": "AHT Receiver",
+      "poNumbers": [
+        "42051911"
+      ],
+      "lines": [
+        {
+          "poNumber": "42051911",
+          "receiptNum": "50220043396",
+          "lineNo": 1,
+          "rcvLineId": "50220043396-1",
+          "itemCode": "RAW-BAR-02",
+          "itemDesc": "STEEL ROUND BAR 25MM",
+          "qty": 20,
+          "uom": "BAR",
+          "unitPrice": 365.94,
+          "lineAmount": 7318.8,
+          "qtyBilled": 0,
+          "lineStatus": "FULLY RECEIVED"
+        }
+      ]
+    },
+    {
+      "receiveId": "50220043397",
+      "receiptDate": "2026-08-17",
+      "supplierTaxId": "0105532071666",
+      "supplierName": "Thai-Japan Gas Co., Ltd.",
+      "invoiceNum": "126100004",
+      "companyCode": "AHT",
+      "companyName": "อาปิโก ไฮเทค ทูลลิ่ง",
+      "orgId": 195,
+      "receiverName": "AHT Gas Receiver",
+      "poNumbers": [
+        "42051912"
+      ],
+      "lines": [
+        {
+          "poNumber": "42051912",
+          "receiptNum": "50220043397",
+          "lineNo": 1,
+          "rcvLineId": "50220043397-1",
+          "itemCode": "GAS-ARGON-01",
+          "itemDesc": "ARGON GAS INDUSTRIAL CYLINDER",
+          "qty": 10,
+          "uom": "CYL",
+          "unitPrice": 331.7,
+          "lineAmount": 3317,
+          "qtyBilled": 0,
+          "lineStatus": "FULLY RECEIVED"
+        }
+      ]
+    },
+    {
+      "receiveId": "50220043288",
+      "receiptDate": "2026-09-15",
+      "supplierTaxId": "0105517000907",
+      "supplierName": "Konecranes Material Handling (Thailand) Ltd. (Head office)",
+      "invoiceNum": "694055679",
+      "companyCode": "AHT",
+      "companyName": "อาปิโก ไฮเทค ทูลลิ่ง",
+      "orgId": 195,
+      "receiverName": "AHT Die Making 03, K.Vinitda Jitpilai",
+      "poNumbers": [
+        "42051905"
+      ],
+      "total": 32700,
+      "lines": [
+        {
+          "poNumber": "42051905",
+          "receiptNum": "50220043288",
+          "lineNo": 1,
+          "rcvLineId": "50220043288-1",
+          "itemCode": "MSP0001337A",
+          "itemDesc": "CRANE PART : DRIVE SHAFT N50/65 AF08/RS315 MAT NO.81811544 \\DEMAG",
+          "qty": 1,
+          "uom": "Piece",
+          "unitPrice": 23100,
+          "lineAmount": 23100,
+          "qtyBilled": 1,
+          "lineStatus": "FULLY RECEIVED",
+          "receiver": "AHT Die Making 03, K.Vinitda Jitpilai",
+          "ouName": "Aapico Hitech Tooling Legal"
+        },
+        {
+          "poNumber": "42051905",
+          "receiptNum": "50220043288",
+          "lineNo": 2,
+          "rcvLineId": "50220043288-2",
+          "itemCode": null,
+          "itemDesc": "SERVICE CHARGE FOR REPLACEMENT DRIVE SHAFT PART OF CRANE D3 AHT Q/N.1-1BPFDWWI/1",
+          "qty": 1,
+          "uom": "Job",
+          "unitPrice": 9600,
+          "lineAmount": 9600,
+          "qtyBilled": 1,
+          "lineStatus": "FULLY RECEIVED",
+          "receiver": "AHT Die Making 03, K.Vinitda Jitpilai",
+          "ouName": "Aapico Hitech Tooling Legal"
+        }
+      ]
+    },
+    {
+      "receiveId": "50220043292",
+      "receiptDate": "2026-09-15",
+      "supplierTaxId": "0105517000907",
+      "supplierName": "บริษัท อาปิโก ไฮเทค ทูลลิ่ง จำกัด AAPICO HITECH TOOLING COMPANY LIMITED",
+      "invoiceNum": "694055722",
+      "companyCode": "AHT",
+      "companyName": "อาปิโก ไฮเทค ทูลลิ่ง",
+      "orgId": 195,
+      "receiverName": "AHT Die Making 03, K.Vinitda Jitpilai",
+      "poNumbers": [
+        "42050536"
+      ],
+      "total": 2250,
+      "lines": [
+        {
+          "poNumber": "42050536",
+          "receiptNum": "50220043292",
+          "lineNo": 1,
+          "rcvLineId": "50220043292-1",
+          "itemCode": null,
+          "itemDesc": "SERVICE GENERAL\\SERVICE CHARGE FOR PM 3/4 CRANE 16 TONS  D2 (MAY 2026) OF DIE  MAINTENANCE  AHT  Q/N. 1-1AYTOFJH/1",
+          "qty": 1,
+          "uom": "Job",
+          "unitPrice": 2250,
+          "lineAmount": 2250,
+          "qtyBilled": 1,
+          "lineStatus": "FULLY RECEIVED",
+          "receiver": "AHT Die Making 03, K.Vinitda Jitpilai",
+          "ouName": "Aapico Hitech Tooling Legal"
+        }
+      ]
+    },
+    {
+      "receiveId": "50220043294",
+      "receiptDate": "2026-09-15",
+      "supplierTaxId": "0105516000750",
+      "supplierName": "SIAM MACHINERY AND EQUIPMENT CO.,LT",
+      "invoiceNum": "K07289",
+      "companyCode": "AHT",
+      "companyName": "อาปิโก ไฮเทค ทูลลิ่ง",
+      "orgId": 195,
+      "receiverName": "AHT Die Making 03, K.Vinitda Jitpilai",
+      "poNumbers": [
+        "42052799"
+      ],
+      "total": 10458,
+      "lines": [
+        {
+          "poNumber": "42052799",
+          "receiptNum": "50220043294",
+          "lineNo": 1,
+          "rcvLineId": "50220043294-1",
+          "itemCode": "DRM0028591A",
+          "itemDesc": "FC300/CASTING/260X285X165 LOWER INSERT (DFG0011020A)",
+          "qty": 38,
+          "uom": "Kilogram",
+          "unitPrice": 47,
+          "lineAmount": 1786,
+          "qtyBilled": 38,
+          "lineStatus": "FULLY RECEIVED",
+          "receiver": "AHT Die Making 03, K.Vinitda Jitpilai",
+          "ouName": "Aapico Hitech Tooling Legal"
+        },
+        {
+          "poNumber": "42052799",
+          "receiptNum": "50220043294",
+          "lineNo": 2,
+          "rcvLineId": "50220043294-2",
+          "itemCode": "DRM0028591A",
+          "itemDesc": "FC300/CASTING/405X610X205 UPPER DIE (DFG0011020A)",
+          "qty": 136,
+          "uom": "Kilogram",
+          "unitPrice": 47,
+          "lineAmount": 6392,
+          "qtyBilled": 136,
+          "lineStatus": "FULLY RECEIVED",
+          "receiver": "AHT Die Making 03, K.Vinitda Jitpilai",
+          "ouName": "Aapico Hitech Tooling Legal"
+        },
+        {
+          "poNumber": "42052799",
+          "receiptNum": "50220043294",
+          "lineNo": 3,
+          "rcvLineId": "50220043294-3",
+          "itemCode": "DRM0028592A",
+          "itemDesc": "FCD550/CASTING/150X340X147 UPPER PAD (DFG0011020A)",
+          "qty": 40,
+          "uom": "Kilogram",
+          "unitPrice": 57,
+          "lineAmount": 2280,
+          "qtyBilled": 40,
+          "lineStatus": "FULLY RECEIVED",
+          "receiver": "AHT Die Making 03, K.Vinitda Jitpilai",
+          "ouName": "Aapico Hitech Tooling Legal"
+        }
+      ]
+    },
+    {
+      "receiveId": "50220043295",
+      "receiptDate": "2026-09-15",
+      "supplierTaxId": "0105545105637",
+      "supplierName": "ซีอาร์วี แพคเกจจิ้ง จำกัด",
+      "invoiceNum": "IV2601524",
+      "companyCode": "AHT",
+      "companyName": "อาปิโก ไฮเทค ทูลลิ่ง",
+      "orgId": 195,
+      "receiverName": "AHT Die Making 03, K.Vinitda Jitpilai",
+      "poNumbers": [
+        "42052753"
+      ],
+      "total": 5000,
+      "lines": [
+        {
+          "poNumber": "42052753",
+          "receiptNum": "50220043295",
+          "lineNo": 1,
+          "rcvLineId": "50220043295-1",
+          "itemCode": "AFS0005789A",
+          "itemDesc": "PLASTIC BOX NO. 1037",
+          "qty": 100,
+          "uom": "Piece",
+          "unitPrice": 50,
+          "lineAmount": 5000,
+          "qtyBilled": 100,
+          "lineStatus": "FULLY RECEIVED",
+          "receiver": "AHT Die Making 03, K.Vinitda Jitpilai",
+          "ouName": "Aapico Hitech Tooling Legal"
+        }
+      ]
+    },
+    {
+      "receiveId": "50220043296",
+      "receiptDate": "2026-09-15",
+      "supplierTaxId": "0105533003052",
+      "supplierName": "บริษัท เทคูโร (ประเทศไทย) จำกัด สำนักงานใหญ่ TEIKURO (THAILAND) CO.,LTD. HEAD OFFICE",
+      "invoiceNum": "IV-112750",
+      "companyCode": "AHT",
+      "companyName": "อาปิโก ไฮเทค ทูลลิ่ง",
+      "orgId": 195,
+      "receiverName": "AHT Die Making 03, K.Vinitda Jitpilai",
+      "poNumbers": [
+        "42052820"
+      ],
+      "total": 793.6,
+      "lines": [
+        {
+          "poNumber": "42052820",
+          "receiptNum": "50220043296",
+          "lineNo": 1,
+          "rcvLineId": "50220043296-1",
+          "itemCode": "DOP0000005A",
+          "itemDesc": "FORD T6 Refurbished\\AB39-21618B40/41-A (DFG0010486A)\\FOR HARD CHROME INSERT B/H",
+          "qty": 1,
+          "uom": "Piece",
+          "unitPrice": 793.6,
+          "lineAmount": 793.6,
+          "qtyBilled": 1,
+          "lineStatus": "FULLY RECEIVED",
+          "receiver": "AHT Die Making 03, K.Vinitda Jitpilai",
+          "ouName": "Aapico Hitech Tooling Legal"
+        }
+      ]
+    },
+    {
+      "receiveId": "50220043300",
+      "receiptDate": "2026-09-15",
+      "supplierTaxId": "0115533001629",
+      "supplierName": "สำนักงานใหญ่",
+      "invoiceNum": "69A/18522",
+      "companyCode": "AHT",
+      "companyName": "อาปิโก ไฮเทค ทูลลิ่ง",
+      "orgId": 195,
+      "receiverName": "AHT Die Making 03, K.Vinitda Jitpilai",
+      "poNumbers": [
+        "42052675"
+      ],
+      "total": 5718.9,
+      "lines": [
+        {
+          "poNumber": "42052675",
+          "receiptNum": "50220043300",
+          "lineNo": 1,
+          "rcvLineId": "50220043300-1",
+          "itemCode": "DCM0032635A",
+          "itemDesc": "PUNCH\\JPLD-C13-80-P12.05-W7.05\\INTERTOOL",
+          "qty": 3,
+          "uom": "Piece",
+          "unitPrice": 343.7,
+          "lineAmount": 1031.1,
+          "qtyBilled": 3,
+          "lineStatus": "FULLY RECEIVED",
+          "receiver": "AHT Die Making 03, K.Vinitda Jitpilai",
+          "ouName": "Aapico Hitech Tooling Legal"
+        },
+        {
+          "poNumber": "42052675",
+          "receiptNum": "50220043300",
+          "lineNo": 2,
+          "rcvLineId": "50220043300-2",
+          "itemCode": "DCM0033304A",
+          "itemDesc": "PUNCHES WITH DOWEL FOR HEAVY LOAD\\C-APLA-C25-90-P22.30\\INTERTOOL",
+          "qty": 3,
+          "uom": "Piece",
+          "unitPrice": 1562.6,
+          "lineAmount": 4687.8,
+          "qtyBilled": 3,
+          "lineStatus": "FULLY RECEIVED",
+          "receiver": "AHT Die Making 03, K.Vinitda Jitpilai",
+          "ouName": "Aapico Hitech Tooling Legal"
+        }
+      ]
+    },
+    {
+      "receiveId": "50220043380",
+      "receiptDate": "2026-09-15",
+      "supplierTaxId": "0145566001938",
+      "supplierName": "3D DESIGN TOOL AND DIE ENGINEERING CO.,LTD(Head office)",
+      "invoiceNum": "IV2026-09002",
+      "companyCode": "AHT",
+      "companyName": "อาปิโก ไฮเทค ทูลลิ่ง",
+      "orgId": 195,
+      "receiverName": "AHT Die Making 03, K.Vinitda Jitpilai",
+      "poNumbers": [
+        "42052569"
+      ],
+      "total": 178500,
+      "lines": [
+        {
+          "poNumber": "42052569",
+          "receiptNum": "50220043380",
+          "lineNo": 1,
+          "rcvLineId": "50220043380-1",
+          "itemCode": "DFG0011013A",
+          "itemDesc": "7553065060/7553065070-1 \\ PROGRESSIVE   [D26-06-3743]",
+          "qty": 0.3,
+          "uom": "Set",
+          "unitPrice": 595000,
+          "lineAmount": 178500,
+          "qtyBilled": 0.3,
+          "lineStatus": "FULLY RECEIVED",
+          "receiver": "AHT Die Making 03, K.Vinitda Jitpilai",
+          "ouName": "Aapico Hitech Tooling Legal"
+        }
+      ]
+    },
+    {
+      "receiveId": "50220043381",
+      "receiptDate": "2026-09-15",
+      "supplierTaxId": "0145566001938",
+      "supplierName": "3D DESIGN TOOL AND DIE ENGINEERING CO.,LTD(Head office)",
+      "invoiceNum": "IV2026-09003",
+      "companyCode": "AHT",
+      "companyName": "อาปิโก ไฮเทค ทูลลิ่ง",
+      "orgId": 195,
+      "receiverName": "AHT Die Making 03, K.Vinitda Jitpilai",
+      "poNumbers": [
+        "42052570"
+      ],
+      "total": 40500,
+      "lines": [
+        {
+          "poNumber": "42052570",
+          "receiptNum": "50220043381",
+          "lineNo": 1,
+          "rcvLineId": "50220043381-1",
+          "itemCode": "DFG0011016A",
+          "itemDesc": "7553065060/7553065070-2 \\ PROGRESSIVE   [D26-06-3746]",
+          "qty": 0.3,
+          "uom": "Set",
+          "unitPrice": 135000,
+          "lineAmount": 40500,
+          "qtyBilled": 0.3,
+          "lineStatus": "FULLY RECEIVED",
+          "receiver": "AHT Die Making 03, K.Vinitda Jitpilai",
+          "ouName": "Aapico Hitech Tooling Legal"
+        }
+      ]
+    },
+    {
+      "receiveId": "50220043382",
+      "receiptDate": "2026-09-15",
+      "supplierTaxId": "0215544000113",
+      "supplierName": "FINE COMPONENTS (THAILAND) CO.,LTD.",
+      "invoiceNum": "INVM-2026/09/008",
+      "companyCode": "AHT",
+      "companyName": "อาปิโก ไฮเทค ทูลลิ่ง",
+      "orgId": 195,
+      "receiverName": "AHT Die Making 03, K.Vinitda Jitpilai",
+      "poNumbers": [
+        "42047066"
+      ],
+      "total": 645000,
+      "lines": [
+        {
+          "poNumber": "42047066",
+          "receiptNum": "50220043382",
+          "lineNo": 1,
+          "rcvLineId": "50220043382-1",
+          "itemCode": "DFG0010213A",
+          "itemDesc": "90146 2LS0A \\ FL-REST [D24-09-2944]",
+          "qty": 0.3,
+          "uom": "Set",
+          "unitPrice": 520000,
+          "lineAmount": 156000,
+          "qtyBilled": 0.9,
+          "lineStatus": "FULLY RECEIVED",
+          "receiver": "AHT Die Making 03, K.Vinitda Jitpilai",
+          "ouName": "Aapico Hitech Tooling Legal"
+        },
+        {
+          "poNumber": "42047066",
+          "receiptNum": "50220043382",
+          "lineNo": 2,
+          "rcvLineId": "50220043382-2",
+          "itemCode": "DFG0010214A",
+          "itemDesc": "90146 2LS0A \\ PI-CUT [D24-09-2945]",
+          "qty": 0.3,
+          "uom": "Set",
+          "unitPrice": 450000,
+          "lineAmount": 135000,
+          "qtyBilled": 0.9,
+          "lineStatus": "FULLY RECEIVED",
+          "receiver": "AHT Die Making 03, K.Vinitda Jitpilai",
+          "ouName": "Aapico Hitech Tooling Legal"
+        },
+        {
+          "poNumber": "42047066",
+          "receiptNum": "50220043382",
+          "lineNo": 3,
+          "rcvLineId": "50220043382-3",
+          "itemCode": "DFG0010211A",
+          "itemDesc": "90146 2LS0A \\ DR [D24-09-2942]",
+          "qty": 0.3,
+          "uom": "Set",
+          "unitPrice": 640000,
+          "lineAmount": 192000,
+          "qtyBilled": 0.9,
+          "lineStatus": "FULLY RECEIVED",
+          "receiver": "AHT Die Making 03, K.Vinitda Jitpilai",
+          "ouName": "Aapico Hitech Tooling Legal"
+        },
+        {
+          "poNumber": "42047066",
+          "receiptNum": "50220043382",
+          "lineNo": 4,
+          "rcvLineId": "50220043382-4",
+          "itemCode": "DFG0010212A",
+          "itemDesc": "90146 2LS0A \\ TR-PI [D24-09-2943]",
+          "qty": 0.3,
+          "uom": "Set",
+          "unitPrice": 540000,
+          "lineAmount": 162000,
+          "qtyBilled": 0.9,
+          "lineStatus": "FULLY RECEIVED",
+          "receiver": "AHT Die Making 03, K.Vinitda Jitpilai",
+          "ouName": "Aapico Hitech Tooling Legal"
+        }
+      ]
+    },
+    {
+      "receiveId": "50220043383",
+      "receiptDate": "2026-09-15",
+      "supplierTaxId": "0115554012018",
+      "supplierName": "FUJIGIKEN ( THAILAND ) CO.,LTD.",
+      "invoiceNum": "IV.26/0144",
+      "companyCode": "AHT",
+      "companyName": "อาปิโก ไฮเทค ทูลลิ่ง",
+      "orgId": 195,
+      "receiverName": "AHT Die Making 03, K.Vinitda Jitpilai",
+      "poNumbers": [
+        "42051575"
+      ],
+      "total": 84000,
+      "lines": [
+        {
+          "poNumber": "42051575",
+          "receiptNum": "50220043383",
+          "lineNo": 1,
+          "rcvLineId": "50220043383-1",
+          "itemCode": "DFG0010883A",
+          "itemDesc": "7553058780-1 \\ C/F RH [D26-04-3613]",
+          "qty": 0.7,
+          "uom": "Set",
+          "unitPrice": 60000,
+          "lineAmount": 42000,
+          "qtyBilled": 1,
+          "lineStatus": "FULLY RECEIVED",
+          "receiver": "AHT Die Making 03, K.Vinitda Jitpilai",
+          "ouName": "Aapico Hitech Tooling Legal"
+        },
+        {
+          "poNumber": "42051575",
+          "receiptNum": "50220043383",
+          "lineNo": 2,
+          "rcvLineId": "50220043383-2",
+          "itemCode": "DFG0010884A",
+          "itemDesc": "7553058790-1 \\ C/F LH [D26-04-3614]",
+          "qty": 0.7,
+          "uom": "Set",
+          "unitPrice": 60000,
+          "lineAmount": 42000,
+          "qtyBilled": 1,
+          "lineStatus": "FULLY RECEIVED",
+          "receiver": "AHT Die Making 03, K.Vinitda Jitpilai",
+          "ouName": "Aapico Hitech Tooling Legal"
+        }
+      ]
+    },
+    {
+      "receiveId": "50220043443",
+      "receiptDate": "2026-09-15",
+      "supplierTaxId": "0145548001557",
+      "supplierName": "JUTHA WAN METAL LTD.",
+      "invoiceNum": "ITAM26A00022",
+      "companyCode": "AHT",
+      "companyName": "อาปิโก ไฮเทค ทูลลิ่ง",
+      "orgId": 195,
+      "receiverName": "AHT Die Making 03, K.Vinitda Jitpilai",
+      "poNumbers": [
+        "42052911"
+      ],
+      "total": 6840,
+      "lines": [
+        {
+          "poNumber": "42052911",
+          "receiptNum": "50220043443",
+          "lineNo": 1,
+          "rcvLineId": "50220043443-1",
+          "itemCode": "DRM0032816A",
+          "itemDesc": "FINISHED PLATE SKD11\\95X100X215",
+          "qty": 2,
+          "uom": "Piece",
+          "unitPrice": 2230,
+          "lineAmount": 4460,
+          "qtyBilled": 0,
+          "lineStatus": "FULLY RECEIVED",
+          "receiver": "AHT Die Making 03, K.Vinitda Jitpilai",
+          "ouName": "Aapico Hitech Tooling Legal"
+        },
+        {
+          "poNumber": "42052911",
+          "receiptNum": "50220043443",
+          "lineNo": 2,
+          "rcvLineId": "50220043443-2",
+          "itemCode": "DRM0033137A",
+          "itemDesc": "FINISHED PLATE SKD11\\95X95X115",
+          "qty": 2,
+          "uom": "Piece",
+          "unitPrice": 1190,
+          "lineAmount": 2380,
+          "qtyBilled": 0,
+          "lineStatus": "FULLY RECEIVED",
+          "receiver": "AHT Die Making 03, K.Vinitda Jitpilai",
+          "ouName": "Aapico Hitech Tooling Legal"
+        }
+      ]
+    }
+  ]
+}

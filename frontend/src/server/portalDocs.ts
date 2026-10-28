@@ -20,6 +20,22 @@ import { prisma } from '@/lib/prisma'
 import { portalDocToInvoiceDoc, type PortalToUiOptions } from '@/features/engine/adapters/portalDocToInvoiceDoc'
 import type { PortalInvoiceDocument } from '@/features/engine/types/portalDomain'
 import type { InvoiceDoc } from '@/types/invoice'
+import { normalizeReceiverName } from '@/lib/docScope'
+
+/**
+ * v5.11.1: `receiverActive` from the real Oracle-account bindings (UserReceiverMap of ACTIVE End
+ * Users). Before, nothing passed `isReceiverBound`, so every Receiver counted as bound: the queue
+ * never said "ยังไม่เชื่อมบัญชี" and a document whose Receiver nobody could log in as sat in the End
+ * User lane instead of accounting's. Case- and space-insensitive, like the scope rule.
+ */
+export async function receiverBindingCheck(): Promise<(name: string) => boolean> {
+  const rows = await prisma.userReceiverMap.findMany({
+    where: { user: { isActive: true, role: 'EU' } },
+    select: { receiverName: true },
+  })
+  const bound = new Set(rows.map((r: { receiverName: string }) => normalizeReceiverName(r.receiverName)))
+  return (name: string) => bound.has(normalizeReceiverName(name))
+}
 
 /** Portal document ids are `DMS-<digits>`; nothing else is a valid lookup. */
 export const SAFE_DOC_ID = /^DMS-\d{1,7}$/
@@ -68,13 +84,14 @@ export async function loadQueueDocs(
 
   const docs: InvoiceDoc[] = []
   const skipped: string[] = []
+  const isReceiverBound = opts.isReceiverBound ?? (await receiverBindingCheck())
   for (const row of rows) {
     const portal = parsePortalPayload(row)
     if (!portal) {
       skipped.push(row.id)
       continue
     }
-    docs.push(portalDocToInvoiceDoc(portal, opts))
+    docs.push(portalDocToInvoiceDoc(portal, { ...opts, isReceiverBound }))
   }
   return { docs, skipped }
 }
@@ -88,7 +105,7 @@ export async function loadQueueDoc(id: string): Promise<InvoiceDoc | null> {
   if (!row) return null
   const portal = parsePortalPayload(row)
   if (!portal) throw new UnreadableDocumentError(id)
-  return portalDocToInvoiceDoc(portal, { includeBoxes: true })
+  return portalDocToInvoiceDoc(portal, { includeBoxes: true, isReceiverBound: await receiverBindingCheck() })
 }
 
 /** The row exists but its stored payload is not readable JSON. */

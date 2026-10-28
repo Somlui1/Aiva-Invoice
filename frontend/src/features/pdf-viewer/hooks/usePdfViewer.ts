@@ -98,6 +98,11 @@ export interface UsePdfViewerResult {
   reload: () => void
   /** PDF.js is painting the visible page; the viewer shows a spinner instead of a half-drawn page. */
   rendering: boolean
+  /**
+   * v5.11.1: the painted page's own shape in PDF points, after the file's /Rotate and BEFORE the
+   * viewer's rotate button — the same frame as the Engine's `page.rect`. `null` until painted.
+   */
+  pageFramePt: { page: number; widthPt: number; heightPt: number } | null
 }
 
 export function generateRefCode(id: string | null): string {
@@ -128,6 +133,7 @@ export function usePdfViewer({
   const [pageSize, setPageSize] = useState<SizeBox>(EMPTY_PAGE)
   /** True while PDF.js paints the visible page (first paint, page turn, zoom, rotate). */
   const [rendering, setRendering] = useState(false)
+  const [pageFramePt, setPageFramePt] = useState<UsePdfViewerResult['pageFramePt']>(null)
 
   const reload = useCallback(() => setAttempt(n => n + 1), [])
 
@@ -162,6 +168,7 @@ export function usePdfViewer({
       },
     })
     setPageSize(EMPTY_PAGE)
+    setPageFramePt(null)
   }, [])
 
   // --- 1. fetch + parse -----------------------------------------------------
@@ -172,6 +179,7 @@ export function usePdfViewer({
 
     pdfRef.current = null
     setPageSize(EMPTY_PAGE)
+    setPageFramePt(null)
     setRendering(false)
     if (!documentId) {
       setStatus(INITIAL_STATUS)
@@ -285,6 +293,14 @@ export function usePdfViewer({
         if (disposed) return
 
         setRendering(false)
+        const ownTurn = ((pdfPage.rotate % 360) + 360) % 360
+        const swapped = ownTurn === 90 || ownTurn === 270
+        setPageFramePt(prev => {
+          const next = { page: pageNumber, widthPt: swapped ? heightPt : widthPt, heightPt: swapped ? widthPt : heightPt }
+          return prev && prev.page === next.page && Math.abs(prev.widthPt - next.widthPt) < 0.5 && Math.abs(prev.heightPt - next.heightPt) < 0.5
+            ? prev
+            : next
+        })
         setPageSize(prev =>
           Math.abs(prev.width - viewport.width) < 0.5 && Math.abs(prev.height - viewport.height) < 0.5
             ? prev
@@ -306,5 +322,5 @@ export function usePdfViewer({
       renderRef.current = null
     }
   }, [status.state, status.source, page, rotation, zoom, containerWidth, devicePixelRatio, fallBack])
-  return { status, canvasRef, pageSize, reload, rendering }
+  return { status, canvasRef, pageSize, reload, rendering, pageFramePt }
 }

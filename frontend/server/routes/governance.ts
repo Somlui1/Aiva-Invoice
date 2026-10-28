@@ -5,21 +5,31 @@ import { searchActiveDirectory } from '../../src/lib/adAuth'
 import { COMPANIES } from '../../src/mock/companies'
 import { requireIntegrationKey, requirePerm } from '../../src/server/auth/guards'
 import { isProduction } from '../../src/server/auth/config'
+import { RECEIVE_HOLDER_STATUSES } from '../../src/lib/docTransitions'
+import { partitionBatch, receiveIdOf } from '../../src/server/receiveIdGuard'
+import { callbackOutcome } from '../../src/server/apCallback'
+import { docVisibleTo } from '../../src/server/viewAs'
 
 // --- USERS ROUTER ---
 export const usersRouter = Router()
 
+/** Company codes a user may be assigned (the Portal's company master; '?' is "unknown", not assignable). */
+const ASSIGNABLE_COMPANIES = (): string[] => Object.keys(COMPANIES).filter(k => k !== '?')
+
 const USER_SAVE_SCHEMA = z.object({
   id: z.string().optional(),
-  email: z.string().email(),
-  name: z.string().min(1),
-  samAccount: z.string().optional(),
-  empId: z.string().optional(),
-  unit: z.string().optional(),
+  email: z.string().trim().toLowerCase().email(),
+  name: z.string().trim().min(1),
+  samAccount: z.string().trim().optional(),
+  empId: z.string().trim().optional(),
+  unit: z.string().trim().optional(),
   role: z.enum(['EU', 'ACC', 'APR', 'ADM', 'SA']),
   companies: z.array(z.string()).default([]),
   receivers: z.array(z.string()).default([]),
 })
+
+/** Oracle receiver name as stored: trimmed, inner spaces collapsed, case kept (matching ignores case). */
+const cleanReceiver = (r: string) => r.normalize('NFKC').replace(/\s+/g, ' ').trim()
 
 usersRouter.get('/', async (_req: Request, res: Response) => {
   try {
@@ -50,6 +60,19 @@ usersRouter.get('/', async (_req: Request, res: Response) => {
   }
 })
 
+/**
+ * POST /api/users — create or update one user with its companies and Oracle accounts.
+ *
+ * v5.11.1 production rules:
+ *   • only an SA may create an SA, change an SA, or make someone SA (an ADM could promote anyone,
+ *     itself included, to SA before)
+ *   • nobody changes their own role (no self-promotion, no accidental self lock-out)
+ *   • companies must be known codes; ACC / APR need at least one — a user with none sees nothing
+ *   • an End User needs at least one Oracle account (Receiver) — that is what scopes their documents
+ *   • receivers are trimmed and de-duplicated case-insensitively (a duplicate used to fail the whole
+ *     save with a unique-constraint 500)
+ *   • saving an inactive user re-activates them; the audit line names the real admin
+ */
 usersRouter.post('/', async (req: Request, res: Response) => {
   const parsed = USER_SAVE_SCHEMA.safeParse(req.body)
   if (!parsed.success) {
@@ -62,21 +85,55 @@ usersRouter.post('/', async (req: Request, res: Response) => {
 
   const data = parsed.data
   // Mounted behind requirePerm('MAP'): the admin is the signed-in user, never a header.
-  const adminId = req.sessionUser!.id
+  const admin = req.sessionUser!
+  const adminId = admin.id
+  const adminRole = String(admin.role || '').toUpperCase()
+
+  const known = ASSIGNABLE_COMPANIES()
+  const companies = [...new Set(data.companies.map((c: string) => c.trim().toUpperCase()).filter(Boolean))]
+  const unknown = companies.filter(c => c !== 'ALL' && !known.includes(c))
+  if (unknown.length) return res.status(400).json({ ok: false, error: `ไม่รู้จักรหัสบริษัท: ${unknown.join(', ')}` })
+  if (companies.includes('ALL') && adminRole !== 'SA') {
+    return res.status(403).json({ ok: false, error: 'สิทธิ์ทุกบริษัท (ALL) กำหนดได้เฉพาะ Super Admin' })
+  }
+  const seen = new Set<string>()
+  const receivers: string[] = []
+  for (const r of data.receivers.map(cleanReceiver).filter(Boolean)) {
+    const k = r.toUpperCase()
+    if (!seen.has(k)) {
+      seen.add(k)
+      receivers.push(r)
+    }
+  }
+  if (data.role === 'EU' && receivers.length === 0) {
+    return res.status(400).json({ ok: false, error: 'End User ต้องผูก Oracle account (Receiver) อย่างน้อย 1 บัญชี' })
+  }
+  if ((data.role === 'ACC' || data.role === 'APR') && companies.length === 0) {
+    return res.status(400).json({ ok: false, error: 'ฝ่ายบัญชีต้องได้รับมอบหมายบริษัทอย่างน้อย 1 บริษัท' })
+  }
 
   try {
+    const existing = await prisma.user.findUnique({ where: { email: data.email } })
+    if (existing && existing.id === adminId && existing.role !== data.role) {
+      return res.status(403).json({ ok: false, error: 'เปลี่ยนบทบาทของตัวเองไม่ได้ · ให้ผู้ดูแลระบบคนอื่นทำ' })
+    }
+    if (adminRole !== 'SA' && (data.role === 'SA' || existing?.role === 'SA')) {
+      return res.status(403).json({ ok: false, error: 'จัดการผู้ใช้ระดับ Super Admin ได้เฉพาะ Super Admin' })
+    }
+
     const user = await prisma.$transaction(async (tx: any) => {
       // 1. Upsert User
       const u = await tx.user.upsert({
         where: { email: data.email },
         create: {
-          id: data.id || `u_${Date.now()}`,
+          id: data.id || `u_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
           email: data.email,
           name: data.name,
           samAccount: data.samAccount || data.email.split('@')[0],
           empId: data.empId,
           unit: data.unit,
           role: data.role,
+          isActive: true,
         },
         update: {
           name: data.name,
@@ -84,22 +141,24 @@ usersRouter.post('/', async (req: Request, res: Response) => {
           empId: data.empId,
           unit: data.unit,
           role: data.role,
+          isActive: true,
         },
       })
 
       // 2. Synchronize Companies
       await tx.userCompany.deleteMany({ where: { userId: u.id } })
-      if (data.companies.length > 0) {
+      if (companies.length > 0) {
         await tx.userCompany.createMany({
-          data: data.companies.map(c => ({ userId: u.id, companyCode: c })),
+          data: companies.map(c => ({ userId: u.id, companyCode: c })),
         })
       }
 
-      // 3. Synchronize Receivers
+      // 3. Synchronize Receivers (Oracle accounts) — only End Users are scoped by them
       await tx.userReceiverMap.deleteMany({ where: { userId: u.id } })
-      if (data.receivers.length > 0) {
+      const rcv = data.role === 'EU' ? receivers : []
+      if (rcv.length > 0) {
         await tx.userReceiverMap.createMany({
-          data: data.receivers.map(r => ({
+          data: rcv.map(r => ({
             userId: u.id,
             receiverName: r,
             assignedBy: adminId,
@@ -112,13 +171,13 @@ usersRouter.post('/', async (req: Request, res: Response) => {
         data: {
           docId: 'USER_MANAGEMENT',
           whoId: adminId,
-          who: 'IT Admin',
-          role: 'ADM',
-          act: 'บันทึกสิทธิ์ผู้ใช้',
+          who: admin.name || adminId,
+          role: adminRole,
+          act: existing ? 'แก้ไขสิทธิ์ผู้ใช้' : 'เพิ่มผู้ใช้',
           action: 'SAVE_USER',
-          detail: `บันทึกผู้ใช้ ${u.name} (${u.email}) · Role: ${u.role} · Scope: ${
-            u.role === 'EU' ? data.receivers.join(', ') : data.companies.join(', ')
-          }`,
+          detail: `บันทึกผู้ใช้ ${u.name} (${u.email}) · Role: ${existing && existing.role !== u.role ? `${existing.role} → ` : ''}${u.role} · บริษัท: ${
+            companies.join(', ') || '—'
+          } · Oracle account: ${rcv.join(', ') || '—'}${existing && !existing.isActive ? ' · เปิดใช้งานอีกครั้ง' : ''}`,
         },
       })
 
@@ -132,8 +191,9 @@ usersRouter.post('/', async (req: Request, res: Response) => {
         email: user.email,
         name: user.name,
         role: user.role,
-        companies: data.companies,
-        receivers: data.receivers,
+        companies,
+        receivers: data.role === 'EU' ? receivers : [],
+        isActive: true,
       },
     })
   } catch (err: any) {
@@ -141,6 +201,43 @@ usersRouter.post('/', async (req: Request, res: Response) => {
       ok: false,
       error: err.message || 'Failed to save user',
     })
+  }
+})
+
+/**
+ * DELETE /api/users/:id — deactivate (soft). The row, its history and its audit trail stay; the user
+ * is signed out on the next request (session middleware re-reads isActive). Before v5.11.1 the RBAC
+ * page showed "deleted" but never told the server, so the user kept every right.
+ */
+usersRouter.delete('/:id', async (req: Request, res: Response) => {
+  const admin = req.sessionUser!
+  const adminRole = String(admin.role || '').toUpperCase()
+  const id = String(req.params.id || '')
+  try {
+    const u = await prisma.user.findUnique({ where: { id } })
+    if (!u) return res.status(404).json({ ok: false, error: `ไม่พบผู้ใช้ ${id}` })
+    if (u.id === admin.id) return res.status(403).json({ ok: false, error: 'ปิดบัญชีของตัวเองไม่ได้' })
+    if (u.role === 'SA' && adminRole !== 'SA') {
+      return res.status(403).json({ ok: false, error: 'ปิดบัญชี Super Admin ได้เฉพาะ Super Admin' })
+    }
+    if (!u.isActive) return res.json({ ok: true, user: { id: u.id, isActive: false } })
+    await prisma.$transaction([
+      prisma.user.update({ where: { id }, data: { isActive: false } }),
+      prisma.auditLog.create({
+        data: {
+          docId: 'USER_MANAGEMENT',
+          whoId: admin.id,
+          who: admin.name || admin.id,
+          role: adminRole,
+          act: 'ปิดการใช้งานผู้ใช้',
+          action: 'DEACTIVATE_USER',
+          detail: `ปิดการใช้งาน ${u.name} (${u.email}) · Role: ${u.role}`,
+        },
+      }),
+    ])
+    res.json({ ok: true, user: { id, isActive: false } })
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err.message || 'Failed to deactivate user' })
   }
 })
 
@@ -268,6 +365,23 @@ auditLogsRouter.get('/', async (req: Request, res: Response) => {
   }
 })
 
+/** Rows of an MCP `sql_run` answer, whichever common shape it comes in; [] when none. */
+function mcpRows(data: any): Record<string, unknown>[] {
+  const r = data?.result
+  const pick = (v: any): Record<string, unknown>[] | null => (Array.isArray(v) && v.every(x => x && typeof x === 'object') ? v : null)
+  const direct = pick(r?.rows) ?? pick(r?.data) ?? pick(r)
+  if (direct) return direct
+  for (const c of Array.isArray(r?.content) ? r.content : []) {
+    if (c?.type !== 'text' || typeof c.text !== 'string') continue
+    try {
+      const parsed = JSON.parse(c.text)
+      const rows = pick(parsed) ?? pick(parsed?.rows) ?? pick(parsed?.data)
+      if (rows) return rows
+    } catch {}
+  }
+  return []
+}
+
 // --- AP ROUTER ---
 export const apRouter = Router()
 
@@ -346,70 +460,117 @@ apRouter.post('/batches', async (req: Request, res: Response) => {
       batchId = `AP-${todayStr}-${randNum}`
     }
 
-    const totalAmount = docs.reduce((acc: number, d: any) => acc + d.grandTotal, 0)
-    const effectiveCompany = companyCode || docs[0]?.companyCode || 'AH'
-
-    // Build staged Oracle interface payload
-    const stagedPayload = docs.map((d: any) => ({
-      BATCH_ID: batchId,
-      INVOICE_NUM: d.invoiceNum,
-      INVOICE_DATE: d.invoiceDate,
-      VENDOR_TAX_ID: d.supplierTaxId,
-      VENDOR_NAME: d.supplierName,
-      COMPANY_CODE: d.companyCode,
-      RECEIPT_NUM: d.receiptNum,
-      RECEIVER_NAME: d.receiverName,
-      TOTAL_AMOUNT: d.grandTotal,
-      DMS_DOC_ID: d.dmsDocId,
-      STAGED_AT: new Date().toISOString(),
-    }))
-
     const now = new Date()
     const nowTimeStr = now.toTimeString().slice(0, 8)
     const dateStr = now.toISOString().slice(0, 10)
+    const withHistory = (d: any, entry: Record<string, unknown>, status: string, extra: Record<string, unknown> = {}) => {
+      let parsed: Record<string, any> = {}
+      try {
+        parsed = JSON.parse(d.payloadJson || '{}') || {}
+      } catch {}
+      const history = Array.isArray(parsed.history) ? [...parsed.history] : []
+      history.push({ dt: dateStr, t: nowTimeStr, ...entry })
+      return JSON.stringify({ ...parsed, ...extra, status, history })
+    }
 
-    // Execute atomic transaction
-    const [batch] = await prisma.$transaction([
-      prisma.apBatch.create({
+    // v5.11: one transaction — re-check, apply the receive_id guard, then write. A selected document
+    // whose receive_id is already held (another document Confirmed earlier / Sent / Posted / Import
+    // Failed, or a second one in this batch) is taken out as Duplicate; the rest is sent.
+    const outcome = await prisma.$transaction(async (tx: any) => {
+      const fresh = await tx.document.findMany({ where: { id: { in: documentIds } } })
+      // v5.11.1: an approver sends only documents of the companies assigned to them.
+      // (ADM keeps the pre-v5.11.1 right to send: that role has no document scope at all.)
+      const outOfScope =
+        role === 'ADM' ? [] : fresh.filter((d: any) => !docVisibleTo({ company: d.companyCode, receiver: d.receiverName }, session).ok)
+      if (outOfScope.length) {
+        throw Object.assign(new Error(`ไม่มีสิทธิ์ในเอกสาร ${outOfScope.map((d: any) => `${d.id} (${d.companyCode})`).join(', ')}`), { http: 403 })
+      }
+      const notReady = fresh.filter((d: any) => d.status !== 'Confirmed' || d.isLocked)
+      if (fresh.length !== documentIds.length || notReady.length) {
+        throw Object.assign(new Error(`เอกสาร ${notReady.map((d: any) => d.id).join(', ') || 'บางฉบับ'} เปลี่ยนสถานะระหว่างนี้ · โหลดใหม่`), { http: 409 })
+      }
+      const rids = [...new Set(fresh.map((d: any) => receiveIdOf(d)).filter(Boolean))] as string[]
+      const outside = rids.length
+        ? await tx.document.findMany({
+            where: {
+              id: { notIn: documentIds },
+              status: { in: [...RECEIVE_HOLDER_STATUSES] },
+              OR: rids.flatMap(r => [{ receiveId: r }, { receiptNum: r }]),
+            },
+            select: { id: true, status: true, receiveId: true, receiptNum: true, confirmedAt: true, isLocked: true },
+          })
+        : []
+      const part = partitionBatch(fresh, outside)
+
+      for (const dup of part.duplicates) {
+        const d = fresh.find((x: any) => x.id === dup.id)
+        const why = `ใบรับ ${dup.receiveId} ถูกใช้โดย ${dup.duplicateOf} แล้ว → ตัดออกจาก Batch เป็น Duplicate`
+        await tx.document.update({
+          where: { id: dup.id },
+          data: {
+            status: 'Duplicate',
+            duplicateOfId: dup.duplicateOf,
+            drRule: 'AP-GUARD',
+            drMatchedBy: 'RECEIVE_ID',
+            payloadJson: withHistory(d, { who: 'ระบบ Portal (AP guard)', act: 'Duplicate (ตัดออกจาก Batch)', d: why, k: 'c' }, 'Duplicate', {
+              duplicateOf: dup.duplicateOf,
+              dupRule: 'AP-GUARD',
+            }),
+          },
+        })
+        await tx.auditLog.create({
+          data: { who: userName, role, docId: dup.id, act: 'ตัดออกจาก Batch (receive_id ซ้ำ)', action: 'ap_guard_duplicate', fromStatus: 'Confirmed', toStatus: 'Duplicate', detail: why },
+        })
+      }
+
+      const sendDocs = fresh.filter((d: any) => part.send.includes(d.id))
+      if (sendDocs.length === 0) return { batch: null, sendDocs, stagedPayload: [], duplicates: part.duplicates }
+
+      const totalAmount = sendDocs.reduce((acc: number, d: any) => acc + d.grandTotal, 0)
+      const effectiveCompany = companyCode || sendDocs[0]?.companyCode || 'AH'
+      const stagedPayload = sendDocs.map((d: any) => ({
+        BATCH_ID: batchId,
+        INVOICE_NUM: d.invoiceNum,
+        INVOICE_DATE: d.invoiceDate,
+        VENDOR_TAX_ID: d.supplierTaxId,
+        VENDOR_NAME: d.supplierName,
+        COMPANY_CODE: d.companyCode,
+        RECEIPT_NUM: d.receiptNum,
+        RECEIVER_NAME: d.receiverName,
+        TOTAL_AMOUNT: d.grandTotal,
+        DMS_DOC_ID: d.dmsDocId,
+        STAGED_AT: now.toISOString(),
+      }))
+
+      const batch = await tx.apBatch.create({
         data: {
           id: batchId,
           status: 'SENT',
-          totalDocs: docs.length,
+          totalDocs: sendDocs.length,
           totalAmount,
           companyCode: effectiveCompany,
           createdBy: userId,
           sentAt: now,
           payloadJson: JSON.stringify(stagedPayload),
         },
-      }),
-      prisma.document.updateMany({
-        where: { id: { in: documentIds } },
-        data: {
-          status: 'Sent',
-          isLocked: true,
-          lockedAt: now,
-          lockedBy: userId,
-          apBatchId: batchId,
-        },
-      }),
-      // Audit logs for each document
-      ...docs.map((d: any) => {
-        let history: any[] = []
-        try {
-          const parsed = JSON.parse(d.payloadJson)
-          history = Array.isArray(parsed.history) ? parsed.history : []
-        } catch {}
-
-        history.push({
-          dt: dateStr,
-          t: nowTimeStr,
-          who: userName,
-          act: `ส่งเข้า AP Interface (${batchId})`,
-          d: `ส่งโดย ${userName} (หัวหน้าฝ่ายบัญชี)`,
-          k: 'g',
+      })
+      for (const d of sendDocs) {
+        const w = await tx.document.updateMany({
+          where: { id: d.id, status: 'Confirmed', isLocked: false },
+          data: {
+            status: 'Sent',
+            isLocked: true,
+            lockedAt: now,
+            lockedBy: userId,
+            apBatchId: batchId,
+            // Before v5.11 the payload kept "Confirmed" and the history entry was built but never saved.
+            payloadJson: withHistory(d, { who: userName, act: `ส่งเข้า AP Interface (${batchId})`, d: `ส่งโดย ${userName} (หัวหน้าฝ่ายบัญชี)`, k: 'g' }, 'Sent', {
+              apBatchId: batchId,
+            }),
+          },
         })
-
-        return prisma.auditLog.create({
+        if (w.count !== 1) throw Object.assign(new Error(`เอกสาร ${d.id} เปลี่ยนสถานะระหว่างนี้ · โหลดใหม่`), { http: 409 })
+        await tx.auditLog.create({
           data: {
             who: userName,
             role,
@@ -421,27 +582,51 @@ apRouter.post('/batches', async (req: Request, res: Response) => {
             detail: `Batch ${batchId} · ยอดรวม ${d.grandTotal.toLocaleString()} ฿`,
           },
         })
-      }),
-    ])
+      }
+      return { batch, sendDocs, stagedPayload, duplicates: part.duplicates }
+    })
 
     res.json({
       ok: true,
-      batch: {
-        id: batch.id,
-        status: batch.status,
-        totalDocs: batch.totalDocs,
-        totalAmount: batch.totalAmount,
-        sentAt: batch.sentAt,
-      },
-      documentIds,
-      stagedPayload,
+      batch: outcome.batch
+        ? {
+            id: outcome.batch.id,
+            status: outcome.batch.status,
+            totalDocs: outcome.batch.totalDocs,
+            totalAmount: outcome.batch.totalAmount,
+            sentAt: outcome.batch.sentAt,
+          }
+        : null,
+      documentIds: outcome.sendDocs.map((d: any) => d.id),
+      /** Taken out as Duplicate by the receive_id guard (normally empty). */
+      excluded: outcome.duplicates,
+      stagedPayload: outcome.stagedPayload,
     })
   } catch (err: any) {
+    if (err?.http) return res.status(err.http).json({ ok: false, error: err.message })
+    if (err?.code === 'P2034' || /database is locked|SQLITE_BUSY|write conflict/i.test(String(err?.message ?? ''))) {
+      return res.status(409).json({ ok: false, error: 'มีการแก้ไขเอกสารพร้อมกัน · โหลดใหม่แล้วลองอีกครั้ง' })
+    }
     res.status(500).json({ ok: false, error: err.message })
   }
 })
 
 // Called by the Oracle AP interface, not by a person: shared key (Authorization: Bearer / X-AIVA-Key).
+//
+// v5.11 contract — each item of `results`:
+//   { documentId, result: 'SUCCESS' | 'ALREADY_EXISTS' | 'ERROR', oracleInvoiceId?, errorCode?, error? }
+//   SUCCESS         → Posted
+//   ALREADY_EXISTS  → Posted (the invoice is already in Oracle AP — e.g. keyed in Oracle directly).
+//                     Oracle's answer is authoritative; the Portal does not re-compare amounts/keys.
+//                     NOTE for the Oracle API: answer ALREADY_EXISTS only for THIS invoice (same
+//                     receive_id or supplier tax id + invoice number), or a document that never
+//                     reached AP would be closed as Posted.
+//   ERROR           → Import Failed (API / validation error; errorCode e.g. "404" is kept)
+//   Without `result`, the pre-v5.11 `success: boolean` is read (true = SUCCESS, false = ERROR).
+//
+// Only a document that is Sent in THIS batch is updated. A repeated or late callback (document
+// already Posted, back in Review, or in another batch) is skipped and audited, so it can never
+// downgrade a Posted document.
 apRouter.post('/batches/:id/callback', requireIntegrationKey('oracle'), async (req: Request, res: Response) => {
   try {
     const batchId = String(req.params.id)
@@ -468,111 +653,115 @@ apRouter.post('/batches/:id/callback', requireIntegrationKey('oracle'), async (r
     const nowTimeStr = now.toTimeString().slice(0, 8)
 
     let successCount = 0
+    let alreadyCount = 0
     let failureCount = 0
+    const skipped: { documentId: string; why: string }[] = []
 
-    // Process each document result in a transaction
     await prisma.$transaction(async (tx: any) => {
       for (const item of results) {
-        const doc = await tx.document.findUnique({
-          where: { id: item.documentId },
-        })
+        const documentId = String(item?.documentId ?? '')
+        const outcome = callbackOutcome(item)
+        const doc = documentId ? await tx.document.findUnique({ where: { id: documentId } }) : null
 
-        if (!doc) continue
-
-        let history: any[] = []
-        try {
-          const parsed = JSON.parse(doc.payloadJson)
-          history = Array.isArray(parsed.history) ? parsed.history : []
-        } catch {}
-
-        if (item.success) {
-          successCount++
-          history.push({
-            dt: dateStr,
-            t: nowTimeStr,
-            who: 'Oracle AP Interface',
-            act: 'Import สำเร็จ',
-            d: `Oracle Invoice ID: ${item.oracleInvoiceId || '—'}`,
-            k: 'g',
-          })
-
-          await tx.document.update({
-            where: { id: item.documentId },
-            data: {
-              status: 'Posted',
-              oracleInvoiceId: item.oracleInvoiceId || null,
-              importError: null,
-              isLocked: true,
-              payloadJson: JSON.stringify({
-                ...JSON.parse(doc.payloadJson || '{}'),
-                history,
-              }),
-            },
-          })
-
+        if (!doc || doc.status !== 'Sent' || doc.apBatchId !== batchId || !outcome) {
+          const why = !doc
+            ? 'ไม่พบเอกสาร'
+            : !outcome
+              ? 'ผลลัพธ์ไม่ถูกต้อง (ต้องเป็น SUCCESS / ALREADY_EXISTS / ERROR)'
+              : doc.apBatchId !== batchId
+                ? `เอกสารอยู่ใน Batch ${doc.apBatchId ?? '—'}`
+                : `สถานะปัจจุบัน ${doc.status} (ไม่ใช่ Sent) · ผลซ้ำหรือมาช้า`
+          skipped.push({ documentId, why })
           await tx.auditLog.create({
             data: {
               who: 'Oracle AP Interface',
               role: 'SYSTEM',
-              docId: item.documentId,
-              act: 'Oracle AP Import สำเร็จ',
-              action: 'oracle_ap_sync',
+              docId: documentId || '—',
+              act: 'ข้ามผล Oracle AP',
+              action: 'oracle_ap_skip',
+              fromStatus: doc?.status ?? null,
+              toStatus: doc?.status ?? null,
+              detail: `Batch ${batchId} · ${outcome ?? 'INVALID'} · ${why}`,
+            },
+          })
+          continue
+        }
+
+        let payload: Record<string, any> = {}
+        try {
+          payload = JSON.parse(doc.payloadJson || '{}') || {}
+        } catch {}
+        const history = Array.isArray(payload.history) ? [...payload.history] : []
+        const oracleInvoiceId = item.oracleInvoiceId ? String(item.oracleInvoiceId) : null
+
+        if (outcome === 'SUCCESS' || outcome === 'ALREADY_EXISTS') {
+          const already = outcome === 'ALREADY_EXISTS'
+          if (already) alreadyCount++
+          else successCount++
+          const act = already ? 'พบว่าถูก Post ใน Oracle แล้ว' : 'Import สำเร็จ'
+          const detail = `${already ? 'Oracle ตอบว่ามีใบแจ้งหนี้นี้อยู่แล้ว (Post จากช่องทางอื่น) · ' : ''}Oracle Invoice ID: ${oracleInvoiceId || '—'}`
+          history.push({ dt: dateStr, t: nowTimeStr, who: 'Oracle AP Interface', act, d: detail, k: 'g' })
+
+          await tx.document.update({
+            where: { id: documentId },
+            data: {
+              status: 'Posted',
+              oracleInvoiceId,
+              importError: null,
+              isLocked: true,
+              payloadJson: JSON.stringify({ ...payload, status: 'Posted', history }),
+            },
+          })
+          await tx.auditLog.create({
+            data: {
+              who: 'Oracle AP Interface',
+              role: 'SYSTEM',
+              docId: documentId,
+              act: already ? 'Oracle AP: มีอยู่แล้ว → Posted' : 'Oracle AP Import สำเร็จ',
+              action: already ? 'oracle_ap_already_exists' : 'oracle_ap_sync',
               fromStatus: doc.status,
               toStatus: 'Posted',
-              detail: `Oracle Invoice ID: ${item.oracleInvoiceId || '—'}`,
+              detail,
             },
           })
         } else {
           failureCount++
-          history.push({
-            dt: dateStr,
-            t: nowTimeStr,
-            who: 'Oracle AP Interface',
-            act: 'Import ไม่ผ่าน',
-            d: item.error || 'Interface Validation Error',
-            k: 'c',
-          })
+          const code = item.errorCode != null ? String(item.errorCode) : null
+          const msg = `${code ? `[${code}] ` : ''}${item.error || 'Interface Validation Error'}`
+          history.push({ dt: dateStr, t: nowTimeStr, who: 'Oracle AP Interface', act: 'Import ไม่ผ่าน', d: msg, k: 'c' })
 
           await tx.document.update({
-            where: { id: item.documentId },
+            where: { id: documentId },
             data: {
               status: 'Import Failed',
-              importError: item.error || 'Interface Validation Error',
+              importError: msg,
               isLocked: false,
-              payloadJson: JSON.stringify({
-                ...JSON.parse(doc.payloadJson || '{}'),
-                history,
-              }),
+              payloadJson: JSON.stringify({ ...payload, status: 'Import Failed', history }),
             },
           })
-
           await tx.auditLog.create({
             data: {
               who: 'Oracle AP Interface',
               role: 'SYSTEM',
-              docId: item.documentId,
+              docId: documentId,
               act: 'Oracle AP Import ไม่ผ่าน',
               action: 'oracle_ap_fail',
               fromStatus: doc.status,
               toStatus: 'Import Failed',
-              detail: item.error || 'Interface Validation Error',
+              detail: msg,
             },
           })
         }
       }
 
-      // Determine batch overall status
-      let newBatchStatus = 'PARTIAL'
-      if (failureCount === 0 && successCount > 0) {
-        newBatchStatus = 'SYNCED'
-      } else if (successCount === 0 && failureCount > 0) {
-        newBatchStatus = 'FAILED'
+      // Batch status from the documents actually processed; ALREADY_EXISTS counts as success.
+      const ok = successCount + alreadyCount
+      if (ok + failureCount > 0) {
+        await tx.apBatch.update({
+          where: { id: batchId },
+          data: { status: failureCount === 0 ? 'SYNCED' : ok === 0 ? 'FAILED' : 'PARTIAL' },
+        })
       }
-
-      await tx.apBatch.update({
-        where: { id: batchId },
-        data: { status: newBatchStatus },
-      })
     })
 
     const finalBatch = await prisma.apBatch.findUnique({
@@ -584,9 +773,12 @@ apRouter.post('/batches/:id/callback', requireIntegrationKey('oracle'), async (r
       batch: finalBatch,
       summary: {
         success: successCount,
+        alreadyExists: alreadyCount,
         failure: failureCount,
+        skipped: skipped.length,
         total: results.length,
       },
+      skipped,
     })
   } catch (err: any) {
     res.status(500).json({ ok: false, error: err.message })
@@ -646,8 +838,27 @@ oracleRouter.post('/sync-companies', async (req: Request, res: Response) => {
 
         if (mcpRes.ok) {
           const mcpData = await mcpRes.json()
-          if (mcpData?.result && !mcpData?.error) {
-            syncSource = 'oracle_mcp'
+          // v5.11.1: "synced" only when Oracle's rows were actually read and applied. Before, any
+          // non-error answer was reported as an Oracle sync while the master list was returned as-is.
+          const rows = mcpRows(mcpData)
+          if (!mcpData?.error && rows.length) {
+            const byTax = new Map<string, { orgs: Set<number>; name?: string }>()
+            for (const r of rows) {
+              const tax = String(r.TAX_ID ?? r.tax_id ?? '').replace(/\D/g, '')
+              const org = Number(r.ORG_ID ?? r.org_id)
+              if (!tax || !Number.isFinite(org)) continue
+              const e = byTax.get(tax) ?? { orgs: new Set<number>(), name: String(r.COMPANY_NAME ?? r.company_name ?? '') || undefined }
+              e.orgs.add(org)
+              byTax.set(tax, e)
+            }
+            let matched = 0
+            syncedCompanies = syncedCompanies.map(c => {
+              const hit = byTax.get(String(c.tax).replace(/\D/g, ''))
+              if (!hit) return c
+              matched++
+              return { ...c, orgs: [...hit.orgs].sort((a, b) => a - b) }
+            })
+            if (matched > 0) syncSource = 'oracle_mcp'
           }
         }
       } catch {
@@ -659,14 +870,16 @@ oracleRouter.post('/sync-companies', async (req: Request, res: Response) => {
     try {
       await prisma.auditLog.create({
         data: {
-          who: triggeredBy,
-          role: 'ADM',
+          who: req.sessionUser?.name || triggeredBy,
+          whoId: req.sessionUser?.id,
+          role: String(req.sessionUser?.role || 'ADM'),
           docId: 'MASTER_DATA',
           act: 'Sync ข้อมูลบริษัทจาก Oracle ERP',
           action: 'oracle_sync_companies',
-          detail: `ซิงค์ข้อมูลบริษัทและ ORG_ID ผ่าน ${
-            syncSource === 'oracle_mcp' ? 'Oracle MCP Endpoint' : 'Master Fallback Dictionary'
-          } สำเร็จ (${syncedCompanies.length} บริษัท)`,
+          detail:
+            syncSource === 'oracle_mcp'
+              ? `ซิงค์ ORG_ID จาก Oracle สำเร็จ (${syncedCompanies.length} บริษัท)`
+              : `ไม่ได้ซิงค์จาก Oracle · ใช้ข้อมูลบริษัทในระบบ (${syncedCompanies.length} บริษัท)`,
         },
       })
     } catch {}
@@ -676,6 +889,9 @@ oracleRouter.post('/sync-companies', async (req: Request, res: Response) => {
       source: syncSource,
       companies: syncedCompanies,
       syncedAt: new Date().toISOString(),
+      ...(syncSource === 'mock_fallback'
+        ? { warning: oracleMcpUrl && oracleMcpToken ? 'อ่านข้อมูลจาก Oracle ไม่ได้ · แสดงข้อมูลบริษัทในระบบ (ไม่ได้ซิงค์)' : 'ยังไม่ได้ตั้งค่า ORACLE_MCP_URL / ORACLE_MCP_TOKEN · แสดงข้อมูลบริษัทในระบบ (ไม่ได้ซิงค์)' }
+        : {}),
     })
   } catch (err: any) {
     res.status(500).json({

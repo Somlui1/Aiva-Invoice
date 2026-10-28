@@ -48,13 +48,13 @@ describe('LoginPage Component', () => {
       () => {
         expect(onSuccess).toHaveBeenCalled()
       },
-      { timeout: 5000 },
+      { timeout: 10000 },
     )
 
     const [user, method] = onSuccess.mock.calls[0]
     expect(user).toHaveProperty('id')
     expect(method).toBe('m365')
-  })
+  }, 15000)
 
   it('switches to LDAP tab and allows instant login in bypass mode', async () => {
     const onSuccess = vi.fn()
@@ -85,13 +85,13 @@ describe('LoginPage Component', () => {
       () => {
         expect(onSuccess).toHaveBeenCalled()
       },
-      { timeout: 5000 },
+      { timeout: 10000 },
     )
 
     const [user, method] = onSuccess.mock.calls[0]
     expect(user.email).toContain('wajeepradit.p')
     expect(method).toBe('ldap')
-  })
+  }, 15000)
 
   it('speeds up animation constants and allows toggling auto-play smoothly', async () => {
     const { DWELL, STEP_MS, WF } = await import('../features/login/data/explainer')

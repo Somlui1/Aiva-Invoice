@@ -40,36 +40,36 @@ async function fromPaperless(dmsDocId: string, reasons: string[]) {
     reasons.push(`dms_live: "${dmsDocId}" has no numeric Paperless id`)
     return null
   }
+  // v5.11.1: the SAME file the Engine read. The Engine downloads `?original=true` (the scan as
+  // uploaded) and only falls back to the archived PDF when the original is not a PDF
+  // (engine/src/system_a/adapters/paperless/reader.py `download`). Paperless' default download is
+  // the OCRmyPDF *archive*, which may be re-rotated / re-sized — the Engine's boxes (normalised on
+  // the original page incl. its /Rotate) then land on a differently turned page. Same order here.
   const url = `${base}/api/documents/${numeric}/download/`
-
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    const upstream = await fetch(url, {
-      headers: { Authorization: `Token ${token}` },
-      signal: controller.signal,
-    })
-    if (!upstream.ok) {
-      reasons.push(`dms_live: HTTP ${upstream.status} ${upstream.statusText}`)
+  for (const original of [true, false]) {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
+    try {
+      const upstream = await fetch(original ? `${url}?original=true` : url, {
+        headers: { Authorization: `Token ${token}` },
+        signal: controller.signal,
+      })
+      if (!upstream.ok) {
+        reasons.push(`dms_live${original ? ' (original)' : ' (archive)'}: HTTP ${upstream.status} ${upstream.statusText}`)
+        return null
+      }
+      const buf = Buffer.from(await upstream.arrayBuffer())
+      if (isPdfPrefix(buf)) return { buffer: buf, length: buf.length, variant: original ? 'original' : 'archive' }
+      reasons.push(`dms_live${original ? ' (original)' : ' (archive)'}: payload lacks %PDF magic`)
+      // original is an image upload → the Engine used the archived PDF; try it too
+    } catch (err: any) {
+      reasons.push(`dms_live: ${err.message}`)
       return null
+    } finally {
+      clearTimeout(timer)
     }
-
-    const buf = Buffer.from(await upstream.arrayBuffer())
-    if (!isPdfPrefix(buf)) {
-      reasons.push('dms_live: upstream payload lacks %PDF magic')
-      return null
-    }
-
-    return {
-      buffer: buf,
-      length: buf.length,
-    }
-  } catch (err: any) {
-    reasons.push(`dms_live: ${err.message}`)
-    return null
-  } finally {
-    clearTimeout(timer)
   }
+  return null
 }
 
 function fromCache(id: string, reasons: string[]) {
@@ -123,8 +123,9 @@ pdfProxyRouter.get('/:id/pdf', async (req, res) => {
     select: { id: true, dmsDocId: true, pageCount: true, companyCode: true, receiverName: true },
   })
 
-  // v5.10: "view as" → the PDF is served only if the target user could open it
-  if (doc && req.viewAs && req.sessionUser) {
+  // v5.11.1: the PDF is served only to someone who may see the document — every user, not only
+  // under "view as" (before, any signed-in user could download any document by id).
+  if (doc && req.sessionUser) {
     const vis = docVisibleTo({ company: doc.companyCode, receiver: doc.receiverName }, req.sessionUser)
     if (!vis.ok) return res.status(403).json({ ok: false, code: 'OUT_OF_SCOPE', error: vis.why, http: 403 })
   }
@@ -139,7 +140,7 @@ pdfProxyRouter.get('/:id/pdf', async (req, res) => {
   const reasons: string[] = []
 
   for (const source of attempts) {
-    let got: { buffer: Buffer; length: number; reason?: string } | null = null
+    let got: { buffer: Buffer; length: number; reason?: string; variant?: string } | null = null
     try {
       if (source === 'dms_live') got = await fromPaperless(doc.dmsDocId, reasons)
       else if (source === 'cache') got = fromCache(doc.id, reasons)
@@ -163,9 +164,12 @@ pdfProxyRouter.get('/:id/pdf', async (req, res) => {
     if (doc.pageCount) res.setHeader('X-PDF-Real-Pages', String(doc.pageCount))
     res.setHeader('X-PDF-Pages', source === 'fallback_mock' ? '1' : String(doc.pageCount ?? 1))
     if (source === 'fallback_mock') res.setHeader('X-PDF-Mock', 'true')
+    if (got.variant) res.setHeader('X-PDF-Variant', got.variant)
     if (got.reason) {
-      res.setHeader('X-PDF-Fallback-Reason', got.reason.slice(0, 200))
-      res.setHeader('X-PDF-Reason', got.reason)
+      // Header values must be Latin-1: an upstream error text in Thai would otherwise crash the reply.
+      const ascii = got.reason.replace(/[^\x20-\x7E]/g, '?')
+      res.setHeader('X-PDF-Fallback-Reason', ascii.slice(0, 200))
+      res.setHeader('X-PDF-Reason', ascii.slice(0, 1000))
     }
     if (got.length) res.setHeader('Content-Length', String(got.length))
 

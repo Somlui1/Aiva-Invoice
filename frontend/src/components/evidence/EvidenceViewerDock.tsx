@@ -47,6 +47,7 @@ import {
   type SizeBox,
 } from '../../features/pdf-viewer/lib/coordinateTransform'
 import { uiZoom } from '../../lib/uiZoom'
+import { checkPageFrame, frameMismatchText } from '../../features/pdf-viewer/lib/pageFrame'
 
 const EMPTY_SIZE: SizeBox = { width: 0, height: 0 }
 
@@ -119,7 +120,7 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
   const fit = mockPageFitScale(bodyWidth)
   const surfaceStyle = mockSurfaceStyle({ fit, zoom, rotation })
 
-  const { status, canvasRef, pageSize, reload, rendering } = usePdfViewer({
+  const { status, canvasRef, pageSize, reload, rendering, pageFramePt } = usePdfViewer({
     documentId: doc.doc,
     containerWidth: Math.max(0, bodyWidth - DOCK_BODY_INSET),
     page: currentPage,
@@ -180,9 +181,16 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
   // A finding with no box never moves the PDF: no page turn, no scroll, nothing lit — banner only.
   const focusUnlocated = !!focusFindingId && evidenceDockFocus?.locatable === false
 
+  // v5.11.1: never draw the Engine's boxes on a page of a different shape (another file / rotation).
+  const frameCheck = useMemo(() => {
+    if (!pageFramePt || pageFramePt.page !== currentPage) return { ok: true as const }
+    const engine = doc.pageFrames?.find(p => p.pageNo === currentPage)
+    return checkPageFrame(engine, pageFramePt)
+  }, [doc.pageFrames, pageFramePt, currentPage])
+
   const pdfOverlayBoxes = useMemo(
     () =>
-      projectOverlayBoxes(pdfBoxes, {
+      !frameCheck.ok ? [] : projectOverlayBoxes(pdfBoxes, {
         page: currentPage,
         pageSize,
         rotation,
@@ -194,7 +202,7 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
         activeExceptionCode: evidenceSelection?.exceptionCode,
         onlyEvidence: !showAllFields,
       }),
-    [pdfBoxes, currentPage, pageSize, rotation, focusRuleId, focusFindingId, selectedId, showAllFields, evidenceSelection?.exceptionCode],
+    [frameCheck.ok, pdfBoxes, currentPage, pageSize, rotation, focusRuleId, focusFindingId, selectedId, showAllFields, evidenceSelection?.exceptionCode],
   )
 
   const mockPageSize = mockMode && measured.pageSize.width > 0 ? measured.pageSize : EMPTY_SIZE
@@ -498,6 +506,12 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
         />
       )}
       {showEvidence && focusFinding && focusUnlocated && <FindingBanner finding={focusFinding} />}
+      {showEvidence && !mockMode && !frameCheck.ok && (
+        <div className="evd-frame-warn" role="alert" data-testid="pdf-frame-mismatch">
+          <Icon name="alert" size="sm" />
+          <span>{frameMismatchText(frameCheck)}</span>
+        </div>
+      )}
 
       <div className="dock-body evd" ref={bodyRef}>
         <PdfCanvasViewer

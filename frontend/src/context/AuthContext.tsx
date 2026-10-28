@@ -80,8 +80,11 @@ export function AuthProvider({
           try {
             const p = JSON.parse(savedProfileStr)
             if (p && p.id && p.role) {
-              const companies = Array.isArray(p.companies) && p.companies.length > 0 ? p.companies : ['AH', 'AHA', 'AHT', 'AHP', 'AM']
-              const rcv = Array.isArray(p.oracleAccounts) && p.oracleAccounts.length > 0 ? p.oracleAccounts[0] : (p.rcvName || '—')
+              // v5.11.1: no assignment means no assignment — never "every company" (the server
+              // enforces the same scope; defaulting here only showed rows the API then refused).
+              const companies = Array.isArray(p.companies) ? p.companies : []
+              const accts: string[] = Array.isArray(p.oracleAccounts) ? p.oracleAccounts : []
+              const rcv = accts.length > 0 ? accts[0] : (p.rcvName || '—')
               return {
                 id: p.id,
                 n: p.name || p.n || p.id,
@@ -90,6 +93,7 @@ export function AuthProvider({
                 rcvName: rcv,
                 emp: p.empId ? parseInt(String(p.empId).replace(/\D/g, ''), 10) || null : (p.emp || null),
                 co: companies,
+                accts,
                 unit: p.unit || 'AH',
               }
             }
@@ -136,6 +140,7 @@ export function AuthProvider({
       email: t.email,
       role: t.role,
       rcvName: t.receivers[0] ?? '—',
+      accts: t.receivers,
       emp: null,
       co: t.companies,
       unit: 'มุมมองจำลอง',
@@ -259,8 +264,9 @@ export function AuthProvider({
       }
       if (r.state !== 'valid') return
       const u = r.user
-      const companies = Array.isArray(u.companies) && u.companies.length > 0 ? u.companies : ['AH', 'AHA', 'AHT', 'AHP', 'AM']
-      const rcv = Array.isArray(u.oracleAccounts) && u.oracleAccounts.length > 0 ? u.oracleAccounts[0] : '—'
+      const companies = Array.isArray(u.companies) ? u.companies : []
+      const accts: string[] = Array.isArray(u.oracleAccounts) ? u.oracleAccounts : []
+      const rcv = accts.length > 0 ? accts[0] : '—'
       setCurrentUser(prev => ({
         id: u.id,
         n: u.name || prev.n || u.id,
@@ -269,6 +275,7 @@ export function AuthProvider({
         rcvName: rcv,
         emp: prev.emp,
         co: companies,
+        accts,
         unit: u.unit || prev.unit || 'AH',
       }))
       window.localStorage.setItem('aiva.auth.user', u.id)

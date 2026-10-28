@@ -18,6 +18,7 @@ import { allowedActionFor } from '../lib/queueFilters'
 import type { InvoiceDoc } from '../types/invoice'
 import {
   decide,
+  decideBind,
   isProtected,
   matchKind,
   selectCurrent,
@@ -183,7 +184,8 @@ describe('secondary key normalisation', () => {
 describe('matchKind — which earlier rows are "the same invoice"', () => {
   it('RESOLVED matches on receive_id', () => {
     expect(matchKind(resolved(), cand())).toBe('RECEIVE_ID')
-    expect(matchKind(resolved('RCV-9999'), cand())).toBeNull()
+    // another receipt AND another invoice → unrelated (same invoice, other receipt: see the v5.11 case below)
+    expect(matchKind(resolved('RCV-9999'), cand({ secondaryKey: buildSecondaryKey(TAX, 'INV-OTHER') }))).toBeNull()
   })
 
   it('RESOLVED finds an earlier NOT_FOUND row through the secondary key', () => {
@@ -191,8 +193,10 @@ describe('matchKind — which earlier rows are "the same invoice"', () => {
     expect(matchKind(resolved(), earlier)).toBe('SECONDARY_KEY')
   })
 
-  it('two RESOLVED rows with different receive_ids are different receipts, even with equal invoice numbers', () => {
-    expect(matchKind(resolved('RCV-2000'), cand({ receiveId: 'RCV-1001' }))).toBeNull()
+  it('v5.11 (1 invoice = 1 receive_id): one invoice under two receive_ids is the same document', () => {
+    expect(matchKind(resolved('RCV-2000'), cand({ receiveId: 'RCV-1001' }))).toBe('SECONDARY_KEY')
+    // different invoice AND different receipt → unrelated
+    expect(matchKind(resolved('RCV-2000'), cand({ receiveId: 'RCV-1001', secondaryKey: buildSecondaryKey(TAX, 'OTHER') }))).toBeNull()
   })
 
   it('NOT_FOUND matches on the secondary key — including an earlier RESOLVED row', () => {
@@ -304,7 +308,8 @@ describe('decide — DR rules', () => {
       rule: 'DR-07',
       newStatus: 'Review',
     })
-    expect(decide({ identity: resolved('RCV-5555'), engineStatus: 'Review', candidates: [cand()] }).rule).toBe('DR-07')
+    const unrelated = cand({ secondaryKey: buildSecondaryKey(TAX, 'INV-OTHER') })
+    expect(decide({ identity: resolved('RCV-5555'), engineStatus: 'Review', candidates: [unrelated] }).rule).toBe('DR-07')
   })
 
   it('compares against the current document, not the newest row', () => {
@@ -418,5 +423,68 @@ describe('queue actions for an UNRESOLVED document (UI mirror of the server guar
   it('a document without an identity (pre-v5.6 row) behaves exactly as before', () => {
     const legacy = doc({ identityStatus: undefined, rcv: 'RCV-1', receiver: 'X' })
     expect(allowedActionFor(legacy, 'confirm', { role: 'APR', can }).ok).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------- v5.11
+
+describe('DR-06 — same receive_id, different invoice (1 invoice = 1 receive_id)', () => {
+  const otherInvoice = buildSecondaryKey(TAX, 'INV-999')
+
+  it('the new document is a Duplicate of the one already carrying the receive_id, whatever the ranks', () => {
+    const holder = cand({ status: 'Hold', secondaryKey: otherInvoice })
+    const d = decide({ identity: resolved(), engineStatus: 'Auto-pass', candidates: [holder] })
+    expect(d).toMatchObject({ rule: 'DR-06', newStatus: 'Duplicate', supersede: null, matchedBy: 'RECEIVE_ID' })
+    expect(d.duplicateOf?.id).toBe(holder.id)
+  })
+
+  it('also against a Confirmed holder (DR-06 names the real cause, not DR-04)', () => {
+    const holder = cand({ status: 'Confirmed', secondaryKey: otherInvoice })
+    expect(decide({ identity: resolved(), engineStatus: 'Review', candidates: [holder] }).rule).toBe('DR-06')
+  })
+
+  it('history rows with the receive_id do not trigger it', () => {
+    const old = cand({ status: 'Rejected', secondaryKey: otherInvoice })
+    expect(decide({ identity: resolved(), engineStatus: 'Review', candidates: [old] }).rule).toBe('DR-05')
+  })
+
+  it('same invoice under another receive_id follows DR-01 … DR-04', () => {
+    const earlier = cand({ status: 'Hold', receiveId: 'RCV-0001' })
+    expect(decide({ identity: resolved('RCV-2000'), engineStatus: 'Review', candidates: [earlier] })).toMatchObject({
+      rule: 'DR-01',
+      matchedBy: 'SECONDARY_KEY',
+    })
+    const confirmed = cand({ status: 'Confirmed', receiveId: 'RCV-0001' })
+    expect(decide({ identity: resolved('RCV-2000'), engineStatus: 'Auto-pass', candidates: [confirmed] }).rule).toBe('DR-04')
+  })
+})
+
+describe('decideBind — ผูกใบรับ', () => {
+  it('nothing else open → Confirmed, nothing superseded', () => {
+    expect(decideBind({ identity: resolved(), candidates: [] })).toMatchObject({ newStatus: 'Confirmed', rule: 'BIND', supersede: [], duplicateOf: null })
+  })
+
+  it('open documents of the same receipt or invoice → all Superseded, the bound one Confirmed', () => {
+    const a = cand({ status: 'Review' })
+    const b = cand({ status: 'Manual Review', receiveId: 'RCV-7777' }) // same invoice, other receipt
+    const hist = cand({ status: 'Duplicate' })
+    const d = decideBind({ identity: resolved(), candidates: [a, b, hist] })
+    expect(d.newStatus).toBe('Confirmed')
+    expect(d.supersede.map(c => c.id).sort()).toEqual([a.id, b.id].sort())
+  })
+
+  it('a holder in the AP flow → the bound document is Duplicate (DR-04), nothing superseded', () => {
+    for (const status of ['Confirmed', 'Sent', 'Posted', 'Import Failed']) {
+      const h = cand({ status })
+      const open = cand({ status: 'Review' })
+      const d = decideBind({ identity: resolved(), candidates: [open, h] })
+      expect(d, status).toMatchObject({ newStatus: 'Duplicate', rule: 'DR-04', supersede: [] })
+      expect(d.duplicateOf?.id).toBe(h.id)
+    }
+  })
+
+  it('a holder of the receipt for another invoice → Duplicate under DR-06', () => {
+    const h = cand({ status: 'Posted', secondaryKey: buildSecondaryKey(TAX, 'INV-999') })
+    expect(decideBind({ identity: resolved(), candidates: [h] })).toMatchObject({ newStatus: 'Duplicate', rule: 'DR-06' })
   })
 })

@@ -98,6 +98,7 @@ export const INITIAL_MAPS: AccountMapping[] = []
 
 export function acctsOf(u: User, maps: AccountMapping[] = INITIAL_MAPS): string[] {
   const list = maps.filter(m => m.user === u.id).map(m => m.acct)
+  for (const a of u.accts ?? []) if (a && !list.includes(a)) list.push(a)
   if (u.rcvName && u.rcvName !== '—' && !list.includes(u.rcvName)) {
     list.push(u.rcvName)
   }

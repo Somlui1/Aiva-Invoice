@@ -12,6 +12,9 @@ import { useToastModal } from '../../context/ToastModalContext'
 import { COMPANIES, ORG_NAMES } from '../../mock/companies'
 import { RULES, EXCEPTION_CATALOG, EU_CODES, ActionType } from '../../mock/rules'
 import { getValidationCategory } from '../../features/pdf-viewer/lib/validationCategories'
+import { canBindReceipt } from '../../lib/docTransitions'
+import { hasReceipt } from '../../lib/queueFilters'
+import { ReceiptBindDrawer } from './ReceiptBindDrawer'
 
 interface InvoiceDetailPaneProps {
   doc: InvoiceDoc
@@ -26,7 +29,7 @@ interface InvoiceDetailPaneProps {
 }
 
 export function InvoiceDetailPane({ doc, onOpenActionModal, readOnly = false, closureSlot }: InvoiceDetailPaneProps) {
-  const { currentUser, can, scopeCheck } = useAuth()
+  const { currentUser, can, scopeCheck, isPreview } = useAuth()
   const {
     activeDetailTab,
     setActiveDetailTab,
@@ -46,9 +49,27 @@ export function InvoiceDetailPane({ doc, onOpenActionModal, readOnly = false, cl
   const [selectedPoFilter, setSelectedPoFilter] = useState<string | null>(null)
   // Rule cards whose long finding list (> 5) the reviewer expanded. Declared before any early return.
   const [expandedRules, setExpandedRules] = useState<Record<string, boolean>>({})
+  // v5.11 ผูกใบรับ
+  const [bindOpen, setBindOpen] = useState(false)
   useEffect(() => {
     setSelectedPoFilter(null)
+    setBindOpen(false)
   }, [doc.doc])
+  const bindCheck = canBindReceipt({ status: doc.status, identityStatus: doc.identityStatus ?? null, hasReceipt: hasReceipt(doc) })
+
+  // v5.11.1: the receipt drawer and the PDF dock occupy the same right-hand side — only one at a time.
+  // Opening the drawer closes the dock; the dock opening (button, P key, an evidence chip …) closes
+  // the drawer. Only the *transition* of the dock to open counts, so opening the drawer — which closes
+  // the dock in the same event — never closes itself.
+  const openBind = () => {
+    if (isEvidenceDockOpen) closeEvidenceDock()
+    setBindOpen(true)
+  }
+  const dockWasOpen = useRef(isEvidenceDockOpen)
+  useEffect(() => {
+    if (isEvidenceDockOpen && !dockWasOpen.current) setBindOpen(false)
+    dockWasOpen.current = isEvidenceDockOpen
+  }, [isEvidenceDockOpen])
 
   // A box picked on the evidence surface is mirrored here: the rule card or line
   // row it belongs to is marked and scrolled into view (bi-directional link).
@@ -496,7 +517,8 @@ export function InvoiceDetailPane({ doc, onOpenActionModal, readOnly = false, cl
                 <div className="note w">
                   <Icon name="user" />
                   <div>
-                    ไม่มี Receiver เพราะยังไม่พบใบรับ · ผู้ใช้งานมองไม่เห็นเอกสารนี้ ฝ่ายบัญชีติดต่อผู้สแกน ({doc.upl}) นอกระบบ · ทำได้เฉพาะ Reject
+                    ไม่มี Receiver เพราะยังไม่พบใบรับ · ผู้ใช้งานมองไม่เห็นเอกสารนี้ ·{' '}
+                    {bindCheck.ok ? 'ตรวจเอกสารแล้วใช้ "ผูกใบรับ" เพื่อ Confirm หรือ Reject' : 'ทำได้เฉพาะ Reject'}
                   </div>
                 </div>
               )}
@@ -857,6 +879,17 @@ export function InvoiceDetailPane({ doc, onOpenActionModal, readOnly = false, cl
                     : 'พร้อมดำเนินการ'}
                 </span>
               </div>
+              {bindCheck.ok && (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={isPreview || bindOpen}
+                  title={isPreview ? 'โหมดดูในมุมมองผู้อื่น: ดูอย่างเดียว' : 'ค้นหาใบรับด้วยเลขผู้เสียภาษี / PO + เลขที่ใบแจ้งหนี้ แล้ว Confirm'}
+                  onClick={openBind}
+                >
+                  <Icon name="search" size="sm" /> ผูกใบรับ
+                </button>
+              )}
               <button
                 type="button"
                 className="btn btn-danger"
@@ -890,6 +923,7 @@ export function InvoiceDetailPane({ doc, onOpenActionModal, readOnly = false, cl
         </>
         )}
       </div>
+      {bindOpen && !readOnly && <ReceiptBindDrawer doc={doc} onClose={() => setBindOpen(false)} />}
     </section>
   )
 }

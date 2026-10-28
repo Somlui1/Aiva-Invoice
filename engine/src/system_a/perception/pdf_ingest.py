@@ -42,6 +42,21 @@ def _norm_box(x0: float, y0: float, x1: float, y1: float, w: float, h: float) ->
     return (round(x, 4), round(y, 4), round(max(bw, 0.0005), 4), round(max(bh, 0.0005), 4))
 
 
+def _word_rect(page: "fitz.Page", x0: float, y0: float, x1: float, y1: float) -> tuple:
+    """A ``get_text("words")`` box in the frame of ``page.rect``.
+
+    PyMuPDF reports text-layer words in the *unrotated* page space, while ``page.rect`` (and the
+    rendered image, and every vision box) is the page turned by ``/Rotate``.  Without this transform a
+    rotated page (``/Rotate 90`` scans are common) published word boxes with width and height swapped
+    into the wrong place.  ``rotation_matrix`` is the identity for an unrotated page.
+    """
+    if not page.rotation:
+        return x0, y0, x1, y1
+    r = fitz.Rect(x0, y0, x1, y1) * page.rotation_matrix
+    r.normalize()
+    return r.x0, r.y0, r.x1, r.y1
+
+
 def page_text_and_words(data: bytes) -> list[dict]:
     """One pass over the PDF text layer: per page text plus normalized word boxes.
 
@@ -54,7 +69,7 @@ def page_text_and_words(data: bytes) -> list[dict]:
         for pno, page in enumerate(pdf, start=1):
             W, H = page.rect.width, page.rect.height
             words = [{"word_id": f"p{pno}-w{j:04d}", "page": pno, "text": txt,
-                      "bbox": _norm_box(x0, y0, x1, y1, W, H)}
+                      "bbox": _norm_box(*_word_rect(page, x0, y0, x1, y1), W, H)}
                      for j, (x0, y0, x1, y1, txt, *_r) in enumerate(page.get_text("words"))]
             out.append({"page": pno, "text": page.get_text(), "text_layer_chars": len(page.get_text().strip()),
                         "words": words})
@@ -84,7 +99,7 @@ def words_from_text_layer(data: bytes, document_id: str) -> list[dict]:
             W, H = page.rect.width, page.rect.height
             for j, (x0, y0, x1, y1, txt, *_r) in enumerate(page.get_text("words")):
                 words.append({"word_id": f"{document_id}-p{pno}-w{j:04d}", "page": pno, "text": txt,
-                              "bbox": _norm_box(x0, y0, x1, y1, W, H), "confidence": 1.0})
+                              "bbox": _norm_box(*_word_rect(page, x0, y0, x1, y1), W, H), "confidence": 1.0})
     return words
 
 

@@ -21,6 +21,7 @@ import type { ActionType } from '../mock/rules'
 import type { InvoiceDoc, InvoiceStatus } from '../types/invoice'
 import { smartMatch } from './smartSearch'
 import { closedDateOf } from './closedDocs'
+import { transitionFor, type WorkflowAction } from './docTransitions'
 
 /** The mockup's frozen "today"; the whole demo runs on one fixed clock. */
 export const TODAY = '2026-10-07'
@@ -342,14 +343,34 @@ export interface ActionContext {
   can: (permission: string) => boolean
 }
 
-/** `allow()` in the mockup: whether a button may fire, and why not. */
+/** The document carries a receipt number (the Engine found it, or it was bound). */
+export function hasReceipt(d: Pick<InvoiceDoc, 'rcv'>): boolean {
+  return !!d.rcv && d.rcv !== '—'
+}
+
+const PERM_FOR: Record<WorkflowAction, string> = {
+  confirm: 'CONFIRM',
+  review: 'REVIEW',
+  hold: 'HOLD',
+  reject: 'REJECT',
+  unconfirm: 'UNCONFIRM',
+  returnf: 'RETURN_FAILED',
+}
+
+/**
+ * `allow()` in the mockup: whether a button may fire, and why not.
+ *
+ * v5.11: the status table is `transitionFor` (src/lib/docTransitions.ts) — the same one the server
+ * enforces — so a button that is enabled here is accepted by the server. What stays here is only what
+ * the UI knows and the server does not check: permissions, the receiver-binding wait, codes the End
+ * User must fix, and High severity on a Manual Review decision.
+ */
 export function allowedActionFor(
   d: InvoiceDoc,
   act: ActionType,
   ctx: ActionContext,
 ): { ok: boolean; why?: string; perm?: string } {
   const st = d.status
-  const noRcv = !d.receiver
   const no = (w: string) => ({ ok: false, why: w })
   const yes = (p: string) => ({
     ok: ctx.can(p),
@@ -366,55 +387,22 @@ export function allowedActionFor(
   }
 
   if (act === 'upload') return no('อัปโหลดเอกสารใหม่ทำโดย End User')
-  if (['Sent', 'Posted', 'Rejected', 'Superseded'].includes(st)) {
-    return no('เอกสารปิดหรืออยู่ระหว่าง Import')
-  }
-  // UNRESOLVED (OCR could not read the lookup keys): no key and no owner, so only APR decides, and
-  // the only decision is Reject. Confirm and every other move stay closed.
-  if (d.identityStatus === 'UNRESOLVED') {
-    if (ctx.role !== 'APR') return no('เอกสาร UNRESOLVED: เฉพาะหัวหน้าฝ่ายบัญชี (APR) ตัดสินได้')
-    return act === 'reject' ? yes('REJECT') : no('UNRESOLVED: Reject เท่านั้น (ไม่มีคีย์ใบรับ จึง Confirm ไม่ได้)')
+  if (d.identityStatus === 'UNRESOLVED' && ctx.role !== 'APR' && !['Sent', 'Posted', 'Rejected', 'Superseded'].includes(st)) {
+    return no('เอกสาร UNRESOLVED: เฉพาะหัวหน้าฝ่ายบัญชี (APR) ตัดสินได้')
   }
   if (pendingBind(d)) {
     return no(`รอผูกบัญชี: IT Admin ต้องผูก Oracle account ${d.receiver} ก่อน (มีรหัสที่ Receiver ต้องแก้)`)
   }
-  if (act === 'unconfirm') return st === 'Confirmed' ? yes('UNCONFIRM') : no('ใช้กับ Confirmed เท่านั้น')
-  if (act === 'returnf') return st === 'Import Failed' ? yes('RETURN_FAILED') : no('ใช้กับ Import Failed เท่านั้น')
-  if (['Confirmed', 'Import Failed'].includes(st)) return no('ดำเนินการที่หน้า AP Interface')
 
-  if (st === 'Manual Review') {
-    if (d.unres && act === 'reject') return yes('REJECT')
-    if (act === 'confirm') {
-      if (!d.rcv || d.rcv === '—') return no('ยังไม่พบใบรับ')
-      if (hasHighSeverity(d)) return no('มีรหัส High')
-      return yes('MANUAL_REVIEW')
-    }
-    if (act === 'reject') return yes('MANUAL_REVIEW')
-    return no('Manual Review: Confirm / Reject เท่านั้น')
-  }
-  if (st === 'Duplicate') {
-    if (act === 'confirm') return yes('DUP_OVERRIDE')
-    if (act === 'reject') return yes('REJECT')
-    return no('Duplicate: Confirm (APR) / Reject เท่านั้น')
-  }
-  if (st === 'Hold' && noRcv) {
-    if (act === 'reject') return yes('REJECT')
-    return no('ไม่มี Receiver: Reject เท่านั้น')
-  }
+  const t = transitionFor({ status: st, identityStatus: d.identityStatus ?? null, hasReceipt: hasReceipt(d) }, act)
+  if (!t.ok) return no(t.why)
+
+  const decidingManual = st === 'Manual Review' && d.identityStatus !== 'UNRESOLVED'
   if (act === 'confirm') {
-    if (isEuPending(d)) return no('รอ End User แก้ไข (มีรหัสของผู้ใช้งานค้าง)')
-    return yes('CONFIRM')
+    if (decidingManual && hasHighSeverity(d)) return no('มีรหัส High')
+    if (!decidingManual && isEuPending(d)) return no('รอ End User แก้ไข (มีรหัสของผู้ใช้งานค้าง)')
   }
-  if (act === 'review') {
-    if (st === 'Review') return no('อยู่ใน Review แล้ว')
-    return yes('REVIEW')
-  }
-  if (act === 'hold') {
-    if (st === 'Hold') return no('อยู่ใน Hold แล้ว')
-    return yes('HOLD')
-  }
-  if (act === 'reject') return yes('REJECT')
-  return no('ไม่รองรับ')
+  return yes(decidingManual ? 'MANUAL_REVIEW' : PERM_FOR[act])
 }
 
 /** The status an action leaves behind; `upload` creates a document instead. */

@@ -64,12 +64,18 @@ const get = async (id: string) => {
 let prisma: any
 let originalBaseUrl: string | undefined
 let originalToken: string | undefined
+let originalUrl: string | undefined
+let originalApiToken: string | undefined
 
 beforeAll(async () => {
   originalBaseUrl = process.env.PAPERLESS_BASE_URL
   originalToken = process.env.PAPERLESS_API_TOKEN
+  originalUrl = process.env.PAPERLESS_URL
+  originalApiToken = process.env.PAPERLESS_TOKEN
   delete process.env.PAPERLESS_BASE_URL
   delete process.env.PAPERLESS_API_TOKEN
+  delete process.env.PAPERLESS_URL
+  delete process.env.PAPERLESS_TOKEN
 
   prisma = (await import('../lib/prisma')).prisma
   // Own rows, created explicitly: this file must not depend on another test
@@ -90,6 +96,10 @@ afterAll(async () => {
   else delete process.env.PAPERLESS_BASE_URL
   if (originalToken !== undefined) process.env.PAPERLESS_API_TOKEN = originalToken
   else delete process.env.PAPERLESS_API_TOKEN
+  if (originalUrl !== undefined) process.env.PAPERLESS_URL = originalUrl
+  else delete process.env.PAPERLESS_URL
+  if (originalApiToken !== undefined) process.env.PAPERLESS_TOKEN = originalApiToken
+  else delete process.env.PAPERLESS_TOKEN
 
   await prisma.validationRun.deleteMany({ where: { documentId: { in: [DOC_ID, 'DMS-900'] } } })
   await prisma.document.deleteMany({ where: { id: { in: [DOC_ID, 'DMS-900'] } } })
@@ -247,7 +257,20 @@ describe('GET /api/documents/[id]/pdf', () => {
       // Same endpoint + auth scheme the Engine's own reader uses.
       expect(seen.length).toBeGreaterThan(0)
       expect(seen[0].url).toContain('/api/documents/100/download/')
+      // v5.11.1: the ORIGINAL file, like the Engine — not the OCRmyPDF archive, which may be
+      // re-rotated so the Engine's boxes would land on a differently turned page.
+      expect(seen[0].url).toContain('original=true')
+      expect(res.headers.get('X-PDF-Variant')).toBe('original')
       expect(seen[0].auth).toBe('Token test-token-123')
+    })
+
+    it('original is not a PDF (image upload) → the archived PDF, as the Engine does', async () => {
+      seen.length = 0
+      mode = 'not_pdf'
+      process.env.PAPERLESS_BASE_URL = baseUrl
+      process.env.PAPERLESS_API_TOKEN = 'test-token-123'
+      await get(DOC_ID)
+      expect(seen.map(s => s.url.includes('original=true'))).toEqual([true, false])
     })
 
     it('refuses to pass non-PDF bytes upstream, falling back instead', async () => {
@@ -261,5 +284,15 @@ describe('GET /api/documents/[id]/pdf', () => {
       expect(res.headers.get('X-PDF-Source')).not.toBe('dms_live')
       assertRealPdf(Buffer.from(await res.arrayBuffer()))
     })
+  })
+})
+
+describe('v5.11.1 — the PDF follows the document scope for every user', () => {
+  it('an End User without that Receiver, or an accountant of another company, gets 403', async () => {
+    const app = createExpressApp()
+    const eu = await asUser('pdf-eu', 'EU', { companies: ['AHT'], receivers: ['SOMEONE ELSE'] })
+    const acc = await asUser('pdf-acc', 'ACC', { companies: ['AH'] })
+    expect((await request(app).get(`/api/documents/${DOC_ID}/pdf`).set('Cookie', eu)).status).toBe(403)
+    expect((await request(app).get(`/api/documents/${DOC_ID}/pdf`).set('Cookie', acc)).status).toBe(403)
   })
 })

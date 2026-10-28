@@ -185,4 +185,106 @@ describe('Oracle AP Batch Staging & Locking Pipeline', () => {
     expect(doc2?.importError).toBe('Tax ID mismatch with Oracle supplier master')
     expect(doc2?.isLocked).toBe(false)
   })
+
+  // ------------------------------------------------------------------ v5.11
+
+  const sendBoth = async () => {
+    await prisma.apBatch.create({
+      data: { id: 'AP-TEST-V511', status: 'SENT', totalDocs: 2, totalAmount: 40000.0, companyCode: 'AH', createdBy: 'u6', payloadJson: '[]' },
+    })
+    await prisma.document.updateMany({
+      where: { id: { in: [doc1Id, doc2Id] } },
+      data: { status: 'Sent', isLocked: true, apBatchId: 'AP-TEST-V511' },
+    })
+  }
+  const callback = (results: unknown[]) => request(app).post('/api/ap/batches/AP-TEST-V511/callback').send({ results })
+
+  it('callback: ALREADY_EXISTS (posted outside the Portal) → Posted; ERROR keeps the error code → Import Failed', async () => {
+    await sendBoth()
+    const res = await callback([
+      { documentId: doc1Id, result: 'ALREADY_EXISTS', oracleInvoiceId: 'ORA-EXIST-1' },
+      { documentId: doc2Id, result: 'ERROR', errorCode: '404', error: 'Supplier site not found' },
+    ])
+    expect(res.status).toBe(200)
+    expect(res.body.summary).toMatchObject({ success: 0, alreadyExists: 1, failure: 1, skipped: 0 })
+    expect(res.body.batch.status).toBe('PARTIAL')
+
+    const d1 = await prisma.document.findUnique({ where: { id: doc1Id } })
+    expect(d1).toMatchObject({ status: 'Posted', isLocked: true, oracleInvoiceId: 'ORA-EXIST-1' })
+    const p1 = JSON.parse(d1!.payloadJson)
+    expect(p1.status).toBe('Posted')
+    expect(p1.history.at(-1).act).toBe('พบว่าถูก Post ใน Oracle แล้ว')
+
+    const d2 = await prisma.document.findUnique({ where: { id: doc2Id } })
+    expect(d2).toMatchObject({ status: 'Import Failed', isLocked: false, importError: '[404] Supplier site not found' })
+  })
+
+  it('callback: ALREADY_EXISTS counts as success for the batch status', async () => {
+    await sendBoth()
+    const res = await callback([
+      { documentId: doc1Id, result: 'SUCCESS', oracleInvoiceId: 'ORA-1' },
+      { documentId: doc2Id, result: 'ALREADY_EXISTS' },
+    ])
+    expect(res.body.batch.status).toBe('SYNCED')
+  })
+
+  it('callback: a repeated or late result never downgrades a Posted document', async () => {
+    await sendBoth()
+    await callback([{ documentId: doc1Id, result: 'SUCCESS', oracleInvoiceId: 'ORA-1' }])
+    const late = await callback([{ documentId: doc1Id, result: 'ERROR', errorCode: '500', error: 'late' }])
+    expect(late.status).toBe(200)
+    expect(late.body.summary.skipped).toBe(1)
+    expect((await prisma.document.findUnique({ where: { id: doc1Id } }))?.status).toBe('Posted')
+    const skipLog = await prisma.auditLog.findFirst({ where: { docId: doc1Id, action: 'oracle_ap_skip' } })
+    expect(skipLog).not.toBeNull()
+  })
+
+  it('callback: a document of another batch is skipped; an unknown result value is skipped', async () => {
+    await sendBoth()
+    await prisma.document.update({ where: { id: doc2Id }, data: { apBatchId: 'AP-TEST-OTHER' } })
+    const res = await callback([
+      { documentId: doc1Id, result: 'MAYBE' },
+      { documentId: doc2Id, result: 'SUCCESS' },
+    ])
+    expect(res.body.summary).toMatchObject({ skipped: 2, success: 0 })
+    expect(res.body.batch.status).toBe('SENT') // nothing processed → batch untouched
+  })
+
+  it('batch guard: two Confirmed documents of one receive_id — the earlier Confirm is sent, the other becomes Duplicate', async () => {
+    await prisma.document.update({ where: { id: doc1Id }, data: { receiveId: 'RCV-AP-1', receiptNum: 'RCV-AP-1', confirmedAt: new Date('2026-10-14T09:00:00Z') } })
+    await prisma.document.update({ where: { id: doc2Id }, data: { receiveId: 'RCV-AP-1', receiptNum: 'RCV-AP-1', confirmedAt: new Date('2026-10-14T11:00:00Z') } })
+    const res = await request(app)
+      .post('/api/ap/batches')
+      .set('Cookie', await asUser('u6', 'APR', { name: 'สมชาย วงศ์ทอง' }))
+      .send({ batchId: 'AP-TEST-GUARD', documentIds: [doc1Id, doc2Id], companyCode: 'AH' })
+    expect(res.status).toBe(200)
+    expect(res.body.documentIds).toEqual([doc1Id])
+    expect(res.body.excluded).toEqual([{ id: doc2Id, duplicateOf: doc1Id, receiveId: 'RCV-AP-1' }])
+    expect(res.body.batch.totalDocs).toBe(1)
+    expect((await prisma.document.findUnique({ where: { id: doc1Id } }))?.status).toBe('Sent')
+    expect(await prisma.document.findUnique({ where: { id: doc2Id } })).toMatchObject({ status: 'Duplicate', duplicateOfId: doc1Id, isLocked: false })
+  })
+
+  it('batch guard: a receive_id already Posted outside the batch takes the selected document out', async () => {
+    await prisma.document.update({ where: { id: doc1Id }, data: { receiveId: 'RCV-AP-2', status: 'Posted', isLocked: true } })
+    await prisma.document.update({ where: { id: doc2Id }, data: { receiveId: 'RCV-AP-2' } })
+    const res = await request(app)
+      .post('/api/ap/batches')
+      .set('Cookie', await asUser('u6', 'APR'))
+      .send({ batchId: 'AP-TEST-GUARD2', documentIds: [doc2Id] })
+    expect(res.status).toBe(200)
+    expect(res.body.batch).toBeNull()
+    expect(res.body.excluded[0]).toMatchObject({ id: doc2Id, duplicateOf: doc1Id })
+    expect(await prisma.apBatch.findUnique({ where: { id: 'AP-TEST-GUARD2' } })).toBeNull()
+  })
+
+  it('a sent document stores "Sent" and the send entry in its payload (was lost before v5.11)', async () => {
+    await request(app)
+      .post('/api/ap/batches')
+      .set('Cookie', await asUser('u6', 'APR', { name: 'สมชาย วงศ์ทอง' }))
+      .send({ batchId: 'AP-TEST-PAYLOAD', documentIds: [doc1Id] })
+    const p = JSON.parse((await prisma.document.findUnique({ where: { id: doc1Id } }))!.payloadJson)
+    expect(p.status).toBe('Sent')
+    expect(p.history.at(-1).act).toContain('AP-TEST-PAYLOAD')
+  })
 })

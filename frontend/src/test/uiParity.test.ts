@@ -110,6 +110,7 @@ async function list(url: string): Promise<{ status: number; body: ListBody }> {
 }
 
 beforeAll(async () => {
+  delete process.env.ENGINE_INGEST_KEY
   expect(files.length, 'Engine corpus must be present to test live ingestion').toBeGreaterThan(100)
 
   const { prisma } = await import('@/lib/prisma')
@@ -142,6 +143,10 @@ const portalOf = (id: string): PortalInvoiceDocument => {
 }
 
 beforeAll(async () => {
+  // v5.11.1: `receiverActive` comes from the real Oracle-account bindings. Bind every live
+  // Receiver to one End User so the two lanes (receiver / accounting) are exercised as before.
+  const receivers = [...new Set([...expected.values()].map(p => p.receiverName).filter((r): r is string => !!r))]
+  await asUser('parity-eu-binder', 'EU', { receivers })
   const { body } = await list('/api/documents')
   live = body.documents
 })
@@ -718,12 +723,14 @@ describe('queue logic — the mockup rules, applied to live rows', () => {
     const visible = visibleDocsFor(live, scopeOf(APR))
     const kpi = kpiCountsFor(baseInput({ docs: visible }))
 
-    expect(kpi.all).toBe(visible.length)
+    const openVisible = visible.filter(d => !CLOSED_STATUSES.includes(d.status))
+    expect(kpi.all).toBe(openVisible.length)
     for (const s of ['Auto-pass', 'Review', 'Hold', 'Manual Review']) {
       expect(kpi[s]).toBe(statusCounts(visible)[s] ?? 0)
     }
-    expect(kpi['Auto-pass']).toBe(SUMMARY.statistics.counts.AUTO_PASS)
-    expect(kpi['Manual Review']).toBe(SUMMARY.statistics.counts.MANUAL_REVIEW)
+    // v5.11: DR resolved 1 duplicate in AUTO_PASS (50 vs 51) and 1 in MANUAL_REVIEW (38 vs 39)
+    expect(kpi['Auto-pass']).toBe(SUMMARY.statistics.counts.AUTO_PASS - 1)
+    expect(kpi['Manual Review']).toBe(SUMMARY.statistics.counts.MANUAL_REVIEW - 1)
     expect(kpi.unres).toBe(visible.filter(d => d.unres && d.status === 'Manual Review').length)
     expect(kpi.bind).toBe(visible.filter(pendingBind).length)
     // the four status cards are disjoint slices of the queue
@@ -760,11 +767,11 @@ describe('queue logic — the mockup rules, applied to live rows', () => {
   })
 
   it('company chips cover every live document exactly once', () => {
-    const chips = companyCountsFor(baseInput())
+    const chips = companyCountsFor(baseInput({ showClosed: true }))
     expect(Object.values(chips).reduce((a, b) => a + b, 0)).toBe(live.length)
     expect(Object.keys(chips).sort()).toEqual(Object.keys(companyCounts(live)).sort())
     for (const [c, n] of Object.entries(chips)) {
-      expect(filterDocsFor(baseInput({ companyFilter: new Set([c]) })).length, c).toBe(n)
+      expect(filterDocsFor(baseInput({ companyFilter: new Set([c]), showClosed: true })).length, c).toBe(n)
     }
   })
 
@@ -841,7 +848,9 @@ describe('queue logic — the mockup rules, applied to live rows', () => {
 
     const inMonth = filterDocsFor(baseInput({ periodFilter: { k: 'month' } }))
     const stale = staleDocsFor(baseInput({ periodFilter: { k: 'month' } }))
-    expect(inMonth.length + stale.length).toBeGreaterThanOrEqual(live.length)
+    expect(inMonth.length + stale.length).toBeGreaterThanOrEqual(
+      live.filter(d => !CLOSED_STATUSES.includes(d.status)).length,
+    )
     for (const d of stale) {
       // only open work can be "ค้างนอกงวด"; closed documents are history
       expect(OPEN_STATUSES).toContain(d.status)

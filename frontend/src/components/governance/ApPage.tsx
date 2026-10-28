@@ -122,11 +122,13 @@ export function ApPage({ initialTab = 'pending' }: { initialTab?: 'pending' | 's
     setViewMode('split')
   }
 
-  const handleSendBatch = () => {
-    if (!canSend) return
+  const [sending, setSending] = useState(false)
+  const handleSendBatch = async () => {
+    if (!canSend || sending) return
     const ids = Array.from(apSel)
     if (!ids.length) return
-    const res = batchPost(ids)
+    setSending(true)
+    const res = await batchPost(ids).finally(() => setSending(false))
     if (res.ok) {
       setApSel(new Set())
       setApTab('sent')
@@ -205,11 +207,12 @@ export function ApPage({ initialTab = 'pending' }: { initialTab?: 'pending' | 's
                 <button
                   type="button"
                   className="btn btn-info sm"
-                  disabled={!selRows.length}
+                  disabled={!selRows.length || sending}
+                  aria-busy={sending}
                   onClick={handleSendBatch}
                 >
                   <Icon name="send" size="sm" />
-                  ส่งเข้า AP Interface (Batch)
+                  {sending ? 'กำลังส่ง…' : 'ส่งเข้า AP Interface (Batch)'}
                 </button>
               </>
             )}

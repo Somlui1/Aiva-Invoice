@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { RoleKey } from '@/types/auth'
 import { ROLES } from '@/mock/users'
+import { COMPANIES } from '@/mock/companies'
 import { AdUserSearchModal } from './AdUserSearchModal'
 import { SaveDiffModal, UserDiff } from './SaveDiffModal'
 import { useToastModal } from '@/context/ToastModalContext'
@@ -23,9 +24,24 @@ export interface ManagedUser {
   isNew?: boolean
   isDirty?: boolean
   isDeleted?: boolean
+  isActive?: boolean
 }
 
-const AVAILABLE_COMPANIES = ['AH', 'AHT', 'AHP', 'AM']
+/** v5.11.1: from the company master — the hard-coded list missed AHA, so no one could be given AHA. */
+const AVAILABLE_COMPANIES = Object.keys(COMPANIES).filter(k => k !== '?')
+
+const sameSet = (a: string[], b: string[]) => {
+  const x = [...a].map(s => s.toUpperCase()).sort()
+  const y = [...b].map(s => s.toUpperCase()).sort()
+  return x.length === y.length && x.every((v, i) => v === y[i])
+}
+
+/** Why a row cannot be saved as it is (mirrors the server's rules), or null. */
+export function userRowProblem(u: Pick<ManagedUser, 'role' | 'companies' | 'receivers'>): string | null {
+  if (u.role === 'EU' && u.receivers.length === 0) return 'End User ต้องผูก Oracle account อย่างน้อย 1 บัญชี'
+  if ((u.role === 'ACC' || u.role === 'APR') && u.companies.length === 0) return 'ฝ่ายบัญชีต้องได้รับมอบหมายบริษัทอย่างน้อย 1 บริษัท'
+  return null
+}
 
 /** ตัวอักษรแรกของชื่อ (ข้ามสระนำภาษาไทย) สำหรับอวาตาร์ */
 const initialOf = (name: string): string => {
@@ -51,8 +67,10 @@ export function PermissionExcelGrid() {
       if (res.ok) {
         const data = await res.json()
         if (data.ok && Array.isArray(data.users)) {
-          setInitialUsers(JSON.parse(JSON.stringify(data.users)))
-          setUsers(data.users)
+          // Deactivated users are history: not listed (re-adding the same e-mail re-activates them).
+          const active = data.users.filter((u: ManagedUser) => u.isActive !== false)
+          setInitialUsers(JSON.parse(JSON.stringify(active)))
+          setUsers(active)
         }
       }
     } catch (err) {
@@ -93,12 +111,8 @@ export function PermissionExcelGrid() {
         res.push({ user: u, type: 'deleted' })
       } else {
         const orig = initialUsers.find(o => o.email === u.email)
-        if (
-          orig &&
-          (orig.role !== u.role ||
-            JSON.stringify(orig.companies.sort()) !== JSON.stringify(u.companies.sort()) ||
-            JSON.stringify(orig.receivers.sort()) !== JSON.stringify(u.receivers.sort()))
-        ) {
+        // Compared on copies: `.sort()` on the state arrays used to reorder them in place.
+        if (orig && (orig.role !== u.role || !sameSet(orig.companies, u.companies) || !sameSet(orig.receivers, u.receivers))) {
           res.push({ user: u, type: 'modified' })
         }
       }
@@ -150,11 +164,13 @@ export function PermissionExcelGrid() {
   }
 
   const handleAddReceiver = (id: string, rcv: string) => {
-    const trimmed = rcv.trim().toUpperCase()
+    // Kept as typed (Oracle names are mixed case, e.g. "AHT Die Making 03, K.Vinitda"); the
+    // comparison is case-insensitive. Upper-casing it used to break the match with the document.
+    const trimmed = rcv.normalize('NFKC').replace(/\s+/g, ' ').trim()
     if (!trimmed) return
     setUsers(prev =>
       prev.map(u => {
-        if (u.id !== id || u.receivers.includes(trimmed)) return u
+        if (u.id !== id || u.receivers.some(r => r.toUpperCase() === trimmed.toUpperCase())) return u
         return { ...u, receivers: [...u.receivers, trimmed], isDirty: true }
       })
     )
@@ -196,32 +212,54 @@ export function PermissionExcelGrid() {
     toast(`เพิ่ม ${newUser.name} เรียบร้อยแล้ว (รอยืนยันบันทึก)`)
   }
 
+  /**
+   * v5.11.1: every row is sent and its answer checked. Before, a refused row (or a network error)
+   * still showed "saved", and a deleted row was never sent at all — the user kept every right.
+   */
   const handleSaveAll = async () => {
+    const invalid = diffs.filter(d => d.type !== 'deleted').map(d => ({ d, why: userRowProblem(d.user) })).filter(x => x.why)
+    if (invalid.length) {
+      toast(`${invalid[0].d.user.name}: ${invalid[0].why}`, true)
+      return
+    }
     setIsSaving(true)
+    const failed: string[] = []
     try {
       for (const diff of diffs) {
-        if (diff.type === 'added' || diff.type === 'modified') {
-          await fetch('/api/users', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              email: diff.user.email,
-              name: diff.user.name,
-              samAccount: diff.user.samAccount,
-              empId: diff.user.empId,
-              unit: diff.user.unit,
-              role: diff.user.role,
-              companies: diff.user.companies,
-              receivers: diff.user.receivers,
-            }),
-          })
+        try {
+          let res: Response | null = null
+          if (diff.type === 'deleted') {
+            if (diff.user.isNew) continue
+            res = await fetch(`/api/users/${encodeURIComponent(diff.user.id)}`, { method: 'DELETE' })
+          } else {
+            res = await fetch('/api/users', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                email: diff.user.email,
+                name: diff.user.name,
+                samAccount: diff.user.samAccount,
+                empId: diff.user.empId,
+                unit: diff.user.unit,
+                role: diff.user.role,
+                companies: diff.user.companies,
+                receivers: diff.user.role === 'EU' ? diff.user.receivers : [],
+              }),
+            })
+          }
+          const body = await res.json().catch(() => ({}))
+          if (!res.ok || body?.ok === false) failed.push(`${diff.user.name}: ${body?.error || `HTTP ${res.status}`}`)
+        } catch (err: any) {
+          failed.push(`${diff.user.name}: ${err?.message || 'เชื่อมต่อไม่ได้'}`)
         }
       }
-      toast('บันทึกการเปลี่ยนแปลงสิทธิ์ทั้งหมดสำเร็จ!')
-      setIsDiffModalOpen(false)
+      if (failed.length) {
+        toast(`บันทึกไม่สำเร็จ ${failed.length} รายการ · ${failed[0]}`, true)
+      } else {
+        toast('บันทึกการเปลี่ยนแปลงสิทธิ์ทั้งหมดสำเร็จ')
+        setIsDiffModalOpen(false)
+      }
       await loadUsers()
-    } catch (err: any) {
-      toast(err.message || 'บันทึกไม่สำเร็จ', true)
     } finally {
       setIsSaving(false)
     }

@@ -1,0 +1,122 @@
+/* v5.11 · ผูกใบรับ (receipt bind drawer). Right-side panel; the PDF on the left stays visible.
+   Sections are separated by rules, never nested cards. */
+.rbd {
+  position: fixed;
+  top: var(--hdr-h, 56px);
+  right: 0;
+  bottom: 0;
+  width: min(620px, 100vw);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-left: 1px solid var(--line-strong);
+  box-shadow: var(--e-3);
+}
+.rbd-h {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px 10px;
+  border-bottom: 1px solid var(--line);
+}
+.rbd-h h3 { margin: 0; font-size: 16px; }
+.rbd-sub { margin: 2px 0 0; font-size: 12.5px; color: var(--s-500); }
+.rbd-x {
+  border: 1px solid var(--line);
+  background: transparent;
+  border-radius: var(--r-sm);
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  color: inherit;
+}
+.rbd-x:focus-visible, .rbd-link:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.rbd-steps {
+  display: flex;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 8px 18px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.rbd-steps li { color: var(--s-400); }
+.rbd-steps li + li::before { content: '›'; margin-right: 6px; color: var(--s-300); }
+.rbd-steps li.on { color: var(--teal-d, var(--teal)); font-weight: 600; }
+.rbd-body { flex: 1; overflow: auto; padding: 4px 18px 16px; }
+.rbd-sec { padding: 12px 0; border-bottom: 1px solid var(--line-soft); }
+.rbd-sec:last-child { border-bottom: 0; }
+.rbd-sec h4 { margin: 0 0 8px; font-size: 13px; text-transform: none; }
+.rbd-sec label { display: block; margin: 8px 0 4px; font-size: 12.5px; color: var(--s-600); }
+.rbd-sec .inp { width: 100%; box-sizing: border-box; }
+.rbd-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  background: var(--info-bg);
+  color: var(--info);
+  border: 1px solid var(--info-bd);
+}
+.rbd-req { color: var(--err); }
+.rbd-hint { margin: 6px 0 0; font-size: 12px; color: var(--s-500); }
+.rbd-row-end { display: flex; justify-content: flex-end; margin-top: 10px; }
+.rbd-kv { display: grid; grid-template-columns: 110px 1fr; gap: 4px 10px; margin: 0; font-size: 12.5px; }
+.rbd-kv dt { color: var(--s-500); }
+.rbd-kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.rbd-amt {
+  display: grid;
+  grid-template-columns: auto auto auto auto auto auto;
+  gap: 4px 10px;
+  align-items: baseline;
+  margin-top: 10px;
+  font-size: 12.5px;
+}
+.rbd-amt span { color: var(--s-500); }
+.rbd-amt .ok { color: var(--ok); }
+.rbd-amt .warn { color: var(--warn); }
+.rbd-tbl-wrap { margin-top: 10px; overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r-sm); }
+.rbd-tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+.rbd-tbl th, .rbd-tbl td { padding: 6px 8px; border-bottom: 1px solid var(--line-soft); text-align: left; white-space: nowrap; }
+.rbd-tbl td:nth-child(4) { white-space: normal; min-width: 140px; }
+.rbd-tbl .num { text-align: right; font-variant-numeric: tabular-nums; }
+.rbd-tbl tr.billed td { background: var(--warn-bg); }
+.rbd-link {
+  margin-left: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--info);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+.rbd-f {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+@media (max-width: 560px) {
+  .rbd-amt { grid-template-columns: auto auto; }
+  .rbd-kv { grid-template-columns: 1fr; }
+}
+
+/* v5.11.1 · PDF on screen ≠ file the Engine measured → boxes hidden, say why */
+.evd-frame-warn {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 12.5px;
+  background: var(--warn-bg);
+  color: var(--warn);
+  border-bottom: 1px solid var(--warn-bd);
+}

@@ -30,7 +30,8 @@ export function ActionModalDialog({ doc, action, onClose }: ActionModalsProps) {
   const reasons = ACTION_REASONS[action] || []
   const high = hasHighSeverity(doc)
   const isNoteRequired =
-    (action === 'confirm' && (high || doc.status === 'Duplicate')) ||
+    // v5.11: same rule as the server (transitionFor.reasonRequired) — Hold and a Manual Review decision
+    (action === 'confirm' && (high || doc.status === 'Hold' || doc.status === 'Manual Review')) ||
     ['review', 'hold', 'reject', 'unconfirm', 'returnf'].includes(action)
 
   const handleConfirm = async () => {

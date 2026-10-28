@@ -109,6 +109,12 @@ export interface InvoiceDoc {
   lines?: InvoiceLineItem[]
   oracleReceiptLines?: PortalOracleReceiptLine[]
   pages: number
+  /**
+   * v5.11.1: page geometry the Engine measured its boxes on (PyMuPDF `page.rect`, incl. /Rotate).
+   * The viewer compares it with the PDF it opened: a different page shape means a different file
+   * (e.g. the Paperless archive instead of the original) and the boxes would land in the wrong place.
+   */
+  pageFrames?: { pageNo: number; widthPt: number; heightPt: number; rotation: number }[]
   history: DocumentHistoryEntry[]
   unres?: boolean
   /**
