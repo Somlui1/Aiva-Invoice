@@ -64,7 +64,7 @@ export const ACTION_REASONS: Record<string, string[]> = {
   review: ['ต้องตรวจเพิ่มเติม', 'รอข้อมูลประกอบ'],
   hold: ['รอเอกสารจากผู้ขาย', 'รอตรวจสอบราคา', 'รอยืนยันจากหน่วยงาน'],
   reject: ['เอกสารซ้ำจริง', 'ผู้ขายออกใบแจ้งหนี้ผิด', 'ไม่พบใบรับ', 'ข้อมูลไม่ครบ'],
-  unconfirm: ['พบข้อมูลใหม่ก่อนส่ง', 'ยืนยันผิดฉบับ'],
+  unconfirm: ['Confirm ผิดฉบับ', 'พบข้อมูลใหม่ก่อนส่ง', 'ต้องตรวจเพิ่มเติม'],
   returnf: ['ต้องแก้ข้อมูลผู้ขายใน Oracle', 'ต้องตรวจเอกสารใหม่'],
   upload: [
     'ขอลายเซ็นผู้รับของแล้ว',
@@ -121,7 +121,7 @@ export const ACTION_CONFIG: Record<
   review: { title: 'ย้ายเป็น Review', btnText: 'Review', btnClass: 'btn-primary', icon: 'clock', tone: 'warn', c: 'var(--t-warn)', bg: 'var(--t-warn-bg)' },
   hold: { title: 'Hold', btnText: 'Hold', btnClass: 'btn-warn', icon: 'pause', tone: 'warn', c: 'var(--t-err)', bg: 'var(--t-err-bg)' },
   reject: { title: 'Reject', btnText: 'Reject', btnClass: 'btn-danger', icon: 'ban', tone: 'err', c: 'var(--t-err)', bg: 'var(--t-err-bg)' },
-  unconfirm: { title: 'Unconfirm', btnText: 'ย้ายกลับ Review', btnClass: 'btn-primary', icon: 'undo', tone: 'warn', c: 'var(--t-blue)', bg: 'var(--t-blue-bg)' },
+  unconfirm: { title: 'ยกเลิก Confirm', btnText: 'ยืนยันยกเลิก Confirm', btnClass: 'btn-danger', icon: 'undo', tone: 'err', c: 'var(--t-err)', bg: 'var(--t-err-bg)' },
   returnf: { title: 'Return Import Failed', btnText: 'Return → Review', btnClass: 'btn-warn', icon: 'undo', tone: 'warn', c: 'var(--t-warn)', bg: 'var(--t-warn-bg)' },
   upload: { title: 'อัปโหลดเอกสารใหม่', btnText: 'อัปโหลด', btnClass: 'btn-teal', icon: 'dl', tone: 'info', c: 'var(--t-teal)', bg: 'var(--t-teal-bg)' }
 }

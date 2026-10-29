@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { RoleKey } from '@/types/auth'
 import { ROLES } from '@/mock/users'
-import { COMPANIES } from '@/mock/companies'
+import { COMPANIES, assignableCompanies, companyChipLabel } from '@/mock/companies'
 import { AdUserSearchModal } from './AdUserSearchModal'
 import { SaveDiffModal, UserDiff } from './SaveDiffModal'
 import { useToastModal } from '@/context/ToastModalContext'
@@ -27,8 +27,12 @@ export interface ManagedUser {
   isActive?: boolean
 }
 
-/** v5.11.1: from the company master — the hard-coded list missed AHA, so no one could be given AHA. */
-const AVAILABLE_COMPANIES = Object.keys(COMPANIES).filter(k => k !== '?')
+/**
+ * v5.11.1: from the company master — the hard-coded list missed AHA, so no one could be given AHA.
+ * v5.13: read on every render (synced master) and includes "?" — documents whose company could not be
+ *        identified can be handed to other accountants instead of only Super Admin.
+ */
+const availableCompanies = () => assignableCompanies()
 
 const sameSet = (a: string[], b: string[]) => {
   const x = [...a].map(s => s.toUpperCase()).sort()
@@ -401,16 +405,16 @@ export function PermissionExcelGrid() {
                           ) : u.role === 'ACC' || u.role === 'APR' ? (
                             <>
                               {u.companies.map(co => (
-                                <span key={co} className="ua-chip">
-                                  {co}
+                                <span key={co} className={`ua-chip${co === '?' ? ' ua-chip-unk' : ''}`} title={COMPANIES[co]?.name}>
+                                  {companyChipLabel(co)}
                                   <button type="button" aria-label={`เอา ${co} ออก`} onClick={() => handleRemoveCompany(u.id, co)}>
                                     <Icon name="x" />
                                   </button>
                                 </span>
                               ))}
-                              {AVAILABLE_COMPANIES.filter(c => !u.companies.includes(c)).map(c => (
-                                <button key={c} type="button" className="ua-add" onClick={() => handleAddCompany(u.id, c)}>
-                                  + {c}
+                              {availableCompanies().filter(c => !u.companies.includes(c)).map(c => (
+                                <button key={c} type="button" className="ua-add" title={COMPANIES[c]?.name} onClick={() => handleAddCompany(u.id, c)}>
+                                  + {companyChipLabel(c)}
                                 </button>
                               ))}
                             </>

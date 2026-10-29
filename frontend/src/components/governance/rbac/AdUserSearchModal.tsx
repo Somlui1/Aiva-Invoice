@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { RoleKey } from '@/types/auth'
 import { ROLES } from '@/mock/users'
-import { COMPANIES } from '@/mock/companies'
+import { COMPANIES, assignableCompanies, companyChipLabel } from '@/mock/companies'
 import '@/styles/aiva/aum.css'
 
 interface DirectoryEmployee {
@@ -17,7 +17,8 @@ interface DirectoryEmployee {
 }
 
 /** v5.11.1: from the company master (the hard-coded list missed AHA). */
-const AVAILABLE_COMPANIES = Object.keys(COMPANIES).filter(k => k !== '?')
+/** v5.13: read on every render (the master can change after a sync) · includes "?" (company unknown) */
+const availableCompanies = () => assignableCompanies()
 
 interface Props {
   isOpen: boolean
@@ -303,16 +304,17 @@ export function AdUserSearchModal({ isOpen, onClose, onAddUser }: Props) {
                     บริษัทที่รับผิดชอบ <span className="aum-req">*</span>
                   </span>
                   <div className="aum-chips" role="group" aria-label="บริษัท">
-                    {AVAILABLE_COMPANIES.map(co => (
+                    {availableCompanies().map(co => (
                       <button
                         key={co}
                         type="button"
                         className={`aum-co${companies.includes(co) ? ' on' : ''}`}
                         aria-pressed={companies.includes(co)}
+                        title={COMPANIES[co]?.name}
                         onClick={() => toggleCompany(co)}
                       >
                         {companies.includes(co) ? '✓ ' : ''}
-                        {co}
+                        {companyChipLabel(co)}
                       </button>
                     ))}
                   </div>

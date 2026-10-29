@@ -4,7 +4,14 @@ import { App } from './App'
 import { installSessionInterceptor } from './lib/session'
 import { installViewAsInterceptor } from './lib/viewAs'
 import { installUiZoom } from './lib/uiZoom'
+import { getLang } from './lib/i18n'
+import { installDomI18n } from './lib/i18nDom'
 import './styles/index.css'
+
+// v5.13: <html lang> follows the menu language chosen in ตั้งค่า › ตั้งค่าทั่วไป
+document.documentElement.lang = getLang()
+// v5.13: English for every screen (dictionary-based, data stays as is)
+installDomI18n()
 
 // Any /api/* 401 while signed in = the aiva_session cookie is gone → clear + /login?expired=1.
 installSessionInterceptor()

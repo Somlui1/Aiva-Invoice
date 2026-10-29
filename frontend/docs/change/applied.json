@@ -1,0 +1,387 @@
+[
+  {
+    "version": "5.13.0",
+    "base": "5.12.0",
+    "title": "เมนูไทย/EN · บริษัท ? · sync บริษัท · ยกเลิก Confirm · Matrix สิทธิ์ตามจริง · แก้โฟกัส Ctrl K · patch/CI",
+    "appliedAt": "2026-10-29T04:48:04.972Z",
+    "baseCommit": "647f435",
+    "db": true,
+    "files": {
+      "replaced": [
+        ".agent/AGENTS.md",
+        ".dockerignore",
+        ".gitignore",
+        "prisma/schema.prisma",
+        "server/app.ts",
+        "server/index.ts",
+        "server/routes/documents.ts",
+        "server/routes/governance.ts",
+        "src/App.tsx",
+        "src/components/governance/ApPage.tsx",
+        "src/components/governance/rbac/AdUserSearchModal.tsx",
+        "src/components/governance/rbac/PermissionExcelGrid.tsx",
+        "src/components/governance/RbacPage.tsx",
+        "src/components/layout/Sidebar.tsx",
+        "src/components/queue/ActionModals.tsx",
+        "src/components/shell/CommandPalette.tsx",
+        "src/context/InvoiceContext.tsx",
+        "src/lib/docTransitions.ts",
+        "src/lib/queueFilters.ts",
+        "src/main.tsx",
+        "src/mock/companies.ts",
+        "src/mock/rules.ts",
+        "src/mock/users.ts",
+        "src/styles/aiva/command-palette.css",
+        "src/styles/index.css",
+        "src/test/viewAsClient.test.tsx",
+        "src/types/auth.ts"
+      ],
+      "added": [
+        ".agent/PROJECT_MAP.md",
+        ".agent/workflows/apply-patch.md",
+        "ci/gitlab-ci.yml",
+        "docs/change/inbox/.gitkeep",
+        "docs/change/README.md",
+        "scripts/deploy/compose-deploy.sh",
+        "scripts/patch/affected-tests.mjs",
+        "scripts/patch/apply-patch.mjs",
+        "scripts/patch/lib.mjs",
+        "scripts/patch/make-patch.mjs",
+        "scripts/patch/verify.mjs",
+        "src/components/settings/GeneralSettingsPage.tsx",
+        "src/lib/companyMasterClient.ts",
+        "src/lib/i18n.ts",
+        "src/lib/permissionMatrix.ts",
+        "src/server/companyMaster.ts",
+        "src/styles/aiva/v513.css",
+        "src/test/v513CompanyMaster.test.ts",
+        "src/test/v513I18nSettings.test.tsx",
+        "src/test/v513Permissions.test.ts"
+      ],
+      "deleted": []
+    },
+    "tests": [
+      "src/test/oracleCompanySync.test.ts",
+      "src/test/rbacUsers.test.ts",
+      "src/test/serverGovernanceRoutes.test.ts",
+      "src/test/sidebarRole.test.tsx",
+      "src/test/aivaShellV53.test.tsx",
+      "src/test/v511Rules.test.ts",
+      "src/test/duplicateResolution.test.ts",
+      "src/test/documentActions.test.ts",
+      "src/test/apBatchPipeline.test.ts",
+      "src/test/receiptBind.test.ts",
+      "src/test/uiParity.test.ts",
+      "src/test/v513Permissions.test.ts"
+    ],
+    "verify": {
+      "ok": false,
+      "at": "2026-10-29T07:36:50.408Z",
+      "totalSec": 5.8,
+      "full": false,
+      "tests": [
+        "src/test/aivaShellV53.test.tsx",
+        "src/test/apBatchPipeline.test.ts",
+        "src/test/app-smoke.test.tsx",
+        "src/test/auditLogScoping.test.ts",
+        "src/test/authMe.test.ts",
+        "src/test/business-logic.test.ts",
+        "src/test/businessKeyIngest.test.ts",
+        "src/test/closedDocs.test.ts",
+        "src/test/closedDocsPage.test.tsx",
+        "src/test/dateRangeTool.test.tsx",
+        "src/test/dockFocus.test.tsx",
+        "src/test/dockKeyboardScroll.test.tsx",
+        "src/test/dockLayout.test.tsx",
+        "src/test/dockLoadingError.test.tsx",
+        "src/test/dockMockupHeader.test.tsx",
+        "src/test/documentActions.test.ts",
+        "src/test/domain-types.test.ts",
+        "src/test/duplicateResolution.test.ts",
+        "src/test/entraSso.test.ts",
+        "src/test/evidenceButtons.test.tsx",
+        "src/test/ingestApi.test.ts",
+        "src/test/invoiceContextMutation.test.tsx",
+        "src/test/ldapAuth.test.ts",
+        "src/test/openEvidenceContext.test.tsx",
+        "src/test/oracleCompanySync.test.ts",
+        "src/test/oracleReceiptsTab.test.tsx",
+        "src/test/pdfProxy.test.ts",
+        "src/test/portalDomainContracts.test.ts",
+        "src/test/prisma.test.ts",
+        "src/test/productionSchema.test.ts",
+        "src/test/queueDrawerDateFilter.test.tsx",
+        "src/test/queueFocusDateFilter.test.tsx",
+        "src/test/queueReceiverFilter.test.tsx",
+        "src/test/rbacPageInteractive.test.tsx",
+        "src/test/rbacUsers.test.ts",
+        "src/test/receiptBind.test.ts",
+        "src/test/revalidatePurge.test.tsx",
+        "src/test/securityRoutes.test.ts",
+        "src/test/seedHarness.test.ts",
+        "src/test/serverAuthRoutes.test.ts",
+        "src/test/serverBootstrap.test.ts",
+        "src/test/serverDocumentsRoutes.test.ts",
+        "src/test/serverGovernanceRoutes.test.ts",
+        "src/test/serverPdfAndIngest.test.ts",
+        "src/test/sessionGuard.test.ts",
+        "src/test/sidebarRole.test.tsx",
+        "src/test/smartSearch.test.ts",
+        "src/test/spaRouting.test.tsx",
+        "src/test/standaloneViewerLink.test.tsx",
+        "src/test/topbarProfile.test.tsx",
+        "src/test/uiParity.test.ts",
+        "src/test/userDirectory.test.ts",
+        "src/test/v511Rules.test.ts",
+        "src/test/v513CompanyMaster.test.ts",
+        "src/test/v513I18nDom.test.ts",
+        "src/test/v513I18nSettings.test.tsx",
+        "src/test/v513Permissions.test.ts",
+        "src/test/validationCardLayout.test.tsx",
+        "src/test/validationEvidenceLinking.test.tsx",
+        "src/test/viewAsClient.test.tsx",
+        "src/test/viewAsServer.test.ts"
+      ],
+      "steps": [
+        {
+          "label": "prisma generate",
+          "ok": false,
+          "sec": 5.8
+        }
+      ]
+    },
+    "rolledBackAt": "2026-10-29T05:10:51.183Z"
+  },
+  {
+    "version": "5.13.0",
+    "base": "5.12.0",
+    "title": "ภาษาไทย/English ทั้งแอป · บริษัท ? · sync บริษัท · ยกเลิก Confirm · Matrix สิทธิ์ตามจริง · แก้โฟกัส Ctrl K · patch/CI",
+    "appliedAt": "2026-10-29T05:11:38.299Z",
+    "baseCommit": "647f435",
+    "db": true,
+    "files": {
+      "replaced": [
+        ".agent/AGENTS.md",
+        ".dockerignore",
+        ".gitignore",
+        "prisma/schema.prisma",
+        "server/app.ts",
+        "server/index.ts",
+        "server/routes/documents.ts",
+        "server/routes/governance.ts",
+        "src/App.tsx",
+        "src/components/governance/ApPage.tsx",
+        "src/components/governance/rbac/AdUserSearchModal.tsx",
+        "src/components/governance/rbac/PermissionExcelGrid.tsx",
+        "src/components/governance/RbacPage.tsx",
+        "src/components/layout/Sidebar.tsx",
+        "src/components/queue/ActionModals.tsx",
+        "src/components/shell/CommandPalette.tsx",
+        "src/context/InvoiceContext.tsx",
+        "src/lib/docTransitions.ts",
+        "src/lib/queueFilters.ts",
+        "src/main.tsx",
+        "src/mock/companies.ts",
+        "src/mock/rules.ts",
+        "src/mock/users.ts",
+        "src/styles/aiva/command-palette.css",
+        "src/styles/index.css",
+        "src/test/viewAsClient.test.tsx",
+        "src/types/auth.ts"
+      ],
+      "added": [
+        ".agent/PROJECT_MAP.md",
+        ".agent/workflows/apply-patch.md",
+        "ci/gitlab-ci.yml",
+        "docs/change/inbox/.gitkeep",
+        "docs/change/README.md",
+        "scripts/deploy/compose-deploy.sh",
+        "scripts/i18n/extract-th.mjs",
+        "scripts/patch/affected-tests.mjs",
+        "scripts/patch/apply-patch.mjs",
+        "scripts/patch/lib.mjs",
+        "scripts/patch/make-patch.mjs",
+        "scripts/patch/verify.mjs",
+        "src/components/settings/GeneralSettingsPage.tsx",
+        "src/lib/companyMasterClient.ts",
+        "src/lib/i18n-en.json",
+        "src/lib/i18n.ts",
+        "src/lib/i18nDom.ts",
+        "src/lib/permissionMatrix.ts",
+        "src/server/companyMaster.ts",
+        "src/styles/aiva/v513.css",
+        "src/test/v513CompanyMaster.test.ts",
+        "src/test/v513I18nDom.test.ts",
+        "src/test/v513I18nSettings.test.tsx",
+        "src/test/v513Permissions.test.ts"
+      ],
+      "deleted": []
+    },
+    "tests": [
+      "src/test/oracleCompanySync.test.ts",
+      "src/test/rbacUsers.test.ts",
+      "src/test/serverGovernanceRoutes.test.ts",
+      "src/test/sidebarRole.test.tsx",
+      "src/test/aivaShellV53.test.tsx",
+      "src/test/v511Rules.test.ts",
+      "src/test/duplicateResolution.test.ts",
+      "src/test/documentActions.test.ts",
+      "src/test/apBatchPipeline.test.ts",
+      "src/test/receiptBind.test.ts",
+      "src/test/uiParity.test.ts",
+      "src/test/v513Permissions.test.ts",
+      "src/test/v513I18nDom.test.ts"
+    ],
+    "verify": null
+  },
+  {
+    "version": "5.13.1",
+    "base": "5.13.0",
+    "title": "PDF เลื่อนดูทุกหน้า (dock + แท็บใหม่) · แปลภาษาอังกฤษส่วนที่ตกหล่น",
+    "appliedAt": "2026-10-29T06:25:54.955Z",
+    "baseCommit": "647f435",
+    "db": false,
+    "files": {
+      "replaced": [
+        "scripts/i18n/extract-th.mjs",
+        "src/components/evidence/EvidenceViewerDock.tsx",
+        "src/features/pdf-viewer/components/PdfCanvasViewer.tsx",
+        "src/features/pdf-viewer/components/StandaloneBBoxViewer.tsx",
+        "src/features/pdf-viewer/hooks/usePdfViewer.ts",
+        "src/features/pdf-viewer/styles/standaloneViewer.css",
+        "src/lib/i18nDom.ts",
+        "src/styles/evidence.css"
+      ],
+      "added": [
+        "src/features/pdf-viewer/components/PdfPageStack.tsx",
+        "src/lib/i18n-en-extra.json",
+        "src/test/v5131PdfViewer.test.tsx"
+      ],
+      "deleted": []
+    },
+    "tests": [
+      "src/test/v5131PdfViewer.test.tsx",
+      "src/test/standaloneBBoxViewer.test.tsx",
+      "src/test/dockFocus.test.tsx",
+      "src/test/dockKeyboardScroll.test.tsx",
+      "src/test/dockLayout.test.tsx",
+      "src/test/dockLoadingError.test.tsx",
+      "src/test/dockMockupHeader.test.tsx",
+      "src/test/v513I18nDom.test.ts",
+      "src/test/app-smoke.test.tsx"
+    ],
+    "verify": {
+      "ok": true,
+      "at": "2026-10-29T06:27:50.249Z",
+      "totalSec": 51.9,
+      "full": false,
+      "tests": [
+        "src/test/app-smoke.test.tsx",
+        "src/test/dockKeyboardScroll.test.tsx",
+        "src/test/dockLayout.test.tsx",
+        "src/test/dockLoadingError.test.tsx",
+        "src/test/dockMockupHeader.test.tsx",
+        "src/test/standaloneBBoxViewer.test.tsx",
+        "src/test/v5131PdfViewer.test.tsx",
+        "src/test/v513I18nDom.test.ts",
+        "src/test/dockFocus.test.tsx"
+      ],
+      "steps": [
+        {
+          "label": "typecheck",
+          "ok": true,
+          "sec": 10.7
+        },
+        {
+          "label": "tests (9)",
+          "ok": true,
+          "sec": 41.2
+        }
+      ]
+    }
+  },
+  {
+    "version": "5.13.2",
+    "base": "5.13.1",
+    "title": "กล่องค้นหาคิว: แก้กรอบซ้อน + ปุ่ม \"ตัวอย่าง\" ที่เห็นชัด",
+    "appliedAt": "2026-10-29T06:29:17.801Z",
+    "baseCommit": "647f435",
+    "db": false,
+    "files": {
+      "replaced": [
+        "src/components/queue/SmartSearchBox.tsx",
+        "src/lib/i18n-en-extra.json",
+        "src/styles/aiva/v58.css"
+      ],
+      "added": [],
+      "deleted": []
+    },
+    "tests": [
+      "src/test/queueReceiverFilter.test.tsx",
+      "src/test/closedDocsPage.test.tsx",
+      "src/test/v513I18nDom.test.ts"
+    ],
+    "verify": {
+      "ok": true,
+      "at": "2026-10-29T06:29:48.221Z",
+      "totalSec": 29.6,
+      "full": false,
+      "tests": [
+        "src/test/queueReceiverFilter.test.tsx",
+        "src/test/closedDocsPage.test.tsx",
+        "src/test/v513I18nDom.test.ts"
+      ],
+      "steps": [
+        {
+          "label": "typecheck",
+          "ok": true,
+          "sec": 15.1
+        },
+        {
+          "label": "tests (3)",
+          "ok": true,
+          "sec": 14.5
+        }
+      ]
+    }
+  },
+  {
+    "version": "5.13.3",
+    "base": "5.13.2",
+    "title": "กล่องค้นหา: ไอคอน ✦ ของปุ่มตัวอย่างหลุดไปมุมล่างซ้าย",
+    "appliedAt": "2026-10-29T06:36:22.421Z",
+    "baseCommit": "647f435",
+    "db": false,
+    "files": {
+      "replaced": [
+        "src/styles/aiva/v58.css"
+      ],
+      "added": [],
+      "deleted": []
+    },
+    "tests": [
+      "src/test/queueReceiverFilter.test.tsx"
+    ],
+    "verify": {
+      "ok": true,
+      "at": "2026-10-29T06:36:46.479Z",
+      "totalSec": 23.2,
+      "full": false,
+      "tests": [
+        "src/test/queueReceiverFilter.test.tsx"
+      ],
+      "steps": [
+        {
+          "label": "typecheck",
+          "ok": true,
+          "sec": 12.7
+        },
+        {
+          "label": "tests (1)",
+          "ok": true,
+          "sec": 10.5
+        }
+      ]
+    }
+  }
+]

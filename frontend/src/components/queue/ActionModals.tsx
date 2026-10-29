@@ -24,6 +24,8 @@ export function ActionModalDialog({ doc, action, onClose }: ActionModalsProps) {
   const [note, setNote] = useState<string>('')
   const [uploadFile, setUploadFile] = useState<string>(`${doc.inv}_rev.pdf`)
   const [simOutcome, setSimOutcome] = useState<string>('Auto-pass')
+  // v5.13: one request per click — a second click while the first is in flight did a second POST (409 toast)
+  const [busy, setBusy] = useState(false)
 
   if (!action) return null
 
@@ -38,19 +40,26 @@ export function ActionModalDialog({ doc, action, onClose }: ActionModalsProps) {
     ['review', 'hold', 'reject', 'unconfirm', 'returnf'].includes(action)
 
   const handleConfirm = async () => {
+    if (busy) return
     if (isNoteRequired && !note.trim()) {
       toast('กรุณาระบุหมายเหตุ', true)
       return
     }
 
-    const res = await executeAction(
-      doc.doc,
-      action,
-      reason,
-      note.trim(),
-      action === 'upload' ? simOutcome : undefined,
-      action === 'upload' ? uploadFile : undefined
-    )
+    setBusy(true)
+    let res: { ok: boolean; msg: string }
+    try {
+      res = await executeAction(
+        doc.doc,
+        action,
+        reason,
+        note.trim(),
+        action === 'upload' ? simOutcome : undefined,
+        action === 'upload' ? uploadFile : undefined
+      )
+    } finally {
+      setBusy(false)
+    }
 
     if (res.ok) {
       onClose()
@@ -71,6 +80,14 @@ export function ActionModalDialog({ doc, action, onClose }: ActionModalsProps) {
         </div>
 
         <div className="mb">
+          {action === 'unconfirm' && (
+            <div className="note w" role="note" data-testid="unconfirm-note">
+              <span>
+                เอกสารจะ<b>ออกจากรายการรอส่ง</b>และกลับไปที่<b>คิวตรวจสอบ สถานะ Review</b> · ใบรับ{' '}
+                <b className="mono">{doc.rcv || '—'}</b> จะว่างให้ Confirm ใหม่ได้ · เอกสารอื่นที่เป็น Duplicate ของใบรับนี้ยังคงเป็น Duplicate
+              </span>
+            </div>
+          )}
           {action === 'upload' && (
             <>
               <label htmlFor="fl">ไฟล์เอกสารใหม่</label>
@@ -129,15 +146,17 @@ export function ActionModalDialog({ doc, action, onClose }: ActionModalsProps) {
         </div>
 
         <div className="mf">
-          <button type="button" className="btn btn-sec" onClick={onClose}>
-            ยกเลิก
+          <button type="button" className="btn btn-sec" onClick={onClose} disabled={busy}>
+            {action === 'unconfirm' ? 'ไม่ยกเลิก' : 'ยกเลิก'}
           </button>
           <button
             type="button"
             className={`btn ${cfg.btnClass}`}
             onClick={handleConfirm}
+            disabled={busy}
+            aria-busy={busy}
           >
-            {cfg.btnText}
+            {busy ? 'กำลังบันทึก…' : cfg.btnText}
           </button>
         </div>
       </div>

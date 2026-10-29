@@ -1,12 +1,23 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { PERMISSION_DESCRIPTIONS, ROLES, USERS, acctsOf } from '../../mock/users'
+import { PERMISSION_MATRIX } from '../../lib/permissionMatrix'
 import { COMPANIES, CompanyInfo, ORG_NAMES } from '../../mock/companies'
 import { Permission } from '../../types/auth'
 import { useAuth } from '../../context/AuthContext'
 import { PermissionExcelGrid } from './rbac/PermissionExcelGrid'
 import { Icon } from '../common/Icon'
+import { applyCompanyRows } from '../../lib/companyMasterClient'
+
+/** v5.13: นิติบุคคลที่พบจาก Oracle แต่ยังไม่มีรหัสในระบบ */
+interface PendingCompany {
+  tax: string
+  name: string
+  oracleName: string | null
+  orgs: number[]
+  orgNames: Record<number, string>
+}
 
 type RbacTab = 'users' | 'matrix' | 'companies'
 
@@ -21,6 +32,57 @@ export function RbacPage() {
   const [isSyncing, setIsSyncing] = useState(false)
   const [syncStatus, setSyncStatus] = useState<string | null>(null)
   const [syncedAt, setSyncedAt] = useState<string | null>(null)
+  const [pending, setPending] = useState<PendingCompany[]>([])
+  const [codeDraft, setCodeDraft] = useState<Record<string, string>>({})
+  const [activating, setActivating] = useState<string | null>(null)
+
+  const takeMaster = (data: any) => {
+    if (applyCompanyRows(data?.companies)) setCompaniesData({ ...COMPANIES })
+    if (Array.isArray(data?.pending)) setPending(data.pending)
+  }
+
+  // v5.13: the saved master (and companies waiting for a code) — MAP only, as the sync itself
+  useEffect(() => {
+    if (!canManage || typeof fetch !== 'function') return
+    let alive = true
+    fetch('/api/oracle/companies')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (alive && d?.ok) takeMaster(d)
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [canManage]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleActivate = async (p: PendingCompany) => {
+    const code = (codeDraft[p.tax] || '').trim().toUpperCase()
+    if (!/^[A-Z0-9]{2,8}$/.test(code)) {
+      setSyncStatus('รหัสบริษัทต้องเป็น A–Z / 0–9 ยาว 2–8 ตัว')
+      return
+    }
+    setActivating(p.tax)
+    try {
+      const res = await fetch('/api/oracle/companies/activate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tax: p.tax, code }),
+      })
+      const data = await res.json()
+      if (!data.ok) {
+        setSyncStatus(`เปิดใช้ไม่สำเร็จ: ${data.error || res.status}`)
+        return
+      }
+      const r = await fetch('/api/oracle/companies')
+      takeMaster(await r.json())
+      setSyncStatus(`เปิดใช้บริษัท ${code} สำเร็จ · มอบหมายผู้ใช้และจับคู่เอกสารได้แล้ว`)
+    } catch {
+      setSyncStatus('เปิดใช้ไม่สำเร็จ: เชื่อมต่อ server ไม่ได้')
+    } finally {
+      setActivating(null)
+    }
+  }
 
   const handleSyncCompanies = async () => {
     setIsSyncing(true)
@@ -33,12 +95,14 @@ export function RbacPage() {
       })
       const data = await res.json()
       if (data.ok && Array.isArray(data.companies)) {
-        const nextMap: Record<string, CompanyInfo> = { ...COMPANIES }
-        for (const c of data.companies) {
-          nextMap[c.code] = { name: c.name, tax: c.tax, orgs: c.orgs }
-        }
-        setCompaniesData(nextMap)
-        setSyncStatus(data.source === 'oracle_mcp' ? 'ซิงค์ข้อมูลจาก Oracle ERP สำเร็จ' : data.warning || 'ไม่ได้ซิงค์จาก Oracle · แสดงข้อมูลบริษัทในระบบ')
+        // v5.13: the server saved the result — apply it to every screen (not only this table)
+        takeMaster(data)
+        const r = data.result
+        setSyncStatus(
+          data.source === 'oracle_mcp' || data.source === 'import'
+            ? `ซิงค์สำเร็จ · อัปเดต ${r?.updated?.length ?? 0} · เพิ่ม ${r?.added?.length ?? 0} · รอตั้งรหัส ${r?.pending?.length ?? 0}`
+            : data.warning || 'ไม่ได้ซิงค์จาก Oracle · แสดงข้อมูลบริษัทในระบบ',
+        )
         setSyncedAt(new Date().toLocaleTimeString('th-TH'))
       } else {
         setSyncStatus(`ซิงค์ข้อมูลไม่สำเร็จ: ${data.error || 'Unknown'}`)
@@ -172,15 +236,16 @@ export function RbacPage() {
           <div className="panel">
             <div className="panel-h">
               <h3>Matrix สิทธิ์ตามบทบาท (ตารางที่ 6)</h3>
+              <span className="muted sm">ตารางเดียวกับที่ระบบใช้ตรวจสิทธิ์จริง · ทุกการกระทำต้องอยู่ในขอบเขตเอกสารที่เห็นด้วย</span>
             </div>
             <div className="tbl-wrap">
               <table className="t mx">
                 <thead>
                   <tr>
-                    <th style={{ width: 140 }}>สิทธิ์</th>
-                    <th>คำอธิบาย</th>
+                    <th>สิ่งที่ทำได้</th>
+                    <th>ปุ่ม / หน้า</th>
                     {roleKeys.map(rk => (
-                      <th key={rk} style={{ textAlign: 'center', width: 90 }}>
+                      <th key={rk} style={{ textAlign: 'center', width: 64 }}>
                         <span
                           className="role-pill"
                           title={ROLES[rk].n}
@@ -190,32 +255,43 @@ export function RbacPage() {
                         </span>
                       </th>
                     ))}
+                    <th>เงื่อนไข</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {permKeys.map(pk => (
-                    <tr key={pk}>
-                      <td className="mono">{pk}</td>
-                      <td>{PERMISSION_DESCRIPTIONS[pk]}</td>
-                      {roleKeys.map(rk => {
-                        const hasPerm = ROLES[rk].p.includes(pk)
-                        return (
-                          <td
-                            key={rk}
-                            className={hasPerm ? 'cell ok' : 'cell'}
-                            style={{ textAlign: 'center' }}
-                          >
-                            {hasPerm ? (
-                              <span style={{ color: 'var(--ok)', fontWeight: 'bold' }}>✓</span>
-                            ) : (
-                              <span className="nac">—</span>
-                            )}
-                          </td>
-                        )
-                      })}
+                {PERMISSION_MATRIX.map(g => (
+                  <tbody key={g.title}>
+                    <tr className="mx-grp">
+                      <th colSpan={roleKeys.length + 3}>{g.title}</th>
                     </tr>
-                  ))}
-                </tbody>
+                    {g.rows.map(r => (
+                      <tr key={r.perm}>
+                        <td>
+                          {PERMISSION_DESCRIPTIONS[r.perm]}
+                          <span className="mono mx-code">{r.perm}</span>
+                        </td>
+                        <td className="sm">{r.where}</td>
+                        {roleKeys.map(rk => {
+                          const hasPerm = ROLES[rk].p.includes(r.perm)
+                          return (
+                            <td
+                              key={rk}
+                              className={hasPerm ? 'cell ok' : 'cell'}
+                              style={{ textAlign: 'center' }}
+                              aria-label={`${rk} ${hasPerm ? 'ทำได้' : 'ทำไม่ได้'}`}
+                            >
+                              {hasPerm ? (
+                                <span style={{ color: 'var(--ok)', fontWeight: 'bold' }}>✓</span>
+                              ) : (
+                                <span className="nac">—</span>
+                              )}
+                            </td>
+                          )
+                        })}
+                        <td className="sm muted">{r.rule ?? ''}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                ))}
               </table>
             </div>
           </div>
@@ -239,6 +315,7 @@ export function RbacPage() {
                     {syncStatus}
                   </span>
                 )}
+                {canManage && (
                 <button
                   type="button"
                   onClick={handleSyncCompanies}
@@ -257,6 +334,7 @@ export function RbacPage() {
                     </>
                   )}
                 </button>
+                )}
               </div>
             </div>
             <div className="tbl-wrap">
@@ -277,7 +355,14 @@ export function RbacPage() {
                           {k}
                         </span>
                       </td>
-                      <td>{c.name}</td>
+                      <td>
+                        {c.name}
+                        {k === '?' && (
+                          <span style={{ display: 'block', fontSize: 11, color: 'var(--s-500)' }}>
+                            มอบหมายให้พนักงานบัญชีได้ที่แท็บ “จัดการสิทธิ์ผู้ใช้งาน” (บริษัท “? ไม่ระบุบริษัท”)
+                          </span>
+                        )}
+                      </td>
                       <td className="mono">{c.tax}</td>
                       <td className="mono">
                         {c.orgs.map(o => `${o} ${ORG_NAMES[o] || ''}`).join(', ')}
@@ -287,6 +372,61 @@ export function RbacPage() {
                 </tbody>
               </table>
             </div>
+
+            {/* v5.13: entities found in Oracle that the Portal has no code for yet */}
+            {canManage && pending.length > 0 && (
+              <div className="tbl-wrap" style={{ marginTop: 16 }} data-testid="pending-companies">
+                <div className="panel-h">
+                  <h3>
+                    พบใน Oracle · รอตั้งรหัสบริษัท <span className="c">{pending.length}</span>
+                  </h3>
+                  <span style={{ fontSize: 12, color: 'var(--s-500)' }}>
+                    ยังไม่ใช้จับคู่เอกสาร (เอกสารของบริษัทเหล่านี้จะอยู่ใน “?”) จนกว่าจะตั้งรหัสและกดเปิดใช้
+                  </span>
+                </div>
+                <table className="t">
+                  <thead>
+                    <tr>
+                      <th>Tax ID</th>
+                      <th>ชื่อตาม Oracle</th>
+                      <th>ORG_ID</th>
+                      <th>รหัสบริษัท</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pending.map(p => (
+                      <tr key={p.tax}>
+                        <td className="mono">{p.tax}</td>
+                        <td>{p.oracleName || p.name}</td>
+                        <td className="mono">{p.orgs.map(o => `${o} ${p.orgNames?.[o] || ''}`.trim()).join(', ') || '—'}</td>
+                        <td>
+                          <input
+                            className="inp mono"
+                            style={{ width: 110 }}
+                            maxLength={8}
+                            placeholder="เช่น AHR"
+                            aria-label={`รหัสบริษัทสำหรับ Tax ID ${p.tax}`}
+                            value={codeDraft[p.tax] ?? ''}
+                            onChange={e => setCodeDraft(d => ({ ...d, [p.tax]: e.target.value.toUpperCase() }))}
+                          />
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="btn btn-sec"
+                            disabled={activating === p.tax || !(codeDraft[p.tax] || '').trim()}
+                            onClick={() => handleActivate(p)}
+                          >
+                            {activating === p.tax ? 'กำลังเปิดใช้…' : 'เปิดใช้'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
       </div>

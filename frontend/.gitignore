@@ -32,3 +32,9 @@ vite.local*.config.*
 secrets/*.key
 mockup/
 node21_code.js
+
+# v5.13 — patch workflow / deploy state
+.patch-backup/
+.deploy/
+docs/change/inbox/*
+!docs/change/inbox/.gitkeep

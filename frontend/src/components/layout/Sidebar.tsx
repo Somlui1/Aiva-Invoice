@@ -8,12 +8,15 @@ import { useToastModal } from '../../context/ToastModalContext'
 import { BrandTile } from '../shell/BrandTile'
 import { closedVisibleFor } from '../../lib/closedDocs'
 import { useLive } from '../../context/LiveContext'
+import { useT } from '../../lib/i18n'
 
 /**
  * v5.7: menus "ชุดเอกสารทดสอบ" (cases), "มาตรฐาน Payload" (std), "Document Simulation" (sim) and
  * the whole "ตั้งค่า" (settings) entry were removed from the navigation and the router.
+ * v5.13: "ตั้งค่า › ตั้งค่าทั่วไป" (settings) is back — personal preferences only (menu language, theme).
+ *        Every role sees it; it never shows document content.
  */
-export type PageKey = 'queue' | 'closed' | 'ap' | 'failed' | 'rbac' | 'audit'
+export type PageKey = 'queue' | 'closed' | 'ap' | 'failed' | 'rbac' | 'audit' | 'settings'
 
 interface SidebarProps {
   currentPage: PageKey
@@ -42,7 +45,7 @@ export interface NavSection {
 export function useNavSections(): NavSection[] {
   const { currentUser, can } = useAuth()
   const { visibleDocs } = useInvoices()
-
+  const t = useT()
 
   // Calculate dynamic badge counts
   const qn = visibleDocs.filter(d =>
@@ -64,30 +67,30 @@ export function useNavSections(): NavSection[] {
    * Badge tone: `act` (needs work, coloured) · `alert` (urgent) · `ref` (reference only, gray).
    */
   const todo: NavSection = {
-    title: 'ต้องดำเนินการ',
+    title: t('nav.sec.todo'),
     items: [
-      { key: 'queue', label: isEu ? 'งานของฉัน' : 'คิวตรวจสอบ', icon: 'inbox', isAllowed: true, count: qn, tone: 'act' },
+      { key: 'queue', label: isEu ? t('nav.queue.eu') : t('nav.queue'), icon: 'inbox', isAllowed: true, count: qn, tone: 'act' },
     ],
   }
 
   const ap: NavSection = {
-    title: 'ส่งจ่าย (AP)',
+    title: t('nav.sec.ap'),
     items: [
-      { key: 'ap', label: 'ส่งเข้า AP Interface', icon: 'send', isAllowed: true, count: apCount, tone: 'act' },
+      { key: 'ap', label: t('nav.ap'), icon: 'send', isAllowed: true, count: apCount, tone: 'act' },
       // Only while there is something to fix — an empty "failed" menu is noise.
       ...(failedCount > 0
-        ? [{ key: 'failed' as PageKey, label: 'นำเข้า Oracle ไม่สำเร็จ', icon: 'alert' as IconName, isAllowed: true, count: failedCount, tone: 'alert' as const }]
+        ? [{ key: 'failed' as PageKey, label: t('nav.failed'), icon: 'alert' as IconName, isAllowed: true, count: failedCount, tone: 'alert' as const }]
         : []),
     ],
   }
 
   const track: NavSection = {
-    title: 'ติดตามและประวัติ',
+    title: t('nav.sec.track'),
     items: [
       {
         key: 'closed',
         // EU sees the outcome of what they sent; accounting sees closed work.
-        label: isEu ? 'ผลการส่งเอกสาร' : 'เอกสารที่ปิดแล้ว',
+        label: isEu ? t('nav.closed.eu') : t('nav.closed'),
         icon: 'history',
         isAllowed: true,
         count: closedCount,
@@ -97,33 +100,40 @@ export function useNavSections(): NavSection[] {
   }
 
   const gov: NavSection = {
-    title: 'การกำกับดูแล',
+    title: t('nav.sec.gov'),
     items: [
-      { key: 'rbac', label: 'สิทธิ์และการเชื่อมบัญชี', icon: 'shield', isAllowed: true },
-      { key: 'audit', label: 'บันทึกการเข้าถึง', icon: 'log', isAllowed: can('AUDIT') },
+      { key: 'rbac', label: t('nav.rbac'), icon: 'shield', isAllowed: true },
+      { key: 'audit', label: t('nav.audit'), icon: 'log', isAllowed: can('AUDIT') },
     ],
   }
 
+  // v5.13: ตั้งค่า › ตั้งค่าทั่วไป — every role (personal preferences only)
+  const settings: NavSection = {
+    title: t('nav.sec.settings'),
+    items: [{ key: 'settings', label: t('nav.settings'), icon: 'settings', isAllowed: true }],
+  }
+
   // Sections a role has no item in are not shown at all (no "locked" menus to wonder about).
-  if (isAdm) return [gov]
-  return [todo, ...(can('VIEW_AP') ? [ap] : []), track, gov]
+  if (isAdm) return [gov, settings]
+  return [todo, ...(can('VIEW_AP') ? [ap] : []), track, gov, settings]
 }
 
 export function Sidebar({ currentPage, onNavigate, onToggleNav }: SidebarProps) {
   const { toast } = useToastModal()
   const live = useLive()
   const sections = useNavSections()
+  const t = useT()
 
   const handleClick = (item: NavItemConfig) => {
     if (!item.isAllowed) {
-      toast('ไม่มีสิทธิ์เข้าหน้านี้', true)
+      toast(t('nav.noPerm'), true)
       return
     }
     onNavigate(item.key)
   }
 
   return (
-    <aside className="nav" aria-label="เมนูหลัก">
+    <aside className="nav" aria-label={t('nav.aria')}>
       <div className="nav-org">
         <BrandTile />
         <div className="tx">
@@ -134,8 +144,8 @@ export function Sidebar({ currentPage, onNavigate, onToggleNav }: SidebarProps) 
           type="button"
           className="ibtn nav-tg"
           onClick={onToggleNav}
-          title="ย่อ / ขยายเมนู ( [ )"
-          aria-label="ย่อ / ขยายเมนู"
+          title={`${t('nav.toggle')} ( [ )`}
+          aria-label={t('nav.toggle')}
         >
           <Icon name="split" />
         </button>
@@ -154,7 +164,7 @@ export function Sidebar({ currentPage, onNavigate, onToggleNav }: SidebarProps) 
                   className={`nav-it ${isActive ? 'on' : ''} ${
                     it.isAllowed ? '' : 'dis'
                   } ${it.count ? 'has-cnt' : ''}`}
-                  title={`${it.label}${it.isAllowed ? '' : ' (ไม่มีสิทธิ์)'}`}
+                  title={`${it.label}${it.isAllowed ? '' : t('nav.noPerm.suffix')}`}
                   aria-current={isActive ? 'page' : undefined}
                   style={{ ['--i' as string]: si * 4 + ii + 1 }}
                   onClick={() => handleClick(it)}
@@ -167,7 +177,7 @@ export function Sidebar({ currentPage, onNavigate, onToggleNav }: SidebarProps) 
                     </span>
                   )}
                   {it.key === 'queue' && live.pendingNew.length > 0 && (
-                    <span className="nav-new" title={`เอกสารใหม่ ${live.pendingNew.length} รายการ · กดเพื่อดู`}>
+                    <span className="nav-new" title={t('nav.newDocs', { n: live.pendingNew.length })}>
                       +{live.pendingNew.length}
                     </span>
                   )}
@@ -188,8 +198,8 @@ export function Sidebar({ currentPage, onNavigate, onToggleNav }: SidebarProps) 
           type="button"
           className="ibtn"
           onClick={onToggleNav}
-          title="ย่อ / ขยาย"
-          aria-label="ย่อ / ขยาย"
+          title={t('nav.toggle.short')}
+          aria-label={t('nav.toggle.short')}
         >
           <Icon name="chevsL" />
         </button>

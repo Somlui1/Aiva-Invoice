@@ -358,7 +358,11 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
       if (!doc) return { ok: false, msg: 'ไม่พบเอกสาร' }
 
       const chk = allowedAction(doc, action)
-      if (!chk.ok) return { ok: false, msg: chk.why || 'ไม่มีสิทธิ์' }
+      if (!chk.ok) {
+        // v5.13: was silent — the dialog stayed open with no explanation
+        toast(chk.why || 'ไม่มีสิทธิ์', true)
+        return { ok: false, msg: chk.why || 'ไม่มีสิทธิ์' }
+      }
 
       const nowTime = new Date().toTimeString().slice(0, 8)
       const who = `${currentUser.n} (${ROLES[currentUser.role].n})`
@@ -574,7 +578,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
         k = 'g'
         msg = 'Confirmed · ย้ายไปหน้า AP Interface'
       } else if (newStatus === 'Review') {
-        msg = 'ย้ายเป็น Review แล้ว'
+        msg = action === 'unconfirm' ? 'ยกเลิก Confirm แล้ว · เอกสารกลับไปคิวตรวจสอบ (Review)' : 'ย้ายเป็น Review แล้ว'
       } else if (newStatus === 'Hold') {
         k = 'c'
         msg = 'Hold แล้ว'
@@ -605,7 +609,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
             ...d,
             status: newStatus,
             confirmedBy: action === 'confirm' ? currentUser.id : action === 'unconfirm' ? null : d.confirmedBy,
-            confirmedAt: action === 'confirm' ? TODAY : d.confirmedAt,
+            confirmedAt: action === 'confirm' ? TODAY : action === 'unconfirm' ? undefined : d.confirmedAt,
             batch: action === 'returnf' || action === 'unconfirm' ? null : d.batch,
             apErr: action === 'returnf' ? null : d.apErr,
             history: updatedHist

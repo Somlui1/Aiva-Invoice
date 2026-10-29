@@ -309,3 +309,34 @@
 @media (prefers-reduced-motion: reduce) {
   .cp-ov, .cp { animation: none; }
 }
+
+/* =====================================================================
+   v5.13 · แก้กรอบโฟกัสซ้อน 2 จุดในกล่องค้นหา (Ctrl K)
+   สาเหตุ: theme.css มีกฎกลาง `:focus-visible{box-shadow:… !important}` วงแหวนจึงถูกวาด "นอก" ตัว element
+     1) ช่องค้นหา (สูงเต็ม 56px) → วงแหวนล้นขอบบนของกล่อง (.cp overflow:hidden) โดนตัด และทับเส้นใต้/แถบหมวด
+     2) ปุ่มหมวด (.cp-tab) อยู่ในแถบที่ overflow-x:auto → วงแหวนนอกปุ่มถูกตัดครึ่ง ดูเหมือนกรอบแตก
+   แก้: ไม่วาดวงแหวนนอก element ภายในกล่องนี้อีก
+     · ช่องค้นหา → ใช้ทั้งแถว (.cp-in) แสดงสถานะ: เส้นใต้สี accent + ไอคอนค้นหาเปลี่ยนสี (อยู่ในกรอบเสมอ)
+     · ปุ่มหมวด / รายการ → วงแหวนแบบ inset (วาดด้านในปุ่ม ไม่โดนตัด ไม่ดันเลย์เอาต์)
+   ===================================================================== */
+.cp-in input:focus,
+.cp-in input:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  border-radius: 0;
+}
+.cp-in {
+  position: relative;
+  transition: box-shadow 0.12s;
+}
+.cp-in:focus-within {
+  box-shadow: inset 0 -2px 0 var(--focus-bd, #2563eb);
+}
+.cp-in:focus-within > .ico {
+  color: var(--accent-text, #1d4ed8);
+}
+.cp-tab:focus-visible,
+.cp-it:focus-visible {
+  outline: none !important;
+  box-shadow: inset 0 0 0 2px var(--focus-bd, #2563eb) !important;
+}

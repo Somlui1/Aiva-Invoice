@@ -18,7 +18,7 @@
  * look, the exception tag and the click-through to the detail pane are identical
  * whichever surface produced them.
  */
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { InvoiceDoc, type Finding } from '../../types/invoice'
 import { Icon } from '../common/Icon'
 import { DockControls } from './DockControls'
@@ -31,6 +31,7 @@ import { useInvoices } from '../../context/InvoiceContext'
 import { useAuth } from '../../context/AuthContext'
 import { EXCEPTION_RULES } from '../../mock/rules'
 import { PdfCanvasViewer } from '../../features/pdf-viewer/components/PdfCanvasViewer'
+import { PdfPageStack, type PageFramePt } from '../../features/pdf-viewer/components/PdfPageStack'
 import { BoundingBoxOverlay } from '../../features/pdf-viewer/components/BoundingBoxOverlay'
 import { usePdfViewer } from '../../features/pdf-viewer/hooks/usePdfViewer'
 import { useMeasuredRegions } from '../../features/pdf-viewer/hooks/useMeasuredRegions'
@@ -120,7 +121,7 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
   const fit = mockPageFitScale(bodyWidth)
   const surfaceStyle = mockSurfaceStyle({ fit, zoom, rotation })
 
-  const { status, canvasRef, pageSize, reload, rendering, pageFramePt } = usePdfViewer({
+  const { status, canvasRef, pageSize, reload, rendering, pageFramePt, pdfDoc } = usePdfViewer({
     documentId: doc.doc,
     containerWidth: Math.max(0, bodyWidth - DOCK_BODY_INSET),
     page: currentPage,
@@ -131,6 +132,44 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
   const mockMode = status.mode === 'mock'
   const totalPages = mockMode ? doc.pages || 1 : Math.max(1, status.pageCount)
 
+  // v5.13.1: continuous view — every page in one scroll when the parsed PDF is available.
+  // (Without it — mock page, or a host that only gives the single-page renderer — the pager turns pages.)
+  const continuous = !mockMode && status.state === 'ready' && !!pdfDoc
+  const [stackSizes, setStackSizes] = useState<Record<number, SizeBox>>({})
+  const [stackFrames, setStackFrames] = useState<Record<number, PageFramePt>>({})
+  useEffect(() => {
+    setStackSizes({})
+    setStackFrames({})
+  }, [pdfDoc])
+  const onPagePainted = useCallback((page: number, size: SizeBox, frame: PageFramePt) => {
+    setStackSizes(prev =>
+      prev[page] && Math.abs(prev[page].width - size.width) < 0.5 && Math.abs(prev[page].height - size.height) < 0.5
+        ? prev
+        : { ...prev, [page]: size },
+    )
+    setStackFrames(prev => (prev[page] ? prev : { ...prev, [page]: frame }))
+  }, [])
+  // scroll → pager (no scrolling back: this only mirrors where the reader is)
+  const onVisiblePageChange = useCallback((page: number) => setCurrentPage(page), [])
+  /** pager / evidence → bring a page into view (continuous view only). */
+  const scrollToPage = (page: number, smooth = false) => {
+    const el = bodyRef.current?.querySelector(`.evd-stack-page[data-page="${page}"]`) as HTMLElement | null
+    el?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' })
+  }
+  const goToPage = (page: number) => {
+    setCurrentPage(page)
+    if (continuous) scrollToPage(page)
+  }
+  // The stack appears after the PDF is parsed: if a page was already asked for (evidence opened the
+  // dock on page N), scroll there once — that page then paints and the box scroll can find its box.
+  const stackShownFor = useRef<string | null>(null)
+  useEffect(() => {
+    if (!continuous || stackShownFor.current === doc.doc) return
+    stackShownFor.current = doc.doc
+    if (currentPage > 1) requestAnimationFrame(() => scrollToPage(currentPage))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [continuous, doc.doc])
+
   // A document switch or a shorter page list must not leave the pager on a page
   // that no longer exists.
   useEffect(() => {
@@ -140,8 +179,13 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
   // Detail pane → PDF: jumping to a rule also turns to its page and enables evidence boxes.
   useEffect(() => {
     if (!evidenceDockFocus) return
-    if (evidenceDockFocus.page) setCurrentPage(evidenceDockFocus.page)
+    if (evidenceDockFocus.page) {
+      setCurrentPage(evidenceDockFocus.page)
+      // continuous view: bring the page in first (it paints when near), the box scroll follows
+      if (continuous && evidenceDockFocus.locatable !== false) scrollToPage(evidenceDockFocus.page)
+    }
     setShowEvidence(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [evidenceDockFocus])
 
   useEffect(() => {
@@ -188,11 +232,11 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
     return checkPageFrame(engine, pageFramePt)
   }, [doc.pageFrames, pageFramePt, currentPage])
 
-  const pdfOverlayBoxes = useMemo(
-    () =>
-      !frameCheck.ok ? [] : projectOverlayBoxes(pdfBoxes, {
-        page: currentPage,
-        pageSize,
+  const projectPage = useCallback(
+    (page: number, size: SizeBox) =>
+      projectOverlayBoxes(pdfBoxes, {
+        page,
+        pageSize: size,
         rotation,
         padding: 2,
         focusRuleId,
@@ -202,8 +246,37 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
         activeExceptionCode: evidenceSelection?.exceptionCode,
         onlyEvidence: !showAllFields,
       }),
-    [frameCheck.ok, pdfBoxes, currentPage, pageSize, rotation, focusRuleId, focusFindingId, selectedId, showAllFields, evidenceSelection?.exceptionCode],
+    [pdfBoxes, rotation, focusRuleId, focusFindingId, selectedId, showAllFields, evidenceSelection?.exceptionCode],
   )
+
+  /** continuous view: a page whose shape differs from the Engine's gets no boxes (v5.11.1 rule, per page). */
+  const stackFrameOk = useCallback(
+    (page: number) => {
+      const viewer = stackFrames[page]
+      if (!viewer) return true
+      return checkPageFrame(doc.pageFrames?.find(p => p.pageNo === page), viewer).ok
+    },
+    [stackFrames, doc.pageFrames],
+  )
+  const boxesForPage = useCallback(
+    (page: number, size: SizeBox) => (stackFrameOk(page) ? projectPage(page, size) : []),
+    [stackFrameOk, projectPage],
+  )
+
+  const pdfOverlayBoxes = useMemo(() => {
+    if (continuous) {
+      // every painted page (for the box count, rule lookup and the focus scroll retry)
+      return Object.entries(stackSizes).flatMap(([p, size]) => boxesForPage(Number(p), size))
+    }
+    return !frameCheck.ok ? [] : projectPage(currentPage, pageSize)
+  }, [continuous, stackSizes, boxesForPage, frameCheck.ok, projectPage, currentPage, pageSize])
+
+  // continuous view: the frame warning follows the page being read
+  const stackFrameCheck = useMemo(() => {
+    const viewer = stackFrames[currentPage]
+    return viewer ? checkPageFrame(doc.pageFrames?.find(p => p.pageNo === currentPage), viewer) : ({ ok: true } as const)
+  }, [stackFrames, currentPage, doc.pageFrames])
+  const shownFrameCheck = continuous ? stackFrameCheck : frameCheck
 
   const mockPageSize = mockMode && measured.pageSize.width > 0 ? measured.pageSize : EMPTY_SIZE
   const mockOverlayBoxes = useMemo(
@@ -275,7 +348,7 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
   })
 
   const handleSelectRule = (ruleId: string, page?: number) => {
-    if (page) setCurrentPage(page)
+    if (page) goToPage(page)
     setShowEvidence(true)
     const matchingBox = (mockMode ? mockOverlayBoxes : pdfOverlayBoxes).find(b => b.ruleId === ruleId)
     if (matchingBox) {
@@ -340,8 +413,12 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
   const activeBoxCount = (mockMode ? mockOverlayBoxes : pdfOverlayBoxes).length
 
   const scrollToFocused = (): boolean => {
-    const container = bodyRef.current
-    if (!container) return false
+    const body = bodyRef.current
+    if (!body) return false
+    // continuous view: look on the requested page first (a rule can have boxes on several pages)
+    const focusPage = evidenceDockFocus?.page ?? currentPage
+    const pageEl = continuous ? (body.querySelector(`.evd-stack-page[data-page="${focusPage}"]`) as HTMLElement | null) : null
+    const container: HTMLElement = pageEl && pageEl.querySelector('.hl') ? pageEl : body
     const targetRule = evidenceDockFocus?.ruleId ?? evidenceSelection?.ruleId
     const targetEl =
       (container.querySelector('.hl.focus') as HTMLElement | null) ||
@@ -377,7 +454,8 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
 
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [evidenceDockFocus?.nonce, evidenceDockFocus?.ruleId, selectedId, evidenceSelection?.ruleId, currentPage, mockMode, status.state, focusUnlocated])
+    // currentPage is left out in the continuous view: scrolling changes it and must not re-aim
+  }, [evidenceDockFocus?.nonce, evidenceDockFocus?.ruleId, selectedId, evidenceSelection?.ruleId, continuous ? 0 : currentPage, mockMode, status.state, focusUnlocated])
 
   useEffect(() => {
     if (!scrollArmed.current || focusUnlocated || activeBoxCount === 0) return
@@ -395,9 +473,10 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
   // mid-flight) must not leave the button spinning.
   useEffect(() => {
     // Downloading, or parsed but the first page is not painted yet: both are "loading" to the user.
-    setIsPdfLoading(status.state === 'loading' || (status.state === 'ready' && pageSize.width === 0))
+    const firstPaint = continuous ? !stackSizes[1] && Object.keys(stackSizes).length === 0 : pageSize.width === 0
+    setIsPdfLoading(status.state === 'loading' || (status.state === 'ready' && firstPaint))
     return () => setIsPdfLoading(false)
-  }, [status.state, pageSize.width, setIsPdfLoading])
+  }, [status.state, pageSize.width, continuous, stackSizes, setIsPdfLoading])
 
   /**
    * Drag the dock edge. The width that matters is `.work`'s, because `--mc`/`--dc`
@@ -477,7 +556,7 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
         currentPage={currentPage}
         totalPages={totalPages}
         zoom={zoom}
-        onPageChange={p => setCurrentPage(p)}
+        onPageChange={p => goToPage(p)}
         onZoomChange={setZoom}
         onRotate={handleRotate}
         onClose={closeEvidenceDock}
@@ -506,10 +585,10 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
         />
       )}
       {showEvidence && focusFinding && focusUnlocated && <FindingBanner finding={focusFinding} />}
-      {showEvidence && !mockMode && !frameCheck.ok && (
+      {showEvidence && !mockMode && !shownFrameCheck.ok && (
         <div className="evd-frame-warn" role="alert" data-testid="pdf-frame-mismatch">
           <Icon name="alert" size="sm" />
-          <span>{frameMismatchText(frameCheck)}</span>
+          <span>{frameMismatchText(shownFrameCheck)}</span>
         </div>
       )}
 
@@ -527,6 +606,25 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
           onRetry={reload}
           onClose={closeEvidenceDock}
           placeholder={mockSurface}
+          stackPainted={Object.keys(stackSizes).length > 0}
+          stack={
+            continuous && pdfDoc ? (
+              <PdfPageStack
+                pdf={pdfDoc}
+                containerWidth={Math.max(0, bodyWidth - DOCK_BODY_INSET)}
+                zoom={zoom}
+                rotation={rotation}
+                scrollRoot={bodyRef.current}
+                boxesForPage={boxesForPage}
+                visible={showEvidence}
+                hoveredId={hoveredId}
+                onSelect={box => selectBox(box, 'pdf')}
+                onHover={box => setHoveredId(box?.id ?? null)}
+                onPagePainted={onPagePainted}
+                onVisiblePageChange={onVisiblePageChange}
+              />
+            ) : undefined
+          }
         />
       </div>
 

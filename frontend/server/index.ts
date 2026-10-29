@@ -7,6 +7,7 @@ if (typeof process.loadEnvFile === 'function') {
 import { createExpressApp } from './app'
 import { ensureProductionSampleData } from '../src/lib/autoSeedSample'
 import { printServiceHealthReport } from '../src/lib/serviceHealth'
+import { loadCompanyMaster } from '../src/server/companyMaster'
 import { isProduction, productionConfigProblems } from '../src/server/auth/config'
 
 async function start() {
@@ -31,6 +32,13 @@ async function start() {
   await printServiceHealthReport().catch((err) => {
     console.warn('[Adapter Server] Health check warning:', err)
   })
+
+  // v5.13: synced company master (table Company) → company matching for Engine ingest / receipts
+  const companies = await loadCompanyMaster().catch(err => {
+    console.warn('[Adapter Server] Company master warning:', err)
+    return 0
+  })
+  console.log(`[Adapter Server] Company master: ${companies ? `${companies} synced companies` : 'built-in list'}`)
 
   const app = createExpressApp()
   const PORT = process.env.PORT || (isProduction() ? 3000 : 3001)

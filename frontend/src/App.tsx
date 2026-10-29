@@ -20,6 +20,8 @@ import { ViewAsBanner, ViewAsPicker } from './components/viewas/ViewAs'
 import { ApPage } from './components/governance/ApPage'
 import { RbacPage } from './components/governance/RbacPage'
 import { AuditPage } from './components/governance/AuditPage'
+import { GeneralSettingsPage } from './components/settings/GeneralSettingsPage'
+import { useCompanyMaster } from './lib/companyMasterClient'
 import { LoginPage } from './features/login/LoginPage'
 import { StandaloneViewerRoute } from './components/viewer/StandaloneViewerRoute'
 
@@ -36,6 +38,8 @@ export function PortalShell({ initialPage = 'queue' }: { initialPage?: PageKey }
   const { currentUser, isAuthenticated, isPreview } = useAuth()
   const { isEvidenceDockOpen, closeEvidenceDock, viewMode, selectedDoc } = useInvoices()
   const navSections = useNavSections()
+  // v5.13: synced company master (names / ORG_ID) — re-renders the shell once it is applied
+  useCompanyMaster(isAuthenticated)
   const [currentPage, setCurrentPage] = useState<PageKey>(initialPage)
   const [isNavCollapsed, setIsNavCollapsed] = useState<boolean>(() => {
     try {
@@ -155,6 +159,8 @@ export function PortalShell({ initialPage = 'queue' }: { initialPage?: PageKey }
         return <RbacPage />
       case 'audit':
         return <AuditPage />
+      case 'settings':
+        return <GeneralSettingsPage />
       default:
         return <QueuePage />
     }
@@ -187,8 +193,9 @@ export function PortalShell({ initialPage = 'queue' }: { initialPage?: PageKey }
 
 function resolvePageFromPath(path: string): PageKey | undefined {
   const clean = path.replace(/^\//, '').split('/')[0]
-  // v5.7: /cases, /std, /sim, /settings were removed — old bookmarks fall back to the queue.
-  const validPages: PageKey[] = ['queue', 'closed', 'ap', 'failed', 'rbac', 'audit']
+  // v5.7: /cases, /std, /sim were removed — old bookmarks fall back to the queue.
+  // v5.13: /settings is back as ตั้งค่า › ตั้งค่าทั่วไป (personal preferences)
+  const validPages: PageKey[] = ['queue', 'closed', 'ap', 'failed', 'rbac', 'audit', 'settings']
   if (validPages.includes(clean as PageKey)) {
     return clean as PageKey
   }

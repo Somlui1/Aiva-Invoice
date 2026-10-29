@@ -156,3 +156,18 @@ model UserReceiverMap {
 
   @@unique([userId, receiverName])
 }
+
+/// v5.13 — master บริษัทในเครือ (sync จาก Oracle ERP / นำเข้า JSON)
+/// ว่าง = ใช้ค่าในโค้ด (src/mock/companies.ts) · บริษัท "?" ไม่อยู่ในตารางนี้
+/// status: active = ใช้จับคู่ Tax ID / ORG_ID และมอบหมายผู้ใช้ได้ · pending = พบใน Oracle แต่ยังไม่ได้ตั้งรหัส
+model Company {
+  code      String    @id                   // 'AH', 'AHT' … (pending = 'PENDING-<tax>')
+  name      String
+  tax       String    @unique               // เลขประจำตัวผู้เสียภาษี 13 หลัก (ตัวเลขล้วน)
+  orgsJson  String    @default("[]")        // [{ "id": 103, "name": "APD" }]
+  status    String    @default("active")    // active | pending
+  source    String    @default("builtin")   // builtin | oracle_mcp | import
+  oracleName String?                        // ชื่อนิติบุคคลตาม Oracle (อ้างอิง)
+  syncedAt  DateTime?
+  updatedAt DateTime  @updatedAt
+}

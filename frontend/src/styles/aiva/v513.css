@@ -1,0 +1,94 @@
+/* =====================================================================
+   v5.13 · ตั้งค่า › ตั้งค่าทั่วไป
+   ===================================================================== */
+.gset {
+  max-width: 760px;
+  padding: 0;
+}
+.gset-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 16px 18px;
+}
+.gset-row + .gset-row {
+  border-top: 1px solid var(--line);
+}
+.gset-tx {
+  min-width: 0;
+}
+.gset-tx h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--s-900);
+}
+.gset-tx p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--s-500);
+}
+.gset .seg {
+  flex: none;
+}
+.gset .seg button {
+  min-width: 76px;
+  justify-content: center;
+  height: 28px;
+}
+@media (max-width: 640px) {
+  .gset-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* v5.13 · chip บริษัท "?" (ระบุบริษัทไม่ได้) — โทนเตือนอ่อน ให้แยกจากบริษัทจริงได้ทันที */
+.ua-chip.ua-chip-unk {
+  background: var(--t-warn-bg, rgba(245, 158, 11, 0.14));
+  color: var(--t-warn, #b45309);
+  border-color: color-mix(in srgb, var(--t-warn, #b45309) 35%, transparent);
+}
+
+/* v5.13 · Matrix สิทธิ์: หัวข้อกลุ่ม + รหัสสิทธิ์ตัวเล็ก */
+.t.mx tr.mx-grp th {
+  background: var(--head);
+  color: var(--s-600);
+  font-size: 11.5px;
+  font-weight: 700;
+  text-align: left;
+  letter-spacing: 0.02em;
+}
+.t.mx .mx-code {
+  display: block;
+  font-size: 10.5px;
+  color: var(--s-500);
+}
+
+/* v5.13 · หน้า AP แท็บรอส่ง: ปุ่มแดง "ยกเลิก Confirm" ต่อแถว (คอลัมน์ขวาสุด ติดขอบขวาเวลาเลื่อนตาราง) */
+.t th.ap-act-h {
+  background: var(--head);
+}
+.t th.ap-act-h,
+.t td.ap-act {
+  position: sticky;
+  right: 0;
+  box-shadow: -1px 0 0 var(--line);
+  white-space: nowrap;
+  text-align: right;
+}
+.t td.ap-act {
+  background: var(--surface, #fff);
+}
+.btn.ap-unconfirm {
+  font-weight: 650;
+}
+.btn.ap-unconfirm:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

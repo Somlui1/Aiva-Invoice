@@ -6,6 +6,7 @@ import { docDateFor, matchesSearchQuery, sortDocsFor } from '../../src/lib/queue
 import type { InvoiceDoc } from '../../src/types/invoice'
 import { auditViewAs, docVisibleTo } from '../../src/server/viewAs'
 import { simulationEnabled } from '../../src/server/auth/config'
+import { hasPermission } from '../../src/server/auth/guards'
 import { EU_CODES } from '../../src/mock/rules'
 import { publishDocEvent } from '../../src/server/events'
 import { canBindReceipt, transitionFor } from '../../src/lib/docTransitions'
@@ -399,6 +400,8 @@ const BIND_CANDIDATE_SELECT = {
 async function loadBindable(req: any, id: string) {
   const session = req.sessionUser
   if (!session) throw new ActionRefused(401, 'กรุณาเข้าสู่ระบบ')
+  // v5.13: named permission (EU, ACC, APR, SA — the same people as before: whoever sees the document)
+  if (!hasPermission(session.role, 'BIND_RECEIPT')) throw new ActionRefused(403, 'ไม่มีสิทธิ์ผูกใบรับ (BIND_RECEIPT)')
   if (!SAFE_DOC_ID.test(id)) throw new ActionRefused(400, 'รหัสเอกสารไม่ถูกต้อง')
   const row = await prisma.document.findUnique({ where: { id } })
   if (!row) throw new ActionRefused(404, `ไม่พบเอกสาร ${id} ในระบบ`)

@@ -2,8 +2,16 @@ import { Router, Request, Response } from 'express'
 import { z } from 'zod'
 import { prisma } from '../../src/lib/prisma'
 import { searchActiveDirectory } from '../../src/lib/adAuth'
-import { COMPANIES } from '../../src/mock/companies'
-import { requireIntegrationKey, requirePerm } from '../../src/server/auth/guards'
+import { assignableCompanies } from '../../src/mock/companies'
+import {
+  activatePendingCompany,
+  feedFromOracleRows,
+  listCompanyMaster,
+  mergeCompanyFeed,
+  type CompanyFeedEntry,
+  type MergeResult,
+} from '../../src/server/companyMaster'
+import { hasPermission, requireIntegrationKey, requirePerm } from '../../src/server/auth/guards'
 import { isProduction } from '../../src/server/auth/config'
 import { RECEIVE_HOLDER_STATUSES } from '../../src/lib/docTransitions'
 import { partitionBatch, receiveIdOf } from '../../src/server/receiveIdGuard'
@@ -14,8 +22,11 @@ import { publishDocEvent, type DocEvent } from '../../src/server/events'
 // --- USERS ROUTER ---
 export const usersRouter = Router()
 
-/** Company codes a user may be assigned (the Portal's company master; '?' is "unknown", not assignable). */
-const ASSIGNABLE_COMPANIES = (): string[] => Object.keys(COMPANIES).filter(k => k !== '?')
+/**
+ * Company codes a user may be assigned (the Portal's company master).
+ * v5.13: '?' (company could not be identified) IS assignable — SA hands those documents to accountants.
+ */
+const ASSIGNABLE_COMPANIES = (): string[] => assignableCompanies()
 
 const USER_SAVE_SCHEMA = z.object({
   id: z.string().optional(),
@@ -406,11 +417,12 @@ apRouter.post('/batches', async (req: Request, res: Response) => {
     const userId = session.id
     const userName = session.name
 
-    // Authorization guard: only APR (Accounting Supervisor) or ADM can send batches
-    if (!['APR', 'ADM'].includes(role)) {
+    // v5.13: permission POST from the role table (APR, SA) — the Matrix page shows the same.
+    // Before: hard-coded APR/ADM (ADM cannot even see documents; SA held POST but was refused).
+    if (!hasPermission(role, 'POST')) {
       return res.status(403).json({
         ok: false,
-        error: 'ไม่มีสิทธิ์ส่งเอกสารเข้า AP Interface (ต้องเป็นระดับหัวหน้าฝ่ายบัญชี)',
+        error: 'ไม่มีสิทธิ์ส่งเอกสารเข้า AP Interface (เฉพาะหัวหน้าฝ่ายบัญชี)',
       })
     }
 
@@ -803,27 +815,48 @@ apRouter.post('/batches/:id/callback', requireIntegrationKey('oracle'), async (r
 // --- ORACLE ROUTER ---
 export const oracleRouter = Router()
 
+/**
+ * v5.13 — Sync บริษัทในเครือ (บันทึกลงตาราง Company + ใช้จับคู่เอกสารทันที)
+ *   body {}                         → อ่านจาก Oracle ผ่าน MCP (ORACLE_MCP_URL / ORACLE_MCP_TOKEN)
+ *   body { companies: [...] } (SA)  → นำเข้าจาก JSON: [{ tax, name?, code?, orgs: [{ id, name? }] }]
+ * Response คงรูปแบบเดิม (ok · source · companies · warning?) + pending · result · persisted
+ */
+const IMPORT_SCHEMA = z.array(
+  z.object({
+    tax: z.string().min(1),
+    name: z.string().optional(),
+    code: z.string().optional(),
+    orgs: z.array(z.union([z.number(), z.object({ id: z.number(), name: z.string().optional() })])).default([]),
+  }),
+).max(500)
+
 oracleRouter.post('/sync-companies', async (req: Request, res: Response) => {
   try {
     const body = req.body || {}
     const triggeredBy = req.sessionUser?.id || 'system'
+    const role = String(req.sessionUser?.role || '').toUpperCase()
     const oracleMcpUrl = process.env.ORACLE_MCP_URL
     const oracleMcpToken = process.env.ORACLE_MCP_TOKEN
 
-    let syncSource: 'oracle_mcp' | 'mock_fallback' = 'mock_fallback'
-    let syncedCompanies = Object.entries(COMPANIES)
-      .filter(([k]) => k !== '?')
-      .map(([code, info]) => ({
-        code,
-        name: info.name,
-        tax: info.tax,
-        orgs: info.orgs,
-      }))
+    let syncSource: 'oracle_mcp' | 'import' | 'mock_fallback' = 'mock_fallback'
+    let feed: CompanyFeedEntry[] = []
+    let warning: string | undefined
 
-    if (oracleMcpUrl && oracleMcpToken) {
+    if (body.companies !== undefined) {
+      if (role !== 'SA') return res.status(403).json({ ok: false, error: 'นำเข้าข้อมูลบริษัทจากไฟล์ได้เฉพาะ Super Admin' })
+      const parsed = IMPORT_SCHEMA.safeParse(body.companies)
+      if (!parsed.success) return res.status(400).json({ ok: false, error: 'รูปแบบข้อมูลบริษัทไม่ถูกต้อง', issues: parsed.error.issues.slice(0, 5) })
+      feed = parsed.data.map(c => ({
+        tax: c.tax,
+        name: c.name,
+        code: c.code,
+        orgs: c.orgs.map(o => (typeof o === 'number' ? { id: o } : o)),
+      }))
+      syncSource = 'import'
+    } else if (oracleMcpUrl && oracleMcpToken) {
       try {
         const sqlQuery = `
-          SELECT 
+          SELECT
             hou.ORGANIZATION_ID AS ORG_ID,
             hou.NAME AS OU_NAME,
             xle.LEGAL_ENTITY_IDENTIFIER AS TAX_ID,
@@ -848,53 +881,50 @@ oracleRouter.post('/sync-companies', async (req: Request, res: Response) => {
               arguments: { sql: sqlQuery },
             },
           }),
-          signal: AbortSignal.timeout(4000),
+          signal: AbortSignal.timeout(Number(process.env.ORACLE_SYNC_TIMEOUT_MS) || 8000),
         })
 
         if (mcpRes.ok) {
           const mcpData = await mcpRes.json()
-          // v5.11.1: "synced" only when Oracle's rows were actually read and applied. Before, any
-          // non-error answer was reported as an Oracle sync while the master list was returned as-is.
+          // "synced" only when Oracle's rows were actually read (v5.11.1)
           const rows = mcpRows(mcpData)
           if (!mcpData?.error && rows.length) {
-            const byTax = new Map<string, { orgs: Set<number>; name?: string }>()
-            for (const r of rows) {
-              const tax = String(r.TAX_ID ?? r.tax_id ?? '').replace(/\D/g, '')
-              const org = Number(r.ORG_ID ?? r.org_id)
-              if (!tax || !Number.isFinite(org)) continue
-              const e = byTax.get(tax) ?? { orgs: new Set<number>(), name: String(r.COMPANY_NAME ?? r.company_name ?? '') || undefined }
-              e.orgs.add(org)
-              byTax.set(tax, e)
-            }
-            let matched = 0
-            syncedCompanies = syncedCompanies.map(c => {
-              const hit = byTax.get(String(c.tax).replace(/\D/g, ''))
-              if (!hit) return c
-              matched++
-              return { ...c, orgs: [...hit.orgs].sort((a, b) => a - b) }
-            })
-            if (matched > 0) syncSource = 'oracle_mcp'
+            feed = feedFromOracleRows(rows)
+            if (feed.length) syncSource = 'oracle_mcp'
           }
         }
       } catch {
         syncSource = 'mock_fallback'
       }
+      if (syncSource === 'mock_fallback') warning = 'อ่านข้อมูลจาก Oracle ไม่ได้ · แสดงข้อมูลบริษัทในระบบ (ไม่ได้ซิงค์)'
+    } else {
+      warning = 'ยังไม่ได้ตั้งค่า ORACLE_MCP_URL / ORACLE_MCP_TOKEN · แสดงข้อมูลบริษัทในระบบ (ไม่ได้ซิงค์)'
     }
+
+    let result: MergeResult | null = null
+    if (syncSource !== 'mock_fallback') result = await mergeCompanyFeed(feed, syncSource)
+    const master = await listCompanyMaster()
+    const companies = master.companies
+      .filter(c => c.code !== '?')
+      .map(c => ({ code: c.code, name: c.name, tax: c.tax, orgs: c.orgs, orgNames: c.orgNames, source: c.source, syncedAt: c.syncedAt }))
 
     // Record audit trail
     try {
+      const summary = result
+        ? `อัปเดต ${result.updated.length} · เพิ่ม ${result.added.length} · รอตั้งรหัส ${result.pending.length} · ไม่เปลี่ยน ${result.unchanged.length}`
+        : ''
       await prisma.auditLog.create({
         data: {
           who: req.sessionUser?.name || triggeredBy,
           whoId: req.sessionUser?.id,
           role: String(req.sessionUser?.role || 'ADM'),
           docId: 'MASTER_DATA',
-          act: 'Sync ข้อมูลบริษัทจาก Oracle ERP',
+          act: syncSource === 'import' ? 'Sync ข้อมูลบริษัท (นำเข้าไฟล์)' : 'Sync ข้อมูลบริษัทจาก Oracle ERP',
           action: 'oracle_sync_companies',
           detail:
-            syncSource === 'oracle_mcp'
-              ? `ซิงค์ ORG_ID จาก Oracle สำเร็จ (${syncedCompanies.length} บริษัท)`
-              : `ไม่ได้ซิงค์จาก Oracle · ใช้ข้อมูลบริษัทในระบบ (${syncedCompanies.length} บริษัท)`,
+            syncSource === 'mock_fallback'
+              ? `ไม่ได้ซิงค์จาก Oracle · ใช้ข้อมูลบริษัทในระบบ (${companies.length} บริษัท)`
+              : `${syncSource === 'import' ? 'นำเข้า' : 'ซิงค์จาก Oracle'}สำเร็จ · ${summary}`,
         },
       })
     } catch {}
@@ -902,11 +932,12 @@ oracleRouter.post('/sync-companies', async (req: Request, res: Response) => {
     res.json({
       ok: true,
       source: syncSource,
-      companies: syncedCompanies,
+      companies,
+      pending: master.pending,
+      persisted: master.persisted,
+      result,
       syncedAt: new Date().toISOString(),
-      ...(syncSource === 'mock_fallback'
-        ? { warning: oracleMcpUrl && oracleMcpToken ? 'อ่านข้อมูลจาก Oracle ไม่ได้ · แสดงข้อมูลบริษัทในระบบ (ไม่ได้ซิงค์)' : 'ยังไม่ได้ตั้งค่า ORACLE_MCP_URL / ORACLE_MCP_TOKEN · แสดงข้อมูลบริษัทในระบบ (ไม่ได้ซิงค์)' }
-        : {}),
+      ...(warning ? { warning } : {}),
     })
   } catch (err: any) {
     res.status(500).json({
@@ -914,4 +945,36 @@ oracleRouter.post('/sync-companies', async (req: Request, res: Response) => {
       error: err.message || 'Internal Server Error',
     })
   }
+})
+
+/** v5.13: GET /api/companies (signed in) — บริษัทที่ใช้งาน (+ "?") ให้หน้าจอทุกบทบาทใช้ชื่อ/รหัสเดียวกับ server */
+export async function companiesHandler(_req: Request, res: Response) {
+  const m = await listCompanyMaster()
+  res.json({ ok: true, companies: m.companies, persisted: m.persisted })
+}
+
+/** v5.13: master บริษัท (ใช้งาน + รอตั้งรหัส) สำหรับแท็บ "บริษัทและ ORG_ID" */
+oracleRouter.get('/companies', async (_req: Request, res: Response) => {
+  res.json({ ok: true, ...(await listCompanyMaster()) })
+})
+
+/** v5.13: ตั้งรหัสให้บริษัทที่พบจาก Oracle แล้วเปิดใช้ { tax, code, name? } */
+oracleRouter.post('/companies/activate', async (req: Request, res: Response) => {
+  const body = req.body || {}
+  const r = await activatePendingCompany(String(body.tax ?? ''), String(body.code ?? ''), body.name ? String(body.name) : undefined)
+  if (!r.ok) return res.status(r.status).json({ ok: false, error: r.error })
+  try {
+    await prisma.auditLog.create({
+      data: {
+        who: req.sessionUser?.name || 'system',
+        whoId: req.sessionUser?.id,
+        role: String(req.sessionUser?.role || 'ADM'),
+        docId: 'MASTER_DATA',
+        act: 'เปิดใช้บริษัทในเครือ',
+        action: 'company_activate',
+        detail: `${r.company.code} · ${r.company.name} · Tax ${r.company.tax} · ORG ${r.company.orgs.join(', ') || '—'}`,
+      },
+    })
+  } catch {}
+  res.json({ ok: true, company: r.company })
 })

@@ -272,3 +272,48 @@
 .standalone-pages .box:hover {
   background: rgba(255, 230, 0, 0.18) !important;
 }
+
+/* v5.13.1 · the viewer scrolls itself (body{overflow:hidden} from the app shell cut it at one screen) */
+.standalone-viewer {
+  height: 100vh;
+  height: var(--app-h, 100vh);
+  overflow: auto;
+}
+.standalone-pages .page {
+  position: relative;
+  flex: none;
+  scroll-margin-top: 56px;
+}
+.standalone-pages .page-tag {
+  position: absolute;
+  left: 0;
+  top: -18px;
+  font-size: 11px;
+  line-height: 16px;
+  color: #e5e7eb;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.standalone-pages {
+  gap: 28px;
+  padding-top: 26px;
+}
+.standalone-bar .bar-pages {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+.standalone-bar .bar-pages select {
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid #4b5563;
+  background: #111827;
+  color: #fff;
+  font-size: 12.5px;
+  padding: 0 6px;
+}
+.standalone-bar .bar-pages button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}

@@ -142,7 +142,7 @@ describe('v5.10 sidebar', () => {
   it('groups by work flow; EU sees "ผลการส่งเอกสาร"', async () => {
     const { container } = await mount(<Sidebar currentPage="queue" onNavigate={() => {}} onToggleNav={() => {}} />, ACC)
     const secs = Array.from(container.querySelectorAll('.nav-sec')).map(e => e.textContent)
-    expect(secs).toEqual(['ต้องดำเนินการ', 'ส่งจ่าย (AP)', 'ติดตามและประวัติ', 'การกำกับดูแล'])
+    expect(secs).toEqual(['ต้องดำเนินการ', 'ส่งจ่าย (AP)', 'ติดตามและประวัติ', 'การกำกับดูแล', 'ตั้งค่า'])
     expect(screen.getByText('เอกสารที่ปิดแล้ว')).toBeDefined()
   })
 
@@ -150,7 +150,7 @@ describe('v5.10 sidebar', () => {
     const eu = EU
     const { container } = await mount(<Sidebar currentPage="queue" onNavigate={() => {}} onToggleNav={() => {}} />, eu)
     const secs = Array.from(container.querySelectorAll('.nav-sec')).map(e => e.textContent)
-    expect(secs).toEqual(['ต้องดำเนินการ', 'ติดตามและประวัติ', 'การกำกับดูแล'])
+    expect(secs).toEqual(['ต้องดำเนินการ', 'ติดตามและประวัติ', 'การกำกับดูแล', 'ตั้งค่า'])
     expect(screen.getByText('ผลการส่งเอกสาร')).toBeDefined()
   })
 })

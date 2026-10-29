@@ -1,0 +1,1813 @@
+{
+ "exact": {
+  "ยังไม่ปิด · ดูได้ที่หน้าคิวตรวจสอบ": "Not closed · see the review queue",
+  "ไม่พบ": "Not found",
+  "ในขอบเขตสิทธิ์ของคุณ": "within your access scope",
+  "ไม่มีรายการให้ส่งออก": "Nothing to export",
+  "ส่งออก": "Exported",
+  "รายการแล้ว": "item(s)",
+  "เบราว์เซอร์นี้ส่งออกไฟล์ไม่ได้": "This browser cannot export files",
+  "ขอบเขตบริษัท": "Company scope",
+  "ทุกบริษัท": "All companies",
+  "ช่วงเวลา": "Period",
+  "ล้างตัวกรอง": "Clear filters",
+  "โหมดดูในมุมมอง · ทำรายการไม่ได้": "View-as mode · actions disabled",
+  "ส่งออกรายการที่แสดงอยู่เป็น CSV (เปิดใน Excel ได้)": "Export the listed items as CSV (opens in Excel)",
+  "มุมมอง": "View",
+  "แยก 2 ฝั่ง": "Split view",
+  "ตาราง": "Table",
+  "กลุ่มเอกสารที่ปิดแล้ว": "Closed document groups",
+  "สถานะใน": "Status in",
+  "ทั้งหมด": "All",
+  "มี": "has",
+  "รายการสถานะ": "status items",
+  "กำลังนำส่ง": "Sending",
+  "ค้างเกิน": "overdue by",
+  "วัน · ตรวจสถานะ AP Batch / Oracle Interface": "day(s) · check AP Batch / Oracle Interface status",
+  "ดูรายการ": "View items",
+  "ฉบับ": "doc(s)",
+  "ค้นหา: เลขที่ · ผู้ขาย · Batch · เหตุผล · วันที่ · ยอดเงิน": "Search: number · vendor · Batch · reason · date · amount",
+  "เลขที่ใบแจ้งหนี้": "Invoice no.",
+  "บริษัท": "Company",
+  "ผู้ขาย": "Vendor",
+  "ยอดรวม": "Total",
+  "สถานะ": "Status",
+  "ปิดโดย": "Closed by",
+  "วันที่ปิด": "Closed on",
+  "ขั้นตอน / เหตุผล": "Step / reason",
+  "เหตุผล / อ้างอิง": "Reason / reference",
+  "ไม่มีเอกสารที่ปิดแล้วในกลุ่มและตัวกรองนี้": "No closed documents in this group and filter",
+  "แสดงรายการ (ปิดตัวอย่าง PDF อัตโนมัติ)": "Show list (closes PDF preview)",
+  "แสดงรายการเอกสารที่ปิดแล้ว": "Show closed documents list",
+  "ฉบับ และปิดตัวอย่าง PDF": "doc(s) and close PDF preview",
+  "เอกสารที่ปิดแล้ว": "Closed documents",
+  "รายการเอกสารที่ปิดแล้ว": "Closed documents list",
+  "กลับไปมุมมองตาราง": "Back to table view",
+  "รายการเอกสาร": "Document list",
+  "ไม่มีเอกสารในกลุ่มและตัวกรองนี้": "No documents in this group and filter",
+  "เลือกเอกสารจากรายการด้านซ้าย": "Select a document from the list on the left",
+  "ขั้น 1/3 · ฝ่ายบัญชีอนุมัติแล้ว รอส่งเข้า Oracle": "Step 1/3 · Approved by accounting, waiting to send to Oracle",
+  "ขั้น 2/3 · กำลังส่งเข้าระบบ Oracle": "Step 2/3 · Sending to Oracle",
+  "ขั้น 3/3 · ตั้งหนี้ใน Oracle สำเร็จ": "Step 3/3 · Payable created in Oracle",
+  "เปิด": "Open",
+  "ค้างสถานะกำลังนำส่ง": "Stuck in Sending",
+  "ค้าง": "Pending",
+  "วัน": "day(s)",
+  "ไม่มีประวัติการปิด": "No closing history",
+  "สรุปการปิดงาน": "Closing summary",
+  "เอกสารที่ปิดแล้วแก้ไขหรือเปลี่ยนสถานะจากหน้านี้ไม่ได้": "Closed documents cannot be edited or change status from this page",
+  "ดูอย่างเดียว": "Read only",
+  "DMS (สด)": "DMS (live)",
+  "คลังเอกสาร": "Document archive",
+  "เอกสารจำลอง": "Simulated document",
+  "ไฟล์สแกน": "Scanned file",
+  "PDF จากระบบผู้ขาย": "PDF from vendor system",
+  "หน้า ·": "page(s) ·",
+  "ทดสอบการแสดงผล": "Display test",
+  "เปิดในแท็บใหม่": "Open in new tab",
+  "พิมพ์ หรือบันทึกเป็น PDF": "Print or save as PDF",
+  "ปิด PDF และแสดงคิวเอกสาร (Esc)": "Close PDF and show document queue (Esc)",
+  "ปิด PDF": "Close PDF",
+  "โหมดแสดงผล": "Display mode",
+  "เอกสาร": "Document",
+  "หลักฐาน": "Evidence",
+  "ย่อ": "Zoom out",
+  "ขยาย": "Zoom in",
+  "พอดีความกว้าง": "Fit width",
+  "หน้าก่อน": "Previous page",
+  "หน้า": "Page",
+  "หน้าถัดไป": "Next page",
+  "ไม่มีตำแหน่ง": "No location",
+  "ต้องตรวจ": "Needs check",
+  "กล่อง": "box(es)",
+  "ดูหลักฐานบนเอกสาร หน้า": "View evidence on document, page",
+  "กล่อง)": "box(es))",
+  "ไม่พบตำแหน่งบนเอกสาร —": "Location not found on document —",
+  "เอกสาร PDF": "PDF document",
+  "ลากเพื่อปรับความกว้าง (รายละเอียด 50–70%) · ดับเบิลคลิกเพื่อกลับเป็น 60:40": "Drag to resize (details 50–70%) · double-click to reset to 60:40",
+  "ลิงก์ชั่วคราว 10 นาที ออกโดย Portal หลังตรวจสิทธิ์ · ลายน้ำ": "10-minute temporary link issued by the Portal after access check · watermark",
+  "ไม่พบตำแหน่งบนเอกสาร": "Location not found on document",
+  "ค่าที่ได้": "Found value",
+  "ค่าที่คาดไว้": "Expected value",
+  "ข้อมูลที่เกี่ยวข้อง": "Related data",
+  "กล่องหลักฐานของรายการนี้": "Evidence boxes for this item",
+  "กล่องก่อนหน้า (Alt+←)": "Previous box (Alt+←)",
+  "กล่องก่อนหน้า": "Previous box",
+  "กล่องถัดไป (Alt+→)": "Next box (Alt+→)",
+  "กล่องถัดไป": "Next box",
+  "รายการหลักฐานของเอกสาร": "Document evidence items",
+  "รายการก่อนหน้า (Alt+↑)": "Previous item (Alt+↑)",
+  "รายการก่อนหน้า": "Previous item",
+  "รายการ": "item",
+  "รายการถัดไป (Alt+↓)": "Next item (Alt+↓)",
+  "รายการถัดไป": "Next item",
+  "ไม่มีสิทธิ์เข้าถึงหน้านี้": "You do not have access to this page",
+  "รอส่ง": "Ready to send",
+  "ส่งแล้ว รอ Import": "Sent, awaiting import",
+  "Import สำเร็จ": "Import succeeded",
+  "Import ไม่ผ่าน": "Import failed",
+  "ขั้นตอนหลังยืนยัน": "After confirmation",
+  "ตรวจซ้ำในฐานข้อมูล Portal → ผู้ยืนยัน ≠ ผู้ส่ง → ตรวจวงเงิน → ส่งเป็น Batch → รับผล Import": "Re-check Portal database → confirmer ≠ sender → check limit → send as Batch → receive import result",
+  "ส่งได้ (วงเงิน ≤ 1,000,000)": "Can send (limit ≤ 1,000,000)",
+  "ยกเลิก Confirm ได้ · ส่ง Batch ได้เฉพาะหัวหน้าฝ่ายบัญชี": "Can cancel Confirm · only the accounting supervisor can send Batches",
+  "ดูอย่างเดียว · ส่งได้เฉพาะหัวหน้าฝ่ายบัญชี": "Read only · only the accounting supervisor can send",
+  "เลือก": "Selected",
+  "ฉบับ ·": "doc(s) ·",
+  "กำลังส่ง…": "Sending…",
+  "ส่งเข้า AP Interface (Batch)": "Send to AP Interface (Batch)",
+  "Tax ID ผู้ขาย": "Vendor Tax ID",
+  "ชื่อผู้ขายใน Oracle": "Vendor name in Oracle",
+  "เลขที่ใบรับ": "Receipt no.",
+  "ก่อนภาษี": "Before tax",
+  "ผู้ยืนยัน": "Confirmed by",
+  "วันที่ยืนยัน": "Confirmed on",
+  "เข้าระบบ": "Received",
+  "ผลตรวจก่อนส่ง": "Pre-send check",
+  "ข้อความจาก Oracle": "Message from Oracle",
+  "จัดการ": "Actions",
+  "✓ พร้อมส่ง": "✓ Ready to send",
+  "เอาเครื่องหมายเลือกออกก่อน (อยู่ในรายการที่จะส่ง Batch)": "Unselect first (it is in the Batch to send)",
+  "กำลังส่ง Batch": "Sending Batch",
+  "ยกเลิก Confirm · เอกสารกลับไปคิวตรวจสอบ (Review)": "Cancel Confirm · document returns to the review queue (Review)",
+  "ยกเลิก Confirm": "Cancel Confirm",
+  "ไม่มีเอกสารในสถานะและช่วงเวลานี้": "No documents in this status and period",
+  "ประวัติ Batch": "Batch history",
+  "เวลาส่ง": "Sent at",
+  "ผู้ส่ง": "Sender",
+  "ผล Import": "Import result",
+  "สำเร็จ": "Succeeded",
+  "บันทึกการเข้าถึงและการดำเนินการ": "Access and activity log",
+  "รายการ · ไม่สามารถแก้ไขได้": "entries · cannot be edited",
+  "อัปเดตอัตโนมัติ": "Auto refresh",
+  "ตรวจทุก 60 วินาที": "checks every 60 seconds",
+  "ไม่อัปเดตอัตโนมัติ": "No auto refresh",
+  "วันที่": "Date",
+  "เวลา": "Time",
+  "ผู้ใช้": "User",
+  "บทบาท": "Role",
+  "การดำเนินการ": "Action",
+  "รายละเอียด": "Details",
+  "ไม่มี": "None",
+  "รหัส": "Code",
+  "รหัสบริษัทต้องเป็น A–Z / 0–9 ยาว 2–8 ตัว": "Company code must be A–Z / 0–9, 2–8 characters",
+  "เปิดใช้ไม่สำเร็จ:": "Activation failed:",
+  "เปิดใช้บริษัท": "Activated company",
+  "สำเร็จ · มอบหมายผู้ใช้และจับคู่เอกสารได้แล้ว": "successfully · users can be assigned and documents matched",
+  "เปิดใช้ไม่สำเร็จ: เชื่อมต่อ server ไม่ได้": "Activation failed: cannot reach the server",
+  "ซิงค์สำเร็จ · อัปเดต": "Sync succeeded · updated",
+  "· เพิ่ม": "· added",
+  "· รอตั้งรหัส": "· awaiting code",
+  "ไม่ได้ซิงค์จาก Oracle · แสดงข้อมูลบริษัทในระบบ": "Not synced from Oracle · showing companies in the system",
+  "ซิงค์ข้อมูลไม่สำเร็จ:": "Sync failed:",
+  "เกิดข้อผิดพลาดในการเชื่อมต่อกับ Oracle API": "Error connecting to the Oracle API",
+  "สิทธิ์และการเชื่อมบัญชี": "Access & account mapping",
+  "Active Directory ↔ RECEIVER (Oracle) ↔ บริษัท · ผู้ดูแลระบบจัดการได้ แต่ไม่เห็นเนื้อหาเอกสาร": "Active Directory ↔ RECEIVER (Oracle) ↔ Company · admins manage this but cannot see document content",
+  "จัดการสิทธิ์ผู้ใช้งาน (Admin Grid)": "Manage user access (Admin Grid)",
+  "Matrix สิทธิ์ตามบทบาท": "Role permission matrix",
+  "บริษัทและ ORG_ID": "Companies & ORG_ID",
+  "ผู้ใช้งานในระบบและการผูกบัญชี (ตารางที่ 5)": "Users and account bindings (Table 5)",
+  "มุมมองอ่านอย่างเดียว (เฉพาะผู้ดูแลระบบ IT เท่านั้นที่แก้ไขได้)": "Read-only view (only IT admins can edit)",
+  "ชื่อ": "Name",
+  "หน่วยงาน": "Department",
+  "บริษัทที่รับผิดชอบ": "Assigned companies",
+  "Matrix สิทธิ์ตามบทบาท (ตารางที่ 6)": "Role permission matrix (Table 6)",
+  "ตารางเดียวกับที่ระบบใช้ตรวจสิทธิ์จริง · ทุกการกระทำต้องอยู่ในขอบเขตเอกสารที่เห็นด้วย": "The same table the system uses to check access · every action also requires the document to be in your scope",
+  "สิ่งที่ทำได้": "Action",
+  "ปุ่ม / หน้า": "Button / page",
+  "เงื่อนไข": "Conditions",
+  "ทำได้": "Allowed",
+  "ทำไม่ได้": "Not allowed",
+  "บริษัทและ ORG_ID (ตารางที่ 4)": "Companies & ORG_ID (Table 4)",
+  "(อัปเดตล่าสุด:": "(last updated:",
+  "กำลังซิงค์ข้อมูลจาก Oracle…": "Syncing from Oracle…",
+  "Sync ข้อมูลจาก Oracle": "Sync from Oracle",
+  "มอบหมายให้พนักงานบัญชีได้ที่แท็บ “จัดการสิทธิ์ผู้ใช้งาน” (บริษัท “? ไม่ระบุบริษัท”)": "Assign to accountants in the “Manage user access” tab (company “? Unknown company”)",
+  "พบใน Oracle · รอตั้งรหัสบริษัท": "Found in Oracle · awaiting company code",
+  "ยังไม่ใช้จับคู่เอกสาร (เอกสารของบริษัทเหล่านี้จะอยู่ใน “?”) จนกว่าจะตั้งรหัสและกดเปิดใช้": "Not used for document matching yet (their documents stay in “?”) until a code is set and activated",
+  "ชื่อตาม Oracle": "Name in Oracle",
+  "รหัสบริษัท": "Company code",
+  "เช่น AHR": "e.g. AHR",
+  "รหัสบริษัทสำหรับ Tax ID": "Company code for Tax ID",
+  "กำลังเปิดใช้…": "Activating…",
+  "เปิดใช้": "Activate",
+  "ผู้ใช้งาน": "User",
+  "ลบ": "Remove",
+  "ผลลัพธ์": "Result",
+  "เหตุผล": "Reason",
+  "End User ต้องผูก Oracle account อย่างน้อย 1 บัญชี": "An End User must be bound to at least 1 Oracle account",
+  "ฝ่ายบัญชีต้องเลือกบริษัทอย่างน้อย 1 บริษัท": "Accounting must select at least 1 company",
+  "เห็นเฉพาะเอกสารที่ตนเป็น Receiver": "Sees only documents where they are the Receiver",
+  "ตรวจสอบและยืนยันเอกสารตามบริษัท": "Reviews and confirms documents by company",
+  "อนุมัติ ส่งเข้า AP Interface": "Approves and sends to AP Interface",
+  "ผู้ดูแลระบบ จัดการสิทธิ์": "System admin, manages access",
+  "ผู้ดูแลระบบระดับสูง สิทธิ์เต็มทุกระบบ": "Super admin, full access to everything",
+  "เพิ่มผู้ใช้จาก AD (LDAP)": "Add user from AD (LDAP)",
+  "ค้นหาจากบัญชีองค์กร แล้วกำหนดบทบาทและขอบเขต": "Search the corporate directory, then set role and scope",
+  "ปิด": "Close",
+  "ค้นหาผู้ใช้จาก Active Directory": "Search users in Active Directory",
+  "พิมพ์ชื่อ, username หรือรหัสพนักงาน…": "Type a name, username or employee ID…",
+  "กำลังค้นหา…": "Searching…",
+  "ไม่พบผู้ใช้": "No users found",
+  "พบ": "Found",
+  "คน · ↑ ↓ เลือก · Enter ยืนยัน": "person(s) · ↑ ↓ select · Enter confirm",
+  "อย่างน้อย 1 ตัวอักษร": "at least 1 character",
+  "ผลการค้นหา": "Search results",
+  "· รหัส": "· ID",
+  "เปลี่ยนคน": "Change person",
+  "บทบาท (Role)": "Role",
+  "Oracle account (ชื่อ Receiver ในใบรับ)": "Oracle account (Receiver name on the receipt)",
+  "เช่น AHT Die Making 03, K.Vinitda": "e.g. AHT Die Making 03, K.Vinitda",
+  "เพิ่ม": "Add",
+  "ยังไม่มีบัญชี": "No accounts yet",
+  "ผู้ดูแลระบบไม่เห็นเนื้อหาเอกสาร จึงไม่ต้องกำหนดบริษัทหรือ Oracle account": "Admins cannot see document content, so no company or Oracle account is needed",
+  "Super Admin เห็นทุกบริษัท": "Super Admin sees all companies",
+  "เลือกผู้ใช้ก่อน": "Select a user first",
+  "ยกเลิก": "Cancel",
+  "เพิ่มผู้ใช้": "Add user",
+  "ฝ่ายบัญชีต้องได้รับมอบหมายบริษัทอย่างน้อย 1 บริษัท": "Accounting must be assigned at least 1 company",
+  "มีอยู่ในระบบแล้ว": "already exists",
+  "เรียบร้อยแล้ว (รอยืนยันบันทึก)": "done (pending save)",
+  "เชื่อมต่อไม่ได้": "Cannot connect",
+  "บันทึกไม่สำเร็จ": "Save failed",
+  "รายการ ·": "item(s) ·",
+  "บันทึกการเปลี่ยนแปลงสิทธิ์ทั้งหมดสำเร็จ": "All access changes saved",
+  "ค้นหาชื่อ, username, email…": "Search name, username, email…",
+  "ค้นหาผู้ใช้": "Search users",
+  "คน": "person(s)",
+  "บันทึกการเปลี่ยนแปลง": "Save changes",
+  "กำลังโหลดข้อมูลผู้ใช้…": "Loading users…",
+  "ผู้ใช้ (ชื่อ · username · email)": "User (name · username · email)",
+  "สิทธิ์ (Role)": "Role",
+  "ขอบเขต (Company / Oracle Receiver)": "Scope (Company / Oracle Receiver)",
+  "การจัดการ": "Manage",
+  "ไม่พบผู้ใช้ที่ตรงกับเงื่อนไข": "No users match",
+  "ใหม่": "New",
+  "แก้ไข": "Edited",
+  "สิทธิ์ของ": "Role of",
+  "เอา": "Remove",
+  "+ เพิ่ม Receiver (กด Enter)": "+ Add Receiver (press Enter)",
+  "เพิ่ม Receiver ของ": "Add Receiver for",
+  "ไม่ใช้ขอบเขต (Admin ทั้งระบบ)": "No scope (system-wide admin)",
+  "ลบผู้ใช้": "Remove user",
+  "ชื่อ Receiver ต้องตรงกับค่า RECEIVER ใน Oracle ทุกตัวอักษร · ระบบจะแสดงรายการที่เปลี่ยนให้ตรวจก่อนบันทึกเสมอ": "The Receiver name must match RECEIVER in Oracle exactly · changes are always shown for review before saving",
+  "ยืนยันการบันทึกการเปลี่ยนแปลงสิทธิ์": "Confirm saving access changes",
+  "พบรายการที่มีการเปลี่ยนแปลงทั้งหมด": "Total changed items found:",
+  "รายการ ดังนี้:": "item(s), as follows:",
+  "+ เพิ่มใหม่": "+ Added",
+  "- ลบออก": "- Removed",
+  "✎ แก้ไข": "✎ Edited",
+  "การบันทึกจะเขียนข้อมูลลงฐานข้อมูลจริง พร้อมสร้างบันทึก Audit Trail ของ IT Admin ทันที": "Saving writes to the live database and immediately creates an IT Admin audit trail entry",
+  "กำลังบันทึก…": "Saving…",
+  "ยืนยันบันทึก": "Confirm save",
+  "ยืนยัน": "Confirm",
+  "ข้อมูลและสิทธิ์การใช้งานของฉัน": "My profile and access",
+  "โปรไฟล์ผู้ใช้และขอบเขตสิทธิ์ตามบทบาทองค์กร (RBAC)": "User profile and role-based access scope (RBAC)",
+  "ปิดหน้าต่างโปรไฟล์": "Close profile",
+  "ปิด (Esc)": "Close (Esc)",
+  "ชื่อ - นามสกุล": "Full name",
+  "อีเมลองค์กร (Entra ID)": "Corporate email (Entra ID)",
+  "หน่วยงาน / สังกัด": "Department / unit",
+  "รหัสพนักงาน": "Employee ID",
+  "ขอบเขตข้อมูลที่เข้าถึงได้ (Scope Access)": "Accessible data scope (Scope Access)",
+  "บริษัทที่รับผิดชอบ:": "Assigned companies:",
+  "ทุกบริษัท (ผู้ดูแลระบบ)": "All companies (administrator)",
+  "— ยังไม่มีบัญชีเชื่อมโยง": "— no linked account yet",
+  "สิทธิ์ที่ได้รับอนุญาต (": "Granted permissions (",
+  "รายการ)": "items)",
+  "รหัสสิทธิ์": "Permission code",
+  "คำอธิบายสิทธิ์": "Permission description",
+  "แสดงเมนู (ปิด PDF) · [": "Show menu (close PDF) · [",
+  "แสดงเมนูหลัก": "Show main menu",
+  "ค้นหา / คำสั่ง": "Search / commands",
+  "ค้นหา / คำสั่ง (Ctrl K)": "Search / commands (Ctrl K)",
+  "ค้นหาเอกสาร / คำสั่ง…": "Search documents / commands…",
+  "คลิกเพื่อตรวจสอบสถานะ Engine ใหม่ โหมด:": "Click to re-check Engine status · mode:",
+  "เซอร์วิส:": "Service:",
+  "สลับมุมมอง (กำลังดูในมุมมองของผู้อื่น)": "Switch view (viewing as someone else)",
+  "ดูในมุมมองของ… (Super Admin · อ่านอย่างเดียว)": "View as… (Super Admin · read only)",
+  "ดูในมุมมองของผู้ใช้หรือบทบาทอื่น": "View as another user or role",
+  "โปรไฟล์และสิทธิ์": "Profile and access",
+  "คลิกเพื่อดูข้อมูลผู้ใช้และสิทธิ์การใช้งานของฉัน": "Click to view my user info and permissions",
+  "ออกจากระบบ (ไปหน้าเข้าสู่ระบบ)": "Sign out (go to sign-in page)",
+  "ออกจากระบบ": "Sign out",
+  "กรุณาระบุหมายเหตุ": "Please enter a note",
+  "฿ · สถานะ": "฿ · status",
+  "เอกสารจะ": "The document will",
+  "ออกจากรายการรอส่ง": "leave the ready-to-send list",
+  "และกลับไปที่": "and return to",
+  "คิวตรวจสอบ สถานะ Review": "the review queue as Review",
+  "· ใบรับ": "· receipt",
+  "จะว่างให้ Confirm ใหม่ได้ · เอกสารอื่นที่เป็น Duplicate ของใบรับนี้ยังคงเป็น Duplicate": "will be free to Confirm again · other documents that are Duplicates of this receipt stay Duplicate",
+  "ไฟล์เอกสารใหม่": "New document file",
+  "ผลตรวจ AIVA ของฉบับใหม่ (จำลอง)": "AIVA result of the new version (simulated)",
+  "* จำเป็น": "* required",
+  "ไม่ยกเลิก": "Keep",
+  "วันที่ปิดงาน": "Closed date",
+  "วันที่เข้าระบบ": "Received date",
+  "วันที่สร้างเอกสาร": "Created date",
+  "วันที่ในใบแจ้งหนี้": "Invoice date",
+  "วันที่เอกสารถูกปิด (อนุมัติ / ส่ง / ตั้งหนี้ / ปฏิเสธ / ปิดเพราะซ้ำ) ตามประวัติเอกสาร": "Date the document was closed (approved / sent / posted / rejected / closed as duplicate) per document history",
+  "วันที่เอกสารเข้าคิวหรือมีการอัปเดตล่าสุด (ค่าเดิมของระบบ)": "Date the document entered the queue or was last updated (system default)",
+  "วันที่เอกสารถูกสร้างใน Portal (รับผลจาก Engine ครั้งแรก)": "Date the document was created in the Portal (first Engine result)",
+  "วันที่ที่พิมพ์บนใบแจ้งหนี้ · เอกสารที่ OCR อ่านวันที่ไม่ได้จะไม่แสดง": "Date printed on the invoice · documents whose date OCR could not read are hidden",
+  "วันนี้": "Today",
+  "7 วันล่าสุด": "Last 7 days",
+  "เดือนนี้": "This month",
+  "เดือนก่อน": "Last month",
+  "งวด": "Period",
+  "กำหนดเอง": "Custom",
+  "ทุกช่วงเวลา": "All time",
+  "ถึง": "to",
+  "ตั้งแต่": "from",
+  "· ทุกช่วงเวลา": "· all time",
+  "กรุณาเลือกวันที่อย่างน้อย 1 ช่อง": "Please pick at least 1 date",
+  "ตัวกรองวันที่": "Date filter",
+  "· คลิกเพื่อเปลี่ยน": "· click to change",
+  "ล้างช่วงวันที่ (แสดงทุกช่วงเวลา)": "Clear date range (show all time)",
+  "ล้างช่วงวันที่": "Clear date range",
+  "เลือกช่วงวันที่": "Select date range",
+  "กรองตาม": "Filter by",
+  "ช่วงเวลาสำเร็จรูป": "Quick ranges",
+  "ไม่กรองวันที่": "No date filter",
+  "งวด / กำหนดเอง": "Period / custom",
+  "งวด (เดือน)": "Period (month)",
+  "หรือ": "or",
+  "ตั้งแต่วันที่": "From date",
+  "ถึงวันที่": "To date",
+  "วันที่เริ่มอยู่หลังวันที่สิ้นสุด · ระบบจะสลับให้เมื่อกดใช้": "Start date is after end date · they will be swapped when applied",
+  "ใช้ตัวกรอง": "Apply filter",
+  "รายละเอียดเอกสาร": "Document details",
+  "คัดลอก": "Copy",
+  "แล้ว": "copied",
+  "ไม่ได้ประเมิน": "Not evaluated",
+  "พบ High": "High found",
+  "ผ่าน": "Pass",
+  "พบซ้ำ": "Duplicate found",
+  "ไม่ซ้ำ": "Not duplicate",
+  "รอบตรวจ #": "Check round #",
+  "รอผู้ใช้งาน": "Waiting for user",
+  "ฝ่ายบัญชี": "Accounting",
+  "คัดลอกเลขที่ใบแจ้งหนี้": "Copy invoice number",
+  "เปิดตัวตรวจ BBox เต็มหน้าจอในแท็บใหม่": "Open full-screen BBox inspector in a new tab",
+  "ตรวจ BBox (แท็บใหม่)": "Inspect BBox (new tab)",
+  "ยกเลิกการโหลด (P / Esc)": "Cancel loading (P / Esc)",
+  "ปิด PDF (P / Esc)": "Close PDF (P / Esc)",
+  "เปิดเอกสาร PDF (P)": "Open PDF document (P)",
+  "กำลังโหลด…": "Loading…",
+  "เปิดเอกสาร PDF": "Open PDF document",
+  "ไม่ตรวจ": "Not checked",
+  "ใบรับ": "Receipt",
+  "ยังไม่เรียก Oracle": "Oracle not queried yet",
+  "ยังไม่เชื่อมบัญชี": "Account not bound",
+  "วันที่ใบแจ้งหนี้": "Invoice date",
+  "อายุ": "Age",
+  "STEP 1 สกัดและตรวจเอกสาร": "STEP 1 Extract and check document",
+  "STEP 2 ค้นใบรับและลูกค้า": "STEP 2 Find receipt and customer",
+  "STEP 3 เทียบกับใบรับ": "STEP 3 Compare with receipt",
+  "Portal ตรวจซ้ำ": "Portal duplicate check",
+  "สรุปผล": "Summary",
+  "รายบรรทัด": "Line items",
+  "ใบรับ Oracle": "Oracle receipt",
+  "กฎ 9 ข้อ": "9 rules",
+  "ผู้รับผิดชอบและสิทธิ์": "Owner and access",
+  "ประวัติ": "History",
+  "เคสทดสอบ (mock):": "Test case (mock):",
+  "ถูกแทนที่ (Superseded)": "Superseded",
+  "โดย": "by",
+  "ฉบับนี้แทนที่": "This version supersedes",
+  "ของ": "of",
+  "ข้อยกเว้นจาก AIVA (": "AIVA exceptions (",
+  "มาตรฐาน v6.10 · schema 1.7": "Standard v6.10 · schema 1.7",
+  "ต้องตรวจโดยคน": "Needs human review",
+  "ข้อยกเว้น": "Exceptions",
+  "ผู้ใช้งานแก้": "User fixes",
+  "ฝ่ายบัญชีตัดสิน": "Accounting decides",
+  "หลักฐานของ": "Evidence for",
+  "ย่อรายการ": "Collapse",
+  "แสดงอีก": "Show",
+  "ไม่พบรหัสข้อผิดพลาดจาก AIVA": "No AIVA error codes found",
+  "เอกสารผ่านกฎ 9 ข้อตามมาตรฐาน v6.10": "Document passed all 9 rules of standard v6.10",
+  "ไม่มี Receiver เพราะยังไม่พบใบรับ · ผู้ใช้งานมองไม่เห็นเอกสารนี้ ·": "No Receiver because no receipt was found · users cannot see this document ·",
+  "ตรวจเอกสารแล้วใช้ \"ผูกใบรับ\" เพื่อ Confirm หรือ Reject": "Check the document, then use \"Bind receipt\" to Confirm, or Reject",
+  "ทำได้เฉพาะ Reject": "Reject only",
+  "ค้นใบรับด้วย Tax ID ผู้ขาย": "Search receipts by vendor Tax ID",
+  "แสดงผลเท่านั้น": "Display only",
+  "ราคา": "Price",
+  "ราคารวม": "Amount",
+  "บรรทัดใบรับ": "Receipt line",
+  "จำนวนรับ": "Qty received",
+  "ราคาใบรับ": "Receipt price",
+  "ชั้น": "Level",
+  "ไม่พบรายการรับใน Oracle": "No receipts found in Oracle",
+  "เอกสารฉบับนี้ยังไม่มีข้อมูลรายการรับในระบบ Oracle Snapshot": "This document has no receipt data in the Oracle snapshot yet",
+  "พบรายการรับ": "Receipts found:",
+  "รายการ · อ้างอิง": "item(s) · reference",
+  "ยอดรวมใบรับ:": "Receipt total:",
+  "บาท (ยอด Invoice ก่อนภาษี:": "THB (invoice total before tax:",
+  "บาท": "THB",
+  "· ผลต่าง:": "· difference:",
+  "· ยอดตรงกัน": "· totals match",
+  "· ผู้รับ:": "· receiver:",
+  "ทั้งหมด (": "All (",
+  "รหัสสินค้า": "Item code",
+  "ราคา/หน่วย": "Unit price",
+  "วางบิลแล้ว": "Billed",
+  "กฎ": "Rule",
+  "ผล": "Result",
+  "ดูรายการหลักฐานทั้งหมดของกฎนี้": "View all evidence for this rule",
+  "ผู้รับผิดชอบเอกสาร": "Document owner",
+  "— ไม่มี": "— none",
+  "ผู้สแกนเข้า DMS": "Scanned into DMS by",
+  "JSON ตามมาตรฐาน v6.10 ตารางที่ 9 (schema 1.7)": "JSON per standard v6.10 Table 9 (schema 1.7)",
+  "คัดลอก JSON แล้ว": "JSON copied",
+  "คัดลอก JSON": "Copy JSON",
+  "ต้องแก้:": "Must fix:",
+  "· แก้ไขแล้วอัปโหลดเอกสารใหม่": "· fix it and upload a new document",
+  "เอกสารอยู่ที่ฝ่ายบัญชี · ดูได้อย่างเดียว": "Document is with accounting · view only",
+  "อัปโหลดเอกสารใหม่": "Upload new document",
+  "พบรหัส High · Confirm ต้องมีหมายเหตุ": "High code found · Confirm requires a note",
+  "มีรหัสที่": "Has codes the",
+  "ต้องแก้ค้าง · Confirm แทนได้ (ต้องระบุเหตุผล)": "must still fix · can Confirm on their behalf (reason required)",
+  "ยังไม่ผูก Oracle account · Confirm ได้ (ต้องระบุเหตุผล)": "Oracle account not bound · can Confirm (reason required)",
+  "พร้อมดำเนินการ": "Ready for action",
+  "โหมดดูในมุมมองผู้อื่น: ดูอย่างเดียว": "Viewing as someone else: read only",
+  "ค้นหาใบรับด้วยเลขผู้เสียภาษี / PO + เลขที่ใบแจ้งหนี้ แล้ว Confirm": "Find the receipt by Tax ID / PO + invoice number, then Confirm",
+  "ผูกใบรับ": "Bind receipt",
+  "รอฉันแก้ไข": "Waiting for my fix",
+  "ใบรับของฉัน": "My receipts",
+  "ไม่ทราบเจ้าของ": "Owner unknown",
+  "รอผูกบัญชี": "Awaiting account binding",
+  "ซ้ำ (Portal)": "Duplicate (Portal)",
+  "ถูกแทนที่": "Superseded",
+  "ค้างนาน": "Overdue",
+  "(ยังไม่เชื่อมบัญชี)": "(account not bound)",
+  "ไม่มี Receiver": "No Receiver",
+  "ยอด": "Amount",
+  "→ ผู้ใช้งาน": "→ User",
+  "→ ฝ่ายบัญชี": "→ Accounting",
+  "การแจ้งเตือนสดขาดการเชื่อมต่อ · ตรวจหาเอกสารใหม่ทุก 60 วินาที": "Live updates disconnected · checking for new documents every 60 seconds",
+  "เอกสารใหม่": "New documents",
+  "มีการเปลี่ยนสถานะ": "Status changes",
+  "รายการบนหน้าจอยังไม่เปลี่ยนจนกว่าจะกดโหลด": "The list on screen does not change until you reload",
+  "โหลดรายการ": "Reload list",
+  "ภายหลัง": "Later",
+  "มีเอกสารค้างนอกช่วงที่เลือก": "Documents pending outside the selected period",
+  "· เข้าระบบเก่าสุด": "· oldest received",
+  "แสดงทั้งหมด": "Show all",
+  "แสดงคิวตรวจสอบ (ปิดตัวอย่าง PDF อัตโนมัติ)": "Show review queue (closes PDF preview)",
+  "แสดงคิวตรวจสอบ": "Show review queue",
+  "คิวตรวจสอบ": "Review queue",
+  "คิวเอกสาร": "Document queue",
+  "กลับไปมุมมองตาราง (Esc)": "Back to table view (Esc)",
+  "ไม่มีเอกสารในขอบเขตสิทธิ์และตัวกรองนี้": "No documents in your scope and filter",
+  "เลือกเอกสารจากคิวด้านซ้าย": "Select a document from the queue on the left",
+  "ตารางสรุปคิวเอกสาร": "Document queue summary",
+  "คลิกแถว หรือ": "Click a row or",
+  "เปิดแบบ 2 ฝั่ง": "open split view",
+  "ผู้รับผิดชอบ": "Owner",
+  "(ยังไม่เชื่อม)": "(not bound)",
+  "นับจากวันที่เข้าระบบ": "Counted from received date",
+  "· มีเอกสารค้างนอกช่วงที่เลือก": "· documents pending outside the selected period",
+  "— ยังไม่ถูกผูก": "— not bound yet",
+  "ขอบเขต Receiver": "Receiver scope",
+  "ทุก Receiver ของฉัน": "All my Receivers",
+  "เฉพาะใบรับที่": "Only receipts of",
+  "เอกสารที่ยังไม่มีใบรับ ฝ่ายบัญชีเป็นผู้ดำเนินการ": "Documents without a receipt are handled by accounting",
+  "ตารางสรุป": "Summary table",
+  "ค้นหาไม่สำเร็จ (HTTP": "Search failed (HTTP",
+  "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้": "Cannot connect to the server",
+  "ข้อมูลเปลี่ยนไประหว่างนี้": "Data changed in the meantime",
+  "ผูกใบรับไม่สำเร็จ (HTTP": "Bind receipt failed (HTTP",
+  "ผูกใบรับแล้ว": "Receipt bound",
+  "ผูกใบรับ ·": "Bind receipt ·",
+  "ไม่ทราบผู้ขาย": "Unknown vendor",
+  "· ยอดใบแจ้งหนี้": "· invoice total",
+  "ขั้นตอน": "Steps",
+  "1 ค้นหา": "1 Search",
+  "2 ตรวจรายการ": "2 Check items",
+  "3 ยืนยัน": "3 Confirm",
+  "ค้นหาใบรับ": "Find receipt",
+  "OCR อ่านคีย์ไม่ได้ · อ่านจาก PDF ทางซ้ายแล้วพิมพ์": "OCR could not read the keys · read them from the PDF on the left and type them",
+  "เลขผู้เสียภาษีผู้ขาย": "Vendor Tax ID",
+  "จาก OCR": "from OCR",
+  "PO (ใช้เมื่อไม่มีเลขผู้เสียภาษี · ใช้หาผู้ขาย)": "PO (used when there is no Tax ID · to find the vendor)",
+  "ค้นหา": "Search",
+  "ใบรับที่พบ": "Receipt found",
+  "วันที่รับ": "Received on",
+  "หาจาก PO": "Found via PO",
+  "ผู้รับ": "Receiver",
+  "ยอดใบแจ้งหนี้": "Invoice total",
+  "ยอดใบรับ": "Receipt total",
+  "ส่วนต่าง": "Difference",
+  "✓ ตรงกัน": "✓ Match",
+  "ยอดไม่ตรงกัน · ตรวจรายการด้านล่างก่อนยืนยัน (ระบบไม่ห้าม)": "Totals differ · check the items below before confirming (not blocked)",
+  "รายการที่วางบิลครบแล้วใน Oracle · ใบแจ้งหนี้นี้อาจถูกลงบัญชีไปแล้ว": "Items fully billed in Oracle · this invoice may already be posted",
+  "รวม": "Total",
+  "ผลที่จะเกิด": "Outcome",
+  "ใบรับนี้ถูกใช้โดย": "This receipt is used by",
+  ") แล้ว · เอกสารนี้จะเป็น": ") · this document will become",
+  "(Reject ได้อย่างเดียว)": "(Reject only)",
+  "ผูกใบรับ และ": "Bind receipt and",
+  "Confirm ทันที": "Confirm immediately",
+  "→ เข้าคิว AP Interface": "→ goes to the AP Interface queue",
+  "จะเป็น": "will become",
+  "จะเห็นเอกสารนี้เมื่อบัญชีถูกผูกกับ Oracle แล้วเท่านั้น": "will see this document only after the account is bound in Oracle",
+  "เช่น ตรวจเอกสารและรายการรับด้วยตาแล้ว ตรงกัน": "e.g. checked the document and receipt items visually, they match",
+  "ค้นหาใบรับก่อน": "Search for a receipt first",
+  "ระบุเหตุผล": "Enter a reason",
+  "ผูกและบันทึกเป็น Duplicate": "Bind and save as Duplicate",
+  "ผูกใบรับและ Confirm": "Bind receipt and Confirm",
+  "เลขที่ใบแจ้งหนี้ / DMS / PO / ใบรับ / Tax ID": "Invoice no. / DMS / PO / receipt / Tax ID",
+  "ชื่อผู้ขาย (หลายคำ = ต้องเจอทุกคำ)": "Vendor name (several words = all must match)",
+  "สถานะ (พิมพ์ไทยได้ เช่น รอตรวจ, ซ้ำ, รอผูกบัญชี)": "Status (Thai also works, e.g. รอตรวจ, ซ้ำ, รอผูกบัญชี)",
+  "รหัสข้อยกเว้น หรือกฎ เช่น V-07": "Exception code or rule, e.g. V-07",
+  "วันที่รูปแบบใดก็ได้ (ค.ศ./พ.ศ.) · หรือ ต.ค. 2026": "Any date format (AD/BE) · or Oct 2026",
+  "ยอดเงิน (มีหรือไม่มี , ก็ได้)": "Amount (with or without commas)",
+  "ระบุช่องได้: status: code: co: vendor: po: date: amt:": "Field prefixes: status: code: co: vendor: po: date: amt:",
+  "ช่วงวันที่ (ใบแจ้งหนี้ / เข้าระบบ / สร้าง)": "Date range (invoice / received / created)",
+  "ขึ้นต้นด้วย - เพื่อตัดออก": "Prefix with - to exclude",
+  "ค้นหาทุกอย่าง: เลขที่ · ผู้ขาย · สถานะ · E11 · วันที่ · ยอดเงิน": "Search anything: number · vendor · status · E11 · date · amount",
+  "ค้นหาเอกสาร": "Search documents",
+  "ล้างคำค้นหา": "Clear search",
+  "ล้าง (Esc)": "Clear (Esc)",
+  "วิธีค้นหา": "How to search",
+  "ค้นหาอะไรก็ได้ · คลิกตัวอย่างเพื่อลอง": "Search anything · click an example to try",
+  "ปรับตัวกรองคิวเพื่อเปิดเอกสาร": "Adjust the queue filters to open the document",
+  "เปลี่ยนเป็นโหมดมืด": "Switch to dark mode",
+  "เปลี่ยนเป็นโหมดสว่าง": "Switch to light mode",
+  "สลับธีมของแอป · มีเอฟเฟกต์เปลี่ยนโหมด": "Toggle the app theme · with a transition effect",
+  "เล่นเอฟเฟกต์เข้าแอปอีกครั้ง": "Replay the app intro effect",
+  "ดูแอนิเมชันตอนกลับเข้าแอป (ต้อนรับ + จัดวางหน้า)": "Watch the welcome animation again",
+  "ย่อ / ขยายเมนูด้านข้าง": "Collapse / expand side menu",
+  "เพิ่มพื้นที่ทำงานของตาราง · คีย์ลัด [": "More room for the table · shortcut [",
+  "สลับมุมมอง…": "Switch view…",
+  "ดูในมุมมองของ…": "View as…",
+  "Super Admin · ดูหน้าจอแบบที่ role / ผู้ใช้อื่นเห็น (อ่านอย่างเดียว)": "Super Admin · see the screen as another role / user sees it (read only)",
+  "ออกจากมุมมอง": "Exit view",
+  "กลับเป็น Super Admin": "Back to Super Admin",
+  "สิ้นสุดเซสชัน และกลับไปหน้า login": "End the session and go to the sign-in page",
+  "กำลังเริ่มระบบ AIVA": "Starting AIVA",
+  "คลิกเพื่อข้าม": "Click to skip",
+  "สลับโหมดสว่าง / มืด": "Toggle light / dark mode",
+  "โหมดสว่าง · คลิกเพื่อสลับเป็นโหมดมืด": "Light mode · click to switch to dark",
+  "โหมดมืด · คลิกเพื่อสลับเป็นโหมดสว่าง": "Dark mode · click to switch to light",
+  "Receiver · เห็นเฉพาะเอกสารของ Oracle account ตัวเอง": "Receiver · sees only documents of their own Oracle account",
+  "เจ้าหน้าที่บัญชี · ทั้งบริษัทที่ได้รับมอบหมาย": "Accountant · all assigned companies",
+  "หัวหน้าบัญชี · ทั้งบริษัท + อนุมัติ / ส่ง AP": "Accounting supervisor · whole company + approve / send to AP",
+  "IT Admin · ไม่เห็นเนื้อหาเอกสาร": "IT Admin · cannot see document content",
+  "กำลังดูในมุมมองของ": "Viewing as",
+  "ดูอย่างเดียว · เริ่ม": "Read only · started",
+  "· หมดอายุใน": "· expires in",
+  "· ตรวจฝั่ง browser เท่านั้น (ติดต่อ server ไม่ได้)": "· checked in the browser only (server unreachable)",
+  "สลับ": "Switch",
+  "โหลดรายชื่อจาก server ไม่ได้ · แสดงรายชื่อตัวอย่าง": "Could not load users from the server · showing sample users",
+  "เริ่มโหมดดูในมุมมองไม่ได้": "Could not start view-as mode",
+  "เข้าสู่โหมดดูในมุมมอง · ดูอย่างเดียว": "Entered view-as mode · read only",
+  "อ่านอย่างเดียว · server คัดเอกสารด้วยสิทธิ์ของเป้าหมาย · หมดอายุใน 30 นาที · บันทึกใน Audit Log": "Read only · the server filters documents with the target's access · expires in 30 minutes · recorded in the audit log",
+  "ผู้ใช้จริง": "Real users",
+  "ตามบทบาท": "By role",
+  "ค้นหาชื่อ / อีเมล / Oracle account / บริษัท": "Search name / email / Oracle account / company",
+  "กำลังโหลดรายชื่อ…": "Loading users…",
+  "ไม่พบผู้ใช้ (Super Admin และผู้ใช้ที่ถูกปิดเลือกไม่ได้)": "No users found (Super Admins and disabled users cannot be selected)",
+  "บริษัท (ไม่เลือก = ทุกบริษัท)": "Companies (none = all companies)",
+  "Oracle account (Receiver) · หลายบัญชีคั่นด้วย ; · จำเป็นสำหรับ EU": "Oracle account (Receiver) · separate several with ; · required for EU",
+  "เช่น AHT Die Making 03, K.Vinitda Jitpilai": "e.g. AHT Die Making 03, K.Vinitda Jitpilai",
+  "ดูในมุมมอง": "View as",
+  "อาจซ้ำ": "Possible duplicate",
+  "ถูก override": "Overridden",
+  "ระบบตรวจสอบอัตโนมัติ (System A)": "Automated check (System A)",
+  "ตรวจเอกสารเสร็จสิ้น": "Document check completed",
+  "ผลตรวจ": "Result",
+  "· ความรุนแรงสูงสุด": "· highest severity",
+  "ไม่พบข้อมูลนี้บนเอกสาร": "This value was not found on the document",
+  "อ่านค่าได้ แต่ระบุตำแหน่งบนเอกสารไม่ได้": "Value read, but its location on the document is unknown",
+  "เอกสารสแกนไม่ครบหน้า": "Scanned document is missing pages",
+  "ระบบไม่มั่นใจผลการอ่าน": "The system is not confident about this reading",
+  "ระบบไม่ได้สร้างตำแหน่งของข้อมูลนี้": "The system did not produce a location for this value",
+  "ไม่ทราบตำแหน่ง (engine ไม่ระบุเหตุผล)": "Location unknown (no reason from the engine)",
+  "· หน้า": "· page",
+  "ไม่พบรายการหลักฐาน": "No evidence items found",
+  "ในเอกสารนี้": "in this document",
+  "· ไม่พบตำแหน่งบนเอกสาร —": "· location not found on document —",
+  "เข้าสู่ระบบ": "Sign in",
+  "บทบาทนี้ไม่เข้าถึงเนื้อหาเอกสาร": "This role cannot access document content",
+  "เอกสารอยู่นอกบริษัทที่ได้รับมอบหมาย (": "Document is outside your assigned companies (",
+  "เอกสารยังไม่มี Receiver ในใบรับ · ฝ่ายบัญชีดำเนินการ": "Document has no Receiver on the receipt yet · accounting handles it",
+  "ไม่ได้เป็น Receiver ของใบรับนี้ (Receiver =": "You are not the Receiver of this receipt (Receiver =",
+  "ผู้ใช้งาน (Receiver)": "User (Receiver)",
+  "เจ้าหน้าที่บัญชี": "Accountant",
+  "หัวหน้าฝ่ายบัญชี": "Accounting supervisor",
+  "ผู้ดูแลระบบ (IT)": "System admin (IT)",
+  "ผู้ดูแลระบบระดับสูง (Super Admin)": "Super admin (Super Admin)",
+  "ดูเอกสารที่ตนเป็น Receiver": "View documents where I am the Receiver",
+  "ดูเอกสารทั้งบริษัทที่ได้รับมอบหมาย": "View all documents of assigned companies",
+  "ย้ายเป็น Review": "Move to Review",
+  "ดูหน้าส่งเข้า AP Interface": "View the Send to AP Interface page",
+  "ดูบันทึกการเข้าถึง": "View the access log",
+  "V-01 ฟิลด์บังคับ": "V-01 Required fields",
+  "V-02 เลขคณิตรายบรรทัด": "V-02 Line arithmetic",
+  "V-03 ยอดรวมในใบแจ้งหนี้": "V-03 Invoice totals",
+  "V-04 พบใบรับ": "V-04 Receipt found",
+  "V-05 ลูกค้าตรงกับตารางที่ 4": "V-05 Customer matches Table 4",
+  "V-06 ลายเซ็น": "V-06 Signatures",
+  "V-07 จับคู่รายบรรทัดและราคา": "V-07 Line and price matching",
+  "V-08 จำนวนเท่ากับใบรับ": "V-08 Quantity equals receipt",
+  "V-09 ยอดรวมเท่ากับใบรับ": "V-09 Total equals receipt",
+  "ส่งเข้า AP Interface": "Send to AP Interface",
+  "ฉบับใหม่": "New version",
+  "เอกสารซ้ำ": "Duplicate document",
+  "ลองอีกครั้ง": "Try again",
+  "กำลังโหลดเอกสาร…": "Loading document…",
+  "แสดงเอกสารจำลอง —": "Showing a simulated document —",
+  "เปิดไฟล์ PDF ไม่ได้": "Cannot open the PDF file",
+  "ลองใหม่": "Retry",
+  "กำลังแสดงหน้าเอกสาร": "Rendering document page",
+  "โหลดเอกสารไม่สำเร็จ": "Failed to load document",
+  "เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่": "Session expired, please sign in again",
+  "โหลดไฟล์ PDF ไม่สำเร็จ (HTTP": "Failed to load PDF (HTTP",
+  "ไม่พบไฟล์ PDF ของเอกสารนี้": "No PDF file found for this document",
+  "ชนิดกรอบ (element_type)": "Box type (element_type)",
+  "แสดง": "Show",
+  "กรอบ": "boxes",
+  "โหลดไฟล์ PDF ไม่สำเร็จ": "Failed to load PDF",
+  "· แสดงกรอบบนหน้าว่างแทน": "· showing boxes on a blank page instead",
+  "ไม่พบไฟล์เอกสารในระบบจัดเก็บเอกสาร (DMS)": "Document file not found in the document store (DMS)",
+  "ไม่มีสิทธิ์เข้าถึงเอกสารนี้ในระบบ DMS": "No access to this document in DMS",
+  "การเชื่อมต่อเซิร์ฟเวอร์ DMS ขัดข้อง หรือหมดเวลาการเชื่อมต่อ": "DMS server connection failed or timed out",
+  "หัวเอกสาร": "Header",
+  "ลูกค้า": "Customer",
+  "ตารางรายการ": "Line table",
+  "ลายเซ็น": "Signature",
+  "ลายเซ็นผู้รับของ": "Receiver signature",
+  "ลายเซ็นผู้ส่งของ": "Deliverer signature",
+  "ไฟล์ PDF ที่เปิดถูกหมุนต่างจากไฟล์ที่ Engine ตรวจ (Engine": "The opened PDF is rotated differently from the file the Engine checked (Engine",
+  "· ไฟล์นี้": "· this file",
+  ") · ซ่อนกรอบเพื่อไม่ให้ชี้ผิดตำแหน่ง": ") · boxes hidden to avoid pointing at the wrong place",
+  "ขนาดหน้าไม่ตรงกับไฟล์ที่ Engine ตรวจ (Engine": "Page size differs from the file the Engine checked (Engine",
+  "ข้อมูลไม่ครบถ้วน": "Incomplete data",
+  "ราคา/จำนวนไม่ตรงกับใบรับ": "Price / quantity differs from receipt",
+  "การคำนวณและภาษี": "Calculation and tax",
+  "เอกสาร/รายการซ้ำ": "Duplicate document / lines",
+  "ผู้เยี่ยมชม (ยังไม่ได้เข้าสู่ระบบ)": "Visitor (not signed in)",
+  "ยังไม่ได้เข้าสู่ระบบ": "Not signed in",
+  "มุมมองจำลอง": "Simulated view",
+  "เฉพาะ Super Admin": "Super Admin only",
+  "เลือก SA ไม่ได้": "Cannot select SA",
+  "เลือกเป้าหมายนี้ไม่ได้": "This target cannot be selected",
+  "ไม่พบผู้ใช้ หรือเลือกผู้ใช้นี้ไม่ได้": "User not found or cannot be selected",
+  "ดูในมุมมองของ Super Admin คนอื่นไม่ได้": "Cannot view as another Super Admin",
+  "· ผู้ใช้นี้ทำได้": "· this user can",
+  "· ผู้ใช้นี้ทำไม่ได้:": "· this user cannot:",
+  "ไม่มีสิทธิ์": "No permission",
+  "ไม่พบเอกสาร": "Document not found",
+  "ฉบับแก้ไข": "Revised version",
+  "จำนวนน้อยกว่าใบรับ (จำลอง)": "Quantity less than receipt (simulated)",
+  "ไม่พบลายเซ็นผู้รับของ (จำลอง)": "Receiver signature not found (simulated)",
+  "DR-05 ไม่ใช้ฉบับเดิม (": "DR-05 the old version (",
+  ") เป็นคู่เทียบ": ") is not used as the comparison",
+  "DR-04 ฉบับเดิม": "DR-04 old version",
+  "→ ฉบับใหม่ Duplicate": "→ new version is Duplicate",
+  "ดีกว่า": "better",
+  "เท่าเดิม": "same",
+  "แย่กว่า": "worse",
+  "DR-03 ฉบับใหม่แย่กว่า (": "DR-03 new version is worse (",
+  ") → ฉบับใหม่ Duplicate": ") → new version is Duplicate",
+  ") → ฉบับเดิม Superseded": ") → old version Superseded",
+  "· ไฟล์": "· file",
+  "ระบบ AIVA": "AIVA system",
+  "AIVA ตรวจรอบที่ 1": "AIVA check round 1",
+  "Portal ตรวจเอกสารซ้ำ": "Portal duplicate check",
+  "· ฉบับใหม่": "· new version",
+  "แทนที่ฉบับเดิม": "supersedes the old version",
+  "· ฉบับเดิม": "· old version",
+  "อัปโหลดแล้ว ·": "Uploaded ·",
+  "ดำเนินการไม่สำเร็จ (HTTP": "Action failed (HTTP",
+  "Confirmed · ย้ายไปหน้า AP Interface": "Confirmed · moved to AP Interface",
+  "ยกเลิก Confirm แล้ว · เอกสารกลับไปคิวตรวจสอบ (Review)": "Confirm cancelled · document returned to the review queue (Review)",
+  "ย้ายเป็น Review แล้ว": "Moved to Review",
+  "Hold แล้ว": "Put on Hold",
+  "Reject แล้ว": "Rejected",
+  "ไม่มีสิทธิ์ส่งเอกสารเข้า AP Interface": "No permission to send documents to AP Interface",
+  "ไม่มีเอกสารที่ผ่านการตรวจก่อนส่ง": "No documents passed the pre-send check",
+  "ส่ง Batch ไม่สำเร็จ (HTTP": "Batch send failed (HTTP",
+  "ส่งเข้า AP Interface (": "Sent to AP Interface (",
+  "ส่งโดย": "Sent by",
+  "(หัวหน้าฝ่ายบัญชี)": "(accounting supervisor)",
+  "ระบบ Portal": "Portal system",
+  "Duplicate (ตัดออกจาก Batch)": "Duplicate (removed from Batch)",
+  "ถูกใช้โดย": "used by",
+  "· ตัดออก": "· removed",
+  "ฉบับ (ใบรับซ้ำ → Duplicate)": "doc(s) (duplicate receipt → Duplicate)",
+  "ส่งเข้า AP Interface แล้ว": "Sent to AP Interface",
+  "ฉบับ (": "doc(s) (",
+  "ไม่มีเอกสารถูกส่ง": "No documents were sent",
+  "ส่ง": "Sent",
+  "ฉบับสำเร็จ (": "doc(s) successfully (",
+  "นำเข้าเอกสาร": "Imported document",
+  "จาก Engine สำเร็จ (": "from Engine successfully (",
+  "นำเข้าไม่สำเร็จ:": "Import failed:",
+  "· Import ไม่สำเร็จ ·": "· Import failed ·",
+  "โหลดรายการไม่สำเร็จ · ลองอีกครั้ง": "Failed to load the list · try again",
+  "จำนวนวันค้างนาน": "Overdue threshold (days)",
+  "5 วัน": "5 days",
+  "7 วัน": "7 days",
+  "ผูก Oracle account": "Bind Oracle account",
+  "บันทึกการตั้งค่าส่วนตัว": "Personal settings saved",
+  "· มุมมอง": "· view",
+  "ตามค่ากลาง": "default",
+  "คืนค่าเริ่มต้นส่วนตัว": "Reset my defaults",
+  "คืนค่าการตั้งค่าส่วนตัว": "Reset personal settings",
+  "เปลี่ยนการตั้งค่า": "Change settings",
+  "· อ้างอิง": "· reference",
+  "เฉพาะหัวหน้าฝ่ายบัญชี (APR) แก้ค่านี้ได้": "Only the accounting supervisor (APR) can change this",
+  "ใส่จำนวนวันเป็นจำนวนเต็ม 1–90": "Enter a whole number of days 1–90",
+  "วงเงินตั้งหนี้ต่อฉบับ (APR)": "Posting limit per document (APR)",
+  "MFA ผ่าน": "MFA passed",
+  "รายการเหตุผล": "Reasons list",
+  "เดิม": "was",
+  "ปรับปรุงรายการเหตุผล": "Update reasons list",
+  "เห็นเหตุผลและหมายเหตุ": "Sees reason and note",
+  "เห็นเฉพาะเหตุผลที่เลือก": "Sees only the selected reason",
+  "ไม่เห็น": "Hidden",
+  "End User เห็นเหตุผล": "End User sees reasons",
+  "สิทธิ์พิมพ์/ดาวน์โหลด PDF": "Print / download PDF permission",
+  "ปรับปรุง": "Updated",
+  "ค่าเริ่มต้นของคิว": "Queue defaults",
+  ", ซ่อน:": ", hidden:",
+  "เฉพาะ IT Admin จัดการการผูกบัญชี": "Only IT Admin manages account bindings",
+  "ระบุอ้างอิงคำขอ (ticket / อีเมล) ก่อนทุกครั้ง": "Always enter a request reference (ticket / email) first",
+  "ระบุชื่อ Oracle account": "Enter the Oracle account name",
+  "ผูกไว้แล้ว": "already bound",
+  "ไม่พบรายการ": "Nothing found",
+  "ยกเลิกการผูก Oracle account": "Unbind Oracle account",
+  "เฉพาะ IT Admin จัดการ": "IT Admin only",
+  "บริษัทที่รับผิดชอบ ·": "Assigned companies ·",
+  "สลับสิทธิ์": "Switch role",
+  "ผ่านการตรวจสอบ": "Passed",
+  "พบข้อผิดพลาด": "Errors found",
+  "ประมวลผลคำนวณและตรวจสอบ": "Calculation and checks",
+  "เสร็จสมบูรณ์": "Completed",
+  "อนุมัติแล้วและเข้าสู่กระบวนการจ่ายเงิน": "Approved and in the payment process",
+  "ปฏิเสธ": "Rejected",
+  "เอกสารที่ถูกปฏิเสธ (มีเหตุผลใน Audit Log)": "Rejected documents (reason in the audit log)",
+  "ปิดโดยกฎเอกสารซ้ำ DR-01 – DR-06 หรือการผูกใบรับ": "Closed by duplicate rules DR-01 – DR-06 or receipt binding",
+  "อนุมัติแล้ว": "Approved",
+  "ผ่านการตรวจโดย ACC / APR · รอส่งเข้า Oracle ERP": "Checked by ACC / APR · waiting to send to Oracle ERP",
+  "อยู่ใน AP Batch · กำลังส่งเข้า Oracle ผ่าน API Interface": "In an AP Batch · sending to Oracle via the API Interface",
+  "เข้า Oracle สำเร็จ": "Posted to Oracle",
+  "ตั้งหนี้ใน Oracle Payables สำเร็จ · ปิดงาน 100%": "Payable created in Oracle Payables · 100% done",
+  "ถูกปฏิเสธ · เหตุผลบันทึกใน Audit Log": "Rejected · reason in the audit log",
+  "ฉบับเก่าที่ถูกฉบับใหม่แทนที่ (DR-01 / DR-02)": "Old versions replaced by a new one (DR-01 / DR-02)",
+  "ซ้ำกับเอกสารที่สมบูรณ์หรือ Confirmed แล้ว หรือใบรับเป็นของใบแจ้งหนี้อื่น (DR-03 / DR-04 / DR-06) · Reject ได้อย่างเดียว": "Duplicate of a completed or Confirmed document, or the receipt belongs to another invoice (DR-03 / DR-04 / DR-06) · Reject only",
+  "ส่งจ่ายแล้ว": "Paid out",
+  "ฝ่ายบัญชีอนุมัติแล้ว · ดูขั้นตอนการจ่ายในแต่ละรายการ": "Approved by accounting · see each item's payment steps",
+  "ถูกปฏิเสธ": "Rejected",
+  "เอกสารที่ฝ่ายบัญชีปฏิเสธ พร้อมเหตุผล": "Documents rejected by accounting, with reasons",
+  "ฉบับเก่าที่ถูกเอกสารใหม่ของคุณแทนที่": "Old versions replaced by your new document",
+  "ยืนยันโดย": "Confirmed by",
+  "แทนโดย": "Replaced by",
+  "ซ้ำกับ": "Duplicate of",
+  "สถานะ (ไทย)": "Status (Thai)",
+  "เหตุการณ์": "Event",
+  "อ้างอิง": "Reference",
+  "เห็นทุกบริษัท": "Sees all companies",
+  "ยังไม่ได้ผูก Oracle account (Receiver) · ติดต่อผู้ดูแลระบบ": "Oracle account (Receiver) not bound · contact the administrator",
+  "เป็น Receiver (": "Is the Receiver (",
+  "ยังไม่ได้รับมอบหมายบริษัท · ติดต่อผู้ดูแลระบบ": "No company assigned · contact the administrator",
+  "อยู่ในบริษัทที่ได้รับมอบหมาย (": "Within assigned companies (",
+  "End User อัปโหลดเอกสารใหม่ได้อย่างเดียว": "End Users can only upload new documents",
+  "บทบาทนี้ไม่มีสิทธิ์ (": "This role has no permission (",
+  "เอกสารปิดหรืออยู่ระหว่าง Import": "Document is closed or being imported",
+  "เอกสาร UNRESOLVED: เฉพาะหัวหน้าฝ่ายบัญชี (APR) ตัดสินได้": "UNRESOLVED document: only the accounting supervisor (APR) can decide",
+  "UNRESOLVED: Reject หรือ \"ผูกใบรับ\" เท่านั้น": "UNRESOLVED: Reject or \"Bind receipt\" only",
+  "ยกเลิก Confirm ได้เฉพาะเอกสารที่ยังรอส่ง (Confirmed)": "Confirm can be cancelled only while waiting to send (Confirmed)",
+  "ใช้กับ Import Failed เท่านั้น": "For Import Failed only",
+  "ดำเนินการที่หน้า AP Interface": "Handle it on the AP Interface page",
+  "Duplicate: Reject เท่านั้น (ใบรับนี้มีเอกสารที่ใช้อยู่แล้ว)": "Duplicate: Reject only (this receipt is already used by another document)",
+  "Manual Review: Confirm / Reject เท่านั้น": "Manual Review: Confirm / Reject only",
+  "ตัดสิน Manual Review ได้เฉพาะหัวหน้าฝ่ายบัญชี (APR)": "Only the accounting supervisor (APR) can decide Manual Review",
+  "ยังไม่พบใบรับ": "Receipt not found yet",
+  "ไม่รองรับ": "Not supported",
+  "ไม่มี Receiver: Reject เท่านั้น": "No Receiver: Reject only",
+  "ยังไม่พบใบรับ: ใช้ \"ผูกใบรับ\" ก่อน": "Receipt not found yet: use \"Bind receipt\" first",
+  "อยู่ใน Review แล้ว": "Already in Review",
+  "อยู่ใน Hold แล้ว": "Already on Hold",
+  "เอกสารถูกล็อก": "Document is locked",
+  "ผูกใบรับไม่ได้": "Cannot bind receipt",
+  "เอกสารมีใบรับแล้ว": "Document already has a receipt",
+  "ส่งจ่าย (AP)": "Payables (AP)",
+  "การกำกับดูแล": "Governance",
+  "ดูเอกสาร": "View documents",
+  "คิว \"งานของฉัน\"": "\"My tasks\" queue",
+  "เฉพาะเอกสารที่ Receiver = Oracle account ที่ผูกไว้": "Only documents whose Receiver = the bound Oracle account",
+  "คิวตรวจสอบ · เอกสารที่ปิดแล้ว": "Review queue · Closed documents",
+  "เฉพาะบริษัทที่ได้รับมอบหมาย (รวม \"?\" ถ้ามอบหมาย) · SA เห็นทุกบริษัท": "Only assigned companies (including \"?\" if assigned) · SA sees all companies",
+  "ปุ่มเปิด PDF / หลักฐานในรายละเอียดเอกสาร": "Open PDF / evidence buttons in document details",
+  "ปุ่ม \"อัปโหลดฉบับใหม่\"": "\"Upload new version\" button",
+  "ยกเว้นสถานะ Superseded / Duplicate / Confirmed / Sent / Posted": "Except Superseded / Duplicate / Confirmed / Sent / Posted",
+  "ปุ่ม \"ผูกใบรับ\"": "\"Bind receipt\" button",
+  "เอกสารที่ยังไม่มีใบรับ สถานะ Auto-pass / Review / Hold / Manual Review": "Documents without a receipt in Auto-pass / Review / Hold / Manual Review",
+  "ปุ่ม Confirm": "Confirm button",
+  "ต้องมีใบรับ · receive_id ยังไม่มีผู้ถือ · Hold ต้องระบุเหตุผล": "Receipt required · receive_id not held by another document · Hold needs a reason",
+  "ปุ่ม Review": "Review button",
+  "ปุ่ม Hold": "Hold button",
+  "ปุ่ม Reject": "Reject button",
+  "ทุกสถานะที่ยังเปิด (Duplicate: Reject อย่างเดียว)": "Any open status (Duplicate: Reject only)",
+  "Confirm / Reject บนเอกสาร Manual Review และ UNRESOLVED": "Confirm / Reject on Manual Review and UNRESOLVED documents",
+  "ไม่มีรหัส High": "No High codes",
+  "เมนู \"ส่งเข้า AP Interface\"": "\"Send to AP Interface\" menu",
+  "ปุ่มแดง \"ยกเลิก Confirm\" แท็บรอส่ง": "Red \"Cancel Confirm\" button, Ready to send tab",
+  "เฉพาะ Confirmed (ยังไม่ส่ง) → กลับเป็น Review · ต้องระบุเหตุผล": "Confirmed only (not sent) → back to Review · reason required",
+  "ปุ่ม \"ส่งเข้า AP Interface (Batch)\" แท็บรอส่ง": "\"Send to AP Interface (Batch)\" button, Ready to send tab",
+  "วงเงิน ≤ 1,000,000 ต่อ Batch · ผู้ส่งต้องไม่ใช่ผู้ Confirm": "Limit ≤ 1,000,000 per Batch · sender must not be the confirmer",
+  "ส่งคืนเอกสาร Import ไม่ผ่าน": "Return Import Failed documents",
+  "สิทธิ์และการเชื่อมบัญชี (ผู้ใช้ · Sync บริษัท)": "Access & account mapping (users · company sync)",
+  "นำเข้าบริษัทจากไฟล์ JSON: SA เท่านั้น": "Import companies from JSON: SA only",
+  "เมนู \"บันทึกการเข้าถึง\"": "\"Access log\" menu",
+  "APR เห็นเฉพาะบริษัทตัวเอง · ADM/SA เห็นทั้งหมด": "APR sees own companies only · ADM/SA see everything",
+  "อัปโหลดแทนไม่ได้": "cannot be re-uploaded",
+  "อัปโหลดเอกสารใหม่ทำโดย End User": "New documents are uploaded by the End User",
+  "มีรหัส High": "Has High codes",
+  "ยังไม่ผูก Oracle account · Confirm แทนผู้ใช้งานต้องระบุเหตุผล": "Oracle account not bound · confirming on the user's behalf requires a reason",
+  "มีรหัสที่ผู้ใช้งาน (Receiver) ต้องแก้ค้างอยู่ · Confirm แทนต้องระบุเหตุผล": "The user (Receiver) still has codes to fix · confirming on their behalf requires a reason",
+  "Portal พบเอกสารซ้ำ:": "Portal found a duplicate:",
+  "ผู้ส่งเป็นผู้ยืนยันเอกสารนี้ (ผู้ยืนยัน ≠ ผู้ส่ง)": "The sender confirmed this document (confirmer ≠ sender)",
+  "เกินวงเงินตั้งหนี้": "Over the posting limit",
+  "พร้อมส่ง": "Ready to send",
+  "คำ": "words",
+  "วันที่ใดก็ได้": "Any date",
+  "วันที่สร้าง": "Created date",
+  "ยอดเงิน": "Amount",
+  "ไม่ใช่": "not",
+  "หมดอายุแล้ว": "Expired",
+  "นาที": "min",
+  "วินาที": "sec",
+  "กำลังนำทางไปหน้าเข้าสู่ระบบ...": "Redirecting to the sign-in page...",
+  "คลิกที่นี่หากเบราว์เซอร์ไม่นำทางโดยอัตโนมัติ": "Click here if your browser does not redirect automatically",
+  "ตรวจแล้วถูกต้อง": "Checked and correct",
+  "ผลต่างยอมรับได้": "Difference acceptable",
+  "ตรวจต้นฉบับแล้ว": "Original checked",
+  "ยืนยันว่าไม่ใช่เอกสารซ้ำ": "Confirmed not a duplicate",
+  "ต้องตรวจเพิ่มเติม": "Needs further review",
+  "รอข้อมูลประกอบ": "Waiting for supporting data",
+  "รอเอกสารจากผู้ขาย": "Waiting for documents from vendor",
+  "รอตรวจสอบราคา": "Waiting for price check",
+  "รอยืนยันจากหน่วยงาน": "Waiting for department confirmation",
+  "เอกสารซ้ำจริง": "Truly a duplicate",
+  "ผู้ขายออกใบแจ้งหนี้ผิด": "Vendor issued a wrong invoice",
+  "ไม่พบใบรับ": "Receipt not found",
+  "ข้อมูลไม่ครบ": "Incomplete data",
+  "Confirm ผิดฉบับ": "Confirmed the wrong version",
+  "พบข้อมูลใหม่ก่อนส่ง": "New information before sending",
+  "ต้องแก้ข้อมูลผู้ขายใน Oracle": "Vendor data in Oracle must be fixed",
+  "ต้องตรวจเอกสารใหม่": "Document must be re-checked",
+  "ขอลายเซ็นผู้รับของแล้ว": "Receiver signature obtained",
+  "แก้ใบรับใน Oracle แล้ว (ยกเลิกแล้วทำรับใหม่)": "Receipt fixed in Oracle (cancelled and re-received)",
+  "สแกนใหม่ครบทุกหน้า": "Re-scanned all pages",
+  "ผู้ขายส่งฉบับแก้ไข": "Vendor sent a corrected version",
+  "ยืนยันยกเลิก Confirm": "Confirm cancel",
+  "อัปโหลด": "Upload",
+  "เปิดเอกสาร / หลักฐานจาก DMS": "Open documents / evidence from DMS",
+  "อัปโหลดเอกสารฉบับใหม่": "Upload a new document version",
+  "ผูกใบรับ (Receive ID)": "Bind receipt (Receive ID)",
+  "ตัดสิน Manual Review / เอกสาร UNRESOLVED": "Decide Manual Review / UNRESOLVED documents",
+  "ยกเลิก Confirm (กลับไป Review)": "Cancel Confirm (back to Review)",
+  "ส่งคืน Import ไม่ผ่าน (กลับไป Review)": "Return Import Failed (back to Review)",
+  "จัดการผู้ใช้ สิทธิ์ และข้อมูลบริษัท": "Manage users, access and company data",
+  "· ในมุมมอง": "· viewing as",
+  "ถูกใช้แล้ว": "is already used",
+  "มีข้อมูลต้นทางที่อ่านไม่ได้ (payloadJson เสียหาย)": "has unreadable source data (corrupted payloadJson)",
+  "ออก": "out",
+  "฿": "฿",
+  "฿ ·": "฿ ·",
+  "เป็นของใบแจ้งหนี้อื่นอยู่แล้ว (": "already belongs to another invoice (",
+  "ใบรับสำหรับใบแจ้งหนี้เดียว · ข้อมูลผิดปกติ (1 ใบแจ้งหนี้ = 1 ใบรับ) ติดต่อผู้ดูแล Oracle": "receipts for one invoice · abnormal data (1 invoice = 1 receipt) · contact the Oracle admin",
+  ") แล้ว · 1 ใบรับส่งเข้า AP ได้ฉบับเดียว": ") · one receipt can be sent to AP only once",
+  ") → ฉบับเดิม": ") → old version",
+  "): Token อาจหมดอายุ กรุณาอัปเดต ORACLE_MCP_TOKEN": "): the token may have expired, update ORACLE_MCP_TOKEN",
+  ": Duplicate ของ": ": Duplicate of",
+  ": ถูกแทนที่โดย": ": superseded by",
+  "Duplicate ของ": "Duplicate of",
+  "Oracle API ตอบ HTTP": "Oracle API returned HTTP",
+  "Oracle MCP ตอบกลับ HTTP": "Oracle MCP returned HTTP",
+  "PO นี้มีผู้ขาย": "This PO has vendors",
+  "ฉบับเดิม": "Old version",
+  "ฉบับใหม่แย่กว่า (": "New version is worse (",
+  "ถูกแทนที่ (Superseded) โดย": "Superseded by",
+  "บริษัทนี้เปิดใช้แล้ว (รหัส": "This company is already active (code",
+  "ผู้ขายในใบรับ (": "Vendor on the receipt (",
+  "อ่านคีย์ไม่ได้ (": "Keys unreadable (",
+  "อ่านไฟล์ข้อมูลใบรับจำลองไม่ได้:": "Cannot read the simulated receipt file:",
+  "เรียก Oracle API ไม่สำเร็จ:": "Oracle API call failed:",
+  "เรียก Oracle MCP ไม่สำเร็จ:": "Oracle MCP call failed:",
+  "แทนที่": "Supersedes",
+  "ไม่พบ PO": "PO not found",
+  "ม.ค.": "Jan",
+  "ก.พ.": "Feb",
+  "มี.ค.": "Mar",
+  "เม.ย.": "Apr",
+  "พ.ค.": "May",
+  "มิ.ย.": "Jun",
+  "ก.ค.": "Jul",
+  "ส.ค.": "Aug",
+  "ก.ย.": "Sep",
+  "ต.ค.": "Oct",
+  "พ.ย.": "Nov",
+  "ธ.ค.": "Dec",
+  "กรุณาเข้าสู่ระบบ": "Please sign in",
+  "ไม่พบบริษัทที่มี Tax ID นี้": "No company with this Tax ID",
+  "ไม่ระบุบริษัท": "Unknown company",
+  "รหัสบริษัทต้องเป็น A–Z / 0–9 ยาว 2–8 ตัว และห้ามใช้ ALL": "Company code must be A–Z / 0–9, 2–8 characters, and not ALL",
+  "ยังไม่ได้เชื่อมต่อแหล่งข้อมูลใบรับ (Oracle API)": "Receipt source (Oracle API) is not connected yet",
+  "ต้องมีเลขที่ใบแจ้งหนี้ และเลขผู้เสียภาษีผู้ขาย (หรือ PO)": "Invoice number and vendor Tax ID (or PO) are required",
+  "ไม่พบใบรับ · ตรวจเลขผู้เสียภาษีและเลขที่ใบแจ้งหนี้": "Receipt not found · check the Tax ID and invoice number",
+  "ผู้ใช้นี้ถูกปิดการใช้งาน": "This user is disabled",
+  "เฉพาะ Super Admin ใช้โหมดดูในมุมมองได้": "Only Super Admin can use view-as",
+  "ดูในมุมมองของผู้อื่น": "Viewing as someone else",
+  "ตรวจซ้ำจาก Engine": "Re-checked by Engine",
+  "รับเอกสารใหม่จาก Engine": "New document from Engine",
+  "Engine ตรวจซ้ำ": "Engine re-check",
+  "เอกสารใหม่จาก Engine": "New document from Engine",
+  "ระบบ Portal (DR)": "Portal system (DR)",
+  "รหัส MFA ไม่ถูกต้อง (mockup ใช้ 123456)": "Invalid MFA code (mockup uses 123456)",
+  "บัญชีนี้ถูกปิดการใช้งานใน AIVA Portal": "This account is disabled in AIVA Portal",
+  "บัญชีถูกปิดใช้งานใน Portal (": "Account disabled in the Portal (",
+  "ยังไม่ได้รับสิทธิ์ใช้งาน AIVA Portal กรุณาติดต่อผู้ดูแลระบบ": "You do not have access to AIVA Portal yet, please contact the administrator",
+  "แต่ยังไม่ได้รับสิทธิ์ใน Portal:": "but has no access in the Portal yet:",
+  "กรุณากรอกชื่อผู้ใช้และรหัสผ่าน": "Please enter username and password",
+  "ลองเข้าสู่ระบบผิดหลายครั้ง กรุณารอสักครู่": "Too many failed sign-in attempts, please wait",
+  "ชื่อผู้ใช้หรือรหัสผ่าน Active Directory ไม่ถูกต้อง": "Invalid Active Directory username or password",
+  "เข้าสู่ระบบไม่สำเร็จ": "Sign-in failed",
+  "จาก": "from",
+  "รหัสผ่านไม่ถูกต้อง": "Wrong password",
+  "เชื่อมต่อ AD ไม่ได้": "Cannot connect to AD",
+  "เข้าสู่ระบบสำเร็จ": "Signed in",
+  "เข้าสู่ระบบสำเร็จผ่าน Active Directory (LDAP):": "Signed in via Active Directory (LDAP):",
+  "เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์": "Server connection error",
+  "รูปแบบเป้าหมายไม่ถูกต้อง": "Invalid target format",
+  "เริ่มดูในมุมมองของผู้อื่น": "Started viewing as someone else",
+  "(อ่านอย่างเดียว)": "(read only)",
+  "ออกจากมุมมองของผู้อื่น": "Stopped viewing as someone else",
+  "ไม่ระบุ": "Not specified",
+  "Microsoft 365: state ไม่ถูกต้องหรือหมดอายุ จาก": "Microsoft 365: invalid or expired state from",
+  "เข้าสู่ระบบสำเร็จผ่าน Microsoft 365 (Entra ID):": "Signed in via Microsoft 365 (Entra ID):",
+  "from: ต้องไม่เกิน to": "from: must not be after to",
+  "รหัสเอกสารไม่ถูกต้อง (รูปแบบที่รองรับ: DMS-ตามด้วยตัวเลข)": "Invalid document ID (supported format: DMS- followed by digits)",
+  "ในฐานข้อมูล": "in the database",
+  "เปิดดูเอกสาร": "Opened document",
+  "ถูกปฏิเสธ:": "denied:",
+  "อ่านฐานข้อมูลไม่สำเร็จ:": "Database read failed:",
+  "ตัดสิน Manual Review": "Decide Manual Review",
+  "ยกเลิกการยืนยัน": "Cancel Confirm",
+  "ในระบบ": "in the system",
+  "คุณไม่มีสิทธิ์ในเอกสารนี้": "You have no access to this document",
+  "ถูกล็อกแล้ว (": "is locked (",
+  ") ไม่อนุญาตให้แก้ไขสถานะ": ") status cannot be changed",
+  "อัปโหลดเอกสารใหม่ผ่าน DMS (ปิดใน production)": "Upload new documents through DMS (disabled in production)",
+  "ผลจำลองต้องเป็น Auto-pass / Review / Hold / Manual Review": "Simulated result must be Auto-pass / Review / Hold / Manual Review",
+  "จากสถานะ": "from status",
+  "ต้องระบุเหตุผล": "requires a reason",
+  "ถูกเปลี่ยนสถานะโดยผู้อื่นระหว่างนี้ · โหลดใหม่แล้วลองอีกครั้ง": "was changed by someone else meanwhile · reload and try again",
+  "สำเร็จ (": "succeeded (",
+  "มีผู้อื่นแก้ไขเอกสารที่เกี่ยวข้องพร้อมกัน · โหลดใหม่แล้วลองอีกครั้ง": "Someone else edited a related document at the same time · reload and try again",
+  "ไม่มีสิทธิ์ผูกใบรับ (BIND_RECEIPT)": "No permission to bind receipts (BIND_RECEIPT)",
+  "รหัสเอกสารไม่ถูกต้อง": "Invalid document ID",
+  "คุณไม่มีสิทธิ์เห็นเอกสารนี้": "You cannot see this document",
+  "ค้นหาใบรับไม่สำเร็จ": "Receipt search failed",
+  "ผลค้นหาเปลี่ยนไป (ตอนนี้คือใบรับ": "Search result changed (now receipt",
+  ") · ตรวจรายการใหม่อีกครั้ง": ") · check the items again",
+  "เปลี่ยนไประหว่างนี้ (": "changed meanwhile (",
+  ") · โหลดใหม่": ") · reload",
+  "ผลการผูกเปลี่ยนไป (ตอนนี้จะเป็น": "Binding outcome changed (it would now be",
+  ") · ตรวจใหม่อีกครั้ง": ") · check again",
+  "· ใบรับนี้ถูกใช้โดย": "· this receipt is used by",
+  "· แทนที่": "· supersedes",
+  "Confirm โดยผูกใบรับ (": "Confirm by binding receipt (",
+  "ผูกใบรับ (": "Bind receipt (",
+  ") · ใบรับ": ") · receipt",
+  "ถูกเปลี่ยนสถานะโดยผู้อื่นระหว่างนี้ · โหลดใหม่": "was changed by someone else meanwhile · reload",
+  "เปลี่ยนไประหว่างนี้ · โหลดใหม่": "changed meanwhile · reload",
+  "Superseded (ผูกใบรับ)": "Superseded (receipt bound)",
+  "และ Confirm แล้ว → ฉบับนี้ถูกแทนที่": "and Confirmed → this version is superseded",
+  "แทนที่โดย": "Superseded by",
+  "Confirm โดยผูกใบรับ": "Confirm by binding receipt",
+  "ผูกใบรับ (Duplicate)": "Bind receipt (Duplicate)",
+  "· ยอดใบรับ": "· receipt total",
+  "· โดย": "· by",
+  "ถูกแทนที่ (ผูกใบรับ)": "Superseded (receipt bound)",
+  "และ Confirm แล้ว": "and Confirmed",
+  "แล้ว · เป็น Duplicate ของ": "· is a Duplicate of",
+  "มีผู้อื่นแก้ไขเอกสารที่เกี่ยวข้องพร้อมกัน · ค้นหาใหม่แล้วลองอีกครั้ง": "Someone else edited a related document at the same time · search again and retry",
+  "ผูกใบรับไม่สำเร็จ": "Bind receipt failed",
+  "ไม่รู้จักรหัสบริษัท:": "Unknown company code:",
+  "สิทธิ์ทุกบริษัท (ALL) กำหนดได้เฉพาะ Super Admin": "All-company access (ALL) can only be granted by Super Admin",
+  "End User ต้องผูก Oracle account (Receiver) อย่างน้อย 1 บัญชี": "An End User must be bound to at least 1 Oracle account (Receiver)",
+  "เปลี่ยนบทบาทของตัวเองไม่ได้ · ให้ผู้ดูแลระบบคนอื่นทำ": "You cannot change your own role · ask another administrator",
+  "จัดการผู้ใช้ระดับ Super Admin ได้เฉพาะ Super Admin": "Only Super Admin can manage Super Admin users",
+  "แก้ไขสิทธิ์ผู้ใช้": "Edit user access",
+  "บันทึกผู้ใช้": "Save user",
+  "· บริษัท:": "· companies:",
+  "· เปิดใช้งานอีกครั้ง": "· reactivated",
+  "ปิดบัญชีของตัวเองไม่ได้": "You cannot disable your own account",
+  "ปิดบัญชี Super Admin ได้เฉพาะ Super Admin": "Only Super Admin can disable a Super Admin account",
+  "ปิดการใช้งานผู้ใช้": "Disable user",
+  "ปิดการใช้งาน": "Disabled",
+  "ค้นหา Active Directory ไม่สำเร็จ:": "Active Directory search failed:",
+  "ไม่มีสิทธิ์ส่งเอกสารเข้า AP Interface (เฉพาะหัวหน้าฝ่ายบัญชี)": "No permission to send documents to AP Interface (accounting supervisor only)",
+  "ต้องเลือกเอกสารอย่างน้อย 1 ฉบับเพื่อสร้าง Batch": "Select at least 1 document to create a Batch",
+  "พบเอกสารบางฉบับที่ไม่ปรากฏในระบบ": "Some documents do not exist in the system",
+  "ถูกล็อกอยู่ ไม่สามารถส่งซ้ำได้": "is locked and cannot be sent again",
+  "ยังไม่ได้รับการ Confirm": "has not been Confirmed",
+  "ไม่มีสิทธิ์ในเอกสาร": "No access to documents",
+  "เปลี่ยนสถานะระหว่างนี้ · โหลดใหม่": "changed status meanwhile · reload",
+  "บางฉบับ": "some documents",
+  "แล้ว → ตัดออกจาก Batch เป็น Duplicate": "→ removed from the Batch as Duplicate",
+  "ระบบ Portal (AP guard)": "Portal system (AP guard)",
+  "ตัดออกจาก Batch (receive_id ซ้ำ)": "Removed from Batch (duplicate receive_id)",
+  "· ยอดรวม": "· total",
+  "ตัดออกจาก Batch (ใบรับซ้ำ)": "Removed from Batch (duplicate receipt)",
+  "มีการแก้ไขเอกสารพร้อมกัน · โหลดใหม่แล้วลองอีกครั้ง": "Documents were edited at the same time · reload and try again",
+  "ต้องระบุผลลัพธ์ของเอกสารอย่างน้อย 1 รายการ": "At least 1 document result is required",
+  "ไม่พบ Batch ID": "Batch ID not found",
+  "ผลลัพธ์ไม่ถูกต้อง (ต้องเป็น SUCCESS / ALREADY_EXISTS / ERROR)": "Invalid result (must be SUCCESS / ALREADY_EXISTS / ERROR)",
+  "เอกสารอยู่ใน Batch": "Document in Batch",
+  "สถานะปัจจุบัน": "current status",
+  "(ไม่ใช่ Sent) · ผลซ้ำหรือมาช้า": "(not Sent) · duplicate or late result",
+  "ข้ามผล Oracle AP": "Skipped Oracle AP result",
+  "พบว่าถูก Post ใน Oracle แล้ว": "Found already posted in Oracle",
+  "Oracle รับแล้ว (Posted)": "Accepted by Oracle (Posted)",
+  "Oracle ตอบว่ามีใบแจ้งหนี้นี้อยู่แล้ว (Post จากช่องทางอื่น) ·": "Oracle says this invoice already exists (posted through another channel) ·",
+  "Oracle AP: มีอยู่แล้ว → Posted": "Oracle AP: already exists → Posted",
+  "Oracle AP Import สำเร็จ": "Oracle AP import succeeded",
+  "Import ไม่สำเร็จ": "Import failed",
+  "Oracle AP Import ไม่ผ่าน": "Oracle AP import failed",
+  "นำเข้าข้อมูลบริษัทจากไฟล์ได้เฉพาะ Super Admin": "Only Super Admin can import company data from a file",
+  "รูปแบบข้อมูลบริษัทไม่ถูกต้อง": "Invalid company data format",
+  "อ่านข้อมูลจาก Oracle ไม่ได้ · แสดงข้อมูลบริษัทในระบบ (ไม่ได้ซิงค์)": "Cannot read from Oracle · showing companies in the system (not synced)",
+  "ยังไม่ได้ตั้งค่า ORACLE_MCP_URL / ORACLE_MCP_TOKEN · แสดงข้อมูลบริษัทในระบบ (ไม่ได้ซิงค์)": "ORACLE_MCP_URL / ORACLE_MCP_TOKEN not configured · showing companies in the system (not synced)",
+  "อัปเดต": "Updated",
+  "· ไม่เปลี่ยน": "· unchanged",
+  "Sync ข้อมูลบริษัท (นำเข้าไฟล์)": "Company data sync (file import)",
+  "Sync ข้อมูลบริษัทจาก Oracle ERP": "Company data sync from Oracle ERP",
+  "ไม่ได้ซิงค์จาก Oracle · ใช้ข้อมูลบริษัทในระบบ (": "Not synced from Oracle · using companies in the system (",
+  "บริษัท)": "companies)",
+  "สำเร็จ ·": "succeeded ·",
+  "นำเข้า": "Import",
+  "ซิงค์จาก Oracle": "Sync from Oracle",
+  "เปิดใช้บริษัทในเครือ": "Activated affiliate company"
+ },
+ "patterns": [
+  [
+   "^ไฟล์ PDF ที่เปิดถูกหมุนต่างจากไฟล์ที่ Engine ตรวจ \\(Engine ([\\s\\S]*?) · ไฟล์นี้ ([\\s\\S]*?)\\) · ซ่อนกรอบเพื่อไม่ให้ชี้ผิดตำแหน่ง$",
+   "The opened PDF is rotated differently from the file the Engine checked (Engine {0} · this file {1}) · boxes hidden to avoid pointing at the wrong place"
+  ],
+  [
+   "^บันทึกผู้ใช้ ([\\s\\S]*?) \\(([\\s\\S]*?)\\) · Role: ([\\s\\S]*?)([\\s\\S]*?) · บริษัท: ([\\s\\S]*?) · Oracle account: ([\\s\\S]*?)([\\s\\S]*?)$",
+   "Save user {0} ({1}) · Role: {2}{3} · companies: {4} · Oracle account: {5}{6}"
+  ],
+  [
+   "^ขนาดหน้าไม่ตรงกับไฟล์ที่ Engine ตรวจ \\(Engine ([\\s\\S]*?) · ไฟล์นี้ ([\\s\\S]*?)\\) · ซ่อนกรอบเพื่อไม่ให้ชี้ผิดตำแหน่ง$",
+   "Page size differs from the file the Engine checked (Engine {0} · this file {1}) · boxes hidden to avoid pointing at the wrong place"
+  ],
+  [
+   "^พบ ([\\s\\S]*?) ใบรับสำหรับใบแจ้งหนี้เดียว · ข้อมูลผิดปกติ \\(1 ใบแจ้งหนี้ = 1 ใบรับ\\) ติดต่อผู้ดูแล Oracle$",
+   "Found {0} receipts for one invoice · abnormal data (1 invoice = 1 receipt) · contact the Oracle admin"
+  ],
+  [
+   "^Oracle MCP Authentication Failed \\(HTTP ([\\s\\S]*?)\\): Token อาจหมดอายุ กรุณาอัปเดต ORACLE_MCP_TOKEN$",
+   "Oracle MCP Authentication Failed (HTTP {0}): the token may have expired, update ORACLE_MCP_TOKEN"
+  ],
+  [
+   "^ใบรับ ([\\s\\S]*?) ถูกใช้โดย ([\\s\\S]*?) \\(([\\s\\S]*?)\\) แล้ว · 1 ใบรับส่งเข้า AP ได้ฉบับเดียว$",
+   "Receipt {0} used by {1} ({2}) · one receipt can be sent to AP only once"
+  ],
+  [
+   "^อัปเดต ([\\s\\S]*?) · เพิ่ม ([\\s\\S]*?) · รอตั้งรหัส ([\\s\\S]*?) · ไม่เปลี่ยน ([\\s\\S]*?)$",
+   "Updated {0} · added {1} · awaiting code {2} · unchanged {3}"
+  ],
+  [
+   "^Receiver ([\\s\\S]*?) ยังไม่ผูก Oracle account · Confirm แทนผู้ใช้งานต้องระบุเหตุผล$",
+   "Receiver {0} Oracle account not bound · confirming on the user's behalf requires a reason"
+  ],
+  [
+   "^([\\s\\S]*?) ฉบับใหม่([\\s\\S]*?) \\(([\\s\\S]*?) vs ([\\s\\S]*?)\\) → ฉบับเดิม Superseded$",
+   "{0} New version{1} ({2} vs {3}) → old version Superseded"
+  ],
+  [
+   "^เอกสาร ([\\s\\S]*?) ถูกเปลี่ยนสถานะโดยผู้อื่นระหว่างนี้ · โหลดใหม่แล้วลองอีกครั้ง$",
+   "Document {0} was changed by someone else meanwhile · reload and try again"
+  ],
+  [
+   "^([\\s\\S]*?) \\(([\\s\\S]*?)\\) · ใบรับ ([\\s\\S]*?) · ([\\s\\S]*?)([\\s\\S]*?)([\\s\\S]*?)$",
+   "{0} ({1}) · receipt {2} · {3}{4}{5}"
+  ],
+  [
+   "^ใบรับ ([\\s\\S]*?) ถูกใช้โดย ([\\s\\S]*?) แล้ว → ตัดออกจาก Batch เป็น Duplicate$",
+   "Receipt {0} used by {1} → removed from the Batch as Duplicate"
+  ],
+  [
+   "^ซิงค์สำเร็จ · อัปเดต ([\\s\\S]*?) · เพิ่ม ([\\s\\S]*?) · รอตั้งรหัส ([\\s\\S]*?)$",
+   "Sync succeeded · updated {0} · added {1} · awaiting code {2}"
+  ],
+  [
+   "^([\\s\\S]*?) · ([\\s\\S]*?) · ([\\s\\S]*?) ([\\s\\S]*?) ([\\s\\S]*?) ยอด ([\\s\\S]*?)$",
+   "{0} · {1} · {2}\n{3}\n{4} Amount {5}"
+  ],
+  [
+   "^ · ใบรับนี้ถูกใช้โดย ([\\s\\S]*?) \\(([\\s\\S]*?)\\) → Duplicate \\(([\\s\\S]*?)\\)$",
+   " · this receipt is used by {0} ({1}) → Duplicate ({2})"
+  ],
+  [
+   "^DR\\-03 ฉบับใหม่แย่กว่า \\(([\\s\\S]*?) vs ([\\s\\S]*?)\\) → ฉบับใหม่ Duplicate$",
+   "DR-03 new version is worse ({0} vs {1}) → new version is Duplicate"
+  ],
+  [
+   "^คลิกเพื่อตรวจสอบสถานะ Engine ใหม่ โหมด: ([\\s\\S]*?) เซอร์วิส: ([\\s\\S]*?)$",
+   "Click to re-check Engine status · mode: {0} Service: {1}"
+  ],
+  [
+   "^ผลค้นหาเปลี่ยนไป \\(ตอนนี้คือใบรับ ([\\s\\S]*?)\\) · ตรวจรายการใหม่อีกครั้ง$",
+   "Search result changed (now receipt {0}) · check the items again"
+  ],
+  [
+   "^เปิดใช้บริษัท ([\\s\\S]*?) สำเร็จ · มอบหมายผู้ใช้และจับคู่เอกสารได้แล้ว$",
+   "Activated company {0} successfully · users can be assigned and documents matched"
+  ],
+  [
+   "^เอกสาร ([\\s\\S]*?) มีข้อมูลต้นทางที่อ่านไม่ได้ \\(payloadJson เสียหาย\\)$",
+   "Document {0} has unreadable source data (corrupted payloadJson)"
+  ],
+  [
+   "^มีรหัสที่ ([\\s\\S]*?) ต้องแก้ค้าง · Confirm แทนได้ \\(ต้องระบุเหตุผล\\)$",
+   "Has codes the {0} must still fix · can Confirm on their behalf (reason required)"
+  ],
+  [
+   "^([\\s\\S]*?) ยังไม่ผูก Oracle account · Confirm ได้ \\(ต้องระบุเหตุผล\\)$",
+   "{0} Oracle account not bound · can Confirm (reason required)"
+  ],
+  [
+   "^เอกสาร ([\\s\\S]*?) ถูกล็อกแล้ว \\(([\\s\\S]*?)\\) ไม่อนุญาตให้แก้ไขสถานะ$",
+   "Document {0} is locked ({1}) status cannot be changed"
+  ],
+  [
+   "^ไม่ได้ซิงค์จาก Oracle · ใช้ข้อมูลบริษัทในระบบ \\(([\\s\\S]*?) บริษัท\\)$",
+   "Not synced from Oracle · using companies in the system ({0} companies)"
+  ],
+  [
+   "^ส่งเข้า AP Interface แล้ว ([\\s\\S]*?) ฉบับ \\(([\\s\\S]*?)\\)([\\s\\S]*?)$",
+   "Sent to AP Interface {0} doc(s) ({1}){2}"
+  ],
+  [
+   "^([\\s\\S]*?) ผูกใบรับ ([\\s\\S]*?) และ Confirm แล้ว → ฉบับนี้ถูกแทนที่$",
+   "{0} Bind receipt {1} and Confirmed → this version is superseded"
+  ],
+  [
+   "^ผลการผูกเปลี่ยนไป \\(ตอนนี้จะเป็น ([\\s\\S]*?)\\) · ตรวจใหม่อีกครั้ง$",
+   "Binding outcome changed (it would now be {0}) · check again"
+  ],
+  [
+   "^เอกสาร ([\\s\\S]*?) ถูกเปลี่ยนสถานะโดยผู้อื่นระหว่างนี้ · โหลดใหม่$",
+   "Document {0} was changed by someone else meanwhile · reload"
+  ],
+  [
+   "^เอกสาร ([\\s\\S]*?) เปลี่ยนไประหว่างนี้ \\(([\\s\\S]*?)\\) · โหลดใหม่$",
+   "Document {0} changed meanwhile ({1}) · reload"
+  ],
+  [
+   "^แสดงรายการเอกสารที่ปิดแล้ว ([\\s\\S]*?) ฉบับ และปิดตัวอย่าง PDF$",
+   "Show closed documents list {0} doc(s) and close PDF preview"
+  ],
+  [
+   "^เข้าสู่ระบบสำเร็จผ่าน Microsoft 365 \\(Entra ID\\): ([\\s\\S]*?)$",
+   "Signed in via Microsoft 365 (Entra ID): {0}"
+  ],
+  [
+   "^เข้าสู่ระบบสำเร็จผ่าน Active Directory \\(LDAP\\): ([\\s\\S]*?)$",
+   "Signed in via Active Directory (LDAP): {0}"
+  ],
+  [
+   "^ผ่าน ([\\s\\S]*?) แต่ยังไม่ได้รับสิทธิ์ใน Portal: ([\\s\\S]*?)$",
+   "Pass {0} but has no access in the Portal yet: {1}"
+  ],
+  [
+   "^ใบรับ ([\\s\\S]*?) · ยอดใบรับ ([\\s\\S]*?)([\\s\\S]*?)([\\s\\S]*?)$",
+   "Receipt {0} · receipt total {1}{2}{3}"
+  ],
+  [
+   "^ไม่ได้เป็น Receiver ของใบรับนี้ \\(Receiver = ([\\s\\S]*?)\\)$",
+   "You are not the Receiver of this receipt (Receiver = {0})"
+  ],
+  [
+   "^Microsoft 365: state ไม่ถูกต้องหรือหมดอายุ จาก ([\\s\\S]*?)$",
+   "Microsoft 365: invalid or expired state from {0}"
+  ],
+  [
+   "^ปิดการใช้งาน ([\\s\\S]*?) \\(([\\s\\S]*?)\\) · Role: ([\\s\\S]*?)$",
+   "Disabled {0} ({1}) · Role: {2}"
+  ],
+  [
+   "^สถานะปัจจุบัน ([\\s\\S]*?) \\(ไม่ใช่ Sent\\) · ผลซ้ำหรือมาช้า$",
+   "current status {0} (not Sent) · duplicate or late result"
+  ],
+  [
+   "^นำเข้าเอกสาร ([\\s\\S]*?) จาก Engine สำเร็จ \\(([\\s\\S]*?)\\)$",
+   "Imported document {0} from Engine successfully ({1})"
+  ],
+  [
+   "^ผูกใบรับ ([\\s\\S]*?) แล้ว · เป็น Duplicate ของ ([\\s\\S]*?)$",
+   "Bind receipt {0} · is a Duplicate of {1}"
+  ],
+  [
+   "^ถูกแทนที่ \\(Superseded\\) โดย ([\\s\\S]*?) \\(([\\s\\S]*?)\\)$",
+   "Superseded by {0} ({1})"
+  ],
+  [
+   "^บัญชีถูกปิดใช้งานใน Portal \\(([\\s\\S]*?)\\): ([\\s\\S]*?)$",
+   "Account disabled in the Portal ({0}): {1}"
+  ],
+  [
+   "^([\\s\\S]*?) · ([\\s\\S]*?)([\\s\\S]*?) · ไฟล์ ([\\s\\S]*?)$",
+   "{0} · {1}{2} · file {3}"
+  ],
+  [
+   "^เอกสาร ([\\s\\S]*?) เปลี่ยนสถานะระหว่างนี้ · โหลดใหม่$",
+   "Document {0} changed status meanwhile · reload"
+  ],
+  [
+   "^เอกสาร ([\\s\\S]*?) เปลี่ยนสถานะระหว่างนี้ · โหลดใหม่$",
+   "Document {0} changed status meanwhile · reload"
+  ],
+  [
+   "^([\\s\\S]*?) · ([\\s\\S]*?)([\\s\\S]*?) · ([\\s\\S]*?) บาท$",
+   "{0} · {1}{2} · {3} THB"
+  ],
+  [
+   "^ · ตัดออก ([\\s\\S]*?) ฉบับ \\(ใบรับซ้ำ → Duplicate\\)$",
+   " · removed {0} doc(s) (duplicate receipt → Duplicate)"
+  ],
+  [
+   "^ส่ง ([\\s\\S]*?) ฉบับสำเร็จ \\(([\\s\\S]*?)\\)([\\s\\S]*?)$",
+   "Sent {0} doc(s) successfully ({1}){2}"
+  ],
+  [
+   "^เอกสารอยู่นอกบริษัทที่ได้รับมอบหมาย \\(([\\s\\S]*?)\\)$",
+   "Document is outside your assigned companies ({0})"
+  ],
+  [
+   "^เพิ่ม ([\\s\\S]*?) เรียบร้อยแล้ว \\(รอยืนยันบันทึก\\)$",
+   "Add {0} done (pending save)"
+  ],
+  [
+   "^แสดงคิวตรวจสอบ ([\\s\\S]*?) ฉบับ และปิดตัวอย่าง PDF$",
+   "Show review queue {0} doc(s) and close PDF preview"
+  ],
+  [
+   "^DR\\-05 ไม่ใช้ฉบับเดิม \\(([\\s\\S]*?)\\) เป็นคู่เทียบ$",
+   "DR-05 the old version ({0}) is not used as the comparison"
+  ],
+  [
+   "^([\\s\\S]*?): Duplicate ของ ([\\s\\S]*?) · ([\\s\\S]*?)$",
+   "{0}: Duplicate of {1} · {2}"
+  ],
+  [
+   "^ต้องแก้: ([\\s\\S]*?) · แก้ไขแล้วอัปโหลดเอกสารใหม่$",
+   "Must fix: {0} · fix it and upload a new document"
+  ],
+  [
+   "^([\\s\\S]*?): ถูกแทนที่โดย ([\\s\\S]*?) · ([\\s\\S]*?)$",
+   "{0}: superseded by {1} · {2}"
+  ],
+  [
+   "^เอกสาร ([\\s\\S]*?) เปลี่ยนไประหว่างนี้ · โหลดใหม่$",
+   "Document {0} changed meanwhile · reload"
+  ],
+  [
+   "^เอกสาร ([\\s\\S]*?) ถูกล็อกอยู่ ไม่สามารถส่งซ้ำได้$",
+   "Document {0} is locked and cannot be sent again"
+  ],
+  [
+   "^DR\\-04 ฉบับเดิม ([\\s\\S]*?) → ฉบับใหม่ Duplicate$",
+   "DR-04 old version {0} → new version is Duplicate"
+  ],
+  [
+   "^ผลตรวจ ([\\s\\S]*?) · ความรุนแรงสูงสุด ([\\s\\S]*?)$",
+   "Result {0} · highest severity {1}"
+  ],
+  [
+   "^บันทึกไม่สำเร็จ ([\\s\\S]*?) รายการ · ([\\s\\S]*?)$",
+   "Save failed {0} item(s) · {1}"
+  ],
+  [
+   "^([\\s\\S]*?) · ไม่พบตำแหน่งบนเอกสาร — ([\\s\\S]*?)$",
+   "{0} · location not found on document — {1}"
+  ],
+  [
+   "^Confirm โดยผูกใบรับ \\(([\\s\\S]*?) → Confirmed\\)$",
+   "Confirm by binding receipt ({0} → Confirmed)"
+  ],
+  [
+   "^ผูกใบรับ ([\\s\\S]*?) และ Confirm แล้ว([\\s\\S]*?)$",
+   "Bind receipt {0} and Confirmed{1}"
+  ],
+  [
+   "^([\\s\\S]*?) ยังไม่ปิด · ดูได้ที่หน้าคิวตรวจสอบ$",
+   "{0} Not closed · see the review queue"
+  ],
+  [
+   "^([\\s\\S]*?) จากสถานะ ([\\s\\S]*?) ต้องระบุเหตุผล$",
+   "{0} from status {1} requires a reason"
+  ],
+  [
+   "^([\\s\\S]*?) สำเร็จ \\(([\\s\\S]*?) → ([\\s\\S]*?)\\)$",
+   "{0} succeeded ({1} → {2})"
+  ],
+  [
+   "^ยอด ([\\s\\S]*?) เกินวงเงินตั้งหนี้ ([\\s\\S]*?)$",
+   "Amount {0} Over the posting limit {1}"
+  ],
+  [
+   "^ค้นหา Active Directory ไม่สำเร็จ: ([\\s\\S]*?)$",
+   "Active Directory search failed: {0}"
+  ],
+  [
+   "^ดูหลักฐานบนเอกสาร หน้า ([\\s\\S]*?)([\\s\\S]*?)$",
+   "View evidence on document, page {0}{1}"
+  ],
+  [
+   "^พบ ([\\s\\S]*?) คน · ↑ ↓ เลือก · Enter ยืนยัน$",
+   "Found {0} person(s) · ↑ ↓ select · Enter confirm"
+  ],
+  [
+   "^อยู่ในบริษัทที่ได้รับมอบหมาย \\(([\\s\\S]*?)\\)$",
+   "Within assigned companies ({0})"
+  ],
+  [
+   "^([\\s\\S]*?) · ผู้ใช้นี้ทำไม่ได้: ([\\s\\S]*?)$",
+   "{0} · this user cannot: {1}"
+  ],
+  [
+   "^ใบรับ ([\\s\\S]*?) ถูกใช้โดย ([\\s\\S]*?) แล้ว$",
+   "Receipt {0} used by {1} copied"
+  ],
+  [
+   "^([\\s\\S]*?) · Import ไม่สำเร็จ · ([\\s\\S]*?)$",
+   "{0} · Import failed · {1}"
+  ],
+  [
+   "^โหลดไฟล์ PDF ไม่สำเร็จ \\(HTTP ([\\s\\S]*?)\\)$",
+   "Failed to load PDF (HTTP {0})"
+  ],
+  [
+   "^อ่านไฟล์ข้อมูลใบรับจำลองไม่ได้: ([\\s\\S]*?)$",
+   "Cannot read the simulated receipt file: {0}"
+  ],
+  [
+   "^ไม่พบรายการหลักฐาน ([\\s\\S]*?) ในเอกสารนี้$",
+   "No evidence items found {0} in this document"
+  ],
+  [
+   "^เอกสาร ([\\s\\S]*?) ยังไม่ได้รับการ Confirm$",
+   "Document {0} has not been Confirmed"
+  ],
+  [
+   "^([\\s\\S]*?)([\\s\\S]*?)พบ ([\\s\\S]*?) รายการ$",
+   "{0}{1}Found {2} item"
+  ],
+  [
+   "^ปรับตัวกรองคิวเพื่อเปิดเอกสาร ([\\s\\S]*?)$",
+   "Adjust the queue filters to open the document {0}"
+  ],
+  [
+   "^บริษัทนี้เปิดใช้แล้ว \\(รหัส ([\\s\\S]*?)\\)$",
+   "This company is already active (code {0})"
+  ],
+  [
+   "^ดูในมุมมอง ([\\s\\S]*?) \\(อ่านอย่างเดียว\\)$",
+   "View as {0} (read only)"
+  ],
+  [
+   "^Microsoft 365: ([\\s\\S]*?) จาก ([\\s\\S]*?)$",
+   "Microsoft 365: {0} from {1}"
+  ],
+  [
+   "^Microsoft 365: ([\\s\\S]*?) จาก ([\\s\\S]*?)$",
+   "Microsoft 365: {0} from {1}"
+  ],
+  [
+   "^ส่ง Batch ไม่สำเร็จ \\(HTTP ([\\s\\S]*?)\\)$",
+   "Batch send failed (HTTP {0})"
+  ],
+  [
+   "^ช่วงเวลา ([\\s\\S]*?) · มุมมอง ([\\s\\S]*?)$",
+   "Period {0} · view {1}"
+  ],
+  [
+   "^แทนที่โดย ([\\s\\S]*?) · ใบรับ ([\\s\\S]*?)$",
+   "Superseded by {0} · receipt {1}"
+  ],
+  [
+   "^ดำเนินการไม่สำเร็จ \\(HTTP ([\\s\\S]*?)\\)$",
+   "Action failed (HTTP {0})"
+  ],
+  [
+   "^ส่งโดย ([\\s\\S]*?) \\(หัวหน้าฝ่ายบัญชี\\)$",
+   "Sent by {0} (accounting supervisor)"
+  ],
+  [
+   "^([\\s\\S]*?) · ([\\s\\S]*?)หน้า ([\\s\\S]*?)$",
+   "{0} · {1}Page {2}"
+  ],
+  [
+   "^เรียก Oracle API ไม่สำเร็จ: ([\\s\\S]*?)$",
+   "Oracle API call failed: {0}"
+  ],
+  [
+   "^เรียก Oracle MCP ไม่สำเร็จ: ([\\s\\S]*?)$",
+   "Oracle MCP call failed: {0}"
+  ],
+  [
+   "^Batch ([\\s\\S]*?) · ยอดรวม ([\\s\\S]*?) ฿$",
+   "Batch {0} · total {1} ฿"
+  ],
+  [
+   "^ไม่พบ ([\\s\\S]*?) ในขอบเขตสิทธิ์ของคุณ$",
+   "Not found {0} within your access scope"
+  ],
+  [
+   "^ผูกใบรับไม่สำเร็จ \\(HTTP ([\\s\\S]*?)\\)$",
+   "Bind receipt failed (HTTP {0})"
+  ],
+  [
+   "^([\\s\\S]*?): ([\\s\\S]*?) จาก ([\\s\\S]*?)$",
+   "{0}: {1} from {2}"
+  ],
+  [
+   "^มีการเปลี่ยนสถานะ ([\\s\\S]*?) รายการ$",
+   "Status changes {0} item"
+  ],
+  [
+   "^ส่งเข้า AP Interface \\(([\\s\\S]*?)\\)$",
+   "Sent to AP Interface ({0})"
+  ],
+  [
+   "^Duplicate ของ ([\\s\\S]*?) \\(DR\\-03\\)$",
+   "Duplicate of {0} (DR-03)"
+  ],
+  [
+   "^Duplicate ของ ([\\s\\S]*?) \\(DR\\-04\\)$",
+   "Duplicate of {0} (DR-04)"
+  ],
+  [
+   "^Duplicate ของ ([\\s\\S]*?) \\(DR\\-06\\)$",
+   "Duplicate of {0} (DR-06)"
+  ],
+  [
+   "^ผูกใบรับ \\(([\\s\\S]*?) → Duplicate\\)$",
+   "Bind receipt ({0} → Duplicate)"
+  ],
+  [
+   "^รหัสบริษัทสำหรับ Tax ID ([\\s\\S]*?)$",
+   "Company code for Tax ID {0}"
+  ],
+  [
+   "^ผู้ใช้ ([\\s\\S]*?) มีอยู่ในระบบแล้ว$",
+   "User {0} already exists"
+  ],
+  [
+   "^ค้นหาไม่สำเร็จ \\(HTTP ([\\s\\S]*?)\\)$",
+   "Search failed (HTTP {0})"
+  ],
+  [
+   "^บทบาทนี้ไม่มีสิทธิ์ \\(([\\s\\S]*?)\\)$",
+   "This role has no permission ({0})"
+  ],
+  [
+   "^Oracle MCP ตอบกลับ HTTP ([\\s\\S]*?)$",
+   "Oracle MCP returned HTTP {0}"
+  ],
+  [
+   "^ไม่พบเอกสาร ([\\s\\S]*?) ในฐานข้อมูล$",
+   "Document not found {0} in the database"
+  ],
+  [
+   "^อ่านฐานข้อมูลไม่สำเร็จ: ([\\s\\S]*?)$",
+   "Database read failed: {0}"
+  ],
+  [
+   "^ไม่พบตำแหน่งบนเอกสาร — ([\\s\\S]*?)$",
+   "Location not found on document — {0}"
+  ],
+  [
+   "^สถานะ ([\\s\\S]*?) อัปโหลดแทนไม่ได้$",
+   "Status {0} cannot be re-uploaded"
+  ],
+  [
+   "^ใบรับ ([\\s\\S]*?) · โดย ([\\s\\S]*?)$",
+   "Receipt {0} · by {1}"
+  ],
+  [
+   "^Batch ([\\s\\S]*?) · โดย ([\\s\\S]*?)$",
+   "Batch {0} · by {1}"
+  ],
+  [
+   "^ซิงค์ข้อมูลไม่สำเร็จ: ([\\s\\S]*?)$",
+   "Sync failed: {0}"
+  ],
+  [
+   "^([\\s\\S]*?) · ฉบับใหม่ ([\\s\\S]*?)$",
+   "{0} · new version {1}"
+  ],
+  [
+   "^([\\s\\S]*?) · ฉบับเดิม ([\\s\\S]*?)$",
+   "{0} · old version {1}"
+  ],
+  [
+   "^แทนที่ ([\\s\\S]*?) \\(([\\s\\S]*?)\\)$",
+   "Supersedes {0} ({1})"
+  ],
+  [
+   "^([\\s\\S]*?) · ในมุมมอง ([\\s\\S]*?)$",
+   "{0} · viewing as {1}"
+  ],
+  [
+   "^นับจากวันที่เข้าระบบ ([\\s\\S]*?)$",
+   "Counted from received date {0}"
+  ],
+  [
+   "^บริษัทที่รับผิดชอบ · ([\\s\\S]*?)$",
+   "Assigned companies · {0}"
+  ],
+  [
+   "^ผลลัพธ์ ([\\s\\S]*?) · ([\\s\\S]*?)$",
+   "Result {0} · {1}"
+  ],
+  [
+   "^สถานะ ([\\s\\S]*?) ผูกใบรับไม่ได้$",
+   "Status {0} Cannot bind receipt"
+  ],
+  [
+   "^ไม่รู้จักรหัสบริษัท: ([\\s\\S]*?)$",
+   "Unknown company code: {0}"
+  ],
+  [
+   "^Portal พบเอกสารซ้ำ: ([\\s\\S]*?)$",
+   "Portal found a duplicate: {0}"
+  ],
+  [
+   "^Oracle API ตอบ HTTP ([\\s\\S]*?)$",
+   "Oracle API returned HTTP {0}"
+  ],
+  [
+   "^ไม่มีสิทธิ์ในเอกสาร ([\\s\\S]*?)$",
+   "No access to documents {0}"
+  ],
+  [
+   "^เพิ่ม Receiver ของ ([\\s\\S]*?)$",
+   "Add Receiver for {0}"
+  ],
+  [
+   "^([\\s\\S]*?) · คลิกเพื่อเปลี่ยน$",
+   "{0} · click to change"
+  ],
+  [
+   "^ไม่พบเอกสาร ([\\s\\S]*?) ในระบบ$",
+   "Document not found {0} in the system"
+  ],
+  [
+   "^ไม่พบเอกสาร ([\\s\\S]*?) ในระบบ$",
+   "Document not found {0} in the system"
+  ],
+  [
+   "^เอกสารอยู่ใน Batch ([\\s\\S]*?)$",
+   "Document in Batch {0}"
+  ],
+  [
+   "^([\\s\\S]*?)สำเร็จ · ([\\s\\S]*?)$",
+   "{0}succeeded · {1}"
+  ],
+  [
+   "^ส่งออก ([\\s\\S]*?) รายการแล้ว$",
+   "Exported {0} item(s)"
+  ],
+  [
+   "^เปิดใช้ไม่สำเร็จ: ([\\s\\S]*?)$",
+   "Activation failed: {0}"
+  ],
+  [
+   "^([\\s\\S]*?) · ([\\s\\S]*?) หน้า$",
+   "{0} · {1} Page"
+  ],
+  [
+   "^เอกสารใหม่ ([\\s\\S]*?) รายการ$",
+   "New documents {0} item"
+  ],
+  [
+   "^([\\s\\S]*?), ซ่อน: ([\\s\\S]*?)$",
+   "{0}, hidden: {1}"
+  ],
+  [
+   "^([\\s\\S]*?) · หน้า ([\\s\\S]*?)$",
+   "{0} · page {1}"
+  ],
+  [
+   "^เป็น Receiver \\(([\\s\\S]*?)\\)$",
+   "Is the Receiver ({0})"
+  ],
+  [
+   "^([\\s\\S]*?) · ผู้ใช้นี้ทำได้$",
+   "{0} · this user can"
+  ],
+  [
+   "^ไม่มีเอกสารถูกส่ง([\\s\\S]*?)$",
+   "No documents were sent{0}"
+  ],
+  [
+   "^นำเข้าไม่สำเร็จ: ([\\s\\S]*?)$",
+   "Import failed: {0}"
+  ],
+  [
+   "^([\\s\\S]*?)วันที่ ([\\s\\S]*?)$",
+   "{0}Date {1}"
+  ],
+  [
+   "^รหัส ([\\s\\S]*?) ถูกใช้แล้ว$",
+   "Code {0} is already used"
+  ],
+  [
+   "^([\\s\\S]*?)หน้า ([\\s\\S]*?)$",
+   "{0}Page {1}"
+  ],
+  [
+   "^หน้า ([\\s\\S]*?)([\\s\\S]*?)$",
+   "Page {0}{1}"
+  ],
+  [
+   "^ยกเลิก Confirm ([\\s\\S]*?)$",
+   "Cancel Confirm {0}"
+  ],
+  [
+   "^แสดงอีก ([\\s\\S]*?) รายการ$",
+   "Show {0} item"
+  ],
+  [
+   "^ · ผลต่าง: ([\\s\\S]*?) บาท$",
+   " · difference: {0} THB"
+  ],
+  [
+   "^ไม่พบ Batch ID ([\\s\\S]*?)$",
+   "Batch ID not found {0}"
+  ],
+  [
+   "^([\\s\\S]*?) · ทุกช่วงเวลา$",
+   "{0} · all time"
+  ],
+  [
+   "^อัปโหลดแล้ว · ([\\s\\S]*?)$",
+   "Uploaded · {0}"
+  ],
+  [
+   "^คัดลอก ([\\s\\S]*?) แล้ว$",
+   "Copy {0} copied"
+  ],
+  [
+   "^ไม่มีสิทธิ์ ([\\s\\S]*?)$",
+   "No permission {0}"
+  ],
+  [
+   "^ไม่พบผู้ใช้ ([\\s\\S]*?)$",
+   "No users found {0}"
+  ],
+  [
+   "^ \\(([\\s\\S]*?) กล่อง\\)$",
+   " ({0} box(es))"
+  ],
+  [
+   "^หลักฐานของ ([\\s\\S]*?)$",
+   "Evidence for {0}"
+  ],
+  [
+   "^ · ผู้รับ: ([\\s\\S]*?)$",
+   " · receiver: {0}"
+  ],
+  [
+   "^ · อ้างอิง ([\\s\\S]*?)$",
+   " · reference {0}"
+  ],
+  [
+   "^ถูกปฏิเสธ: ([\\s\\S]*?)$",
+   "denied: {0}"
+  ],
+  [
+   "^สิทธิ์ของ ([\\s\\S]*?)$",
+   "Role of {0}"
+  ],
+  [
+   "^ยืนยันโดย ([\\s\\S]*?)$",
+   "Confirmed by {0}"
+  ],
+  [
+   "^ · แทนที่ ([\\s\\S]*?)$",
+   " · supersedes {0}"
+  ],
+  [
+   "^ · แทนที่ ([\\s\\S]*?)$",
+   " · supersedes {0}"
+  ],
+  [
+   "^ · ([\\s\\S]*?) กล่อง$",
+   " · {0} box(es)"
+  ],
+  [
+   "^ลบผู้ใช้ ([\\s\\S]*?)$",
+   "Remove user {0}"
+  ],
+  [
+   "^ไม่พบ PO ([\\s\\S]*?)$",
+   "PO not found {0}"
+  ],
+  [
+   "^สถานะใน ([\\s\\S]*?)$",
+   "Status in {0}"
+  ],
+  [
+   "^ · รหัส ([\\s\\S]*?)$",
+   " · ID {0}"
+  ],
+  [
+   "^เอา ([\\s\\S]*?) ออก$",
+   "Remove {0} out"
+  ],
+  [
+   "^ตั้งแต่ ([\\s\\S]*?)$",
+   "from {0}"
+  ],
+  [
+   "^มุมมอง ([\\s\\S]*?)$",
+   "View {0}"
+  ],
+  [
+   "^ผลตรวจ ([\\s\\S]*?)$",
+   "Result {0}"
+  ],
+  [
+   "^แทนโดย ([\\s\\S]*?)$",
+   "Replaced by {0}"
+  ],
+  [
+   "^ซ้ำกับ ([\\s\\S]*?)$",
+   "Duplicate of {0}"
+  ],
+  [
+   "^([\\s\\S]*?) วินาที$",
+   "{0} sec"
+  ],
+  [
+   "^เปิด ([\\s\\S]*?)$",
+   "Open {0}"
+  ],
+  [
+   "^([\\s\\S]*?) แล้ว$",
+   "{0} copied"
+  ],
+  [
+   "^([\\s\\S]*?) ฉบับ$",
+   "{0} doc(s)"
+  ],
+  [
+   "^หน้า ([\\s\\S]*?)$",
+   "Page {0}"
+  ],
+  [
+   "^([\\s\\S]*?) นาที$",
+   "{0} min"
+  ],
+  [
+   "^ถึง ([\\s\\S]*?)$",
+   "to {0}"
+  ],
+  [
+   "^งวด ([\\s\\S]*?)$",
+   "Period {0}"
+  ],
+  [
+   "^([\\s\\S]*?) วัน$",
+   "{0} day(s)"
+  ],
+  [
+   "^โดย ([\\s\\S]*?)$",
+   "by {0}"
+  ],
+  [
+   "^ลบ ([\\s\\S]*?)$",
+   "Remove {0}"
+  ],
+  [
+   "^กฎ ([\\s\\S]*?)$",
+   "Rule {0}"
+  ],
+  [
+   "^([\\s\\S]*?) ฿$",
+   "{0} ฿"
+  ]
+ ]
+}

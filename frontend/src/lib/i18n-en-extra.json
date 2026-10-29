@@ -1,0 +1,197 @@
+{
+ "exact": {
+  "ยอดรวมสุทธิ": "Net total",
+  "โทร.": "Tel.",
+  "เลขประจำตัวผู้เสียภาษีอากร": "Tax ID",
+  "ใบส่งของ": "Delivery note",
+  "เงื่อนไขการขาย": "Terms of sale",
+  "ใบกำกับภาษี / ใบแจ้งหนี้": "Tax invoice / Invoice",
+  "ต้นฉบับ (ORIGINAL)": "ORIGINAL",
+  "สำเนา (COPY)": "COPY",
+  "เลขที่ / No.": "No.",
+  "วันที่ / Date": "Date",
+  "หน้า / Page": "Page",
+  "ลูกค้า / Customer": "Customer",
+  "อ้างอิง / Reference": "Reference",
+  "รายการสินค้า / Description": "Description",
+  "จำนวน": "Qty",
+  "หน่วย": "Unit",
+  "หน่วยละ": "Unit price",
+  "จำนวนเงิน": "Amount",
+  "หมายเหตุ": "Note",
+  "ชำระเงินตามเงื่อนไขเครดิต 30 วัน": "Payment on 30-day credit terms",
+  "ยอดรวมก่อนภาษี": "Total before tax",
+  "ภาษีมูลค่าเพิ่ม 7%": "VAT 7%",
+  "ผู้ส่งของ / ผู้มีอำนาจลงนาม": "Deliverer / authorised signatory",
+  "ผู้รับสินค้า / บริการ": "Receiver of goods / services",
+  "ผู้ตรวจสอบบัญชี": "Auditor",
+  "เอกสารจำลองเพื่อการตรวจสอบ AIVA": "Simulated document for AIVA checks",
+  "อาปิโก ไฮเทค (มหาชน)": "AAPICO Hitech (PCL)",
+  "อาปิโก ไฮเทค ทูลลิ่ง": "AAPICO Hitech Tooling",
+  "อาปิโก ไฮเทค พาร์ทส์": "AAPICO Hitech Parts",
+  "อาปิโก ไฮเทค ออโตโมชั่น": "AAPICO Hitech Automation",
+  "เอเบิล มอเตอร์ส": "Able Motors",
+  "ไม่ระบุบริษัท (ORG_ID ยังไม่ทราบ / ยกเลิก)": "Unknown company (ORG_ID unknown / cancelled)",
+  "อาปิโก ไฮเทค จำกัด (มหาชน)": "AAPICO Hitech PCL",
+  "? ไม่ระบุบริษัท": "? Unknown company",
+  "เข้าสู่ระบบ": "Sign in",
+  "เลือกวิธีที่องค์กรกำหนดให้คุณ": "Choose the method your organisation assigned to you",
+  "วิธีเข้าสู่ระบบ": "Sign-in method",
+  "ผู้ดูแลระบบยังไม่ได้ตั้งค่า Microsoft 365 (Entra ID)": "The administrator has not configured Microsoft 365 (Entra ID)",
+  "LDAP ภายใน": "Internal LDAP",
+  "กำลังเปลี่ยนเส้นทางไปที่ Microsoft…": "Redirecting to Microsoft…",
+  "ลงชื่อเข้าใช้ด้วย Microsoft": "Sign in with Microsoft",
+  "บัญชีที่ทำงานหรือโรงเรียน · Single Sign-On · รองรับ MFA": "Work or school account · Single Sign-On · MFA supported",
+  "Microsoft 365 ยังไม่เปิดใช้งานบนเซิร์ฟเวอร์นี้ · ใช้ LDAP ภายในแทน": "Microsoft 365 is not enabled on this server · use internal LDAP instead",
+  "ชื่อผู้ใช้": "Username",
+  "LDAP · เช่น wajeepradit.p": "LDAP · e.g. wajeepradit.p",
+  "ชื่อผู้ใช้ภายในบริษัท": "Company username",
+  "รหัสผ่าน": "Password",
+  "ซ่อนรหัสผ่าน": "Hide password",
+  "แสดงรหัสผ่าน": "Show password",
+  "Caps Lock เปิดอยู่": "Caps Lock is on",
+  "จำชื่อผู้ใช้ในเครื่องนี้": "Remember username on this device",
+  "ลืมรหัสผ่าน?": "Forgot password?",
+  "กำลังตรวจสอบ…": "Checking…",
+  "ติดต่อ IT Support": "Contact IT Support",
+  "เปิดแบบฟอร์มแจ้ง IT Support": "Open IT Support form",
+  "ลงชื่อเข้าใช้ด้วย Microsoft ไม่สำเร็จ · ลองอีกครั้ง": "Microsoft sign-in failed · try again",
+  "เข้าสู่ระบบ AIVA Portal": "Sign in to AIVA Portal",
+  "รีเซ็ตรหัสผ่าน": "Reset password",
+  "แจ้ง IT Support": "Contact IT Support",
+  "เชื่อมต่อเซิร์ฟเวอร์ LDAP ไม่ได้": "Cannot connect to the LDAP server",
+  "เชื่อมต่อ Microsoft ไม่ได้": "Cannot connect to Microsoft",
+  "ลองอีกครั้ง": "Try again",
+  "ใช้ Microsoft 365": "Use Microsoft 365",
+  "ใช้ LDAP": "Use LDAP",
+  "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง": "Incorrect username or password",
+  "ลงชื่อเข้าใช้ด้วย Microsoft ไม่สำเร็จ": "Microsoft sign-in failed",
+  "รหัสผ่านไม่ถูกต้อง": "Incorrect password",
+  "บัญชีนี้ยังไม่ได้รับสิทธิ์ใช้งาน AIVA Portal": "This account has no access to AIVA Portal yet",
+  "ขอสิทธิ์จาก IT Admin": "Request access from IT Admin",
+  "ส่งคำขอสิทธิ์ถึง IT Admin แล้ว": "Access request sent to IT Admin",
+  "กรอกชื่อผู้ใช้": "Enter username",
+  "กรอกรหัสผ่าน": "Enter password",
+  "เข้าสู่ระบบสำเร็จ": "Signed in",
+  "ยกเลิกหรือยืนยันตัวตนไม่ผ่าน · ลองอีกครั้ง": "Cancelled or authentication failed · try again",
+  "บัญชี LDAP รีเซ็ตโดย IT Support · บัญชี Microsoft รีเซ็ตเองได้ที่หน้าลงชื่อเข้าใช้": "LDAP accounts are reset by IT Support · Microsoft accounts can be reset on the sign-in page",
+  "เซิร์ฟเวอร์ภายในไม่ตอบสนองภายใน 10 วินาที ลองอีกครั้ง หรือใช้ Microsoft 365": "The internal server did not respond within 10 seconds · try again or use Microsoft 365",
+  "ไม่ได้รับการตอบกลับจาก Microsoft ลองอีกครั้ง หรือใช้บัญชีภายใน (LDAP) แทน": "No response from Microsoft · try again or use an internal (LDAP) account",
+  "โหมดสว่าง": "Light mode",
+  "โหมดมืด": "Dark mode",
+  "Porcelain · คมชัด อ่านเอกสารง่าย": "Porcelain · crisp, easy to read documents",
+  "Graphite · สบายตา ลดแสงจ้า": "Graphite · easy on the eyes, less glare",
+  "ยินดีต้อนรับกลับ": "Welcome back",
+  "เข้าสู่ระบบ (ข้ามขั้นตอน)": "Signed in (skipped)",
+  "กำลังเริ่มระบบ AIVA": "Starting AIVA",
+  "คลิกเพื่อข้าม": "Click to skip",
+  "นอกบริษัทที่รับผิดชอบ": "Outside assigned companies",
+  "ไม่ใช่ Receiver ของคุณ": "Not your Receiver",
+  "ไม่เห็นเนื้อหาเอกสาร": "Cannot see document content",
+  "ฟิลด์บังคับอ่านไม่ได้หรือไม่ครบ": "Required fields unreadable or incomplete",
+  "พิกัดบรรทัดสินค้าบนเอกสารไม่สมบูรณ์หรือไม่สอดคล้องกับโครงสร้างตาราง": "Line item coordinates on the document are incomplete or inconsistent with the table structure",
+  "ความมั่นใจต่ำ": "Low confidence",
+  "ระบุบรรทัดในใบรับไม่ได้": "Cannot identify the receipt line",
+  "V-07 ระบุบรรทัดใบรับไม่ได้": "V-07 cannot identify receipt lines",
+  "AI/facts ไม่สอดคล้อง หรือเทียบจำนวนไม่ได้": "AI/facts inconsistent or quantity not comparable",
+  "ข้ามตาม gate": "Skipped by gate",
+  "จำนวนวางบิลเท่ากับ QTY ใบรับ": "Billed quantity equals receipt QTY",
+  "จำนวนวางบิลเท่ากับ QTY ใบรับ (qty_diff = 0)": "Billed quantity equals receipt QTY (qty_diff = 0)",
+  "Tax ID ลูกค้าอ่านไม่ได้": "Customer Tax ID unreadable",
+  "ยอดรวมหรือราคารวมต่อรายการอ่านไม่ได้": "Total or line amount unreadable",
+  "INSTALLMENT (ดู V-07)": "INSTALLMENT (see V-07)",
+  "หน่วยนับต่างกลุ่ม เทียบจำนวนไม่ได้ (ดู V-07)": "Unit groups differ, quantities not comparable (see V-07)",
+  "ไม่มีใบรับ จึงไม่มี ORG_ID": "No receipt, so no ORG_ID",
+  "จำนวนตรงกัน": "Quantities match",
+  "จำนวนตรงกัน (qty_diff = 0)": "Quantities match (qty_diff = 0)",
+  "จำนวนเท่ากับใบรับ": "Quantity equals receipt",
+  "สแกนไม่ครบหน้า (E01 ไม่ใช่ E08)": "Scan is missing pages (E01, not E08)",
+  "ไม่มีบรรทัดที่อ่านค่าครบ": "No line was fully readable",
+  "qty_inv เป็น null": "qty_inv is null",
+  "qty_diff เป็น null ไม่สามารถตัดสินได้": "qty_diff is null, cannot decide",
+  "เลข Invoice ที่อ่านได้ใช้ค้นใบรับไม่ได้ (รูปแบบไม่ปลอดภัยสำหรับ SQL)": "The invoice number read cannot be used to search receipts (unsafe format for SQL)",
+  "ยอดก่อนภาษีอ่านไม่ได้": "Pre-tax total unreadable",
+  "ทุกบรรทัดระบุคู่ในใบรับไม่ได้": "No line could be matched to the receipt",
+  "AI ไม่มั่นใจเรื่องที่อยู่": "AI is not confident about the address",
+  "AI ไม่มั่นใจเรื่องชื่อลูกค้า": "AI is not confident about the customer name",
+  "ค้นใบรับด้วยเลขที่อ่านไม่ยืนยันแล้วไม่พบ จึงไม่สรุปเป็น E05": "Receipt search with an unconfirmed number found nothing, so not concluded as E05",
+  "ไม่พบลายเซ็นหรือตราในช่องผู้รับของ": "No signature or stamp in the receiver box",
+  "ไปที่หน้า": "Go to page",
+  "หน้าก่อน": "Previous page",
+  "หน้าถัดไป": "Next page",
+  "กรอบ": "box(es)",
+  "ตัวอย่าง": "Examples",
+  "ค้นหาเลขที่ ผู้ขาย PO สถานะ…": "Search number, vendor, PO, status…",
+  "ตัวอย่างการค้นหา (เลขที่ · ผู้ขาย · สถานะ · E11 · วันที่ · ยอดเงิน)": "Search examples (number · vendor · status · E11 · date · amount)"
+ },
+ "patterns": [
+  [
+   "^หน้า (\\d+) / (\\d+) · (\\d+) กรอบ$",
+   "Page {0} / {1} · {2} box(es)"
+  ],
+  [
+   "^บรรทัดที่ (\\d+) \\(Invoice: ([\\s\\S]*)\\): ([\\s\\S]+)$",
+   "Line {0} (Invoice: {1}): {2}"
+  ],
+  [
+   "^หน่วยนับต่างกลุ่มหลังแปลง \\(([\\s\\S]*)\\)$",
+   "Unit groups differ after conversion ({0})"
+  ],
+  [
+   "^จำนวนวางบิลเกินใบรับ \\(([\\s\\S]*)\\)$",
+   "Billed quantity exceeds receipt ({0})"
+  ],
+  [
+   "^จำนวนวางบิลน้อยกว่าใบรับ \\(([\\s\\S]*)\\)$",
+   "Billed quantity is less than receipt ({0})"
+  ],
+  [
+   "^ราคาต่างเกินกรอบ \\(([\\s\\S]*)\\)$",
+   "Price difference beyond tolerance ({0})"
+  ],
+  [
+   "^ราคาต่างในกรอบ \\(([\\s\\S]*)\\)$",
+   "Price difference within tolerance ({0})"
+  ],
+  [
+   "^จับคู่ด้วยคำบรรยาย \\(([\\s\\S]*)\\)$",
+   "Matched by description ({0})"
+  ],
+  [
+   "^ที่อยู่ลูกค้า \\(เลขที่ ([\\s\\S]*?), รหัสไปรษณีย์ ([\\s\\S]*?)\\) ไม่ตรงกับที่อยู่ของ ORG_ID (\\S+)$",
+   "Customer address (no. {0}, postcode {1}) does not match the address of ORG_ID {2}"
+  ],
+  [
+   "^Tax ID ลูกค้า (\\S+) ≠ (\\S+) \\(ORG_ID (\\S+)\\)$",
+   "Customer Tax ID {0} ≠ {1} (ORG_ID {2})"
+  ],
+  [
+   "^ยอดก่อนภาษี (\\S+) ≠ ยอดใบรับ (\\S+)$",
+   "Pre-tax total {0} ≠ receipt total {1}"
+  ],
+  [
+   "^ยอดรวมภายในใบแจ้งหนี้ไม่สอดคล้อง ([\\s\\S]*)$",
+   "Invoice totals are inconsistent {0}"
+  ],
+  [
+   "^ตรวจ (\\d+) บรรทัด$",
+   "Checked {0} line(s)"
+  ],
+  [
+   "^ใบรับ (\\S+) \\(([^)]*)\\)$",
+   "Receipt {0} ({1})"
+  ],
+  [
+   "^วางบิลเป็นงวด (\\d+) บรรทัด \\(ยอดเงินตรงใบรับ แต่ราคา/จำนวนเป็นสัดส่วนงวด\\) — รอมาตรฐานกำหนด ให้คนตรวจ$",
+   "{0} line(s) billed as instalments (amount matches receipt but price/qty are instalment shares) — pending standard, human review"
+  ],
+  [
+   "^หน้า (\\d+) / (\\d+)$",
+   "Page {0} / {1}"
+  ],
+  [
+   "^· (\\d+) กรอบ$",
+   "· {0} box(es)"
+  ]
+ ]
+}

@@ -5,14 +5,15 @@ export const ROLES: Record<RoleKey, Role> = {
     n: 'ผู้ใช้งาน (Receiver)',
     c: 'var(--t-org)',
     bg: 'var(--t-org-bg)',
-    p: ['VIEW_OWN', 'DMS', 'UPLOAD_NEW'],
+    p: ['VIEW_OWN', 'DMS', 'UPLOAD_NEW', 'BIND_RECEIPT'],
     scope: 'receiver'
   },
   ACC: {
     n: 'เจ้าหน้าที่บัญชี',
     c: 'var(--t-ok)',
     bg: 'var(--t-ok-bg)',
-    p: ['VIEW_CO', 'DMS', 'CONFIRM', 'REVIEW', 'HOLD', 'REJECT', 'VIEW_AP'],
+    // v5.13: + UNCONFIRM (ยกเลิก Confirm ที่หน้า AP แท็บรอส่ง) · + BIND_RECEIPT (เดิมไม่มีชื่อสิทธิ์ แต่ทำได้อยู่แล้ว)
+    p: ['VIEW_CO', 'DMS', 'CONFIRM', 'REVIEW', 'HOLD', 'REJECT', 'BIND_RECEIPT', 'UNCONFIRM', 'VIEW_AP'],
     scope: 'company'
   },
   APR: {
@@ -26,9 +27,9 @@ export const ROLES: Record<RoleKey, Role> = {
       'REVIEW',
       'HOLD',
       'REJECT',
+      'BIND_RECEIPT',
       'VIEW_AP',
       'MANUAL_REVIEW',
-      'DUP_OVERRIDE',
       'UNCONFIRM',
       'POST',
       'RETURN_FAILED',
@@ -57,8 +58,8 @@ export const ROLES: Record<RoleKey, Role> = {
       'REVIEW',
       'HOLD',
       'REJECT',
+      'BIND_RECEIPT',
       'MANUAL_REVIEW',
-      'DUP_OVERRIDE',
       'UNCONFIRM',
       'POST',
       'RETURN_FAILED',
@@ -70,22 +71,27 @@ export const ROLES: Record<RoleKey, Role> = {
   }
 }
 
+/**
+ * v5.13: one line per permission that something really checks (UI and/or server).
+ * DUP_OVERRIDE was listed before but nothing ever checked it — removed from every role.
+ * The Matrix page (RbacPage) groups these with src/lib/permissionMatrix.ts.
+ */
 export const PERMISSION_DESCRIPTIONS: Record<string, string> = {
   VIEW_OWN: 'ดูเอกสารที่ตนเป็น Receiver',
   VIEW_CO: 'ดูเอกสารทั้งบริษัทที่ได้รับมอบหมาย',
-  DMS: 'เปิดเอกสารจาก DMS',
-  UPLOAD_NEW: 'อัปโหลดเอกสารใหม่',
+  DMS: 'เปิดเอกสาร / หลักฐานจาก DMS',
+  UPLOAD_NEW: 'อัปโหลดเอกสารฉบับใหม่',
+  BIND_RECEIPT: 'ผูกใบรับ (Receive ID)',
   CONFIRM: 'Confirm',
   REVIEW: 'ย้ายเป็น Review',
   HOLD: 'Hold',
   REJECT: 'Reject',
-  MANUAL_REVIEW: 'ตัดสิน Manual Review',
-  DUP_OVERRIDE: 'ยืนยันว่าไม่ซ้ำ (Duplicate)',
-  UNCONFIRM: 'ยกเลิกการยืนยัน',
+  MANUAL_REVIEW: 'ตัดสิน Manual Review / เอกสาร UNRESOLVED',
+  UNCONFIRM: 'ยกเลิก Confirm (กลับไป Review)',
   POST: 'ส่งเข้า AP Interface (Batch)',
-  RETURN_FAILED: 'Return Import Failed',
+  RETURN_FAILED: 'ส่งคืน Import ไม่ผ่าน (กลับไป Review)',
   VIEW_AP: 'ดูหน้าส่งเข้า AP Interface',
-  MAP: 'จัดการการเชื่อมบัญชีและสิทธิ์',
+  MAP: 'จัดการผู้ใช้ สิทธิ์ และข้อมูลบริษัท',
   AUDIT: 'ดูบันทึกการเข้าถึง'
 }
 

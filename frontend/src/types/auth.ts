@@ -10,7 +10,8 @@ export type Permission =
   | 'HOLD'
   | 'REJECT'
   | 'MANUAL_REVIEW'
-  | 'DUP_OVERRIDE'
+  | 'DUP_OVERRIDE' // legacy (login demo data) — not granted to any role since v5.13, nothing checks it
+  | 'BIND_RECEIPT'
   | 'UNCONFIRM'
   | 'POST'
   | 'RETURN_FAILED'

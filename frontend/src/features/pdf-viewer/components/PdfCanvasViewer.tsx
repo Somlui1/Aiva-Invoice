@@ -36,6 +36,13 @@ export interface PdfCanvasViewerProps {
   placeholder?: ReactNode
   onRetry?: () => void
   onClose?: () => void
+  /**
+   * v5.13.1: all pages, scrolled (PdfPageStack). Replaces the single page when given; the single
+   * canvas is then not mounted, so `usePdfViewer` paints nothing itself.
+   */
+  stack?: ReactNode
+  /** The stack's first page is on screen (ends the first-load spinner). */
+  stackPainted?: boolean
 }
 
 export function PdfCanvasViewer({
@@ -51,8 +58,10 @@ export function PdfCanvasViewer({
   placeholder,
   onRetry,
   onClose,
+  stack,
+  stackPainted = false,
 }: PdfCanvasViewerProps) {
-  const painted = pageSize.width > 0 && pageSize.height > 0
+  const painted = stack ? stackPainted : pageSize.width > 0 && pageSize.height > 0
   const ready = status.state === 'ready' && painted
   /**
    * v5.7: "loading" = downloading the bytes OR parsed-but-not-painted. In both cases the preview is
@@ -109,6 +118,9 @@ export function PdfCanvasViewer({
         </div>
       )}
 
+      {stack && status.state === 'ready' ? (
+        <div className={`evd-stack-wrap${ready ? ' on' : ''}`}>{stack}</div>
+      ) : (
       <div
         className={`evd-page evd-pdf-page${ready ? ' on' : ''}${repainting ? ' is-repainting' : ''}`}
         style={{ width: pageSize.width || undefined, height: pageSize.height || undefined }}
@@ -123,6 +135,7 @@ export function PdfCanvasViewer({
           hoveredId={hoveredId}
         />
       </div>
+      )}
     </div>
   )
 }

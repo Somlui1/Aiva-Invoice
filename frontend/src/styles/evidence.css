@@ -1075,3 +1075,44 @@
   margin: 0;
   word-break: break-word;
 }
+
+/* ================= v5.13.1 · continuous PDF view (all pages, one scroll) ================= */
+.evd-stack-wrap {
+  width: 100%;
+  visibility: hidden;
+}
+.evd-stack-wrap.on {
+  visibility: visible;
+}
+.evd-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding-bottom: 8px;
+}
+.evd-stack-page {
+  position: relative;
+  flex: none;
+  scroll-margin-top: 12px;
+}
+.evd-stack-wait {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.evd-stack-no {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.62);
+  color: #fff;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  z-index: 3;
+}

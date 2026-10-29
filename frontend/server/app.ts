@@ -21,6 +21,7 @@ import {
   auditLogsRouter,
   apRouter,
   oracleRouter,
+  companiesHandler,
 } from './routes/governance'
 import { prisma } from '../src/lib/prisma'
 import { eventsHandler } from '../src/server/events'
@@ -79,6 +80,8 @@ export function createExpressApp(): Express {
   app.get('/api/events', requireAuth, eventsHandler)
   app.use('/api/ap', apRouter) // per-route guards inside (VIEW_AP / session / Oracle key)
   app.use('/api/oracle', requirePerm('MAP'), oracleRouter)
+  // v5.13: active company master (names / Tax ID / ORG_ID) for every signed-in screen — no pending rows
+  app.get('/api/companies', requireAuth, companiesHandler)
 
   // Health: liveness for the container / monitoring. Counts only outside production.
   app.get('/api/health', async (_req, res) => {

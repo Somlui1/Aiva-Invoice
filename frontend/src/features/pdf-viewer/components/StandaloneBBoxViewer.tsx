@@ -263,6 +263,53 @@ export function StandaloneBBoxViewer({
     return map
   }, [items, numPages])
 
+  // v5.13.1: boxes per page (for the page labels and the "pages with boxes" jump list)
+  const boxCountByPage = useMemo(() => {
+    const m = new Map<number, number>()
+    for (const it of items) {
+      if (!(visibleTags.has(it.type) || (!!it.id && focusSet.has(it.id)))) continue
+      const p = it.pageNo || 1
+      m.set(p, (m.get(p) || 0) + 1)
+    }
+    return m
+  }, [items, visibleTags, focusSet])
+
+  // v5.13.1: the viewer is its own scroll container (the app shell sets body{overflow:hidden}, which
+  // cut the page list at one screen). Track the page at the reading line for the bar.
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const [readingPage, setReadingPage] = useState(1)
+  useEffect(() => {
+    const root = scrollRef.current
+    if (!root) return
+    let raf = 0
+    const read = () => {
+      raf = 0
+      const line = root.getBoundingClientRect().top + root.clientHeight / 3
+      let page = 1
+      root.querySelectorAll<HTMLElement>('.standalone-pages .page').forEach(el => {
+        if (el.getBoundingClientRect().top <= line) page = Math.max(page, Number(el.dataset.pageNo) || 1)
+      })
+      setReadingPage(page)
+    }
+    const onScroll = () => {
+      if (!raf) raf = requestAnimationFrame(read)
+    }
+    root.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      root.removeEventListener('scroll', onScroll)
+      if (raf) cancelAnimationFrame(raf)
+    }
+  }, [])
+  /** one string (an <option> takes text only): "หน้า 3 / 5 · 2 กรอบ" */
+  const pageLabel = (p: number) => {
+    const n = boxCountByPage.get(p)
+    return n ? `หน้า ${p} / ${numPages} · ${n} กรอบ` : `หน้า ${p} / ${numPages}`
+  }
+  const jumpToPage = (page: number) => {
+    const el = scrollRef.current?.querySelector(`.standalone-pages .page[data-page-no="${page}"]`) as HTMLElement | null
+    el?.scrollIntoView({ block: 'start' })
+  }
+
   // Scroll once to the focused box, after the pages have their real size.
   const scrolledFor = useRef<string | null>(null)
   useEffect(() => {
@@ -282,7 +329,7 @@ export function StandaloneBBoxViewer({
   const shownCount = items.filter(it => visibleTags.has(it.type) || (!!it.id && focusSet.has(it.id))).length
 
   return (
-    <div className={`standalone-viewer ${!showLabels ? 'hide-labels' : ''}`} aria-busy={busy}>
+    <div ref={scrollRef} className={`standalone-viewer ${!showLabels ? 'hide-labels' : ''}`} aria-busy={busy}>
       <div id="bar" className="standalone-bar">
         <b>{title || docId}</b>
         {focusNote && (
@@ -332,6 +379,36 @@ export function StandaloneBBoxViewer({
         <span className="bar-count" data-testid="bbox-count">
           แสดง {shownCount}/{items.length} กรอบ
         </span>
+        <span className="bar-pages" role="group" aria-label="ไปที่หน้า">
+          <button
+            type="button"
+            aria-label="หน้าก่อน"
+            disabled={readingPage <= 1}
+            onClick={() => jumpToPage(Math.max(1, readingPage - 1))}
+          >
+            ‹
+          </button>
+          <select
+            aria-label="ไปที่หน้า"
+            value={readingPage}
+            onChange={e => jumpToPage(Number(e.target.value))}
+            data-testid="page-jump"
+          >
+            {Array.from({ length: numPages }, (_, i) => i + 1).map(p => (
+              <option key={p} value={p}>
+                {pageLabel(p)}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            aria-label="หน้าถัดไป"
+            disabled={readingPage >= numPages}
+            onClick={() => jumpToPage(Math.min(numPages, readingPage + 1))}
+          >
+            ›
+          </button>
+        </span>
       </div>
 
       {busy && (
@@ -359,6 +436,9 @@ export function StandaloneBBoxViewer({
               data-page-no={pageNo}
               style={{ width: `${dim.width}px`, height: `${dim.height}px` }}
             >
+              <span className="page-tag" aria-hidden="true">
+                {pageLabel(pageNo)}
+              </span>
               <canvas
                 ref={el => {
                   if (el) canvasRefs.current.set(pageNo, el)

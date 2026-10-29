@@ -103,6 +103,11 @@ export interface UsePdfViewerResult {
    * viewer's rotate button — the same frame as the Engine's `page.rect`. `null` until painted.
    */
   pageFramePt: { page: number; widthPt: number; heightPt: number } | null
+  /**
+   * v5.13.1: the parsed document, for the continuous (all pages) view. `null` until ready.
+   * When the dock shows the page stack, the single `canvasRef` is not mounted and step 2 stays idle.
+   */
+  pdfDoc: PDFDocumentProxy | null
 }
 
 export function generateRefCode(id: string | null): string {
@@ -134,6 +139,7 @@ export function usePdfViewer({
   /** True while PDF.js paints the visible page (first paint, page turn, zoom, rotate). */
   const [rendering, setRendering] = useState(false)
   const [pageFramePt, setPageFramePt] = useState<UsePdfViewerResult['pageFramePt']>(null)
+  const [pdfDoc, setPdfDoc] = useState<PDFDocumentProxy | null>(null)
 
   const reload = useCallback(() => setAttempt(n => n + 1), [])
 
@@ -169,6 +175,7 @@ export function usePdfViewer({
     })
     setPageSize(EMPTY_PAGE)
     setPageFramePt(null)
+    setPdfDoc(null)
   }, [])
 
   // --- 1. fetch + parse -----------------------------------------------------
@@ -178,6 +185,7 @@ export function usePdfViewer({
     let task: PDFDocumentLoadingTask | null = null
 
     pdfRef.current = null
+    setPdfDoc(null)
     setPageSize(EMPTY_PAGE)
     setPageFramePt(null)
     setRendering(false)
@@ -216,6 +224,7 @@ export function usePdfViewer({
           return
         }
         pdfRef.current = opened
+        setPdfDoc(opened)
         setStatus({
           state: 'ready',
           mode: 'pdf',
@@ -322,5 +331,5 @@ export function usePdfViewer({
       renderRef.current = null
     }
   }, [status.state, status.source, page, rotation, zoom, containerWidth, devicePixelRatio, fallBack])
-  return { status, canvasRef, pageSize, reload, rendering, pageFramePt }
+  return { status, canvasRef, pageSize, reload, rendering, pageFramePt, pdfDoc }
 }

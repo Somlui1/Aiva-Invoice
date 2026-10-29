@@ -17,7 +17,13 @@
  *
  * `role` is optional: the server passes the session role and gets the role checks; the UI leaves it
  * out because it gates by permission (`ctx.can`) instead.
+ *
+ * v5.13: role checks come from the permission table (ROLES in src/mock/users.ts) — the same table the
+ * Matrix page shows — instead of hard-coded role names. Before, SA held UNCONFIRM / MANUAL_REVIEW in
+ * the matrix but the server refused it, and ADM (no such permission) was accepted.
  */
+import { ROLES } from '../mock/users'
+import type { Permission, RoleKey } from '../types/auth'
 
 export type WorkflowAction = 'confirm' | 'review' | 'hold' | 'reject' | 'unconfirm' | 'returnf'
 
@@ -46,23 +52,38 @@ export type TransitionResult =
 const no = (why: string, http: 403 | 422 | 423 = 422): TransitionResult => ({ ok: false, why, http })
 const to = (status: string, reasonRequired = true): TransitionResult => ({ ok: true, to: status, reasonRequired })
 
-const isSupervisor = (role?: string) => role === undefined || role === 'APR' || role === 'ADM'
+/** Permission each workflow action needs (Manual Review decisions need MANUAL_REVIEW on top). */
+export const ACTION_PERMISSION: Readonly<Record<WorkflowAction, Permission>> = Object.freeze({
+  confirm: 'CONFIRM',
+  review: 'REVIEW',
+  hold: 'HOLD',
+  reject: 'REJECT',
+  unconfirm: 'UNCONFIRM',
+  returnf: 'RETURN_FAILED',
+})
+
+/** undefined role = the UI asking (it checks permissions itself) → no role check here. */
+export function roleCan(role: string | undefined, perm: Permission): boolean {
+  if (role === undefined) return true
+  return (ROLES[role as RoleKey]?.p ?? []).includes(perm)
+}
 
 export function transitionFor(input: TransitionInput, action: WorkflowAction): TransitionResult {
   const { status, identityStatus, hasReceipt, role } = input
 
   if (role === 'EU') return no('End User อัปโหลดเอกสารใหม่ได้อย่างเดียว', 403)
+  if (!roleCan(role, ACTION_PERMISSION[action])) return no(`บทบาทนี้ไม่มีสิทธิ์ (${ACTION_PERMISSION[action]})`, 403)
   if (CLOSED_STATUSES.includes(status)) return no('เอกสารปิดหรืออยู่ระหว่าง Import', 423)
 
   // UNRESOLVED: OCR could not read the lookup keys. Reject (APR) here; the other way out is "ผูกใบรับ".
   if (identityStatus === 'UNRESOLVED' && !RECEIVE_HOLDER_STATUSES.includes(status)) {
-    if (role !== undefined && role !== 'APR') return no('เอกสาร UNRESOLVED: เฉพาะหัวหน้าฝ่ายบัญชี (APR) ตัดสินได้', 403)
+    if (!roleCan(role, 'MANUAL_REVIEW')) return no('เอกสาร UNRESOLVED: เฉพาะหัวหน้าฝ่ายบัญชี (APR) ตัดสินได้', 403)
     return action === 'reject' ? to('Rejected') : no('UNRESOLVED: Reject หรือ "ผูกใบรับ" เท่านั้น')
   }
 
   if (action === 'unconfirm') {
-    if (status !== 'Confirmed') return no('ใช้กับ Confirmed เท่านั้น')
-    if (!isSupervisor(role)) return no('การดำเนินการนี้สงวนไว้สำหรับหัวหน้าฝ่ายบัญชี (APR) เท่านั้น', 403)
+    // v5.13: ACC + APR (UNCONFIRM) · only before the batch is sent (Sent = already at Oracle)
+    if (status !== 'Confirmed') return no('ยกเลิก Confirm ได้เฉพาะเอกสารที่ยังรอส่ง (Confirmed)')
     return to('Review')
   }
   if (action === 'returnf') return status === 'Import Failed' ? to('Review') : no('ใช้กับ Import Failed เท่านั้น')
@@ -74,7 +95,7 @@ export function transitionFor(input: TransitionInput, action: WorkflowAction): T
 
   if (status === 'Manual Review') {
     if (action !== 'confirm' && action !== 'reject') return no('Manual Review: Confirm / Reject เท่านั้น')
-    if (!isSupervisor(role)) return no('ตัดสิน Manual Review ได้เฉพาะหัวหน้าฝ่ายบัญชี (APR)', 403)
+    if (!roleCan(role, 'MANUAL_REVIEW')) return no('ตัดสิน Manual Review ได้เฉพาะหัวหน้าฝ่ายบัญชี (APR)', 403)
     if (action === 'reject') return to('Rejected')
     if (!hasReceipt) return no('ยังไม่พบใบรับ')
     return to('Confirmed')

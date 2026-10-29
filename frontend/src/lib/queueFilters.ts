@@ -21,7 +21,7 @@ import type { ActionType } from '../mock/rules'
 import type { InvoiceDoc, InvoiceStatus } from '../types/invoice'
 import { smartMatch } from './smartSearch'
 import { closedDateOf } from './closedDocs'
-import { transitionFor, type WorkflowAction } from './docTransitions'
+import { roleCan, transitionFor, type WorkflowAction } from './docTransitions'
 
 /** The mockup's frozen "today"; the whole demo runs on one fixed clock. */
 export const TODAY = '2026-10-07'
@@ -387,7 +387,8 @@ export function allowedActionFor(
   }
 
   if (act === 'upload') return no('อัปโหลดเอกสารใหม่ทำโดย End User')
-  if (d.identityStatus === 'UNRESOLVED' && ctx.role !== 'APR' && !['Sent', 'Posted', 'Rejected', 'Superseded'].includes(st)) {
+  // v5.13: from the permission table (APR + SA), not the role name
+  if (d.identityStatus === 'UNRESOLVED' && !roleCan(ctx.role, 'MANUAL_REVIEW') && !['Sent', 'Posted', 'Rejected', 'Superseded'].includes(st)) {
     return no('เอกสาร UNRESOLVED: เฉพาะหัวหน้าฝ่ายบัญชี (APR) ตัดสินได้')
   }
   const t = transitionFor({ status: st, identityStatus: d.identityStatus ?? null, hasReceipt: hasReceipt(d) }, act)

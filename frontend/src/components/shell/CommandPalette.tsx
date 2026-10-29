@@ -32,6 +32,7 @@ import { useToastModal } from '../../context/ToastModalContext'
 import { CLOSED_STATUSES, filterDocsFor } from '../../lib/queueFilters'
 import { appIn, logoutOut, welcome } from '../../lib/fx'
 import { getTheme, setTheme } from '../../lib/theme'
+import { getLang, setLang, useT, type I18nKey } from '../../lib/i18n'
 import { useNavSections, type PageKey } from '../layout/Sidebar'
 import type { InvoiceDoc } from '../../types/invoice'
 import '../../styles/aiva/command-palette.css'
@@ -60,13 +61,14 @@ interface Item {
   run: () => void
 }
 
-const TABS: [Tab, string, IconName][] = [
-  ['all', 'ทั้งหมด', 'sparkle'],
-  ['page', 'หน้า', 'layers'],
-  ['doc', 'เอกสาร', 'file'],
-  ['sys', 'ระบบ', 'sliders'],
+// v5.13: labels are i18n keys (ไทย / English, ตั้งค่า › ตั้งค่าทั่วไป)
+const TABS: [Tab, I18nKey, IconName][] = [
+  ['all', 'cp.tab.all', 'sparkle'],
+  ['page', 'cp.tab.page', 'layers'],
+  ['doc', 'cp.tab.doc', 'file'],
+  ['sys', 'cp.tab.sys', 'sliders'],
 ]
-const GROUP: Record<Kind, string> = { page: 'หน้า', doc: 'เอกสาร', sys: 'ระบบ' }
+const GROUP: Record<Kind, I18nKey> = { page: 'cp.tab.page', doc: 'cp.tab.doc', sys: 'cp.tab.sys' }
 const TONE: Record<Tone, [string, string]> = {
   info: ['var(--t-blue)', 'var(--t-blue-bg)'],
   ok: ['var(--t-ok)', 'var(--t-ok-bg)'],
@@ -93,6 +95,7 @@ export function CommandPalette({ onNavigate, onToggleNav }: Props) {
   const inv = useInvoices()
   const { toast } = useToastModal()
   const sections = useNavSections()
+  const t = useT()
 
   const [open, setOpen] = useState(false)
   const [tab, setTab] = useState<Tab>('all')
@@ -171,7 +174,7 @@ export function CommandPalette({ onNavigate, onToggleNav }: Props) {
         L.push({
           k: 'page',
           t: it.label,
-          d: `ไปที่หน้า · ${sec.title}`,
+          d: t('cp.goto', { sec: sec.title }),
           tag: it.count ? String(it.count) : it.tag,
           tone: 'info',
           icon: it.icon,
@@ -203,6 +206,17 @@ export function CommandPalette({ onNavigate, onToggleNav }: Props) {
       icon: light ? 'moon' : 'sun',
       kw: 'theme dark light ธีม โหมด มืด สว่าง',
       run: () => setTheme(light ? 'dark' : 'light', document.querySelector('.topbar .theme-sw')),
+    })
+    const th = getLang() === 'th'
+    L.push({
+      k: 'sys',
+      t: t('cp.lang'),
+      d: t('cp.lang.d'),
+      tag: th ? 'EN' : 'TH',
+      tone: 'info',
+      icon: 'globe',
+      kw: 'language lang ภาษา english thai ไทย อังกฤษ',
+      run: () => setLang(th ? 'en' : 'th'),
     })
     L.push({
       k: 'sys',
@@ -263,7 +277,7 @@ export function CommandPalette({ onNavigate, onToggleNav }: Props) {
       run: () => logoutOut(logout),
     })
     return L
-  }, [open, sections, inv.visibleDocs, currentUser, currentRole, onNavigate, onToggleNav, openDoc, logout, realUser.role, isPreview, stopViewAs])
+  }, [open, sections, inv.visibleDocs, currentUser, currentRole, onNavigate, onToggleNav, openDoc, logout, realUser.role, isPreview, stopViewAs, t])
 
   const counts = useMemo(() => {
     const c: Record<Tab, number> = { all: all.length, page: 0, doc: 0, sys: 0 }
@@ -366,7 +380,7 @@ export function CommandPalette({ onNavigate, onToggleNav }: Props) {
         if (e.target === e.currentTarget) close()
       }}
     >
-      <div className="cp" id="cmdkBox" role="dialog" aria-modal="true" aria-label="ค้นหา / คำสั่ง" onKeyDown={onKeyDown}>
+      <div className="cp" id="cmdkBox" role="dialog" aria-modal="true" aria-label={t('cp.aria')} onKeyDown={onKeyDown}>
         <div className="cp-in">
           <Icon name="search" />
           <input
@@ -375,8 +389,8 @@ export function CommandPalette({ onNavigate, onToggleNav }: Props) {
             type="text"
             autoComplete="off"
             spellCheck={false}
-            placeholder="พิมพ์เลขที่ใบแจ้งหนี้ ผู้ขาย PO หรือคำสั่ง…"
-            aria-label="ค้นหา"
+            placeholder={t('cp.placeholder')}
+            aria-label={t('cp.search')}
             value={q}
             onChange={e => {
               setQ(e.target.value)
@@ -401,7 +415,7 @@ export function CommandPalette({ onNavigate, onToggleNav }: Props) {
               }}
             >
               <Icon name={icon} />
-              {label} <span className="n">{counts[k] || 0}</span>
+              {t(label)} <span className="n">{counts[k] || 0}</span>
             </button>
           ))}
         </div>
@@ -410,7 +424,7 @@ export function CommandPalette({ onNavigate, onToggleNav }: Props) {
           {items.length === 0 ? (
             <div className="cp-empty">
               <Icon name="search" />
-              ไม่พบรายการที่ตรงกับ “{q}”
+              {t('cp.empty', { q })}
             </div>
           ) : (
             items.map((it, i) => {
@@ -419,7 +433,7 @@ export function CommandPalette({ onNavigate, onToggleNav }: Props) {
               last = it.k
               return (
                 <Fragment key={`${it.k}-${it.t}-${i}`}>
-                  {showHead ? <div className="cp-grp">{!q && it.k === 'doc' ? 'เอกสารล่าสุดในคิว' : GROUP[it.k]}</div> : null}
+                  {showHead ? <div className="cp-grp">{!q && it.k === 'doc' ? t('cp.recentDocs') : t(GROUP[it.k])}</div> : null}
                   <button
                     type="button"
                     role="option"
@@ -456,16 +470,16 @@ export function CommandPalette({ onNavigate, onToggleNav }: Props) {
         <div className="cp-ft">
           <span>
             <kbd className="cp-k">↑</kbd>
-            <kbd className="cp-k">↓</kbd>เลือก
+            <kbd className="cp-k">↓</kbd>{t('cp.ft.pick')}
           </span>
           <span>
-            <kbd className="cp-k">↵</kbd>เปิด
+            <kbd className="cp-k">↵</kbd>{t('cp.ft.open')}
           </span>
           <span>
-            <kbd className="cp-k">Tab</kbd>สลับหมวด
+            <kbd className="cp-k">Tab</kbd>{t('cp.ft.tab')}
           </span>
           <span>
-            <kbd className="cp-k">Esc</kbd>ปิด
+            <kbd className="cp-k">Esc</kbd>{t('cp.ft.close')}
           </span>
           <span className="br hide-sm">AIVA · Auto Invoice Matching</span>
         </div>

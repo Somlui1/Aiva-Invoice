@@ -25,3 +25,11 @@ prisma/*.db
 prisma/*.db-journal
 prisma/backups
 temp/*/.cache
+
+# v5.13
+.patch-backup
+.deploy
+docs/change/inbox
+docs/change/applied
+.agent
+ci

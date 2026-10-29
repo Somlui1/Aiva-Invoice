@@ -516,3 +516,94 @@ table.t td.fit-td {
 :where(:root[data-theme='dark']) .drt-chip {
   background: #232323;
 }
+
+/* =====================================================================
+   v5.13.2 · กล่องค้นหาคิว — แก้ "กรอบซ้อน" + ปุ่มตัวอย่างหาย
+   สาเหตุ: กฎเก่า `.q47 .srch input` (queue.css: width:100%, padding 32px, border) และ theme.css
+   (`.q47 .srch input:focus` + `:focus-visible{box-shadow…!important}`) ยังโดน <input> ข้างใน .ssb
+   → input เป็นกล่องที่ 2 ซ้อนในกล่องนอก และ width:100% ดันปุ่มด้านขวาออกนอกกรอบ (มองไม่เห็น)
+   แก้: input ภายใน .ssb เป็นข้อความเปล่า (ไม่มีกรอบ/เงา/วงแหวน) — กรอบและโฟกัสมีที่กล่องนอกที่เดียว
+   ===================================================================== */
+.ssb .ssb-box input,
+.ssb .ssb-box input:hover,
+.ssb .ssb-box input:focus,
+.ssb .ssb-box input:focus-visible,
+.q47 .srch .ssb .ssb-box input,
+.q47 .srch .ssb .ssb-box input:focus,
+.tsrch .ssb .ssb-box input,
+.tsrch .ssb .ssb-box input:focus {
+  width: auto !important;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  padding: 0 6px 0 8px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+.ssb .ssb-box {
+  height: 34px;
+  padding-right: 3px;
+  gap: 2px;
+}
+.ssb .ssb-box:hover {
+  border-color: var(--inp-hov, var(--s-400, #94a3b8));
+}
+.ssb .ssb-box:focus-within .ssb-ico {
+  color: var(--teal-d, #0f8f8a);
+}
+/* "ตัวอย่าง" — ปุ่มคำแนะนำที่เห็นชัด (ไอคอน + คำ) แทนไอคอน ? เล็ก ๆ */
+.ssb-tips {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  height: 26px;
+  padding: 0 9px 0 7px;
+  border: 1px solid color-mix(in srgb, var(--teal, #00b5af) 35%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--teal, #00b5af) 10%, transparent);
+  color: var(--teal-d, #0f8f8a);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.1s, border-color 0.1s;
+}
+/* v5.13.3: the button's icon also has class .ico → the old `.q47 .srch .ico` / `.tsrch .ico` rules
+   (position:absolute; left/top) pulled the ✦ out of the button to the bottom-left of the box. */
+.ssb .ssb-tips .ico,
+.q47 .srch .ssb .ssb-tips .ico,
+.tsrch .ssb .ssb-tips .ico,
+.ssb .ssb-btn .ico,
+.q47 .srch .ssb .ssb-btn .ico,
+.tsrch .ssb .ssb-btn .ico {
+  position: static;
+  left: auto;
+  top: auto;
+  transform: none;
+  flex: none;
+  color: currentColor;
+}
+.ssb-tips:hover,
+.ssb-tips.on {
+  background: color-mix(in srgb, var(--teal, #00b5af) 18%, transparent);
+  border-color: var(--teal-d, #0f8f8a);
+}
+.ssb-tips:focus-visible {
+  outline: 2px solid var(--teal-d, #0f8f8a) !important;
+  outline-offset: 1px;
+  box-shadow: none !important;
+}
+/* แคบมาก: เหลือแต่ไอคอน */
+@container (max-width: 260px) {
+  .ssb-tips span {
+    display: none;
+  }
+}
+.ssb {
+  container-type: inline-size;
+}

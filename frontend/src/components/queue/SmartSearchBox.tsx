@@ -35,7 +35,7 @@ export function SmartSearchBox({
   resultCount,
   value,
   onChange: onQueryChange,
-  placeholder = 'ค้นหาทุกอย่าง: เลขที่ · ผู้ขาย · สถานะ · E11 · วันที่ · ยอดเงิน',
+  placeholder = 'ค้นหาเลขที่ ผู้ขาย PO สถานะ…',
 }: {
   id: string
   variant?: 'list' | 'table'
@@ -128,13 +128,14 @@ export function SmartSearchBox({
         <button
           ref={helpRef}
           type="button"
-          className={`ssb-btn ssb-help${help ? ' on' : ''}`}
+          className={`ssb-tips${help ? ' on' : ''}`}
           aria-label="วิธีค้นหา"
           aria-expanded={help}
-          title="วิธีค้นหา"
+          title="ตัวอย่างการค้นหา (เลขที่ · ผู้ขาย · สถานะ · E11 · วันที่ · ยอดเงิน)"
           onClick={() => setHelp(v => !v)}
         >
-          <Icon name="help" size="sm" />
+          <Icon name="sparkle" size="sm" />
+          <span>ตัวอย่าง</span>
         </button>
       </div>
 

@@ -5,6 +5,8 @@ import { Icon } from '../common/Icon'
 import { useAuth } from '../../context/AuthContext'
 import { useInvoices, inPerDoc } from '../../context/InvoiceContext'
 import { USERS } from '../../mock/users'
+import { ActionModalDialog } from '../queue/ActionModals'
+import type { InvoiceDoc } from '../../types/invoice'
 
 interface BatchItem {
   id: string
@@ -19,9 +21,10 @@ const INITIAL_BATCHES: BatchItem[] = [
 ]
 
 export function ApPage({ initialTab = 'pending' }: { initialTab?: 'pending' | 'sent' | 'done' | 'failed' } = {}) {
-  const { currentUser, can } = useAuth()
+  const { can } = useAuth()
   const {
-    docs,
+    visibleDocs,
+    allowedAction,
     periodFilter,
     selectDoc,
     setViewMode,
@@ -34,6 +37,10 @@ export function ApPage({ initialTab = 'pending' }: { initialTab?: 'pending' | 's
   const [batches, setBatches] = useState<BatchItem[]>(INITIAL_BATCHES)
   const [coFilter] = useState<string>('')
   const [byFilter] = useState<string>('')
+  // v5.13: hooks above the early return (before, `sending` was declared after it → hook order changed
+  // when VIEW_AP flipped, e.g. entering / leaving "view as")
+  const [sending, setSending] = useState(false)
+  const [unconfirmDoc, setUnconfirmDoc] = useState<InvoiceDoc | null>(null)
 
   useEffect(() => {
     let active = true
@@ -87,18 +94,17 @@ export function ApPage({ initialTab = 'pending' }: { initialTab?: 'pending' | 's
   }
 
   const currentStatus = statusMap[apTab]
-  const rows = docs
-    .filter(
-      d =>
-        d.status === currentStatus &&
-        ['ACC', 'APR'].includes(currentUser.role) &&
-        currentUser.co.includes(d.company)
-    )
+  // v5.13: the same scope as the queue (docScope) — before, a hard-coded ACC/APR + company filter
+  // showed SA an empty AP page although SA holds VIEW_AP / POST.
+  const rows = visibleDocs
+    .filter(d => d.status === currentStatus)
     .filter(d => (!coFilter || d.company === coFilter) && (!byFilter || d.confirmedBy === byFilter))
     .filter(d => inPerDoc(d, periodFilter))
 
   const selRows = rows.filter(d => apSel.has(d.doc))
   const canSend = can('POST')
+  const canUnconfirm = can('UNCONFIRM')
+  const showActions = apTab === 'pending' && canUnconfirm
 
   const toggleSelect = (docId: string, checked: boolean) => {
     setApSel(prev => {
@@ -122,7 +128,6 @@ export function ApPage({ initialTab = 'pending' }: { initialTab?: 'pending' | 's
     setViewMode('split')
   }
 
-  const [sending, setSending] = useState(false)
   const handleSendBatch = async () => {
     if (!canSend || sending) return
     const ids = Array.from(apSel)
@@ -155,7 +160,11 @@ export function ApPage({ initialTab = 'pending' }: { initialTab?: 'pending' | 's
           style={canSend ? { background: 'var(--ok-bg)', color: 'var(--ok)', borderColor: 'var(--ok-bd)' } : {}}
         >
           <Icon name={canSend ? 'send' : 'lock'} size="sm" />
-          {canSend ? 'ส่งได้ (วงเงิน ≤ 1,000,000)' : 'ดูอย่างเดียว · ส่งได้เฉพาะหัวหน้าฝ่ายบัญชี'}
+          {canSend
+            ? 'ส่งได้ (วงเงิน ≤ 1,000,000)'
+            : canUnconfirm
+              ? 'ยกเลิก Confirm ได้ · ส่ง Batch ได้เฉพาะหัวหน้าฝ่ายบัญชี'
+              : 'ดูอย่างเดียว · ส่งได้เฉพาะหัวหน้าฝ่ายบัญชี'}
         </span>
       </div>
 
@@ -163,12 +172,7 @@ export function ApPage({ initialTab = 'pending' }: { initialTab?: 'pending' | 's
         {/* KPI Tab Cards */}
         <div className="kpis">
           {tabDefs.map(t => {
-            const count = docs.filter(
-              d =>
-                d.status === t.status &&
-                ['ACC', 'APR'].includes(currentUser.role) &&
-                currentUser.co.includes(d.company)
-            ).length
+            const count = visibleDocs.filter(d => d.status === t.status).length
             return (
               <button
                 key={t.k}
@@ -246,6 +250,7 @@ export function ApPage({ initialTab = 'pending' }: { initialTab?: 'pending' | 's
                   {apTab === 'sent' && <th>Batch</th>}
                   {apTab === 'done' && <th>Oracle Invoice ID</th>}
                   {apTab === 'failed' && <th>ข้อความจาก Oracle</th>}
+                  {showActions && <th className="ap-act-h">จัดการ</th>}
                 </tr>
               </thead>
               <tbody>
@@ -306,12 +311,39 @@ export function ApPage({ initialTab = 'pending' }: { initialTab?: 'pending' | 's
                             {d.apErr || 'SQL Integrity Violation'}
                           </td>
                         )}
+                        {showActions && (() => {
+                          // v5.13: per row (no bulk) — one document, one reason, one request
+                          const chk = allowedAction(d, 'unconfirm')
+                          const off = !chk.ok || sending || apSel.has(d.doc)
+                          const why = apSel.has(d.doc)
+                            ? 'เอาเครื่องหมายเลือกออกก่อน (อยู่ในรายการที่จะส่ง Batch)'
+                            : sending
+                              ? 'กำลังส่ง Batch'
+                              : chk.ok
+                                ? 'ยกเลิก Confirm · เอกสารกลับไปคิวตรวจสอบ (Review)'
+                                : chk.why
+                          return (
+                            <td className="ap-act">
+                              <button
+                                type="button"
+                                className="btn btn-danger sm ap-unconfirm"
+                                disabled={off}
+                                title={why}
+                                aria-label={`ยกเลิก Confirm ${d.inv}`}
+                                onClick={() => setUnconfirmDoc(d)}
+                              >
+                                <Icon name="undo" size="sm" />
+                                ยกเลิก Confirm
+                              </button>
+                            </td>
+                          )
+                        })()}
                       </tr>
                     )
                   })
                 ) : (
                   <tr>
-                    <td colSpan={14}>
+                    <td colSpan={15}>
                       <div className="empty">
                         <Icon name="inbox" />
                         ไม่มีเอกสารในสถานะและช่วงเวลานี้
@@ -358,6 +390,14 @@ export function ApPage({ initialTab = 'pending' }: { initialTab?: 'pending' | 's
           </div>
         </div>
       </div>
+      {unconfirmDoc && (
+        <ActionModalDialog
+          key={unconfirmDoc.doc}
+          doc={unconfirmDoc}
+          action="unconfirm"
+          onClose={() => setUnconfirmDoc(null)}
+        />
+      )}
     </div>
   )
 }

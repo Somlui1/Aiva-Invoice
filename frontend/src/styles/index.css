@@ -25,3 +25,5 @@
 @import './aiva/v510.css';
 /* v5.11: receipt bind drawer */
 @import './aiva/v511.css';
+/* v5.13: ตั้งค่าทั่วไป (ภาษา / ธีม) */
+@import './aiva/v513.css';
