@@ -5,6 +5,7 @@ import { StatusBadge } from '../common/StatusBadge'
 import { TODAY } from '../../context/InvoiceContext'
 import { useSettings } from '../../context/SettingsContext'
 import { SEVERITY_OF_CODE } from '../../mock/rules'
+import { useLive } from '../../context/LiveContext'
 
 interface QueueListItemProps {
   doc: InvoiceDoc
@@ -14,6 +15,7 @@ interface QueueListItemProps {
 
 export function QueueListItem({ doc, isSelected, onClick }: QueueListItemProps) {
   const { orgSettings } = useSettings()
+  const { freshIds } = useLive()
 
   const calcAge = (upDate: string): number => {
     return Math.max(
@@ -35,7 +37,7 @@ export function QueueListItem({ doc, isSelected, onClick }: QueueListItemProps) 
   return (
     <button
       type="button"
-      className={`qi ${isSelected ? 'on' : ''}`}
+      className={`qi ${isSelected ? 'on' : ''}${freshIds.has(doc.doc) ? ' is-fresh' : ''}`}
       role="option"
       aria-selected={isSelected}
       data-doc={doc.doc}

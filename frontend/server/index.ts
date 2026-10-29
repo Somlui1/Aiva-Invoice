@@ -1,3 +1,9 @@
+if (typeof process.loadEnvFile === 'function') {
+  try {
+    process.loadEnvFile()
+  } catch {}
+}
+
 import { createExpressApp } from './app'
 import { ensureProductionSampleData } from '../src/lib/autoSeedSample'
 import { printServiceHealthReport } from '../src/lib/serviceHealth'

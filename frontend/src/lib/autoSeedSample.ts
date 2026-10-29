@@ -12,7 +12,7 @@ import { sampleSeedEnabled } from '@/server/auth/config'
  * Turn it off in development with AIVA_SEED_SAMPLE=false. (Name kept for existing imports.)
  */
 export async function ensureProductionSampleData(): Promise<void> {
-  if (!sampleSeedEnabled()) return
+  if (process.env.AIVA_SEED_SAMPLE === 'false' || !sampleSeedEnabled()) return
   try {
     // 1. Do not auto-seed fake users; authentic users are provisioned via AD or RBAC admin
 

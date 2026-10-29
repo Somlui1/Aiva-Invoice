@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { RoleKey } from '@/types/auth'
 import { ROLES } from '@/mock/users'
 import { COMPANIES } from '@/mock/companies'
+import '@/styles/aiva/aum.css'
 
 interface DirectoryEmployee {
   samAccount: string
@@ -42,6 +43,7 @@ export function AdUserSearchModal({ isOpen, onClose, onAddUser }: Props) {
   const [receiverInput, setReceiverInput] = useState('')
   const [receivers, setReceivers] = useState<string[]>([])
   const [isSearching, setIsSearching] = useState(false)
+  const [activeIdx, setActiveIdx] = useState(0)
 
   useEffect(() => {
     if (!isOpen) {
@@ -126,275 +128,219 @@ export function AdUserSearchModal({ isOpen, onClose, onAddUser }: Props) {
     onClose()
   }
 
-  // v5.3.1: portal ไป document.body กัน overlay ถูกกักใน parent ที่มี transform/backdrop-filter (เช่นระหว่างแอนิเมชันเข้าแอป)
+  const ROLE_HINT: Record<RoleKey, string> = {
+    EU: 'เห็นเฉพาะเอกสารที่ตนเป็น Receiver',
+    ACC: 'ตรวจสอบและยืนยันเอกสารตามบริษัท',
+    APR: 'อนุมัติ ส่งเข้า AP Interface',
+    ADM: 'ผู้ดูแลระบบ จัดการสิทธิ์',
+    SA: 'ผู้ดูแลระบบระดับสูง สิทธิ์เต็มทุกระบบ',
+  }
+
+  const onSearchKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!searchResults.length) return
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setActiveIdx(i => Math.min(searchResults.length - 1, i + 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setActiveIdx(i => Math.max(0, i - 1))
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      const emp = searchResults[Math.max(0, activeIdx)]
+      if (emp) handleSelectEmp(emp)
+    }
+  }
+
+  // v5.3.1: portal ไป document.body กัน overlay ถูกกักใน parent ที่มี transform/backdrop-filter
+  // v5.12: every colour from the theme tokens (aum.css) — the inline #fff / #F8FAFC made the dark
+  // theme show blank white boxes with unreadable text.
   return createPortal(
-    <div className="modal-ov" role="dialog" aria-modal="true">
-      <div className="modal-box">
-        <div className="modal-h">
+    <div className="aum-ov" role="presentation" onMouseDown={e => e.target === e.currentTarget && onClose()}>
+      <div className="aum" role="dialog" aria-modal="true" aria-labelledby="aum-title" onKeyDown={e => e.key === 'Escape' && onClose()}>
+        <header className="aum-h">
           <div>
-            <h3 style={{ fontSize: 15, fontWeight: 700 }}>เพิ่มผู้ใช้จาก AD (LDAP)</h3>
-            <p style={{ fontSize: 12, color: '#64748B' }}>
-              ค้นหาจากบัญชีองค์กร และเชื่อมโยงสิทธิ์ด้วยอีเมล
-            </p>
+            <h3 id="aum-title">เพิ่มผู้ใช้จาก AD (LDAP)</h3>
+            <p>ค้นหาจากบัญชีองค์กร แล้วกำหนดบทบาทและขอบเขต</p>
           </div>
-          <button
-            onClick={onClose}
-            style={{ border: 0, background: 'none', cursor: 'pointer', fontSize: 18 }}
-          >
+          <button type="button" className="aum-x" onClick={onClose} aria-label="ปิด">
             ✕
           </button>
-        </div>
+        </header>
 
-        <div className="modal-b">
+        <div className="aum-b">
           {!selectedEmp ? (
             <div>
-              <label style={{ display: 'block', fontWeight: 600, fontSize: 12.5, marginBottom: 6 }}>
-                ค้นหาผู้ใช้จาก Active Directory (LDAP)
+              <label className="aum-lab" htmlFor="aum-q">
+                ค้นหาผู้ใช้จาก Active Directory
               </label>
               <input
+                id="aum-q"
                 type="text"
-                className="perm-rin"
-                style={{
-                  border: '1px solid #B8C0CC',
-                  height: 36,
-                  padding: '0 10px',
-                  borderRadius: 6,
-                }}
+                className="aum-in"
                 placeholder="พิมพ์ชื่อ, username หรือรหัสพนักงาน…"
                 value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
+                onChange={e => {
+                  setSearchQuery(e.target.value)
+                  setActiveIdx(0)
+                }}
+                onKeyDown={onSearchKey}
+                role="combobox"
+                aria-expanded={searchResults.length > 0}
+                aria-controls="aum-results"
+                aria-activedescendant={searchResults[activeIdx] ? `aum-r-${activeIdx}` : undefined}
+                autoComplete="off"
                 autoFocus
               />
-
-              {isSearching && (
-                <div style={{ padding: 12, fontSize: 12, color: '#64748B' }}>กำลังค้นหา…</div>
-              )}
+              <div className="aum-hint" aria-live="polite">
+                {isSearching
+                  ? 'กำลังค้นหา…'
+                  : searchQuery.trim() && !searchResults.length
+                    ? 'ไม่พบผู้ใช้'
+                    : searchResults.length
+                      ? `พบ ${searchResults.length} คน · ↑ ↓ เลือก · Enter ยืนยัน`
+                      : 'อย่างน้อย 1 ตัวอักษร'}
+              </div>
 
               {searchResults.length > 0 && (
-                <div
-                  style={{
-                    marginTop: 8,
-                    border: '1px solid #CBD5E1',
-                    borderRadius: 6,
-                    maxHeight: 220,
-                    overflow: 'auto',
-                  }}
-                >
-                  {searchResults.map(emp => (
-                    <div
-                      key={emp.samAccount}
-                      onClick={() => handleSelectEmp(emp)}
-                      style={{
-                        padding: '8px 12px',
-                        borderBottom: '1px solid #F1F5F9',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                      }}
-                      onMouseEnter={e => (e.currentTarget.style.background = '#F8FAFC')}
-                      onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
-                    >
-                      <div>
-                        <b>{emp.name}</b> <span style={{ color: '#64748B' }}>({emp.samAccount})</span>
-                        <div style={{ fontSize: 11, color: '#64748B' }}>
-                          {emp.email} · {emp.unit} · {emp.title}
-                        </div>
-                      </div>
-                      <span style={{ fontSize: 11, background: '#E2E8F0', padding: '2px 6px', borderRadius: 4 }}>
-                        รหัส {emp.empId}
-                      </span>
-                    </div>
+                <ul className="aum-list" id="aum-results" role="listbox" aria-label="ผลการค้นหา">
+                  {searchResults.map((emp, i) => (
+                    <li key={emp.samAccount} role="option" id={`aum-r-${i}`} aria-selected={i === activeIdx}>
+                      <button
+                        type="button"
+                        className={`aum-row${i === activeIdx ? ' on' : ''}`}
+                        onMouseEnter={() => setActiveIdx(i)}
+                        onClick={() => handleSelectEmp(emp)}
+                      >
+                        <span className="aum-av" aria-hidden="true">
+                          {(emp.name || '?').trim().charAt(0).toUpperCase()}
+                        </span>
+                        <span className="aum-who">
+                          <b>{emp.name}</b> <span className="aum-mut">({emp.samAccount})</span>
+                          <span className="aum-sub">
+                            {[emp.email, emp.unit, emp.title].filter(Boolean).join(' · ')}
+                          </span>
+                        </span>
+                        {emp.empId && <span className="aum-tag">รหัส {emp.empId}</span>}
+                        <span className="aum-pick">เลือก</span>
+                      </button>
+                    </li>
                   ))}
-                </div>
+                </ul>
               )}
             </div>
           ) : (
             <div>
-              {/* Selected Employee Card with Auto-mapped fields */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '10px 14px',
-                  background: '#F1FAF4',
-                  border: '1px solid #217346',
-                  borderRadius: 8,
-                  marginBottom: 14,
-                }}
-              >
-                <div>
-                  <b style={{ fontSize: 14 }}>{selectedEmp.name}</b>
-                  <div style={{ fontSize: 12, color: '#475569', marginTop: 2 }}>
-                    <span>{selectedEmp.email}</span> · <span>{selectedEmp.samAccount}</span> · รหัส{' '}
-                    <span>{selectedEmp.empId}</span>
-                  </div>
-                  <div style={{ fontSize: 11, color: '#64748B', marginTop: 1 }}>
-                    {selectedEmp.unit} · {selectedEmp.title}
-                  </div>
+              <div className="aum-sel">
+                <span className="aum-av lg" aria-hidden="true">
+                  {(selectedEmp.name || '?').trim().charAt(0).toUpperCase()}
+                </span>
+                <div className="aum-who">
+                  <b>{selectedEmp.name}</b>
+                  <span className="aum-sub">
+                    {selectedEmp.email} · {selectedEmp.samAccount}
+                    {selectedEmp.empId ? ` · รหัส ${selectedEmp.empId}` : ''}
+                  </span>
+                  <span className="aum-sub">{[selectedEmp.unit, selectedEmp.title].filter(Boolean).join(' · ')}</span>
                 </div>
-                <button
-                  onClick={() => setSelectedEmp(null)}
-                  style={{
-                    background: '#fff',
-                    border: '1px solid #CBD5E1',
-                    borderRadius: 4,
-                    padding: '3px 8px',
-                    fontSize: 11,
-                    cursor: 'pointer',
-                  }}
-                >
-                  เปลี่ยน
+                <button type="button" className="aum-btn sm" onClick={() => setSelectedEmp(null)}>
+                  เปลี่ยนคน
                 </button>
               </div>
 
-              {/* Role Selection */}
-              <label style={{ display: 'block', fontWeight: 700, fontSize: 12.5, marginBottom: 4 }}>
-                เลือกบทบาท (Role)
-              </label>
-              <div className="role-cards">
-                {(['EU', 'ACC', 'APR', 'ADM', 'SA'] as RoleKey[]).map(rk => (
-                  <div
-                    key={rk}
-                    className={`role-card ${role === rk ? 'on' : ''}`}
-                    onClick={() => setRole(rk)}
-                  >
-                    <div>
-                      <b style={{ color: ROLES[rk].c }}>{ROLES[rk].n} ({rk})</b>
-                      <small>
-                        {rk === 'EU' && 'เห็นเฉพาะเอกสารที่ตนเป็น Receiver'}
-                        {rk === 'ACC' && 'ตรวจสอบและยืนยันเอกสารตามบริษัท'}
-                        {rk === 'APR' && 'อนุมัติ ส่งเข้า AP Interface'}
-                        {rk === 'ADM' && 'ผู้ดูแลระบบ จัดการสิทธิ์'}
-                        {rk === 'SA' && 'ผู้ดูแลระบบระดับสูง สิทธิ์เต็มทุกระบบ'}
-                      </small>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Scope Configuration */}
-              <div style={{ marginTop: 16 }}>
-                {role === 'EU' && (
-                  <div>
-                    <label style={{ display: 'block', fontWeight: 700, fontSize: 12.5, marginBottom: 4 }}>
-                      Oracle Receiver Account (ชื่อในใบรับของ)
+              <fieldset className="aum-fs">
+                <legend className="aum-lab">บทบาท (Role)</legend>
+                <div className="aum-roles">
+                  {(['EU', 'ACC', 'APR', 'ADM', 'SA'] as RoleKey[]).map(rk => (
+                    <label key={rk} className={`aum-role${role === rk ? ' on' : ''}`}>
+                      <input type="radio" name="aum-role" value={rk} checked={role === rk} onChange={() => setRole(rk)} />
+                      <span>
+                        <b>
+                          {ROLES[rk].n} ({rk})
+                        </b>
+                        <small>{ROLE_HINT[rk]}</small>
+                      </span>
                     </label>
-                    <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-                      <input
-                        type="text"
-                        className="perm-rin"
-                        style={{ border: '1px solid #B8C0CC', borderRadius: 4, padding: '0 8px' }}
-                        placeholder="เช่น SOMSAK JAIDEE"
-                        value={receiverInput}
-                        onChange={e => setReceiverInput(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddReceiver())}
-                      />
-                      <button
-                        type="button"
-                        onClick={handleAddReceiver}
-                        style={{
-                          padding: '0 10px',
-                          background: '#0D274D',
-                          color: '#fff',
-                          border: 0,
-                          borderRadius: 4,
-                          cursor: 'pointer',
-                          fontSize: 12,
-                        }}
-                      >
-                        เพิ่ม
-                      </button>
-                    </div>
-                    <div className="chip-wrap">
-                      {receivers.map(r => (
-                        <span key={r} className="perm-chip">
-                          {r}
-                          <button onClick={() => handleRemoveReceiver(r)}>✕</button>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                  ))}
+                </div>
+              </fieldset>
 
-                {(role === 'ACC' || role === 'APR') && (
-                  <div>
-                    <label style={{ display: 'block', fontWeight: 700, fontSize: 12.5, marginBottom: 4 }}>
-                      บริษัทที่รับผิดชอบ (Company Scope)
-                    </label>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      {AVAILABLE_COMPANIES.map(co => (
-                        <button
-                          key={co}
-                          type="button"
-                          onClick={() => toggleCompany(co)}
-                          style={{
-                            padding: '4px 10px',
-                            borderRadius: 6,
-                            border: `1px solid ${companies.includes(co) ? '#2563EB' : '#CBD5E1'}`,
-                            background: companies.includes(co) ? '#EFF6FF' : '#fff',
-                            color: companies.includes(co) ? '#1D4ED8' : '#334155',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                          }}
-                        >
-                          {co} {companies.includes(co) ? '✓' : ''}
+              {role === 'EU' && (
+                <div className="aum-sec">
+                  <label className="aum-lab" htmlFor="aum-rcv">
+                    Oracle account (ชื่อ Receiver ในใบรับ) <span className="aum-req">*</span>
+                  </label>
+                  <div className="aum-inrow">
+                    <input
+                      id="aum-rcv"
+                      type="text"
+                      className="aum-in"
+                      placeholder="เช่น AHT Die Making 03, K.Vinitda"
+                      value={receiverInput}
+                      onChange={e => setReceiverInput(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddReceiver())}
+                    />
+                    <button type="button" className="aum-btn" onClick={handleAddReceiver} disabled={!receiverInput.trim()}>
+                      เพิ่ม
+                    </button>
+                  </div>
+                  <div className="aum-chips">
+                    {receivers.length === 0 && <span className="aum-mut">ยังไม่มีบัญชี</span>}
+                    {receivers.map(r => (
+                      <span key={r} className="aum-chip">
+                        {r}
+                        <button type="button" onClick={() => handleRemoveReceiver(r)} aria-label={`ลบ ${r}`}>
+                          ✕
                         </button>
-                      ))}
-                    </div>
+                      </span>
+                    ))}
                   </div>
-                )}
+                </div>
+              )}
 
-                {role === 'ADM' && (
-                  <div style={{ padding: 10, background: '#F8FAFC', borderRadius: 6, fontSize: 12, color: '#64748B' }}>
-                    บทบาทผู้ดูแลระบบ (IT Admin) ไม่ต้องกำหนดขอบเขตบริษัทหรือใบรับของ
+              {(role === 'ACC' || role === 'APR') && (
+                <div className="aum-sec">
+                  <span className="aum-lab">
+                    บริษัทที่รับผิดชอบ <span className="aum-req">*</span>
+                  </span>
+                  <div className="aum-chips" role="group" aria-label="บริษัท">
+                    {AVAILABLE_COMPANIES.map(co => (
+                      <button
+                        key={co}
+                        type="button"
+                        className={`aum-co${companies.includes(co) ? ' on' : ''}`}
+                        aria-pressed={companies.includes(co)}
+                        onClick={() => toggleCompany(co)}
+                      >
+                        {companies.includes(co) ? '✓ ' : ''}
+                        {co}
+                      </button>
+                    ))}
                   </div>
-                )}
-              </div>
+                </div>
+              )}
+
+              {(role === 'ADM' || role === 'SA') && (
+                <p className="aum-note">
+                  {role === 'ADM' ? 'ผู้ดูแลระบบไม่เห็นเนื้อหาเอกสาร จึงไม่ต้องกำหนดบริษัทหรือ Oracle account' : 'Super Admin เห็นทุกบริษัท'}
+                </p>
+              )}
             </div>
           )}
         </div>
 
-        <div className="modal-f">
-          {selectedEmp && scopeMissing && (
-            <span role="status" style={{ marginRight: 'auto', fontSize: 12, color: '#B45309' }}>
-              {scopeMissing}
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              padding: '6px 14px',
-              borderRadius: 5,
-              border: '1px solid #CBD5E1',
-              background: '#fff',
-              cursor: 'pointer',
-            }}
-          >
+        <footer className="aum-f">
+          <span className="aum-why" role="status">
+            {!selectedEmp ? 'เลือกผู้ใช้ก่อน' : scopeMissing ?? ''}
+          </span>
+          <button type="button" className="aum-btn" onClick={onClose}>
             ยกเลิก
           </button>
-          <button
-            onClick={handleConfirm}
-            disabled={!canConfirm}
-            title={scopeMissing ?? undefined}
-            style={{
-              padding: '6px 16px',
-              borderRadius: 5,
-              border: 0,
-              background: canConfirm ? '#217346' : '#94A3B8',
-              color: '#fff',
-              fontWeight: 600,
-              cursor: canConfirm ? 'pointer' : 'not-allowed',
-            }}
-          >
+          <button type="button" className="aum-btn pri" onClick={handleConfirm} disabled={!canConfirm} title={scopeMissing ?? undefined}>
             เพิ่มผู้ใช้
           </button>
-        </div>
+        </footer>
       </div>
-    </div>
-    ,
+    </div>,
     document.body,
   )
 }

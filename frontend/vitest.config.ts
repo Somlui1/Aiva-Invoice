@@ -15,5 +15,9 @@ export default defineConfig({
     setupFiles: ['./vitest.setup.ts'],
     // Ingestion tests share one SQLite file; serializing files avoids lock races.
     fileParallelism: false,
+    env: {
+      VITE_AUTH_MOCK: 'true',
+      VITE_AUTH_BYPASS: 'true',
+    },
   }
 })

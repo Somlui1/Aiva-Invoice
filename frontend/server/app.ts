@@ -23,6 +23,7 @@ import {
   oracleRouter,
 } from './routes/governance'
 import { prisma } from '../src/lib/prisma'
+import { eventsHandler } from '../src/server/events'
 import { corsOrigins, isProduction, simulationEnabled } from '../src/server/auth/config'
 import { requireAuth, requireIntegrationKey, requireKeyOrAuth, requirePerm } from '../src/server/auth/guards'
 
@@ -74,6 +75,8 @@ export function createExpressApp(): Express {
   app.use('/api/users', requirePerm('MAP'), usersRouter)
   app.use('/api/ad', requirePerm('MAP'), adRouter)
   app.use('/api/audit-logs', requireAuth, auditLogsRouter)
+  // v5.12: real-time document events (SSE), scoped per user
+  app.get('/api/events', requireAuth, eventsHandler)
   app.use('/api/ap', apRouter) // per-route guards inside (VIEW_AP / session / Oracle key)
   app.use('/api/oracle', requirePerm('MAP'), oracleRouter)
 

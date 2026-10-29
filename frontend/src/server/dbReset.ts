@@ -35,6 +35,24 @@ export function checkResetAllowed(input: {
   return { ok: true, file }
 }
 
+/**
+ * v5.12 — gate for `scripts/db-clear-documents.ts` ("ล้างเฉพาะเอกสาร").
+ *
+ * Unlike the full reset this KEEPS users, companies, Oracle-account bindings and sign-in history, so
+ * everyone can keep working; only documents, validation runs, boxes, AP batches (and, unless
+ * --keep-audit, their audit lines) are removed. Therefore it is allowed in production (the Docker
+ * database) — but only for a SQLite file (a backup copy is taken first) and only with --yes.
+ */
+export type ClearCheck = { ok: true; file: string } | { ok: false; reason: string }
+
+export function checkClearAllowed(input: { databaseUrl?: string; cwd: string; yes: boolean; production: boolean }): ClearCheck {
+  const url = resolveDatasourceUrl(input.databaseUrl, { cwd: input.cwd, production: input.production, exists: () => false })
+  if (!url) return { ok: false, reason: 'DATABASE_URL is not set' }
+  if (!url.startsWith('file:')) return { ok: false, reason: `not a SQLite file (${url.split(':')[0]}://…) — no file backup possible; use the database's own backup` }
+  if (!input.yes) return { ok: false, reason: 'add --yes to confirm (documents will be removed; users and rights are kept; a backup is taken first)' }
+  return { ok: true, file: path.resolve(url.slice('file:'.length)) }
+}
+
 /** prisma/backups/<name>-<yyyymmdd-hhmmss>.db */
 export function backupPathFor(file: string, now = new Date()): string {
   const p = (n: number) => String(n).padStart(2, '0')

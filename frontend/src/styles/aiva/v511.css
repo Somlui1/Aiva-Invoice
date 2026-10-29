@@ -120,3 +120,20 @@
   color: var(--warn);
   border-bottom: 1px solid var(--warn-bd);
 }
+
+/* v5.12 · live queue banner, fresh-row highlight, sidebar "new" marker, audit live */
+.qlb{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:8px 12px 0;padding:8px 12px;border:1px solid var(--info-bd);
+  border-left:4px solid var(--info);border-radius:8px;background:var(--info-bg);color:var(--s-900);animation:qlb-in .25s ease-out}
+.qlb.off{border-color:var(--line);border-left-color:var(--s-400);background:var(--surface-2);color:var(--s-500);font-size:12px}
+.qlb-ic{display:grid;place-items:center;width:26px;height:26px;border-radius:7px;background:var(--info);color:#fff}
+.qlb-t{display:flex;flex-direction:column;margin-right:auto;min-width:0}
+.qlb-sub{font-size:11.5px;color:var(--s-500)}
+.qlb-dot{width:8px;height:8px;border-radius:50%;background:var(--s-400)}
+@keyframes qlb-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.is-fresh{animation:row-fresh 8s ease-out 1}
+@keyframes row-fresh{0%,40%{box-shadow:inset 4px 0 0 var(--info);background:var(--info-bg)}100%{box-shadow:inset 4px 0 0 transparent}}
+.nav-new{margin-left:6px;padding:0 6px;border-radius:999px;font-size:10.5px;font-weight:700;background:var(--info);color:#fff;animation:qlb-in .25s ease-out}
+.audit-live{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--s-500)}
+.audit-live i{width:7px;height:7px;border-radius:50%;background:var(--s-400)}
+.audit-live.on i{background:var(--ok);box-shadow:0 0 0 3px var(--ok-bg)}
+@media (prefers-reduced-motion:reduce){.qlb,.is-fresh,.nav-new{animation:none}}

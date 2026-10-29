@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from 'express'
 import { prisma } from '../../src/lib/prisma'
 import { authenticateWithAd, type AdUserData } from '../../src/lib/adAuth'
-import { bootstrapAdmins, devAuthEnabled, isProduction, sessionSecret, sessionTtlSec } from '../../src/server/auth/config'
+import { bootstrapAdmins, cookieSecure, devAuthEnabled, sessionSecret, sessionTtlSec } from '../../src/server/auth/config'
 import { SESSION_COOKIE, signSession } from '../../src/server/auth/sessionToken'
 import { loginLimiter } from '../../src/server/auth/loginLimiter'
 import { parseViewAs, resolveViewAs } from '../../src/server/viewAs'
@@ -32,13 +32,13 @@ function clientIp(req: Request): string {
   return String(req.ip || req.socket?.remoteAddress || 'unknown')
 }
 
-/** Signed, httpOnly cookie. `Secure` is always on in production (TLS terminates at the proxy). */
+/** Signed, httpOnly cookie. `Secure` per COOKIE_SECURE (config.ts `cookieSecure`). */
 export function issueSessionCookie(req: Request, res: Response, userId: string) {
   const ttl = sessionTtlSec()
   res.cookie(SESSION_COOKIE, signSession(userId, sessionSecret(), ttl), {
     httpOnly: true,
     sameSite: 'lax',
-    secure: isProduction() || req.secure || req.headers['x-forwarded-proto'] === 'https',
+    secure: cookieSecure(req),
     maxAge: ttl * 1000,
     path: '/',
   })
@@ -281,7 +281,7 @@ function oidcCookieOptions(req: Request) {
     httpOnly: true,
     // Lax: the callback is a top-level GET navigation from login.microsoftonline.com.
     sameSite: 'lax' as const,
-    secure: isProduction() || req.secure || req.headers['x-forwarded-proto'] === 'https',
+    secure: cookieSecure(req),
     path: OIDC_COOKIE_PATH,
   }
 }
@@ -368,6 +368,6 @@ authRouter.get('/microsoft/callback', async (req, res) => {
 authRouter.post('/logout', async (req, res) => {
   const u = req.sessionUser
   if (u) await audit(u.name, u.role, 'logout', 'ออกจากระบบ', u.id)
-  res.clearCookie(SESSION_COOKIE, { path: '/', httpOnly: true, sameSite: 'lax', secure: isProduction() || req.secure })
+  res.clearCookie(SESSION_COOKIE, { path: '/', httpOnly: true, sameSite: 'lax', secure: cookieSecure(req) })
   return res.json({ ok: true })
 })

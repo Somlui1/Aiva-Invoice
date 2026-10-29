@@ -5,6 +5,7 @@ import { InvoiceDoc } from '../../types/invoice'
 import { ActionType, ACTION_CONFIG, ACTION_REASONS } from '../../mock/rules'
 import { useToastModal } from '../../context/ToastModalContext'
 import { useInvoices } from '../../context/InvoiceContext'
+import { confirmNeedsReason } from '../../lib/queueFilters'
 
 interface ActionModalsProps {
   doc: InvoiceDoc
@@ -29,7 +30,9 @@ export function ActionModalDialog({ doc, action, onClose }: ActionModalsProps) {
   const cfg = ACTION_CONFIG[action]
   const reasons = ACTION_REASONS[action] || []
   const high = hasHighSeverity(doc)
+  const receiverWork = action === 'confirm' ? confirmNeedsReason(doc) : null
   const isNoteRequired =
+    !!receiverWork ||
     // v5.11: same rule as the server (transitionFor.reasonRequired) — Hold and a Manual Review decision
     (action === 'confirm' && (high || doc.status === 'Hold' || doc.status === 'Manual Review')) ||
     ['review', 'hold', 'reject', 'unconfirm', 'returnf'].includes(action)
@@ -108,6 +111,11 @@ export function ActionModalDialog({ doc, action, onClose }: ActionModalsProps) {
             ))}
           </select>
 
+          {receiverWork && (
+            <div className="note w" role="note">
+              <span>{receiverWork}</span>
+            </div>
+          )}
           <label htmlFor="nt">
             หมายเหตุ{isNoteRequired && <span className="req"> * จำเป็น</span>}
           </label>

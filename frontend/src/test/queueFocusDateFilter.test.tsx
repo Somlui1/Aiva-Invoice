@@ -3,6 +3,7 @@
  *
  * @vitest-environment jsdom
  */
+import React, { useEffect } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, render, screen, type RenderResult } from '@testing-library/react'
 import { InvoiceProvider, useInvoices } from '../context/InvoiceContext'
@@ -93,6 +94,9 @@ describe('date filter (pure)', () => {
 
 function Harness() {
   const { setViewMode, selectDoc, openEvidenceDock, selectedDocId, isEvidenceDockOpen } = useInvoices()
+  useEffect(() => {
+    setViewMode('split')
+  }, [setViewMode])
   return (
     <div>
       <span data-testid="sel">{selectedDocId}</span>

@@ -390,19 +390,24 @@ export function allowedActionFor(
   if (d.identityStatus === 'UNRESOLVED' && ctx.role !== 'APR' && !['Sent', 'Posted', 'Rejected', 'Superseded'].includes(st)) {
     return no('เอกสาร UNRESOLVED: เฉพาะหัวหน้าฝ่ายบัญชี (APR) ตัดสินได้')
   }
-  if (pendingBind(d)) {
-    return no(`รอผูกบัญชี: IT Admin ต้องผูก Oracle account ${d.receiver} ก่อน (มีรหัสที่ Receiver ต้องแก้)`)
-  }
-
   const t = transitionFor({ status: st, identityStatus: d.identityStatus ?? null, hasReceipt: hasReceipt(d) }, act)
   if (!t.ok) return no(t.why)
 
   const decidingManual = st === 'Manual Review' && d.identityStatus !== 'UNRESOLVED'
   if (act === 'confirm') {
     if (decidingManual && hasHighSeverity(d)) return no('มีรหัส High')
-    if (!decidingManual && isEuPending(d)) return no('รอ End User แก้ไข (มีรหัสของผู้ใช้งานค้าง)')
   }
   return yes(decidingManual ? 'MANUAL_REVIEW' : PERM_FOR[act])
+}
+
+/**
+ * v5.12: "รอผูกบัญชี" and "รอ End User แก้" no longer block accounting. Accounting may decide the
+ * document itself, but must say why — the same rule the server applies (receiverWorkPending).
+ */
+export function confirmNeedsReason(d: InvoiceDoc): string | null {
+  if (pendingBind(d)) return `Receiver ${d.receiver} ยังไม่ผูก Oracle account · Confirm แทนผู้ใช้งานต้องระบุเหตุผล`
+  if (isEuPending(d)) return 'มีรหัสที่ผู้ใช้งาน (Receiver) ต้องแก้ค้างอยู่ · Confirm แทนต้องระบุเหตุผล'
+  return null
 }
 
 /** The status an action leaves behind; `upload` creates a document instead. */

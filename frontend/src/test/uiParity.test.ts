@@ -34,6 +34,7 @@ import type { PortalInvoiceDocument } from '../features/engine/types/portalDomai
 import type { InvoiceDoc } from '../types/invoice'
 import {
   allowedActionFor,
+  confirmNeedsReason,
   applyLiveDocs,
   CLOSED_STATUSES,
   OPEN_STATUSES,
@@ -946,10 +947,9 @@ describe('queue logic — the mockup rules, applied to live rows', () => {
       receiverActive: false,
       codes: [...manual.codes, euCode],
     }
-    const blocked = allowedActionFor(unbound, 'confirm', { role: 'APR', can: canAll })
-    expect(blocked.ok).toBe(false)
-    expect(blocked.why).toContain('รอผูกบัญชี')
-    expect(blocked.why).toContain('NOT IN ORACLE')
+    // v5.12: no longer blocked — accounting confirms, with a mandatory reason
+    expect(allowedActionFor(unbound, 'confirm', { role: 'APR', can: canAll }).ok).toBe(true)
+    expect(confirmNeedsReason(unbound)).toContain('NOT IN ORACLE')
 
     // a code the receiver must fix waits for the receiver, not for accounting
     const euPending: InvoiceDoc = {
@@ -961,10 +961,8 @@ describe('queue logic — the mockup rules, applied to live rows', () => {
       codes: [...manual.codes, euCode],
     }
     expect(isEuPending(euPending)).toBe(true)
-    expect(allowedActionFor(euPending, 'confirm', { role: 'ACC', can: canAll })).toEqual({
-      ok: false,
-      why: 'รอ End User แก้ไข (มีรหัสของผู้ใช้งานค้าง)',
-    })
+    expect(allowedActionFor(euPending, 'confirm', { role: 'ACC', can: canAll }).ok).toBe(true)
+    expect(confirmNeedsReason(euPending)).toBeTruthy()
 
     // EU may only upload; permission gates still apply to everything else
     const euDoc: InvoiceDoc = { ...manual, receiver: EU.rcvName, receiverActive: true }

@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma'
+import { publishDocEvent } from './events'
 import { engineResultV3Schema, type EngineResultV3 } from '../features/engine/schemas/engineResultV3Schema'
 import {
   EngineResultValidationError,
@@ -312,7 +313,7 @@ function applyDecision(
 
 type TxOutcome =
   | { kind: 'result'; result: IngestResult }
-  | { kind: 'created'; doc: PortalInvoiceDocument; decision: DrDecision }
+  | { kind: 'created'; doc: PortalInvoiceDocument; decision: DrDecision; revalidated: boolean }
 
 /**
  * Core engine result ingestion function.
@@ -570,7 +571,23 @@ export async function ingestEngineResult(raw: unknown): Promise<IngestResult> {
             })
           }
 
-          return { kind: 'created', doc: final, decision }
+          // v5.12: every arrival is in the audit log (before: only Duplicate / Superseded were), so
+          // "บันทึกการเข้าถึง" shows new documents as they come in.
+          await tx.auditLog.create({
+            data: {
+              docId: final.id,
+              who: 'Engine (System A)',
+              role: 'SYSTEM',
+              act: existing ? 'ตรวจซ้ำจาก Engine' : 'รับเอกสารใหม่จาก Engine',
+              action: existing ? 'REVALIDATED' : 'INGESTED',
+              fromStatus: existing?.status ?? null,
+              toStatus: final.status,
+              reason: decision.rule,
+              detail: `${final.supplierName || '—'} · ${final.invoiceNum || '—'} · ${Number(final.grandTotal || 0).toLocaleString('th-TH')} ฿ · ${final.companyCode} · รอบ ${engine.request.validation_round}`,
+            },
+          })
+
+          return { kind: 'created', doc: final, decision, revalidated: !!existing }
         },
         { timeout: 20_000 },
       ),
@@ -595,6 +612,18 @@ export async function ingestEngineResult(raw: unknown): Promise<IngestResult> {
   if (outcome.kind === 'result') return outcome.result
 
   const { doc: stored, decision } = outcome
+  publishDocEvent({
+    kind: outcome.revalidated ? 'updated' : 'new',
+    docId: stored.id,
+    status: stored.status,
+    company: stored.companyCode,
+    receiver: stored.receiverName ?? null,
+    title: outcome.revalidated ? 'Engine ตรวจซ้ำ' : 'เอกสารใหม่จาก Engine',
+    detail: `${stored.supplierName || '—'} · ${stored.invoiceNum || '—'}`,
+  })
+  if (decision.supersede) {
+    publishDocEvent({ kind: 'status', docId: decision.supersede.id, status: 'Superseded', company: stored.companyCode, receiver: null, title: 'ถูกแทนที่', detail: `โดย ${stored.id}` })
+  }
   return {
     ok: true,
     result: 'CREATED',

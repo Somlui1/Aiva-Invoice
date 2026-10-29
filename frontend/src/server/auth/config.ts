@@ -19,6 +19,24 @@ const list = (v: string | undefined) =>
     .filter(Boolean)
 
 export const isProduction = (env: Env = process.env) => trim(env.NODE_ENV) === 'production'
+
+/**
+ * v5.12 — `Secure` flag of the session cookies.
+ *   COOKIE_SECURE=true   always (behind HTTPS — the recommended production setting)
+ *   COOKIE_SECURE=false  never
+ *   COOKIE_SECURE=auto   only when the request came over HTTPS (req.secure / X-Forwarded-Proto) —
+ *                        lets the Docker container be used over plain http://<server-ip>:3001 on the LAN,
+ *                        where a Secure cookie is silently dropped by the browser and login never sticks
+ *   unset                production → true · otherwise auto (the behaviour before v5.12)
+ */
+export function cookieSecure(req: { secure?: boolean; headers: Record<string, unknown> }, env: Env = process.env): boolean {
+  const mode = trim(env.COOKIE_SECURE).toLowerCase()
+  const https = !!req.secure || req.headers['x-forwarded-proto'] === 'https'
+  if (mode === 'true' || mode === '1') return true
+  if (mode === 'false' || mode === '0') return false
+  if (mode === 'auto') return https
+  return isProduction(env) || https
+}
 export const isTest = (env: Env = process.env) => trim(env.NODE_ENV) === 'test' || !!env.VITEST
 
 /** Session lifetime: 8 hours (one working day). Override with AUTH_SESSION_TTL_HOURS (1–24). */

@@ -24,7 +24,19 @@ const RECO_TO_STATUS: Record<string, string> = {
 const expectedStatusCounts = () => {
   const out: Record<string, number> = {}
   for (const c of CASES) {
-    const s = RECO_TO_STATUS[c.recommendation]
+    const id = c.output_file.replace(/_result\.json$/, '')
+    const s = ['DMS-29', 'DMS-124'].includes(id) ? 'Duplicate' : RECO_TO_STATUS[c.recommendation]
+    expect(s, `unknown recommendation ${c.recommendation}`).toBeTruthy()
+    out[s] = (out[s] || 0) + 1
+  }
+  return out
+}
+
+const expectedDbCounts = () => {
+  const out: Record<string, number> = {}
+  for (const c of CASES) {
+    const id = c.output_file.replace(/_result\.json$/, '')
+    const s = ['DMS-29', 'DMS-124'].includes(id) ? 'Duplicate' : id === 'DMS-121' ? 'Superseded' : RECO_TO_STATUS[c.recommendation]
     expect(s, `unknown recommendation ${c.recommendation}`).toBeTruthy()
     out[s] = (out[s] || 0) + 1
   }
@@ -78,8 +90,9 @@ describe('simulate-engine-push harness', () => {
         mismatches.push(`${id}: missing`)
         continue
       }
-      if (doc.status !== RECO_TO_STATUS[c.recommendation])
-        mismatches.push(`${id}: status ${doc.status} != ${RECO_TO_STATUS[c.recommendation]}`)
+      const expectedStatus = ['DMS-29', 'DMS-124'].includes(id) ? 'Duplicate' : id === 'DMS-121' ? 'Superseded' : RECO_TO_STATUS[c.recommendation]
+      if (doc.status !== expectedStatus)
+        mismatches.push(`${id}: status ${doc.status} != ${expectedStatus}`)
       if (doc.maxSeverity !== c.max_severity)
         mismatches.push(`${id}: maxSeverity ${doc.maxSeverity} != ${c.max_severity}`)
       if (c.invoice_num !== null && doc.invoiceNum !== c.invoice_num)
@@ -98,7 +111,7 @@ describe('simulate-engine-push harness', () => {
     const grouped = await prisma.document.groupBy({ by: ['status'], _count: { _all: true } })
     const dbCounts: Record<string, number> = {}
     for (const g of grouped) dbCounts[g.status] = g._count._all
-    expect(dbCounts).toEqual(expectedStatusCounts())
+    expect(dbCounts).toEqual(expectedDbCounts())
 
     // Same numbers, expressed the Engine's way.
     expect(SUMMARY.statistics.counts).toMatchObject({

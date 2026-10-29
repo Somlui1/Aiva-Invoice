@@ -1,0 +1,66 @@
+# =============================================================================
+# AIVA Portal — one compose file, the same .env as `npm start`
+#
+#   docker compose up -d --build                 # build + start   → http://<server>:3001
+#   docker compose logs -f portal                # logs
+#   docker compose exec portal npm run db:clear-docs -- --yes   # ล้างเฉพาะเอกสาร (users kept)
+#   docker compose down                          # stop (the database volume stays)
+#
+# Settings come from .env (the file `npm start` reads). Only what MUST differ inside the container is
+# overridden below, so both can run side by side on one machine without touching each other:
+#   database  : container → volume aiva_data (/app/data/aiva.db) · npm start → DATABASE_URL in .env
+#   port      : container → ${AIVA_DOCKER_PORT:-3001} on the host · npm start → PORT in .env (3000)
+#   mode      : container is always production (dev logins / sample data off)
+# =============================================================================
+name: aiva-portal
+
+services:
+  portal:
+    build: .
+    image: aiva-portal:${AIVA_IMAGE_TAG:-latest}
+    container_name: aiva-portal
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+      DATABASE_URL: file:/app/data/aiva.db
+      LDAP_CA_FILE: /run/secrets/ldap_ca.pem
+      PDF_CACHE_DIR: /app/cache
+      # never on in the container, whatever .env says for local development
+      AUTH_DEV_LOGIN: "false"
+      VITE_AUTH_MOCK: "false"
+      VITE_AUTH_BYPASS: "false"
+      AIVA_SEED_SAMPLE: "false"
+      # 0 = clients connect directly (LAN) · 1 = behind one reverse proxy (TLS)
+      TRUST_PROXY: ${TRUST_PROXY:-0}
+      # auto = Secure cookie only over HTTPS (works on http://<ip>:3001) · true once behind HTTPS
+      COOKIE_SECURE: ${COOKIE_SECURE:-auto}
+    ports:
+      # 0.0.0.0 = every machine on the LAN · 127.0.0.1 = only a reverse proxy on this host
+      - "${AIVA_DOCKER_BIND:-0.0.0.0}:${AIVA_DOCKER_PORT:-3001}:3000"
+    secrets:
+      - ldap_ca.pem
+    volumes:
+      - aiva_data:/app/data
+      - aiva_cache:/app/cache
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+secrets:
+  ldap_ca.pem:
+    file: ${LDAP_CA_FILE_HOST:-./secrets/ldap_ca.pem}
+
+volumes:
+  aiva_data:
+  aiva_cache:

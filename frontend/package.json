@@ -1,7 +1,7 @@
 {
   "name": "aiva-portal",
   "private": true,
-  "version": "5.11.1",
+  "version": "5.12.0",
   "type": "module",
   "scripts": {
     "postinstall": "node scripts/copy-pdfjs-worker.mjs",
@@ -16,12 +16,14 @@
     "check:services": "tsx scripts/check-services.ts",
     "check:integrations": "tsx scripts/check-integrations.ts",
     "db:reset": "tsx scripts/db-reset.ts",
+    "db:clear-docs": "tsx scripts/db-clear-documents.ts",
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "seed:engine": "tsx scripts/simulate-engine-push.ts",
     "seed:v5": "tsx scripts/seed-invoices-v5.ts",
-    "backfill:findings": "tsx scripts/backfill-findings.ts"
+    "backfill:findings": "tsx scripts/backfill-findings.ts",
+    "start:build": "npm run build && npm start"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

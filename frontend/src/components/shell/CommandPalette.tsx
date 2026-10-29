@@ -280,7 +280,7 @@ export function CommandPalette({ onNavigate, onToggleNav }: Props) {
     })
     if (!qq && tab === 'all') {
       const c: Record<Kind, number> = { page: 0, doc: 0, sys: 0 }
-      const cap: Record<Kind, number> = { page: 12, doc: 6, sys: 4 }
+      const cap: Record<Kind, number> = { page: 12, doc: 6, sys: 6 }
       out = out.filter(it => ++c[it.k] <= cap[it.k])
     } else {
       out = out.slice(0, qq ? 40 : 60)

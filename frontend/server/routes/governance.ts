@@ -9,6 +9,7 @@ import { RECEIVE_HOLDER_STATUSES } from '../../src/lib/docTransitions'
 import { partitionBatch, receiveIdOf } from '../../src/server/receiveIdGuard'
 import { callbackOutcome } from '../../src/server/apCallback'
 import { docVisibleTo } from '../../src/server/viewAs'
+import { publishDocEvent, type DocEvent } from '../../src/server/events'
 
 // --- USERS ROUTER ---
 export const usersRouter = Router()
@@ -586,6 +587,14 @@ apRouter.post('/batches', async (req: Request, res: Response) => {
       return { batch, sendDocs, stagedPayload, duplicates: part.duplicates }
     })
 
+    for (const d of outcome.sendDocs as any[]) {
+      publishDocEvent({ kind: 'sent', docId: d.id, status: 'Sent', company: d.companyCode, receiver: d.receiverName ?? null, title: 'ส่งเข้า AP Interface', detail: `Batch ${batchId} · โดย ${userName}`, actorId: userId })
+    }
+    for (const x of outcome.duplicates) {
+      const d = (outcome.sendDocs as any[]).find(s => s.id === x.duplicateOf)
+      publishDocEvent({ kind: 'status', docId: x.id, status: 'Duplicate', company: d?.companyCode ?? '', receiver: null, title: 'ตัดออกจาก Batch (ใบรับซ้ำ)', detail: `ซ้ำกับ ${x.duplicateOf}`, actorId: userId })
+    }
+
     res.json({
       ok: true,
       batch: outcome.batch
@@ -655,6 +664,7 @@ apRouter.post('/batches/:id/callback', requireIntegrationKey('oracle'), async (r
     let successCount = 0
     let alreadyCount = 0
     let failureCount = 0
+    const pendingEvents: DocEvent[] = []
     const skipped: { documentId: string; why: string }[] = []
 
     await prisma.$transaction(async (tx: any) => {
@@ -698,6 +708,7 @@ apRouter.post('/batches/:id/callback', requireIntegrationKey('oracle'), async (r
           const already = outcome === 'ALREADY_EXISTS'
           if (already) alreadyCount++
           else successCount++
+          pendingEvents.push({ kind: 'posted', docId: documentId, status: 'Posted', company: doc.companyCode, receiver: doc.receiverName ?? null, title: already ? 'พบว่าถูก Post ใน Oracle แล้ว' : 'Oracle รับแล้ว (Posted)', detail: `Batch ${batchId}` })
           const act = already ? 'พบว่าถูก Post ใน Oracle แล้ว' : 'Import สำเร็จ'
           const detail = `${already ? 'Oracle ตอบว่ามีใบแจ้งหนี้นี้อยู่แล้ว (Post จากช่องทางอื่น) · ' : ''}Oracle Invoice ID: ${oracleInvoiceId || '—'}`
           history.push({ dt: dateStr, t: nowTimeStr, who: 'Oracle AP Interface', act, d: detail, k: 'g' })
@@ -728,6 +739,7 @@ apRouter.post('/batches/:id/callback', requireIntegrationKey('oracle'), async (r
           failureCount++
           const code = item.errorCode != null ? String(item.errorCode) : null
           const msg = `${code ? `[${code}] ` : ''}${item.error || 'Interface Validation Error'}`
+          pendingEvents.push({ kind: 'failed', docId: documentId, status: 'Import Failed', company: doc.companyCode, receiver: doc.receiverName ?? null, title: 'Import ไม่สำเร็จ', detail: `${msg} · Batch ${batchId}` })
           history.push({ dt: dateStr, t: nowTimeStr, who: 'Oracle AP Interface', act: 'Import ไม่ผ่าน', d: msg, k: 'c' })
 
           await tx.document.update({
@@ -763,6 +775,9 @@ apRouter.post('/batches/:id/callback', requireIntegrationKey('oracle'), async (r
         })
       }
     })
+
+    // published only after the transaction committed
+    for (const e of pendingEvents) publishDocEvent(e)
 
     const finalBatch = await prisma.apBatch.findUnique({
       where: { id: batchId },

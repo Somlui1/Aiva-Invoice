@@ -6,6 +6,7 @@ import { useInvoices, TODAY } from '../../context/InvoiceContext'
 import { useSettings } from '../../context/SettingsContext'
 import { SEVERITY_OF_CODE } from '../../mock/rules'
 import { SmartSearchBox } from './SmartSearchBox'
+import { useLive } from '../../context/LiveContext'
 
 export function QueueTableView() {
   const {
@@ -16,6 +17,7 @@ export function QueueTableView() {
     staleDocs
   } = useInvoices()
   const { orgSettings } = useSettings()
+  const { freshIds } = useLive()
 
   const calcAge = (upDate: string): number => {
     return Math.max(
@@ -89,7 +91,7 @@ export function QueueTableView() {
                   return (
                     <tr
                       key={d.doc}
-                      className={`click ${isSelected ? 'sel' : ''}`}
+                      className={`click ${isSelected ? 'sel' : ''}${freshIds.has(d.doc) ? ' is-fresh' : ''}`}
                       data-doc={d.doc}
                       tabIndex={0}
                       aria-label={`เปิด ${d.inv}`}

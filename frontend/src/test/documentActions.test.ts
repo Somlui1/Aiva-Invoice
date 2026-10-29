@@ -10,7 +10,7 @@ describe('Document Actions Mutation API', () => {
 
   beforeEach(async () => {
     await prisma.auditLog.deleteMany({ where: { docId } })
-    await prisma.document.deleteMany({ where: { id: docId } })
+    await prisma.document.deleteMany({ where: { OR: [{ id: docId }, { receiveId: 'RCV-ACT-01' }] } })
     await prisma.document.create({
       data: {
         id: docId,

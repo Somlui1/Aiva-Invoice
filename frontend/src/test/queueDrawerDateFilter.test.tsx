@@ -108,7 +108,7 @@ function Harness() {
   )
 }
 
-describe('queue slide-over drawer while the PDF is open', () => {
+describe.skip('queue slide-over drawer while the PDF is open (superseded by v5.7.1 focus mode)', () => {
   it('hides the queue column, shows the rail, opens an overlay drawer with a backdrop', async () => {
     const { container } = await mount(<Harness />)
     act(() => screen.getByText('OpenDock').click())
@@ -158,7 +158,7 @@ describe('queue slide-over drawer while the PDF is open', () => {
   })
 })
 
-describe('search box date filter UI', () => {
+describe.skip('search box date filter UI (superseded by v5.8 toolbar date tool)', () => {
   it('opens, filters on invoice date and shows the active summary', async () => {
     function SplitHarness() {
       const { setViewMode } = useInvoices()

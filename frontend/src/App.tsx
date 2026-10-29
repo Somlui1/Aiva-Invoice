@@ -7,6 +7,7 @@ import { SettingsProvider } from './context/SettingsContext'
 import { ToastModalProvider } from './context/ToastModalContext'
 import { InvoiceProvider, useInvoices } from './context/InvoiceContext'
 import { SimProvider } from './context/SimContext'
+import { LiveProvider } from './context/LiveContext'
 import { Topbar } from './components/layout/Topbar'
 import { Sidebar, PageKey, useNavSections } from './components/layout/Sidebar'
 import { SplashScreen } from './components/shell/SplashScreen'
@@ -243,10 +244,12 @@ export function App({
         <ToastModalProvider>
           <ViewAsBoundary>
             <InvoiceProvider>
-              <SimProvider>
-                <PortalShell initialPage={effectivePage} />
-                <SplashScreen />
-              </SimProvider>
+              <LiveProvider>
+                <SimProvider>
+                  <PortalShell initialPage={effectivePage} />
+                  <SplashScreen />
+                </SimProvider>
+              </LiveProvider>
             </InvoiceProvider>
           </ViewAsBoundary>
         </ToastModalProvider>

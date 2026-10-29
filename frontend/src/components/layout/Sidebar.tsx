@@ -7,6 +7,7 @@ import { useInvoices } from '../../context/InvoiceContext'
 import { useToastModal } from '../../context/ToastModalContext'
 import { BrandTile } from '../shell/BrandTile'
 import { closedVisibleFor } from '../../lib/closedDocs'
+import { useLive } from '../../context/LiveContext'
 
 /**
  * v5.7: menus "ชุดเอกสารทดสอบ" (cases), "มาตรฐาน Payload" (std), "Document Simulation" (sim) and
@@ -110,6 +111,7 @@ export function useNavSections(): NavSection[] {
 
 export function Sidebar({ currentPage, onNavigate, onToggleNav }: SidebarProps) {
   const { toast } = useToastModal()
+  const live = useLive()
   const sections = useNavSections()
 
   const handleClick = (item: NavItemConfig) => {
@@ -162,6 +164,11 @@ export function Sidebar({ currentPage, onNavigate, onToggleNav }: SidebarProps) 
                   {!it.isAllowed && (
                     <span className="lock">
                       <Icon name="lock" size="sm" />
+                    </span>
+                  )}
+                  {it.key === 'queue' && live.pendingNew.length > 0 && (
+                    <span className="nav-new" title={`เอกสารใหม่ ${live.pendingNew.length} รายการ · กดเพื่อดู`}>
+                      +{live.pendingNew.length}
                     </span>
                   )}
                   {!!it.count && <span className={`cnt cnt-${it.tone ?? 'act'}`}>{it.count}</span>}

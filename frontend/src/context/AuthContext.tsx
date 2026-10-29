@@ -337,7 +337,7 @@ export function AuthProvider({
       id: userId,
       n: userId,
       email: userId.includes('@') ? userId : `${userId}@aapico.com`,
-      role: (userId === 'itsupport' ? 'SA' : userId === 'u7' ? 'ADM' : userId === 'u6' ? 'APR' : 'EU') as RoleKey,
+      role: (userId === 'itsupport' ? 'SA' : userId === 'u7' ? 'ADM' : userId === 'u6' ? 'APR' : (userId === 'u4' || userId === 'u5') ? 'ACC' : 'EU') as RoleKey,
       rcvName: '—',
       emp: null,
       co: ['AH', 'AHA', 'AHT', 'AHP', 'AM'],

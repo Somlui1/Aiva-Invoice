@@ -10,6 +10,7 @@ import { InvoiceDetailPane } from './InvoiceDetailPane'
 import { ActionModalDialog } from './ActionModals'
 import { SmartSearchBox } from './SmartSearchBox'
 import { EvidenceViewerDock } from '../evidence/EvidenceViewerDock'
+import { QueueLiveBanner } from './QueueLiveBanner'
 import { useInvoices } from '../../context/InvoiceContext'
 import { useAuth } from '../../context/AuthContext'
 import { ActionType } from '../../mock/rules'
@@ -60,6 +61,7 @@ export function QueuePage() {
     <div className="pg" data-pg="queue">
       {/* Top Toolbar */}
       <QueueToolbar />
+      <QueueLiveBanner />
 
       {/* Stale Warning Banner */}
       {staleDocs.length > 0 && (

@@ -875,7 +875,9 @@ export function InvoiceDetailPane({ doc, onOpenActionModal, readOnly = false, cl
                   {hasHighSeverity(doc)
                     ? 'พบรหัส High · Confirm ต้องมีหมายเหตุ'
                     : isEuPending(doc)
-                    ? `รอ End User (${doc.receiver}) แก้ไข · Confirm ถูกล็อก`
+                    ? `มีรหัสที่ ${doc.receiver} ต้องแก้ค้าง · Confirm แทนได้ (ต้องระบุเหตุผล)`
+                    : doc.receiver && !doc.receiverActive
+                    ? `${doc.receiver} ยังไม่ผูก Oracle account · Confirm ได้ (ต้องระบุเหตุผล)`
                     : 'พร้อมดำเนินการ'}
                 </span>
               </div>

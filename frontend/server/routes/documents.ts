@@ -6,6 +6,8 @@ import { docDateFor, matchesSearchQuery, sortDocsFor } from '../../src/lib/queue
 import type { InvoiceDoc } from '../../src/types/invoice'
 import { auditViewAs, docVisibleTo } from '../../src/server/viewAs'
 import { simulationEnabled } from '../../src/server/auth/config'
+import { EU_CODES } from '../../src/mock/rules'
+import { publishDocEvent } from '../../src/server/events'
 import { canBindReceipt, transitionFor } from '../../src/lib/docTransitions'
 import { findReceiveIdHolder, holderMessage, receiveIdOf } from '../../src/server/receiveIdGuard'
 import { decideBind } from '../../src/server/duplicateResolution'
@@ -264,7 +266,20 @@ documentsRouter.post('/:id/actions', async (req, res) => {
           action,
         )
         if (!t.ok) throw new ActionRefused(t.http, t.why)
-        if (t.reasonRequired && !reason.trim() && !note.trim()) {
+        // v5.12: accounting may Confirm while the Receiver still has codes to fix (or no bound
+        // account) — never blocked, but the reason is mandatory, as the confirm dialog says.
+        const receiverWork =
+          action === 'confirm' &&
+          !!doc.receiverName &&
+          (() => {
+            try {
+              const ex = JSON.parse(doc.payloadJson || '{}')?.exceptions
+              return Array.isArray(ex) && ex.some((e: any) => EU_CODES.has(String(e?.code)))
+            } catch {
+              return false
+            }
+          })()
+        if ((t.reasonRequired || receiverWork) && !reason.trim() && !note.trim()) {
           throw new ActionRefused(400, `${ACTION_NAMES[action] ?? action} จากสถานะ ${currentStatus} ต้องระบุเหตุผล`)
         }
         targetStatus = t.to
@@ -323,6 +338,17 @@ documentsRouter.post('/:id/actions', async (req, res) => {
       })
       const updated = await tx.document.findUnique({ where: { id } })
       return { updated, currentStatus, targetStatus, actTitle }
+    })
+
+    publishDocEvent({
+      kind: 'status',
+      docId: id,
+      status: result.targetStatus,
+      company: result.updated.companyCode,
+      receiver: result.updated.receiverName ?? null,
+      title: `${result.actTitle} (${result.currentStatus} → ${result.targetStatus})`,
+      detail: `โดย ${userName}`,
+      actorId: userId,
     })
 
     return res.json({
@@ -605,6 +631,15 @@ documentsRouter.post('/:id/bind-receipt', async (req, res) => {
       })
       return { fromStatus, toStatus, outcome }
     })
+
+    const company = r.companyCode || row.companyCode
+    publishDocEvent({
+      kind: 'status', docId: id, status: result.toStatus, company, receiver: r.receiverName ?? row.receiverName ?? null,
+      title: result.toStatus === 'Confirmed' ? 'Confirm โดยผูกใบรับ' : 'ผูกใบรับ (Duplicate)', detail: `ใบรับ ${r.receiveId} · โดย ${session.name}`, actorId: session.id,
+    })
+    for (const s of result.outcome.supersede) {
+      publishDocEvent({ kind: 'status', docId: s.id, status: 'Superseded', company, receiver: null, title: 'ถูกแทนที่ (ผูกใบรับ)', detail: `โดย ${id}`, actorId: session.id })
+    }
 
     return res.json({
       ok: true,

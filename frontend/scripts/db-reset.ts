@@ -20,6 +20,12 @@ import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { backupPathFor, checkResetAllowed } from '../src/server/dbReset'
 
+if (typeof process.loadEnvFile === 'function') {
+  try {
+    process.loadEnvFile()
+  } catch {}
+}
+
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(name)
   return i >= 0 ? process.argv[i + 1] : undefined
@@ -28,7 +34,8 @@ function arg(name: string): string | undefined {
 async function main() {
   const cwd = process.cwd()
   const databaseUrl = process.env.DATABASE_URL || 'file:./dev.db'
-  const check = checkResetAllowed({ nodeEnv: process.env.NODE_ENV, databaseUrl, cwd, yes: process.argv.includes('--yes') })
+  const yes = process.argv.includes('--yes') || process.env.npm_config_yes === 'true'
+  const check = checkResetAllowed({ nodeEnv: process.env.NODE_ENV, databaseUrl, cwd, yes })
   if (!check.ok) {
     console.error(`[db:reset] refused: ${check.reason}`)
     process.exit(2)

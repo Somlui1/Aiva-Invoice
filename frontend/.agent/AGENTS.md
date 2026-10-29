@@ -46,10 +46,20 @@ When source skills reference legacy tool names, use these Antigravity equivalent
 - Keep exactly one active task at a time in `<project-root>/docs/plans/task.md`.
 - If browser work is required, isolate it in a dedicated browser step.
 
-## Verification Discipline
+## Verification & Test Discipline
 
-Before saying a task is done:
+### Test Execution Strategy (CRITICAL — Do NOT run full suite blindly):
+1. **Never run the full test suite (`npm test`) during iteration or debugging:**
+   - The test suite has 78+ files (850+ tests) running sequentially (`fileParallelism: false`) and takes ~3 minutes.
+   - Blindly running all tests creates unacceptable delays.
+2. **Always scope and target tests:**
+   - Step 1: Run fast typechecking (`npm run typecheck` / `tsc --noEmit`) first (1-2s).
+   - Step 2: Identify changed/affected files from the patch or edit.
+   - Step 3: Run ONLY the relevant test files: `npx vitest run src/test/<affected-test>.test.ts` (5-15s).
+3. **Full suite only at the final milestone:**
+   - Run the full test suite (`npm test`) at most ONCE as a final verification before declaring completion, or only when explicitly requested.
 
+### Before saying a task is done:
 1. Run the relevant verification command(s).
 2. Confirm exit status and key output.
 3. Update `<project-root>/docs/plans/task.md`.
