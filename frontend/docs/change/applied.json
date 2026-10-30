@@ -495,5 +495,63 @@
         }
       ]
     }
+  },
+  {
+    "version": "5.14.1",
+    "base": "5.14.0",
+    "title": "บริษัทผู้ซื้อ (Buyer ORG) แทนชื่อผู้ขายใน Oracle · สลับภาษาหน้า Login",
+    "appliedAt": "2026-10-30T06:08:29.257Z",
+    "baseCommit": "bbcf0d6",
+    "db": false,
+    "files": {
+      "replaced": [
+        "src/components/governance/ApPage.tsx",
+        "src/components/queue/InvoiceDetailPane.tsx",
+        "src/features/login/login.css",
+        "src/features/login/LoginForm.tsx",
+        "src/lib/i18n-en-extra.json",
+        "src/mock/companies.ts"
+      ],
+      "added": [
+        "src/test/v5141BuyerOrgLoginLang.test.tsx"
+      ],
+      "deleted": []
+    },
+    "tests": [
+      "src/test/v5141BuyerOrgLoginLang.test.tsx"
+    ],
+    "verify": {
+      "ok": true,
+      "at": "2026-10-30T06:12:07.046Z",
+      "totalSec": 54.2,
+      "full": false,
+      "tests": [
+        "src/test/app-smoke.test.tsx",
+        "src/test/dockLayout.test.tsx",
+        "src/test/dockLoadingError.test.tsx",
+        "src/test/domain-types.test.ts",
+        "src/test/evidenceButtons.test.tsx",
+        "src/test/oracleReceiptsTab.test.tsx",
+        "src/test/portalDomainContracts.test.ts",
+        "src/test/revalidatePurge.test.tsx",
+        "src/test/standaloneViewerLink.test.tsx",
+        "src/test/v513CompanyMaster.test.ts",
+        "src/test/v5141BuyerOrgLoginLang.test.tsx",
+        "src/test/validationCardLayout.test.tsx",
+        "src/test/validationEvidenceLinking.test.tsx"
+      ],
+      "steps": [
+        {
+          "label": "typecheck",
+          "ok": true,
+          "sec": 14.8
+        },
+        {
+          "label": "tests (13)",
+          "ok": true,
+          "sec": 39.4
+        }
+      ]
+    }
   }
 ]

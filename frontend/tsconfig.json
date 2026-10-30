@@ -25,6 +25,8 @@
   ],
   "exclude": [
     "node_modules",
-    "dist"
+    "dist",
+    "docs/change",
+    ".patch-backup"
   ]
 }

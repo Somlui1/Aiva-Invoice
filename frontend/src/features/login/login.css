@@ -556,3 +556,7 @@
 
 /* ตัวเลข/ข้อความเน้นกลางประโยคในกล่องแจ้งผล (ไม่ขึ้นบรรทัดใหม่เหมือน <b> หัวข้อ) */
 .aiva-login .lg-alert strong{font-weight:700}
+
+/* v5.14.1: สวิตช์ภาษา (TH | EN) คู่กับสวิตช์ธีมมุมขวาบนของหน้า login */
+#lg .lg-theme.lg-prefs{display:flex;align-items:center;gap:10px}
+@media (max-width:420px){#lg .lg-theme.lg-prefs{gap:6px;right:12px}}

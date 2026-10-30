@@ -53,6 +53,32 @@ export function assignableCompanies(): string[] {
 }
 
 /** ป้ายสั้นบน chip: "?" อ่านไม่ออกเมื่ออยู่ลำพัง จึงต่อคำอธิบาย */
+/**
+ * v5.14.1 — ชื่อบริษัทผู้ซื้อ (Buyer ORG) ของเอกสาร · ใช้แสดงผลเท่านั้น (ไม่แตะค่า `oname` ที่ Engine ส่งมา)
+ *
+ * ที่มา (เรียงตามความน่าเชื่อถือ):
+ *  1) master "บริษัทและ ORG_ID" (COMPANIES) ตามรหัสบริษัทของเอกสาร — เช่น AH → "อาปิโก ไฮเทค (มหาชน)"
+ *  2) master ตาม ORG_ID ของใบรับ (กรณีรหัสบริษัทยังเป็น "?")
+ *  3) ชื่อลูกค้าที่อ่านจากใบแจ้งหนี้ (`oname`) — ใช้เมื่อ master ระบุบริษัทไม่ได้
+ * อ่าน COMPANIES ตอนเรียกทุกครั้ง (applyCompanyMaster แก้ object เดิมหลัง sync)
+ */
+export interface BuyerOrg {
+  /** ชื่อที่แสดง · '' = ไม่ทราบ */
+  name: string
+  /** รหัสบริษัทจาก master (AH, AHT, …) · '' เมื่อไม่ได้มาจาก master */
+  code: string
+  source: 'master' | 'invoice' | 'none'
+}
+
+export function buyerOrgOf(d: { company?: string | null; org?: number | null; oname?: string | null }): BuyerOrg {
+  const known = (c: string | null | undefined): c is string => !!c && c !== UNKNOWN_COMPANY && !!COMPANIES[c]?.name
+  let code = d.company ?? ''
+  if (!known(code) && d.org != null) code = companyOfOrg(Number(d.org))
+  if (known(code)) return { name: COMPANIES[code].name, code, source: 'master' }
+  const inv = (d.oname ?? '').trim()
+  return inv ? { name: inv, code: '', source: 'invoice' } : { name: '', code: '', source: 'none' }
+}
+
 export function companyChipLabel(code: string): string {
   return code === UNKNOWN_COMPANY ? '? ไม่ระบุบริษัท' : code
 }

@@ -4,6 +4,7 @@ import { useState, type FormEvent, type KeyboardEvent } from "react";
 import { LoginAlert } from "./LoginAlert";
 import { LOGIN_CONFIG } from "./config";
 import { BrandTile } from "../../components/shell/BrandTile";
+import { LangSwitch } from "../../components/shell/LangSwitch";
 import { ThemeSwitch } from "../../components/shell/ThemeSwitch";
 import { Icon } from "./ui/Icon";
 import { MicrosoftLogo } from "./ui/MicrosoftLogo";
@@ -54,7 +55,9 @@ export function LoginForm({ c, mock, onSupport, m365Available = true }: Props) {
           </div>
         </div>
       </div>
-      <div className="lg-theme">
+      {/* v5.14.1: ภาษา (TH | EN) ใช้ค่าเดียวกับ ตั้งค่า › ตั้งค่าทั่วไป และปุ่มบน Topbar — เลือกที่นี่แล้วหน้า login ทั้งหน้าสลับภาษา */}
+      <div className="lg-theme lg-prefs">
+        <LangSwitch />
         <ThemeSwitch />
       </div>
 

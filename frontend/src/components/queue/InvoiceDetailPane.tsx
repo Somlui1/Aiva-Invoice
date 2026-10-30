@@ -9,7 +9,7 @@ import { findingsOf } from '../../features/evidence/findings'
 import { useAuth } from '../../context/AuthContext'
 import { useInvoices, TODAY } from '../../context/InvoiceContext'
 import { useToastModal } from '../../context/ToastModalContext'
-import { COMPANIES, ORG_NAMES } from '../../mock/companies'
+import { COMPANIES, ORG_NAMES, buyerOrgOf } from '../../mock/companies'
 import { RULES, EXCEPTION_CATALOG, EU_CODES, ActionType } from '../../mock/rules'
 import { getValidationCategory } from '../../features/pdf-viewer/lib/validationCategories'
 import { canBindReceipt } from '../../lib/docTransitions'
@@ -55,6 +55,8 @@ export function InvoiceDetailPane({ doc, onOpenActionModal, readOnly = false, cl
     setSelectedPoFilter(null)
     setBindOpen(false)
   }, [doc.doc])
+  // v5.14.1: buyer ORG shown in the metadata grid (master name by company code / ORG_ID)
+  const buyer = buyerOrgOf(doc)
   const bindCheck = canBindReceipt({ status: doc.status, identityStatus: doc.identityStatus ?? null, hasReceipt: hasReceipt(doc) })
 
   // v5.11.1: the receipt drawer and the PDF dock occupy the same right-hand side — only one at a time.
@@ -238,8 +240,12 @@ export function InvoiceDetailPane({ doc, onOpenActionModal, readOnly = false, cl
               <div className="m-h" title={`Tax ID ${doc.stax}`}>Tax ID {doc.stax}</div>
             </div>
             <div>
-              <div className="m-l">ชื่อผู้ขายใน Oracle</div>
-              <div className="m-v" title={doc.oname || undefined}>{doc.oname || '—'}</div>
+              {/* v5.14.1: บริษัทผู้ซื้อ (Buyer ORG) จาก master "บริษัทและ ORG_ID" — ไม่ใช่ชื่อผู้ขายใน Oracle */}
+              <div className="m-l">บริษัทผู้ซื้อ (Buyer ORG)</div>
+              <div className="m-v" title={buyer.name || undefined}>{buyer.name || '—'}</div>
+              <div className="m-h">
+                {buyer.source === 'master' ? buyer.code : buyer.source === 'invoice' ? 'ตามใบแจ้งหนี้' : 'ยังไม่ทราบบริษัท'}
+              </div>
             </div>
             <div>
               <div className="m-l">

@@ -13,7 +13,7 @@ export default defineConfig({
     globals: true,
     globalSetup: ['./vitest.global-setup.ts'],
     setupFiles: ['./vitest.setup.ts'],
-    exclude: [...configDefaults.exclude, '**/.patch-backup/**'],
+    exclude: [...configDefaults.exclude, '**/.patch-backup/**', '**/docs/change/**'],
     // Ingestion tests share one SQLite file; serializing files avoids lock races.
     fileParallelism: false,
     env: {

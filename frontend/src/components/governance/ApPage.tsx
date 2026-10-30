@@ -5,6 +5,7 @@ import { Icon } from '../common/Icon'
 import { useAuth } from '../../context/AuthContext'
 import { useInvoices, inPerDoc } from '../../context/InvoiceContext'
 import { USERS } from '../../mock/users'
+import { buyerOrgOf } from '../../mock/companies'
 import { ActionModalDialog } from '../queue/ActionModals'
 import type { InvoiceDoc } from '../../types/invoice'
 import { SmartSearchBox } from '../queue/SmartSearchBox'
@@ -258,7 +259,7 @@ export function ApPage({ initialTab = 'pending' }: { initialTab?: 'pending' | 's
                   <th>บริษัท</th>
                   <th>เลขที่ใบแจ้งหนี้</th>
                   <th>Tax ID ผู้ขาย</th>
-                  <th>ชื่อผู้ขายใน Oracle</th>
+                  <th>บริษัทผู้ซื้อ (Buyer ORG)</th>
                   <th>เลขที่ใบรับ</th>
                   <th className="num">ก่อนภาษี</th>
                   <th className="num">VAT</th>
@@ -305,7 +306,7 @@ export function ApPage({ initialTab = 'pending' }: { initialTab?: 'pending' | 's
                           </button>
                         </td>
                         <td className="mono">{d.stax}</td>
-                        <td>{d.oname || d.vendor}</td>
+                        <td>{buyerOrgOf(d).name || d.oname || '—'}</td>
                         <td className="mono">{d.rcv || '—'}</td>
                         <td className="num">
                           {(d.sub || Math.round(d.total / 1.07)).toLocaleString()}

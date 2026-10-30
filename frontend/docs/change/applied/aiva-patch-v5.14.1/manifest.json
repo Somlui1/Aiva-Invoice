@@ -1,0 +1,10 @@
+{
+  "version": "5.14.1",
+  "base": "5.14.0",
+  "title": "บริษัทผู้ซื้อ (Buyer ORG) แทนชื่อผู้ขายใน Oracle · สลับภาษาหน้า Login",
+  "db": false,
+  "tests": [
+    "src/test/v5141BuyerOrgLoginLang.test.tsx"
+  ],
+  "delete": []
+}
