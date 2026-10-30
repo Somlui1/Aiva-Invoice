@@ -17,7 +17,8 @@
 #   Portal via `npm start` (host) → ./prisma/dev.db   (untouched by compose)
 #
 # Network:
-#   Both services on aiva-network.
+#   Both services on default network.
+#   External reverse proxy access via proxy-net (external: true).
 #   Engine resolves portal via container DNS: http://aiva-portal:3000
 #   host.docker.internal allows engine to reach npm start on host (fallback).
 # =============================================================================
@@ -58,7 +59,8 @@ services:
       - aiva_portal_data:/app/data
       - aiva_portal_cache:/app/cache
     networks:
-      - aiva-network
+      - default
+      - proxy-net
     healthcheck:
       test: [ "CMD-SHELL", "wget -q -O- http://127.0.0.1:3000/api/health || exit 1" ]
       interval: 30s
@@ -105,7 +107,8 @@ services:
       # Allows engine to reach host npm start (port 3000) as fallback
       - "host.docker.internal:host-gateway"
     networks:
-      - aiva-network
+      - default
+      - proxy-net
     healthcheck:
       test: [ "CMD-SHELL", "curl -f http://127.0.0.1:8080/health/live || exit 1" ]
       interval: 30s
@@ -129,8 +132,9 @@ secrets:
 # Networks
 # ---------------------------------------------------------------------------
 networks:
-  aiva-network:
-    name: aiva-network
+  default:
+  proxy-net:
+    external: true
 
 # ---------------------------------------------------------------------------
 # Volumes
