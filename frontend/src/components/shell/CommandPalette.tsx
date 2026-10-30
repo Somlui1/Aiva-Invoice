@@ -25,11 +25,9 @@ import { createPortal } from 'react-dom'
 import { Icon, type IconName } from '../common/Icon'
 import { StatusBadge } from '../common/StatusBadge'
 import { openViewAsPicker } from '../viewas/ViewAs'
-import { isClosedViewStatus } from '../../lib/closedDocs'
 import { useAuth } from '../../context/AuthContext'
 import { useInvoices } from '../../context/InvoiceContext'
-import { useToastModal } from '../../context/ToastModalContext'
-import { CLOSED_STATUSES, filterDocsFor } from '../../lib/queueFilters'
+import { useOpenDocument } from './useOpenDocument'
 import { appIn, logoutOut, welcome } from '../../lib/fx'
 import { getTheme, setTheme } from '../../lib/theme'
 import { getLang, setLang, useT, type I18nKey } from '../../lib/i18n'
@@ -93,7 +91,6 @@ interface Props {
 export function CommandPalette({ onNavigate, onToggleNav }: Props) {
   const { currentUser, currentRole, logout, realUser, isPreview, stopViewAs } = useAuth()
   const inv = useInvoices()
-  const { toast } = useToastModal()
   const sections = useNavSections()
   const t = useT()
 
@@ -121,49 +118,9 @@ export function CommandPalette({ onNavigate, onToggleNav }: Props) {
     setOpen(true)
   }, [])
 
-  /* เปิดเอกสาร: ไปหน้าคิว → ถ้าเอกสารถูกตัวกรองซ่อนอยู่ ล้าง/ปรับตัวกรองให้เห็น → เลือกเอกสาร */
-  const openDoc = useCallback(
-    (d: InvoiceDoc) => {
-      // v5.10: closed documents live on their own page
-      if (isClosedViewStatus(d.status)) {
-        inv.focusClosedDoc(d.doc)
-        onNavigate('closed')
-        return
-      }
-      onNavigate('queue')
-      const base = {
-        docs: inv.visibleDocs,
-        companyFilter: inv.companyFilter,
-        periodFilter: inv.periodFilter,
-        searchQuery: inv.searchQuery,
-        showClosed: inv.showClosed,
-        statusFilter: inv.statusFilter,
-        role: currentUser.role,
-      }
-      const inList = (o: Partial<typeof base>, receiver: string | null = null) =>
-        filterDocsFor({ ...base, ...o }).some(x => x.doc === d.doc) &&
-        (currentUser.role !== 'EU' || !receiver || d.receiver === receiver)
-
-      if (!inList({}, inv.receiverFilter)) {
-        const cleared = {
-          companyFilter: new Set<string>(),
-          periodFilter: { k: 'all' } as typeof base.periodFilter,
-          searchQuery: '',
-          statusFilter: currentUser.role === 'EU' ? 'mine' : 'all',
-        }
-        inv.clearFilters()
-        let showClosed = inv.showClosed
-        if (!inList(cleared) && CLOSED_STATUSES.includes(d.status) && !showClosed) {
-          inv.toggleShowClosed()
-          showClosed = true
-        }
-        if (!inList({ ...cleared, showClosed })) inv.setStatusFilter(d.status)
-        toast(`ปรับตัวกรองคิวเพื่อเปิดเอกสาร ${d.inv}`)
-      }
-      inv.selectDoc(d.doc)
-    },
-    [inv, currentUser.role, onNavigate, toast],
-  )
+  /* เปิดเอกสาร: หน้าเอกสารที่ปิดแล้ว หรือคิว (ปรับตัวกรองให้เห็น) → เลือกเอกสาร · v5.14: shared hook */
+  const openDocument = useOpenDocument(onNavigate)
+  const openDoc = useCallback((d: InvoiceDoc) => void openDocument(d), [openDocument])
 
   const all = useMemo<Item[]>(() => {
     if (!open) return []
@@ -246,7 +203,7 @@ export function CommandPalette({ onNavigate, onToggleNav }: Props) {
       L.push({
         k: 'sys',
         t: isPreview ? 'สลับมุมมอง…' : 'ดูในมุมมองของ…',
-        d: 'Super Admin · ดูหน้าจอแบบที่ role / ผู้ใช้อื่นเห็น (อ่านอย่างเดียว)',
+        d: 'Super Admin · เห็นและทำรายการแบบที่ role / ผู้ใช้อื่นทำได้ (บันทึกในชื่อคุณ)',
         tag: 'View as',
         tone: 'vio',
         icon: 'eye',

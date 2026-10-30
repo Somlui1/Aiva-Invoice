@@ -51,7 +51,7 @@ async function renderSidebarFor(userOrId: string | User) {
   }
 }
 
-const REMOVED_V57 = ['ชุดเอกสารทดสอบ', 'มาตรฐาน Payload', 'Document Simulation', 'เครื่องมือทดสอบและพัฒนา', 'ตั้งค่า']
+const REMOVED_V57 = ['ชุดเอกสารทดสอบ', 'มาตรฐาน Payload', 'Document Simulation', 'เครื่องมือทดสอบและพัฒนา']
 
 function expectRemovedMenusAbsent() {
   for (const label of REMOVED_V57) expect(screen.queryByText(label)).toBeNull()

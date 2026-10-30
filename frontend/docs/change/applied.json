@@ -383,5 +383,117 @@
         }
       ]
     }
+  },
+  {
+    "version": "5.14.0",
+    "base": "5.13.3",
+    "title": "SA ดูในมุมมองทำรายการได้ · แนะนำ Oracle account · ลิงก์เปิดเอกสาร+PDF · ค้นหาหน้า AP · ปุ่ม TH|EN",
+    "appliedAt": "2026-10-29T08:37:54.117Z",
+    "baseCommit": "bacae74",
+    "db": false,
+    "files": {
+      "replaced": [
+        "server/routes/governance.ts",
+        "src/App.tsx",
+        "src/components/closed/ClosedDocsPage.tsx",
+        "src/components/governance/ApPage.tsx",
+        "src/components/governance/rbac/AdUserSearchModal.tsx",
+        "src/components/governance/rbac/PermissionExcelGrid.tsx",
+        "src/components/layout/Topbar.tsx",
+        "src/components/queue/InvoiceDetailPane.tsx",
+        "src/components/shell/CommandPalette.tsx",
+        "src/components/viewas/ViewAs.tsx",
+        "src/context/InvoiceContext.tsx",
+        "src/lib/i18n-en-extra.json",
+        "src/lib/smartSearch.ts",
+        "src/lib/viewAs.ts",
+        "src/server/viewAs.ts",
+        "src/styles/index.css",
+        "src/test/viewAsClient.test.tsx",
+        "src/test/viewAsServer.test.ts"
+      ],
+      "added": [
+        "src/components/governance/rbac/ReceiverPicker.tsx",
+        "src/components/shell/LangSwitch.tsx",
+        "src/components/shell/useOpenDocument.ts",
+        "src/lib/openDocument.ts",
+        "src/server/receiverDirectory.ts",
+        "src/styles/aiva/v514.css",
+        "src/test/v514Features.test.tsx",
+        "src/test/v514ReceiversApi.test.ts"
+      ],
+      "deleted": []
+    },
+    "tests": [
+      "src/test/v514Features.test.tsx",
+      "src/test/v514ReceiversApi.test.ts",
+      "src/test/viewAsServer.test.ts",
+      "src/test/viewAsClient.test.tsx",
+      "src/test/rbacPageInteractive.test.tsx",
+      "src/test/closedDocsPage.test.tsx",
+      "src/test/apBatchPipeline.test.ts",
+      "src/test/v513I18nDom.test.ts",
+      "src/test/app-smoke.test.tsx"
+    ],
+    "verify": {
+      "ok": true,
+      "at": "2026-10-29T08:44:28.876Z",
+      "totalSec": 111.2,
+      "full": false,
+      "tests": [
+        "src/test/aivaShellV53.test.tsx",
+        "src/test/apBatchPipeline.test.ts",
+        "src/test/app-smoke.test.tsx",
+        "src/test/auditLogScoping.test.ts",
+        "src/test/closedDocsPage.test.tsx",
+        "src/test/dateRangeTool.test.tsx",
+        "src/test/dockFocus.test.tsx",
+        "src/test/dockKeyboardScroll.test.tsx",
+        "src/test/dockLayout.test.tsx",
+        "src/test/dockLoadingError.test.tsx",
+        "src/test/dockMockupHeader.test.tsx",
+        "src/test/evidenceButtons.test.tsx",
+        "src/test/invoiceContextMutation.test.tsx",
+        "src/test/openEvidenceContext.test.tsx",
+        "src/test/oracleCompanySync.test.ts",
+        "src/test/oracleReceiptsTab.test.tsx",
+        "src/test/queueDrawerDateFilter.test.tsx",
+        "src/test/queueFocusDateFilter.test.tsx",
+        "src/test/queueReceiverFilter.test.tsx",
+        "src/test/rbacPageInteractive.test.tsx",
+        "src/test/rbacUsers.test.ts",
+        "src/test/revalidatePurge.test.tsx",
+        "src/test/securityRoutes.test.ts",
+        "src/test/serverGovernanceRoutes.test.ts",
+        "src/test/sidebarRole.test.tsx",
+        "src/test/smartSearch.test.ts",
+        "src/test/spaRouting.test.tsx",
+        "src/test/standaloneViewerLink.test.tsx",
+        "src/test/topbarProfile.test.tsx",
+        "src/test/userDirectory.test.ts",
+        "src/test/v513CompanyMaster.test.ts",
+        "src/test/v513I18nSettings.test.tsx",
+        "src/test/v513Permissions.test.ts",
+        "src/test/v514Features.test.tsx",
+        "src/test/v514ReceiversApi.test.ts",
+        "src/test/validationCardLayout.test.tsx",
+        "src/test/validationEvidenceLinking.test.tsx",
+        "src/test/viewAsClient.test.tsx",
+        "src/test/viewAsServer.test.ts",
+        "src/test/v513I18nDom.test.ts"
+      ],
+      "steps": [
+        {
+          "label": "typecheck",
+          "ok": true,
+          "sec": 8.8
+        },
+        {
+          "label": "tests (40)",
+          "ok": true,
+          "sec": 102.4
+        }
+      ]
+    }
   }
 ]

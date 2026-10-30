@@ -11,7 +11,11 @@
  *  - a target that is SA, inactive or unknown → 400 VIEW_AS_INVALID;
  *  - replaces `req.sessionUser` with the target (so every guard / scope answers as the target would)
  *    and keeps the SA in `req.realUser`;
- *  - refuses every non-GET/HEAD request → 403 PREVIEW_READ_ONLY (a UI bug can never write data).
+ *  - v5.14: writes are ALLOWED and run exactly as the target would (permissions, scope, rules) — for
+ *    debugging. Every write is attributed to the real SA: the session name becomes
+ *    "<SA> (ในมุมมอง <target>)" (so every audit / history line shows who really clicked) and one extra
+ *    `view_as_write` audit line records method + path. `VIEW_AS_ACTIONS=off` restores read-only
+ *    (403 PREVIEW_READ_ONLY) — e.g. for a production policy that forbids acting as someone else.
  */
 import type { NextFunction, Request, Response } from 'express'
 import { prisma } from '../lib/prisma'
@@ -21,6 +25,11 @@ import { explainScope } from '../lib/docScope'
 import type { SessionData } from '../../server/middleware/session'
 
 export const VIEW_AS_HEADER = 'x-view-as'
+
+/** v5.14: may an SA act (write) while viewing as someone else? default yes; `VIEW_AS_ACTIONS=off|false|0|no` = read-only */
+export function viewAsActionsEnabled(env: Record<string, string | undefined> = process.env): boolean {
+  return !/^(off|false|0|no)$/i.test(String(env.VIEW_AS_ACTIONS ?? '').trim())
+}
 export const VIEW_AS_ROLES = ['EU', 'ACC', 'APR', 'ADM'] as const
 export type ViewAsRole = (typeof VIEW_AS_ROLES)[number]
 const ALL_COMPANIES = ['AH', 'AHA', 'AHT', 'AHP', 'AM']
@@ -141,18 +150,44 @@ export async function viewAsMiddleware(req: Request, res: Response, next: NextFu
   try {
     const target = await resolveViewAs(parsed)
     if (!target.ok) return res.status(400).json({ ok: false, code: 'VIEW_AS_INVALID', error: target.error })
-    if (req.method !== 'GET' && req.method !== 'HEAD') {
+    const write = req.method !== 'GET' && req.method !== 'HEAD'
+    if (write && !viewAsActionsEnabled()) {
       return res.status(403).json({ ok: false, code: 'PREVIEW_READ_ONLY', error: 'โหมดดูในมุมมอง · ทำรายการไม่ได้' })
     }
     req.realUser = real
-    req.sessionUser = target.user
+    // Writes keep the target's id / role / scope (so rules such as "confirmer ≠ sender" behave as for
+    // that user) but carry the real SA in the name → every history / audit line shows who clicked.
+    req.sessionUser = write ? { ...target.user, name: `${real.name} (ในมุมมอง ${target.user.name})` } : target.user
     req.viewAs = { kind: parsed.kind, label: target.label }
     res.setHeader('X-View-As-Active', encodeURIComponent(target.label))
+    if (write) {
+      try {
+        await prisma.auditLog.create({
+          data: {
+            who: real.name,
+            whoId: real.id,
+            role: 'SA',
+            docId: viewAsDocId(req.path),
+            act: 'ทำรายการในมุมมองของผู้อื่น',
+            action: 'view_as_write',
+            detail: `${req.method} ${req.path} · ในมุมมอง ${target.label}`,
+          },
+        })
+      } catch {
+        /* best effort; the action's own audit line also names the SA */
+      }
+    }
     return next()
   } catch (err) {
     console.warn('[viewAs] resolve failed:', err)
     return res.status(500).json({ ok: false, error: 'resolve view-as failed' })
   }
+}
+
+/** "/api/documents/DMS-12/actions" → "DMS-12"; other paths → "VIEW_AS" (audit grouping only). */
+export function viewAsDocId(path: string): string {
+  const m = /\/api\/documents\/([^/]+)/.exec(path)
+  return m ? decodeURIComponent(m[1]).slice(0, 64) : 'VIEW_AS'
 }
 
 // ---------------------------------------------------------------------------------------------

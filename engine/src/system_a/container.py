@@ -56,32 +56,35 @@ class Settings:
 
 
 def build_services(settings: Settings, *, oracle_dataset: dict | None = None, oracle_down: bool = False,
-                   ai: str | None = None) -> Services:
-    backend = {"ords_mcp": "mcp", "oracledb": "db"}.get(settings.oracle_backend, settings.oracle_backend)
-    if settings.mode == "production" and backend != "memory":
-        std = load_standard()
-        ora = std.policy["oracle"]
-        row_cap = ora["row_cap"]
-        mode = str((ora.get("lookup") or {}).get("mode") or "legacy_po_invoice")
-        if backend == "db":
-            if mode == "tax_invoice":
-                # OracleDbRepository implements only RCV-V01 / PO-SUPPLIER / RCV-V02 (AIVA-SYSA-ORA-01)
-                raise RuntimeError("oracle.lookup.mode=tax_invoice needs ORACLE_BACKEND=ords_mcp "
-                                   "(the oracledb backend has no Tax ID + Invoice query yet)")
-            oracle = OracleDbRepository(settings.oracle_dsn, settings.oracle_user, settings.oracle_password)
-        elif backend == "mcp":
-            from .adapters.oracle.mcp_repository import McpSqlClient, OracleMcpRepository
-            if not settings.oracle_mcp_url:
-                raise RuntimeError("ORACLE_MCP_URL is required when SYSTEM_A_MODE=production")
-            client = McpSqlClient(settings.oracle_mcp_url, settings.oracle_mcp_token,
-                                  timeout_s=settings.oracle_timeout_s)
-            oracle = OracleMcpRepository(client, row_cap=row_cap, database=settings.oracle_database,
-                                         match_columns=(ora.get("lookup") or {}).get("invoice_match_columns"),
-                                         row_caps=ora.get("row_caps"))
-        else:
-            raise RuntimeError(f"unknown ORACLE_BACKEND={settings.oracle_backend!r}")
+                   ai: str | None = None, oracle_repo: Any = None) -> Services:
+    if oracle_repo is not None:
+        oracle = oracle_repo
     else:
-        oracle = InMemoryOracleRepository(oracle_dataset or {}, down=oracle_down)
+        backend = {"ords_mcp": "mcp", "oracledb": "db"}.get(settings.oracle_backend, settings.oracle_backend)
+        if settings.mode == "production" and backend != "memory":
+            std = load_standard()
+            ora = std.policy["oracle"]
+            row_cap = ora["row_cap"]
+            mode = str((ora.get("lookup") or {}).get("mode") or "legacy_po_invoice")
+            if backend == "db":
+                if mode == "tax_invoice":
+                    # OracleDbRepository implements only RCV-V01 / PO-SUPPLIER / RCV-V02 (AIVA-SYSA-ORA-01)
+                    raise RuntimeError("oracle.lookup.mode=tax_invoice needs ORACLE_BACKEND=ords_mcp "
+                                       "(the oracledb backend has no Tax ID + Invoice query yet)")
+                oracle = OracleDbRepository(settings.oracle_dsn, settings.oracle_user, settings.oracle_password)
+            elif backend == "mcp":
+                from .adapters.oracle.mcp_repository import McpSqlClient, OracleMcpRepository
+                if not settings.oracle_mcp_url:
+                    raise RuntimeError("ORACLE_MCP_URL is required when SYSTEM_A_MODE=production")
+                client = McpSqlClient(settings.oracle_mcp_url, settings.oracle_mcp_token,
+                                      timeout_s=settings.oracle_timeout_s)
+                oracle = OracleMcpRepository(client, row_cap=row_cap, database=settings.oracle_database,
+                                             match_columns=(ora.get("lookup") or {}).get("invoice_match_columns"),
+                                             row_caps=ora.get("row_caps"))
+            else:
+                raise RuntimeError(f"unknown ORACLE_BACKEND={settings.oracle_backend!r}")
+        else:
+            oracle = InMemoryOracleRepository(oracle_dataset or {}, down=oracle_down)
     ai = ai or settings.ai_mode
     if ai == "litellm":
         from .adapters.llm.ai_services import LiteLLMEntityJudge, LiteLLMLineMatcher, LiteLLMQtyJudge

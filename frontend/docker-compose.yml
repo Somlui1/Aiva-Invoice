@@ -64,3 +64,8 @@ secrets:
 volumes:
   aiva_data:
   aiva_cache:
+
+networks:
+  default:
+    name: aiva-network
+

@@ -112,12 +112,12 @@ describe('AuthContext under view as', () => {
   }
   const read = () => JSON.parse(screen.getByTestId('p').textContent || '{}')
 
-  it('SA in view-as acts as the target, but every action is blocked', async () => {
+  it('v5.14: SA in view-as acts exactly as the target (no extra preview block)', async () => {
     writeViewAs(state({ target: { kind: 'role', role: 'ACC', companies: ['AHT'], receivers: [] }, user: { ...state().user, role: 'ACC' } }))
     await mount(<Probe />, SA)
     const r = read()
-    expect(r).toMatchObject({ cur: 'ACC', real: 'SA', isPreview: true, ok: false })
-    expect(r.why).toContain('โหมดดูในมุมมอง')
+    expect(r).toMatchObject({ cur: 'ACC', real: 'SA', isPreview: true })
+    expect(r.why).not.toContain('โหมดดูในมุมมอง')
   })
 
   it('a stored view is ignored (and cleared) for a non-SA user', async () => {

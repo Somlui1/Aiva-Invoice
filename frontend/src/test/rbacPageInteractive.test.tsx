@@ -155,7 +155,7 @@ describe('Interactive RbacPage with Mockup v3 Excel Grid', () => {
     fireEvent.click(syncBtn)
 
     await waitFor(() => {
-      expect(screen.getByText(/ซิงค์ข้อมูล.*สำเร็จ/i)).toBeDefined()
+      expect(screen.getByText(/ซิงค์.*สำเร็จ/i)).toBeDefined()
     })
   })
 })

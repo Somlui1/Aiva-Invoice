@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Fragment, type ReactNode } from 'react'
+import { useState, useEffect, useRef, Fragment, type ReactNode } from 'react'
 import type { User } from './types/auth'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { SettingsProvider } from './context/SettingsContext'
@@ -12,6 +12,8 @@ import { Topbar } from './components/layout/Topbar'
 import { Sidebar, PageKey, useNavSections } from './components/layout/Sidebar'
 import { SplashScreen } from './components/shell/SplashScreen'
 import { CommandPalette } from './components/shell/CommandPalette'
+import { useOpenDocument } from './components/shell/useOpenDocument'
+import { OPEN_DOC_EVENT, type OpenDocRequest } from './lib/openDocument'
 import { Modal } from './components/layout/Modal'
 import { Toast } from './components/layout/Toast'
 import { QueuePage } from './components/queue/QueuePage'
@@ -82,6 +84,20 @@ export function PortalShell({ initialPage = 'queue' }: { initialPage?: PageKey }
       }
     } catch {}
   }
+
+  // v5.14: "open this document" from any page (AP invoice link, closed-page references) — the shell
+  // decides the page (closed vs queue), selects it and opens the PDF preview. See lib/openDocument.ts.
+  const openDocument = useOpenDocument(handleNavigate)
+  const openDocRef = useRef(openDocument)
+  openDocRef.current = openDocument
+  useEffect(() => {
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<OpenDocRequest>).detail
+      if (d?.id) openDocRef.current(d.id, { pdf: d.pdf !== false })
+    }
+    window.addEventListener(OPEN_DOC_EVENT, on)
+    return () => window.removeEventListener(OPEN_DOC_EVENT, on)
+  }, [])
 
   const toggleNav = () => {
     // In PDF focus mode the menu is hidden, not collapsed: "show menu" = leave focus mode only,

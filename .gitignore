@@ -3,3 +3,8 @@
 # Git follows junctions and would stage a duplicate of all 34 files, so never
 # commit it. Recreate after a fresh clone:  python .pi/link-skills.py
 **/.pi/skills/
+
+# Environment variables
+.env
+.env.*
+!.env*.example

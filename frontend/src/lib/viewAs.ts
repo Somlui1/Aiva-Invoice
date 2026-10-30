@@ -4,7 +4,8 @@
  * State lives in sessionStorage (this tab only — a new tab never starts in view-as), survives F5,
  * expires after 30 minutes, and is cleared on logout / session expiry.
  * While active, `installViewAsInterceptor()` adds `X-View-As` to every same-origin /api/* request
- * except /api/auth/* — the server then answers with the target's scope and refuses every write.
+ * except /api/auth/* — the server then answers with the target's scope and permissions.
+ * v5.14: actions work too (exactly as the target would), recorded under the SA's name (debugging).
  */
 import type { RoleKey } from '../types/auth'
 
@@ -14,6 +15,7 @@ export const VIEW_AS_TTL_MS = 30 * 60 * 1000
 export const VIEW_AS_ROLES: RoleKey[] = ['EU', 'ACC', 'APR', 'ADM']
 /** Request header that makes one call go out as the real SA (stripped before sending). */
 export const VIEW_AS_BYPASS = 'X-View-As-Bypass'
+/** @deprecated v5.14 — view-as no longer blocks actions (kept for old imports). */
 export const PREVIEW_BLOCK_REASON = 'โหมดดูในมุมมอง · ทำรายการไม่ได้'
 
 export type ViewAsTarget =

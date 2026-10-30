@@ -28,6 +28,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useToastModal } from '../../context/ToastModalContext'
 import { COMPANIES } from '../../mock/companies'
 import { matchesSearchQuery } from '../../lib/queueFilters'
+import { requestOpenDocument } from '../../lib/openDocument'
 import {
   CLOSED_GROUPS,
   CLOSED_STATUS_META,
@@ -51,8 +52,8 @@ const money = (n: number) =>
   Number.isFinite(n) ? n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'
 
 export function ClosedDocsPage() {
-  const { currentUser, isPreview } = useAuth()
-  const { visibleDocs, isEvidenceDockOpen, closeEvidenceDock, dockSplitRatio, closedFocus } = useInvoices()
+  const { currentUser } = useAuth()
+  const { visibleDocs, isEvidenceDockOpen, closeEvidenceDock, openEvidenceDock, dockSplitRatio, closedFocus } = useInvoices()
   const { toast } = useToastModal()
 
   const role = currentUser.role
@@ -136,15 +137,23 @@ export function ClosedDocsPage() {
     setView('split')
   }
 
-  /** Jump to a referenced document (replacement / original). */
+  /** v5.14: the document whose PDF should open once it is selected and shown in split view. */
+  const pdfFor = useRef<string | null>(null)
+
+  /**
+   * Jump to a referenced document (replacement / original).
+   * v5.14: `pdf` opens the PDF preview too · a document that is still open (e.g. the new version
+   * that superseded this one is in Review) is opened in the review queue instead of a toast.
+   */
   const goToDoc = useCallback(
-    (id: string) => {
+    (id: string, pdf = false) => {
       const target = closedDocs.find(d => d.doc === id)
       if (!target) {
-        const inQueue = visibleDocs.some(d => d.doc === id)
-        toast(inQueue ? `${id} ยังไม่ปิด · ดูได้ที่หน้าคิวตรวจสอบ` : `ไม่พบ ${id} ในขอบเขตสิทธิ์ของคุณ`)
+        if (visibleDocs.some(d => d.doc === id)) requestOpenDocument(id, { pdf })
+        else toast(`ไม่พบ ${id} ในขอบเขตสิทธิ์ของคุณ`, true)
         return
       }
+      pdfFor.current = pdf ? id : null
       const g = groupOf(target.status, role)!
       setGroup(g)
       setSub('all')
@@ -162,8 +171,17 @@ export function ClosedDocsPage() {
   useEffect(() => {
     if (!closedFocus || closedFocus.nonce === handledFocus.current) return
     handledFocus.current = closedFocus.nonce
-    goToDoc(closedFocus.id)
+    goToDoc(closedFocus.id, !!closedFocus.pdf)
   }, [closedFocus, goToDoc])
+
+  // v5.14: open the PDF after the row is selected and the split view is on (the guard above would
+  // close a dock opened earlier, while nothing is selected yet)
+  useEffect(() => {
+    if (!pdfFor.current || view !== 'split' || selected?.doc !== pdfFor.current) return
+    pdfFor.current = null
+    openEvidenceDock(1)
+  }, [view, selected, openEvidenceDock])
+  const goToRef = useCallback((id: string) => goToDoc(id, true), [goToDoc])
 
   const resetFilters = () => {
     setCompanies(new Set())
@@ -224,8 +242,8 @@ export function ClosedDocsPage() {
             type="button"
             className="btn btn-sec sm"
             onClick={exportCsv}
-            disabled={rows.length === 0 || isPreview}
-            title={isPreview ? 'โหมดดูในมุมมอง · ทำรายการไม่ได้' : 'ส่งออกรายการที่แสดงอยู่เป็น CSV (เปิดใน Excel ได้)'}
+            disabled={rows.length === 0}
+            title="ส่งออกรายการที่แสดงอยู่เป็น CSV (เปิดใน Excel ได้)"
           >
             <Icon name="dl" size="sm" />
             Export CSV
@@ -341,7 +359,7 @@ export function ClosedDocsPage() {
                           key={d.doc}
                           d={d}
                           onOpen={open}
-                          onRef={goToDoc}
+                          onRef={goToRef}
                           forEu={isEu}
                           stale={warnStaleSent && isSentStale(d)}
                         />
@@ -429,7 +447,7 @@ export function ClosedDocsPage() {
                 onOpenActionModal={() => {
                   /* read-only page: no action can be opened */
                 }}
-                closureSlot={<ClosureCard d={selected} onRef={goToDoc} forEu={isEu} />}
+                closureSlot={<ClosureCard d={selected} onRef={goToRef} forEu={isEu} />}
               />
             ) : (
               <section className="col detail" id="detail">

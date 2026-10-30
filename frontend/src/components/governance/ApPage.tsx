@@ -7,6 +7,9 @@ import { useInvoices, inPerDoc } from '../../context/InvoiceContext'
 import { USERS } from '../../mock/users'
 import { ActionModalDialog } from '../queue/ActionModals'
 import type { InvoiceDoc } from '../../types/invoice'
+import { SmartSearchBox } from '../queue/SmartSearchBox'
+import { matchesSearchQuery } from '../../lib/queueFilters'
+import { requestOpenDocument } from '../../lib/openDocument'
 
 interface BatchItem {
   id: string
@@ -26,8 +29,6 @@ export function ApPage({ initialTab = 'pending' }: { initialTab?: 'pending' | 's
     visibleDocs,
     allowedAction,
     periodFilter,
-    selectDoc,
-    setViewMode,
     precheckPost,
     batchPost
   } = useInvoices()
@@ -41,6 +42,8 @@ export function ApPage({ initialTab = 'pending' }: { initialTab?: 'pending' | 's
   // when VIEW_AP flipped, e.g. entering / leaving "view as")
   const [sending, setSending] = useState(false)
   const [unconfirmDoc, setUnconfirmDoc] = useState<InvoiceDoc | null>(null)
+  // v5.14: search inside this page (every tab) — number · vendor · PO · receipt · Batch · Oracle message …
+  const [query, setQuery] = useState('')
 
   useEffect(() => {
     let active = true
@@ -96,12 +99,16 @@ export function ApPage({ initialTab = 'pending' }: { initialTab?: 'pending' | 's
   const currentStatus = statusMap[apTab]
   // v5.13: the same scope as the queue (docScope) — before, a hard-coded ACC/APR + company filter
   // showed SA an empty AP page although SA holds VIEW_AP / POST.
-  const rows = visibleDocs
-    .filter(d => d.status === currentStatus)
-    .filter(d => (!coFilter || d.company === coFilter) && (!byFilter || d.confirmedBy === byFilter))
-    .filter(d => inPerDoc(d, periodFilter))
+  const inPage = (d: InvoiceDoc) =>
+    (!coFilter || d.company === coFilter) &&
+    (!byFilter || d.confirmedBy === byFilter) &&
+    inPerDoc(d, periodFilter) &&
+    matchesSearchQuery(d, query)
+  const rows = visibleDocs.filter(d => d.status === currentStatus).filter(inPage)
 
+  // Only what is on screen is sent: a row selected before a search hid it is NOT in the Batch.
   const selRows = rows.filter(d => apSel.has(d.doc))
+  const hiddenSel = apSel.size - selRows.length
   const canSend = can('POST')
   const canUnconfirm = can('UNCONFIRM')
   const showActions = apTab === 'pending' && canUnconfirm
@@ -123,14 +130,13 @@ export function ApPage({ initialTab = 'pending' }: { initialTab?: 'pending' | 's
     }
   }
 
-  const handleOpenDoc = (docId: string) => {
-    selectDoc(docId)
-    setViewMode('split')
-  }
+  /** v5.14: open the document where it lives (closed page for Confirmed / Sent / Posted, queue for
+   *  Import Failed) with the PDF preview open — see lib/openDocument.ts */
+  const handleOpenDoc = (docId: string) => requestOpenDocument(docId, { pdf: true })
 
   const handleSendBatch = async () => {
     if (!canSend || sending) return
-    const ids = Array.from(apSel)
+    const ids = selRows.map(d => d.doc)
     if (!ids.length) return
     setSending(true)
     const res = await batchPost(ids).finally(() => setSending(false))
@@ -172,7 +178,7 @@ export function ApPage({ initialTab = 'pending' }: { initialTab?: 'pending' | 's
         {/* KPI Tab Cards */}
         <div className="kpis">
           {tabDefs.map(t => {
-            const count = visibleDocs.filter(d => d.status === t.status).length
+            const count = visibleDocs.filter(d => d.status === t.status && (!query.trim() || inPage(d))).length
             return (
               <button
                 key={t.k}
@@ -198,6 +204,15 @@ export function ApPage({ initialTab = 'pending' }: { initialTab?: 'pending' | 's
           <div className="panel-h">
             <h3>{tabDefs.find(t => t.k === apTab)?.label}</h3>
             <span className="muted sm">{rows.length} ฉบับ</span>
+            <div className="tsrch aps-search">
+              <SmartSearchBox
+                id="apq"
+                variant="table"
+                value={query}
+                onChange={setQuery}
+                placeholder="ค้นหาเลขที่ ผู้ขาย ใบรับ Batch ข้อความ Oracle…"
+              />
+            </div>
             <span className="grow" />
             {apTab === 'pending' && canSend && (
               <>
@@ -207,6 +222,11 @@ export function ApPage({ initialTab = 'pending' }: { initialTab?: 'pending' | 's
                     {selRows.reduce((acc, d) => acc + d.total, 0).toLocaleString()}
                   </b>{' '}
                   ฿
+                  {hiddenSel > 0 && (
+                    <span className="aps-hidden" title="แถวที่ถูกการค้นหาซ่อนไว้จะไม่ถูกส่ง">
+                      {` · ซ่อนอยู่ ${hiddenSel} ฉบับ (ไม่ส่ง)`}
+                    </span>
+                  )}
                 </span>
                 <button
                   type="button"
@@ -276,10 +296,12 @@ export function ApPage({ initialTab = 'pending' }: { initialTab?: 'pending' | 's
                         <td>
                           <button
                             type="button"
-                            className="link"
+                            className="link aps-open"
                             onClick={() => handleOpenDoc(d.doc)}
+                            title="เปิดเอกสารพร้อม PDF"
                           >
                             {d.inv}
+                            <Icon name="file" size="sm" />
                           </button>
                         </td>
                         <td className="mono">{d.stax}</td>
@@ -346,7 +368,7 @@ export function ApPage({ initialTab = 'pending' }: { initialTab?: 'pending' | 's
                     <td colSpan={15}>
                       <div className="empty">
                         <Icon name="inbox" />
-                        ไม่มีเอกสารในสถานะและช่วงเวลานี้
+                        {query.trim() ? 'ไม่พบเอกสารที่ตรงกับคำค้นในแท็บนี้' : 'ไม่มีเอกสารในสถานะและช่วงเวลานี้'}
                       </div>
                     </td>
                   </tr>

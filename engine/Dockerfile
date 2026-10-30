@@ -1,4 +1,4 @@
-﻿# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 # System A Invoice Matching Engine - Production Dockerfile
 # -----------------------------------------------------------------------------
 FROM python:3.11-slim AS runner
@@ -38,4 +38,4 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD curl -f http://127.0.0.1:8080/health/ready || exit 1
 
-CMD ["python", "-m", "system_a.cli", "serve", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["python", "-m", "system_a.cli", "flow-serve", "--host", "0.0.0.0", "--port", "8080"]

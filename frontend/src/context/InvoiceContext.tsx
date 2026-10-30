@@ -11,7 +11,6 @@ import { useToastModal } from './ToastModalContext'
 import { ROLES } from '../mock/users'
 import { convertSystemAResultToInvoiceDoc } from '../lib/backendApi'
 import { isClosedViewStatus } from '../lib/closedDocs'
-import { PREVIEW_BLOCK_REASON } from '../lib/viewAs'
 import {
   TODAY,
   OPEN_STATUSES,
@@ -100,8 +99,9 @@ interface InvoiceContextType {
   setEvidenceSelection: (selection: EvidenceSelection | null) => void
   allowedAction: (doc: InvoiceDoc, act: ActionType) => { ok: boolean; why?: string; perm?: string }
   /** v5.10: ask the closed-documents page to open a document (Ctrl K, links). */
-  closedFocus: { id: string; nonce: number } | null
-  focusClosedDoc: (id: string) => void
+  /** v5.14: `pdf` = also open the PDF preview once the document is shown */
+  closedFocus: { id: string; nonce: number; pdf?: boolean } | null
+  focusClosedDoc: (id: string, pdf?: boolean) => void
   hasHighSeverity: (doc: InvoiceDoc) => boolean
   isEuPending: (doc: InvoiceDoc) => boolean
   pendingBind: (doc: InvoiceDoc) => boolean
@@ -122,7 +122,7 @@ interface InvoiceContextType {
 const InvoiceContext = createContext<InvoiceContextType | null>(null)
 
 export function InvoiceProvider({ children }: { children: React.ReactNode }) {
-  const { currentUser, currentRole, can, scopeCheck, logAudit, isPreview } = useAuth()
+  const { currentUser, currentRole, can, scopeCheck, logAudit } = useAuth()
   const { orgSettings } = useSettings()
   const { toast } = useToastModal()
 
@@ -147,8 +147,8 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
   const focusNonce = useRef(0)
   const nextNonce = useCallback(() => (focusNonce.current = Math.max(Date.now(), focusNonce.current + 1)), [])
   const [evidenceSelection, setEvidenceSelection] = useState<EvidenceSelection | null>(null)
-  const [closedFocus, setClosedFocus] = useState<{ id: string; nonce: number } | null>(null)
-  const focusClosedDoc = useCallback((id: string) => setClosedFocus({ id, nonce: Date.now() }), [])
+  const [closedFocus, setClosedFocus] = useState<{ id: string; nonce: number; pdf?: boolean } | null>(null)
+  const focusClosedDoc = useCallback((id: string, pdf = false) => setClosedFocus({ id, nonce: Date.now(), pdf }), [])
 
   useEffect(() => {
     let active = true
@@ -330,18 +330,11 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
   const allowedAction = useCallback(
     (d: InvoiceDoc, act: ActionType): { ok: boolean; why?: string; perm?: string } => {
       const r = allowedActionFor(d, act, { role: currentUser.role, can: p => can(p as any) })
-      // v5.10: "view as" is read-only. The target's own answer is kept in the message, so the SA
-      // still sees whether that user *could* do it — but nothing can be executed.
-      if (isPreview) {
-        return {
-          ok: false,
-          perm: r.perm,
-          why: r.ok ? `${PREVIEW_BLOCK_REASON} · ผู้ใช้นี้ทำได้` : `${PREVIEW_BLOCK_REASON} · ผู้ใช้นี้ทำไม่ได้: ${r.why ?? 'ไม่มีสิทธิ์'}`,
-        }
-      }
+      // v5.14: in "view as" the SA acts exactly as the target would (debugging) — no extra block.
+      // The server records the real SA on every write (src/server/viewAs.ts).
       return r
     },
-    [currentUser.role, can, isPreview]
+    [currentUser.role, can]
   )
 
   // Execute workflow action

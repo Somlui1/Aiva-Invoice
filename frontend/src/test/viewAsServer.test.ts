@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import request from 'supertest'
 import { createExpressApp } from '../../server/app'
 import { asUser } from './helpers/session'
+import { prisma } from '../lib/prisma'
 import { docVisibleTo, parseViewAs } from '../server/viewAs'
 
 describe('parseViewAs', () => {
@@ -45,15 +46,34 @@ describe('X-View-As on the API', () => {
     expect((await request(app).get('/api/documents').set('Cookie', sa).set('X-View-As', 'user:va-sa2')).status).toBe(400)
   })
 
-  it('every write is refused while previewing (read-only)', async () => {
-    const sa = await asUser('va-sa', 'SA')
-    const res = await request(app)
-      .post('/api/documents/DMS-1/actions')
+  it('v5.14: writes run as the target (debugging) and are recorded under the real SA', async () => {
+    const sa = await asUser('va-sa', 'SA', { name: 'SA Real' })
+    const asAdm = await request(app)
+      .post('/api/documents/DMS-VA-NONE/actions')
       .set('Cookie', sa)
-      .set('X-View-As', 'role:ACC;co=AH')
-      .send({ action: 'confirm' })
-    expect(res.status).toBe(403)
-    expect(res.body.code).toBe('PREVIEW_READ_ONLY')
+      .set('X-View-As', 'role:ADM')
+      .send({ action: 'confirm', reason: 'x' })
+    expect(asAdm.body.code).not.toBe('PREVIEW_READ_ONLY')
+    const log = await prisma.auditLog.findFirst({ where: { action: 'view_as_write', docId: 'DMS-VA-NONE' }, orderBy: { createdAt: 'desc' } })
+    expect(log?.who).toBe('SA Real')
+    expect(log?.detail).toContain('role ADM')
+    await prisma.auditLog.deleteMany({ where: { action: 'view_as_write', docId: 'DMS-VA-NONE' } })
+  })
+
+  it('VIEW_AS_ACTIONS=off restores read-only', async () => {
+    const sa = await asUser('va-sa', 'SA')
+    process.env.VIEW_AS_ACTIONS = 'off'
+    try {
+      const res = await request(app)
+        .post('/api/documents/DMS-1/actions')
+        .set('Cookie', sa)
+        .set('X-View-As', 'role:ACC;co=AH')
+        .send({ action: 'confirm' })
+      expect(res.status).toBe(403)
+      expect(res.body.code).toBe('PREVIEW_READ_ONLY')
+    } finally {
+      delete process.env.VIEW_AS_ACTIONS
+    }
   })
 
   it('reads answer with the target scope; ADM sees no documents', async () => {

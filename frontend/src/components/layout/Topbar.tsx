@@ -7,6 +7,7 @@ import { checkBackendHealth, BackendHealth } from '../../lib/backendApi'
 import { logoutOut, initialOf } from '../../lib/fx'
 import { MyProfileModal } from './MyProfileModal'
 import { ThemeSwitch } from '../shell/ThemeSwitch'
+import { LangSwitch } from '../shell/LangSwitch'
 import { openCommandPalette } from '../shell/CommandPalette'
 import { openViewAsPicker } from '../viewas/ViewAs'
 
@@ -108,13 +109,15 @@ export function Topbar({ pageTitle = '', navHidden = false, onToggleNav }: Topba
           type="button"
           className={`ibtn tb-viewas${isPreview ? ' on' : ''}`}
           onClick={openViewAsPicker}
-          title={isPreview ? 'สลับมุมมอง (กำลังดูในมุมมองของผู้อื่น)' : 'ดูในมุมมองของ… (Super Admin · อ่านอย่างเดียว)'}
+          title={isPreview ? 'สลับมุมมอง (กำลังดูในมุมมองของผู้อื่น)' : 'ดูในมุมมองของ… (Super Admin · ทำรายการได้เหมือนผู้ใช้นั้น)'}
           aria-label="ดูในมุมมองของผู้ใช้หรือบทบาทอื่น"
         >
           <Icon name="eye" />
         </button>
       )}
 
+      {/* v5.14: display settings together — language, then theme */}
+      <LangSwitch />
       <ThemeSwitch />
 
       <div className="who" style={{ ['--i' as string]: 4 }}>

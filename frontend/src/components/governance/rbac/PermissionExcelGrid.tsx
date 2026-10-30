@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { RoleKey } from '@/types/auth'
 import { ROLES } from '@/mock/users'
 import { COMPANIES, assignableCompanies, companyChipLabel } from '@/mock/companies'
+import { ReceiverPicker } from './ReceiverPicker'
 import { AdUserSearchModal } from './AdUserSearchModal'
 import { SaveDiffModal, UserDiff } from './SaveDiffModal'
 import { useToastModal } from '@/context/ToastModalContext'
@@ -381,25 +382,14 @@ export function PermissionExcelGrid() {
                                   </button>
                                 </span>
                               ))}
-                              <input
-                                type="text"
-                                className="ua-rcv-in"
-                                placeholder="+ เพิ่ม Receiver (กด Enter)"
-                                aria-label={`เพิ่ม Receiver ของ ${u.name}`}
-                                onKeyDown={e => {
-                                  if (e.key === 'Enter') {
-                                    e.preventDefault()
-                                    handleAddReceiver(u.id, e.currentTarget.value)
-                                    e.currentTarget.value = ''
-                                  }
-                                }}
-                                onBlur={e => {
-                                  // พิมพ์ค้างแล้วคลิกที่อื่น (เช่นปุ่มบันทึก) ก็ถือว่าเพิ่ม — กันค่าหาย
-                                  if (e.currentTarget.value.trim()) {
-                                    handleAddReceiver(u.id, e.currentTarget.value)
-                                    e.currentTarget.value = ''
-                                  }
-                                }}
+                              {/* v5.14: suggestions from the Receivers on documents (exact spelling + doc count) */}
+                              <ReceiverPicker
+                                variant="chip"
+                                value={u.receivers}
+                                selfUserId={u.id}
+                                onAdd={rcv => handleAddReceiver(u.id, rcv)}
+                                ariaLabel={`เพิ่ม Receiver ของ ${u.name}`}
+                                placeholder="+ เพิ่ม Oracle account"
                               />
                             </>
                           ) : u.role === 'ACC' || u.role === 'APR' ? (

@@ -1,0 +1,269 @@
+/* =====================================================================
+   v5.14 · ReceiverPicker (Oracle account suggestions) · AP search + links · language switch
+   class prefixes: rcvp- · aps- · lsw-   (no generic class names — see AGENTS.md §6)
+   ===================================================================== */
+
+/* ---------- ReceiverPicker ---------- */
+.rcvp {
+  position: relative;
+  min-width: 0;
+}
+.rcvp-field {
+  width: 100%;
+}
+.rcvp-chip {
+  width: 230px;
+  max-width: 100%;
+}
+.rcvp-box {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 34px;
+  padding: 0 3px 0 0;
+  border: 1px solid var(--line-strong, #c3ccd8);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  transition: border-color 0.1s, box-shadow 0.1s;
+}
+.rcvp-chip .rcvp-box {
+  height: 28px;
+  border-style: dashed;
+  border-radius: 999px;
+}
+.rcvp-box:hover {
+  border-color: var(--s-400, #94a3b8);
+}
+.rcvp-box:focus-within {
+  border-style: solid;
+  border-color: var(--teal-d, #0f8f8a);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--teal, #00b5af) 18%, transparent);
+}
+.rcvp.is-pending .rcvp-box {
+  border-style: solid;
+  border-color: var(--t-warn, #b45309);
+}
+.rcvp-ico {
+  display: inline-flex;
+  flex: none;
+  margin-left: 9px;
+  color: var(--s-400, #94a3b8);
+}
+.rcvp-box:focus-within .rcvp-ico {
+  color: var(--teal-d, #0f8f8a);
+}
+.rcvp .rcvp-box input,
+.rcvp .rcvp-box input:focus,
+.rcvp .rcvp-box input:focus-visible {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+  height: 100%;
+  padding: 0 6px 0 7px;
+  border: 0 !important; /* beats .mb input / .inp rules in theme.css */
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+  color: var(--s-900, #0f172a);
+  font: inherit;
+  font-size: 12.5px;
+}
+.rcvp-chip .rcvp-box input {
+  font-size: 11.5px;
+}
+.rcvp-x {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--s-500, #64748b);
+  cursor: pointer;
+}
+.rcvp-x:hover {
+  background: var(--sunken, #f1f5f9);
+}
+.rcvp-pending {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--t-warn, #b45309);
+}
+.rcvp-pop {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.rcvp-h {
+  padding: 8px 12px;
+  font-size: 11.5px;
+  font-weight: 650;
+  color: var(--s-600, #475569);
+  border-bottom: 1px solid var(--line, #d5dce5);
+}
+.rcvp-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  max-height: 300px;
+  overflow: auto;
+}
+.rcvp-opt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.rcvp-opt.on {
+  background: color-mix(in srgb, var(--teal, #00b5af) 12%, transparent);
+}
+.rcvp-lead {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--sunken, #f1f5f9);
+  color: var(--teal-d, #0f8f8a);
+  font-weight: 700;
+}
+.rcvp-free .rcvp-lead {
+  color: var(--t-warn, #b45309);
+}
+.rcvp-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.rcvp-name {
+  font-weight: 600;
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rcvp-meta {
+  font-size: 11px;
+  color: var(--s-500, #64748b);
+}
+.rcvp-meta.bound {
+  color: var(--t-blue, #1d4ed8);
+}
+.rcvp-meta.warn {
+  color: var(--t-warn, #b45309);
+}
+.rcvp-enter {
+  flex: none;
+  font-size: 12px;
+  color: var(--s-400, #94a3b8);
+  visibility: hidden;
+}
+.rcvp-opt.on .rcvp-enter {
+  visibility: visible;
+}
+.rcvp-empty {
+  padding: 14px 10px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--s-500, #64748b);
+}
+.rcvp-f {
+  padding: 6px 12px;
+  border-top: 1px solid var(--line, #d5dce5);
+  font-size: 10.5px;
+  color: var(--s-500, #64748b);
+}
+
+/* ---------- AP page: search + invoice link ---------- */
+.panel-h .tsrch.aps-search {
+  flex: 1 1 280px;
+  max-width: 420px;
+  margin-left: 8px;
+}
+.link.aps-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+}
+.link.aps-open .ico {
+  position: static;
+  opacity: 0.55;
+}
+.link.aps-open:hover .ico {
+  opacity: 1;
+}
+.aps-hidden {
+  color: var(--t-warn, #b45309);
+  font-weight: 600;
+}
+
+/* ---------- Language switch (top bar) ---------- */
+.lsw {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  height: 30px;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid var(--line, #d5dce5);
+  border-radius: 999px;
+  background: var(--sunken, #f1f5f9);
+}
+.lsw-opt {
+  min-width: 34px;
+  height: 24px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--s-500, #64748b);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition: background-color 0.12s, color 0.12s, box-shadow 0.12s;
+}
+.lsw-opt:hover:not(.on) {
+  color: var(--s-900, #0f172a);
+}
+.lsw-opt.on {
+  background: var(--surface, #fff);
+  color: var(--teal-d, #0f8f8a);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12), 0 0 0 1px var(--line, #d5dce5);
+  cursor: default;
+}
+.lsw-opt:focus-visible {
+  outline: 2px solid var(--teal-d, #0f8f8a) !important; /* beats the global :focus-visible ring (theme.css) */
+  outline-offset: 1px;
+  box-shadow: none !important;
+}
+:where(:root[data-theme='dark']) .lsw {
+  background: #141414;
+  border-color: #333;
+}
+:where(:root[data-theme='dark']) .lsw-opt.on {
+  background: #2a2a2a;
+  color: #5eead4;
+  box-shadow: 0 0 0 1px #3a3a3a;
+}
+@media (max-width: 900px) {
+  .lsw-opt {
+    min-width: 28px;
+    padding: 0 6px;
+  }
+}
+.rcvp-meta > span + span::before {
+  content: ' · ';
+}

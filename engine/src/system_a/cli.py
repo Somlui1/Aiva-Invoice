@@ -72,6 +72,11 @@ def cmd_serve(a):
     uvicorn.run("system_a.api.app:default_app", factory=True, host=a.host, port=a.port)
 
 
+def cmd_flow_serve(a):
+    import uvicorn
+    uvicorn.run("system_a.flow_server:create_flow_server", factory=True, host=a.host, port=a.port)
+
+
 def main(argv=None):
     p = argparse.ArgumentParser("system-a")
     sp = p.add_subparsers(dest="cmd", required=True)
@@ -79,6 +84,8 @@ def main(argv=None):
     sp.add_parser("export").set_defaults(fn=cmd_export)
     s = sp.add_parser("serve"); s.add_argument("--host", default="127.0.0.1"); s.add_argument("--port", type=int, default=8080)
     s.set_defaults(fn=cmd_serve)
+    s = sp.add_parser("flow-serve"); s.add_argument("--host", default="0.0.0.0"); s.add_argument("--port", type=int, default=8080)
+    s.set_defaults(fn=cmd_flow_serve)
     a = p.parse_args(argv)
     a.fn(a)
 

@@ -25,6 +25,8 @@ PyYAML>=6.0
 PyMuPDF>=1.24
 # src/system_a/perception/pdf_ingest.py, src/test-portal/webapp/sysa.py  (from PIL import Image)
 Pillow>=10.0
+opencv-python-headless>=4.8
+numpy>=1.26
 
 # --- Optional: Oracle DB backend -------------------------------------------
 # src/system_a/adapters/oracle/repositories.py imports this lazily and raises a

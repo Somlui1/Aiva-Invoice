@@ -122,9 +122,69 @@
   "กรอบ": "box(es)",
   "ตัวอย่าง": "Examples",
   "ค้นหาเลขที่ ผู้ขาย PO สถานะ…": "Search number, vendor, PO, status…",
-  "ตัวอย่างการค้นหา (เลขที่ · ผู้ขาย · สถานะ · E11 · วันที่ · ยอดเงิน)": "Search examples (number · vendor · status · E11 · date · amount)"
+  "ตัวอย่างการค้นหา (เลขที่ · ผู้ขาย · สถานะ · E11 · วันที่ · ยอดเงิน)": "Search examples (number · vendor · status · E11 · date · amount)",
+  "+ เพิ่ม Oracle account": "+ Add Oracle account",
+  "Super Admin · เห็นและทำรายการแบบที่ role / ผู้ใช้อื่นทำได้ (บันทึกในชื่อคุณ)": "Super Admin · see and act as another role / user (recorded under your name)",
+  "ค้นหาเลขที่ ผู้ขาย ใบรับ Batch ข้อความ Oracle…": "Search number, vendor, receipt, Batch, Oracle message…",
+  "ดูในมุมมองของ… (Super Admin · ทำรายการได้เหมือนผู้ใช้นั้น)": "View as… (Super Admin · act as that user)",
+  "ทำรายการในมุมมองของผู้อื่น": "Acted while viewing as someone else",
+  "พิมพ์ชื่อ เช่น AHT Die Making 03 หรือเลือกจากรายการ": "Type a name, e.g. AHT Die Making 03, or pick from the list",
+  "เข้าสู่โหมดดูในมุมมอง · ทำรายการได้เหมือนผู้ใช้นี้ (บันทึกในชื่อคุณ)": "Entered view-as mode · you can act as this user (recorded under your name)",
+  "เปิดเอกสารพร้อม PDF": "Open the document with its PDF",
+  "เห็นและทำรายการได้เหมือนเป้าหมายทุกประการ (สิทธิ์ · ขอบเขต · กติกา) · ทุกรายการบันทึกในชื่อคุณ · หมดอายุใน 30 นาที": "See and act exactly as the target (permissions · scope · rules) · every action is recorded under your name · expires in 30 minutes",
+  "แถวที่ถูกการค้นหาซ่อนไว้จะไม่ถูกส่ง": "Rows hidden by the search are not sent",
+  "ไม่พบเอกสารที่ตรงกับคำค้นในแท็บนี้": "No documents in this tab match the search",
+  "พิมพ์หรือเลือก Oracle account (Receiver)…": "Type or pick an Oracle account (Receiver)…",
+  "เพิ่ม Oracle account": "Add Oracle account",
+  "ล้างข้อความ": "Clear text",
+  "ล้าง": "Clear",
+  "รายชื่อ Oracle account จากเอกสาร": "Oracle accounts found on documents",
+  "กำลังโหลดรายชื่อจากเอกสาร…": "Loading names from documents…",
+  "โหลดรายชื่อจากเอกสารไม่ได้ · พิมพ์ชื่อเองได้": "Could not load names from documents · you can type a name",
+  "ไม่พบในเอกสาร · ตรวจให้ตรงกับ RECEIVER ใน Oracle ทุกตัวอักษร": "Not found on any document · make sure it matches RECEIVER in Oracle exactly",
+  "บัญชีนี้มีอยู่แล้ว": "This account is already added",
+  "ไม่มีรายการ": "No matches",
+  "ยังไม่มี Receiver ในเอกสาร · พิมพ์ชื่อเองได้": "No Receivers on documents yet · you can type a name",
+  "↑ ↓ เลือก · Enter เพิ่ม · Esc ปิด": "↑ ↓ select · Enter add · Esc close",
+  "ทำรายการได้เหมือนผู้ใช้นี้ (บันทึกในชื่อคุณ) · เริ่ม": "Acting as this user (recorded under your name) · started"
  },
  "patterns": [
+  [
+   "^([\\d,]+) ฉบับ$",
+   "{0} doc(s)"
+  ],
+  [
+   "^ล่าสุด ([\\d-]+)$",
+   "last {0}"
+  ],
+  [
+   "^“([\\s\\S]*)” ยังไม่ได้เพิ่ม · กด Enter เพื่อเพิ่ม หรือเลือกจากรายการ$",
+   "“{0}” not added yet · press Enter to add or pick from the list"
+  ],
+  [
+   "^ตรงกับ “([\\s\\S]*)” (\\d+) บัญชี$",
+   "{1} account(s) match “{0}”"
+  ],
+  [
+   "^Receiver ที่พบในเอกสาร (\\d+) บัญชี · เรียงตามจำนวนเอกสาร$",
+   "{0} Receivers found on documents · most documents first"
+  ],
+  [
+   "^เพิ่ม “([\\s\\S]*)”$",
+   "Add “{0}”"
+  ],
+  [
+   "^ผูกกับ ([\\s\\S]+) อยู่แล้ว$",
+   "Already bound to {0}"
+  ],
+  [
+   "^· ซ่อนอยู่ (\\d+) ฉบับ \\(ไม่ส่ง\\)$",
+   "· {0} hidden (not sent)"
+  ],
+  [
+   "^ทำรายการได้เหมือนผู้ใช้นี้ \\(บันทึกในชื่อคุณ\\) · เริ่ม ([\\s\\S]*?) · หมดอายุใน ([\\s\\S]*)$",
+   "Acting as this user (recorded under your name) · started {0} · expires in {1}"
+  ],
   [
    "^หน้า (\\d+) / (\\d+) · (\\d+) กรอบ$",
    "Page {0} / {1} · {2} box(es)"

@@ -27,3 +27,5 @@
 @import './aiva/v511.css';
 /* v5.13: ตั้งค่าทั่วไป (ภาษา / ธีม) */
 @import './aiva/v513.css';
+/* v5.14: ReceiverPicker · AP search/links · language switch */
+@import './aiva/v514.css';

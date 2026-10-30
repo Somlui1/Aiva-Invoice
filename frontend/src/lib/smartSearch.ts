@@ -190,6 +190,8 @@ export function indexOf(d: InvoiceDoc): DocIndex {
     d.unres ? 'ไม่ทราบเจ้าของ ไม่มี receiver unresolved' : '',
     d.receiver && d.receiverActive === false ? 'รอผูกบัญชี ยังไม่เชื่อมบัญชี bind' : '',
     d.identityStatus, d.duplicate_of, d.supersededBy, d.supersedes, d.batch, d.apId,
+    // v5.14: AP page search — Oracle import message + who confirmed
+    (d as { apErr?: string | null }).apErr, d.confirmedBy,
     ...d.codes, ...ruleBits, ...lineBits,
     ...dates.flatMap(dateForms),
     ...amounts.flatMap(money),

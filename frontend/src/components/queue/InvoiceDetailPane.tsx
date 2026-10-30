@@ -29,7 +29,7 @@ interface InvoiceDetailPaneProps {
 }
 
 export function InvoiceDetailPane({ doc, onOpenActionModal, readOnly = false, closureSlot }: InvoiceDetailPaneProps) {
-  const { currentUser, can, scopeCheck, isPreview } = useAuth()
+  const { currentUser, can, scopeCheck } = useAuth()
   const {
     activeDetailTab,
     setActiveDetailTab,
@@ -885,8 +885,8 @@ export function InvoiceDetailPane({ doc, onOpenActionModal, readOnly = false, cl
                 <button
                   type="button"
                   className="btn btn-primary"
-                  disabled={isPreview || bindOpen}
-                  title={isPreview ? 'โหมดดูในมุมมองผู้อื่น: ดูอย่างเดียว' : 'ค้นหาใบรับด้วยเลขผู้เสียภาษี / PO + เลขที่ใบแจ้งหนี้ แล้ว Confirm'}
+                  disabled={bindOpen}
+                  title="ค้นหาใบรับด้วยเลขผู้เสียภาษี / PO + เลขที่ใบแจ้งหนี้ แล้ว Confirm"
                   onClick={openBind}
                 >
                   <Icon name="search" size="sm" /> ผูกใบรับ

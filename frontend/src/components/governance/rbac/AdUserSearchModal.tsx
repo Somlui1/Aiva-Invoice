@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { RoleKey } from '@/types/auth'
 import { ROLES } from '@/mock/users'
 import { COMPANIES, assignableCompanies, companyChipLabel } from '@/mock/companies'
+import { ReceiverPicker } from './ReceiverPicker'
 import '@/styles/aiva/aum.css'
 
 interface DirectoryEmployee {
@@ -41,7 +42,6 @@ export function AdUserSearchModal({ isOpen, onClose, onAddUser }: Props) {
   const [selectedEmp, setSelectedEmp] = useState<DirectoryEmployee | null>(null)
   const [role, setRole] = useState<RoleKey>('EU')
   const [companies, setCompanies] = useState<string[]>([])
-  const [receiverInput, setReceiverInput] = useState('')
   const [receivers, setReceivers] = useState<string[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [activeIdx, setActiveIdx] = useState(0)
@@ -53,7 +53,6 @@ export function AdUserSearchModal({ isOpen, onClose, onAddUser }: Props) {
       setRole('EU')
       setCompanies([])
       setReceivers([])
-      setReceiverInput('')
       return
     }
 
@@ -94,11 +93,10 @@ export function AdUserSearchModal({ isOpen, onClose, onAddUser }: Props) {
     setCompanies(prev => (prev.includes(co) ? prev.filter(c => c !== co) : [...prev, co]))
   }
 
-  const handleAddReceiver = () => {
-    const val = receiverInput.normalize('NFKC').replace(/\s+/g, ' ').trim()
+  const addReceiver = (name: string) => {
+    const val = name.normalize('NFKC').replace(/\s+/g, ' ').trim()
     if (val && !receivers.some(r => r.toUpperCase() === val.toUpperCase())) {
       setReceivers(prev => [...prev, val])
-      setReceiverInput('')
     }
   }
 
@@ -270,20 +268,14 @@ export function AdUserSearchModal({ isOpen, onClose, onAddUser }: Props) {
                   <label className="aum-lab" htmlFor="aum-rcv">
                     Oracle account (ชื่อ Receiver ในใบรับ) <span className="aum-req">*</span>
                   </label>
-                  <div className="aum-inrow">
-                    <input
-                      id="aum-rcv"
-                      type="text"
-                      className="aum-in"
-                      placeholder="เช่น AHT Die Making 03, K.Vinitda"
-                      value={receiverInput}
-                      onChange={e => setReceiverInput(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddReceiver())}
-                    />
-                    <button type="button" className="aum-btn" onClick={handleAddReceiver} disabled={!receiverInput.trim()}>
-                      เพิ่ม
-                    </button>
-                  </div>
+                  {/* v5.14: pick from the Receivers on documents (or type a new one) */}
+                  <ReceiverPicker
+                    inputId="aum-rcv"
+                    variant="field"
+                    value={receivers}
+                    onAdd={addReceiver}
+                    placeholder="พิมพ์ชื่อ เช่น AHT Die Making 03 หรือเลือกจากรายการ"
+                  />
                   <div className="aum-chips">
                     {receivers.length === 0 && <span className="aum-mut">ยังไม่มีบัญชี</span>}
                     {receivers.map(r => (

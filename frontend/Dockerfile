@@ -49,6 +49,8 @@ COPY --from=builder --chown=aiva:nodejs /app/tsconfig.json ./tsconfig.json
 COPY --from=builder --chown=aiva:nodejs /app/prisma/schema.prisma ./prisma/schema.prisma
 # Operational scripts (integration check, backfill). db-reset refuses to run in production anyway.
 COPY --from=builder --chown=aiva:nodejs /app/scripts ./scripts
+# Documentation & receipt fixture fallback
+COPY --from=builder --chown=aiva:nodejs /app/docs ./docs
 COPY --chown=aiva:nodejs docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x ./docker-entrypoint.sh
 

@@ -67,7 +67,7 @@ export function ViewAsBanner() {
           {u.role !== 'EU' && u.role !== 'ADM' ? ` · ${u.companies.join(', ')}` : ''}
         </span>
         <span className="vab-meta">
-          ดูอย่างเดียว · เริ่ม {fmtTime(viewAs.startedAt)} · หมดอายุใน {remainingText(left)}
+          ทำรายการได้เหมือนผู้ใช้นี้ (บันทึกในชื่อคุณ) · เริ่ม {fmtTime(viewAs.startedAt)} · หมดอายุใน {remainingText(left)}
           {!viewAs.serverChecked && <em> · ตรวจฝั่ง browser เท่านั้น (ติดต่อ server ไม่ได้)</em>}
         </span>
       </div>
@@ -166,7 +166,7 @@ export function ViewAsPicker() {
       return
     }
     setOpen(false)
-    toast('เข้าสู่โหมดดูในมุมมอง · ดูอย่างเดียว')
+    toast('เข้าสู่โหมดดูในมุมมอง · ทำรายการได้เหมือนผู้ใช้นี้ (บันทึกในชื่อคุณ)')
   }
 
   const toggleCo = (c: string) =>
@@ -194,7 +194,7 @@ export function ViewAsPicker() {
           </span>
           <div>
             <h3 id={titleId}>ดูในมุมมองของ…</h3>
-            <p className="muted sm">อ่านอย่างเดียว · server คัดเอกสารด้วยสิทธิ์ของเป้าหมาย · หมดอายุใน 30 นาที · บันทึกใน Audit Log</p>
+            <p className="muted sm">เห็นและทำรายการได้เหมือนเป้าหมายทุกประการ (สิทธิ์ · ขอบเขต · กติกา) · ทุกรายการบันทึกในชื่อคุณ · หมดอายุใน 30 นาที</p>
           </div>
         </div>
 

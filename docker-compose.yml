@@ -1,0 +1,141 @@
+# =============================================================================
+# AIVA — Unified Backend Compose (Engine + Portal)
+#
+# Usage:
+#   docker compose up -d --build          # build + start both services
+#   docker compose logs -f engine         # engine daemon logs
+#   docker compose logs -f portal         # portal (frontend) logs
+#   docker compose down                   # stop (volumes stay)
+#   docker compose down -v                # stop + wipe volumes (fresh DB)
+#
+# Ports:
+#   Engine API  : http://<host>:8080  (ENGINE_PORT)
+#   Portal UI   : http://<host>:3001  (PORTAL_PORT)
+#
+# Database separation:
+#   Portal in Docker → named volume aiva_portal_data:/app/data/aiva.db
+#   Portal via `npm start` (host) → ./prisma/dev.db   (untouched by compose)
+#
+# Network:
+#   Both services on aiva-network.
+#   Engine resolves portal via container DNS: http://aiva-portal:3000
+#   host.docker.internal allows engine to reach npm start on host (fallback).
+# =============================================================================
+name: aiva
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # portal — AIVA Frontend (Next.js / Express)
+  # ---------------------------------------------------------------------------
+  portal:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: aiva-portal:latest
+    container_name: aiva-portal
+    restart: unless-stopped
+    env_file: ./frontend/.env
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+      # Docker-specific DB path — separate from npm start (./prisma/dev.db)
+      DATABASE_URL: file:/app/data/aiva.db
+      LDAP_CA_FILE: /run/secrets/ldap_ca.pem
+      PDF_CACHE_DIR: /app/cache
+      AUTH_DEV_LOGIN: "false"
+      VITE_AUTH_MOCK: "false"
+      VITE_AUTH_BYPASS: "false"
+      AIVA_SEED_SAMPLE: "false"
+      TRUST_PROXY: ${TRUST_PROXY:-0}
+      COOKIE_SECURE: ${COOKIE_SECURE:-auto}
+    ports:
+      - "3000:3000"
+    secrets:
+      - ldap_ca.pem
+    volumes:
+      - aiva_portal_data:/app/data
+      - aiva_portal_cache:/app/cache
+    networks:
+      - aiva-network
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -q -O- http://127.0.0.1:3000/api/health || exit 1" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  # ---------------------------------------------------------------------------
+  # engine — AIVA System A Flow Engine & Daemon Worker
+  # ---------------------------------------------------------------------------
+  engine:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: aiva-engine:latest
+    container_name: aiva-engine
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PYTHONUNBUFFERED: "1"
+      AUTO_PROCESS: ${AUTO_PROCESS:-true}
+      POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-15}
+      BATCH_SIZE: ${BATCH_SIZE:-5}
+      STALE_LOCK_TIMEOUT_SECONDS: ${STALE_LOCK_TIMEOUT_SECONDS:-1800}
+      # Primary target: portal container via Docker DNS
+      FRONTEND_BASE_URL: http://aiva-portal:3000
+      FRONTEND_INGEST_PATH: ${FRONTEND_INGEST_PATH:-/api/engine/ingest}
+      ENGINE_INGEST_KEY: ${ENGINE_INGEST_KEY}
+    ports:
+      - "${ENGINE_PORT:-8080}:8080"
+    volumes:
+      - engine_cache:/engine/cache
+      - ./engine/config:/engine/config:ro
+      - ./engine/src:/engine/src:ro
+    depends_on:
+      portal:
+        condition: service_healthy
+    extra_hosts:
+      # Allows engine to reach host npm start (port 3000) as fallback
+      - "host.docker.internal:host-gateway"
+    networks:
+      - aiva-network
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://127.0.0.1:8080/health/live || exit 1" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+# ---------------------------------------------------------------------------
+# Secrets
+# ---------------------------------------------------------------------------
+secrets:
+  ldap_ca.pem:
+    file: ${LDAP_CA_FILE_HOST:-./frontend/secrets/ldap_ca.pem}
+
+# ---------------------------------------------------------------------------
+# Networks
+# ---------------------------------------------------------------------------
+networks:
+  aiva-network:
+    name: aiva-network
+
+# ---------------------------------------------------------------------------
+# Volumes
+# ---------------------------------------------------------------------------
+volumes:
+  engine_cache:
+  aiva_portal_data:
+  aiva_portal_cache:

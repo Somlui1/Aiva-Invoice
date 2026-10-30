@@ -17,6 +17,7 @@ import { RECEIVE_HOLDER_STATUSES } from '../../src/lib/docTransitions'
 import { partitionBatch, receiveIdOf } from '../../src/server/receiveIdGuard'
 import { callbackOutcome } from '../../src/server/apCallback'
 import { docVisibleTo } from '../../src/server/viewAs'
+import { loadReceiverDirectory } from '../../src/server/receiverDirectory'
 import { publishDocEvent, type DocEvent } from '../../src/server/events'
 
 // --- USERS ROUTER ---
@@ -69,6 +70,19 @@ usersRouter.get('/', async (_req: Request, res: Response) => {
     res.json({ ok: true, users: formatted })
   } catch (err: any) {
     res.status(500).json({ ok: false, error: err.message || 'Failed to list users' })
+  }
+})
+
+/**
+ * v5.14: GET /api/users/receivers — Oracle accounts (Receiver names) found on documents, for the
+ * End User "add Oracle account" picker. Behind requirePerm('MAP') like the rest of /api/users.
+ * Names + counts / companies / existing bindings only — no document content.
+ */
+usersRouter.get('/receivers', async (_req: Request, res: Response) => {
+  try {
+    res.json({ ok: true, receivers: await loadReceiverDirectory() })
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err.message || 'Failed to list receivers' })
   }
 })
 

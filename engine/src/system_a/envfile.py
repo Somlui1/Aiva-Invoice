@@ -17,16 +17,26 @@ REQUIRED_KEYS = ("LITELLM_URL", "LITELLM_API_KEY", "MODEL_VISION", "PAPERLESS_BA
 
 
 def read_env_file(path: str | Path | None = None) -> dict[str, str]:
-    p = Path(path or DEFAULT_ENV)
+    candidates = []
+    if path:
+        candidates.append(Path(path))
+    else:
+        candidates.extend([
+            Path.cwd() / ".env",
+            ROOT / ".env",
+            ROOT.parent / ".env",
+        ])
+
     out: dict[str, str] = {}
-    if not p.exists():
-        return out
-    for line in p.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
+    for p in reversed(candidates):
+        if not p.exists():
             continue
-        k, v = line.split("=", 1)
-        out[k.strip()] = v.strip().strip('"').strip("'")
+        for line in p.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            out[k.strip()] = v.strip().strip('"').strip("'")
     return out
 
 
