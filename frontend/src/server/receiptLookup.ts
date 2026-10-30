@@ -192,6 +192,7 @@ export class OracleMcpReceiptProvider implements ReceiptLookupProvider {
   constructor(
     private readonly url: string,
     private readonly token: string,
+    private readonly database: string = process.env.ORACLE_MCP_DATABASE || 'default',
   ) {}
 
   async sqlRun(sql: string): Promise<Record<string, string>[]> {
@@ -211,7 +212,10 @@ export class OracleMcpReceiptProvider implements ReceiptLookupProvider {
           method: 'tools/call',
           params: {
             name: 'sql_run',
-            arguments: { sql },
+            arguments: {
+              database: this.database,
+              sql,
+            },
           },
         }),
         signal: ctrl.signal,

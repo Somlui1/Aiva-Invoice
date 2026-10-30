@@ -892,7 +892,10 @@ oracleRouter.post('/sync-companies', async (req: Request, res: Response) => {
             method: 'tools/call',
             params: {
               name: 'sql_run',
-              arguments: { sql: sqlQuery },
+              arguments: {
+                database: process.env.ORACLE_MCP_DATABASE || 'default',
+                sql: sqlQuery,
+              },
             },
           }),
           signal: AbortSignal.timeout(Number(process.env.ORACLE_SYNC_TIMEOUT_MS) || 8000),

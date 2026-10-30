@@ -82,6 +82,7 @@ describe('OracleMcpReceiptProvider', () => {
       method: 'tools/call',
       params: { name: 'sql_run' },
     })
+    expect(capturedBody.params.arguments.database).toBe('default')
     expect(capturedBody.params.arguments.sql).toContain('PO.RCV_SHIPMENT_LINES')
     expect(capturedBody.params.arguments.sql).toContain('INV-2026')
 
