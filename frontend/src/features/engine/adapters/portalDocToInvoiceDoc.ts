@@ -187,6 +187,7 @@ function linesOf(doc: PortalInvoiceDocument): InvoiceLineItem[] {
     if (l.poPrice != null) line.po_price = l.poPrice
     if (l.grLine != null) line.gr_line = l.grLine
     if (l.grQty != null) line.gr_qty = l.grQty
+    if (l.grPrice != null) line.gr_price = l.grPrice
     if (l.matchLevel) line.match_level = l.matchLevel
     return line
   })

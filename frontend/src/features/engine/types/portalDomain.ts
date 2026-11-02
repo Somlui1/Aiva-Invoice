@@ -117,6 +117,8 @@ export interface PortalLineItem {
   poPrice?: number | null
   grLine?: number | null
   grQty?: number | null
+  /** Receipt unit price of the matched receipt line (engine `match.receipt[0].unit_price`). */
+  grPrice?: number | null
   /** Receipt line the Engine matched this invoice line to. */
   rcvLineId?: string | null
   matchLevel?: string | null

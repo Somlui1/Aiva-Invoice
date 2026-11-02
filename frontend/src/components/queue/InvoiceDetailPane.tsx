@@ -57,6 +57,7 @@ export function InvoiceDetailPane({ doc, onOpenActionModal, readOnly = false, cl
   }, [doc.doc])
   // v5.14.1: buyer ORG shown in the metadata grid (master name by company code / ORG_ID)
   const buyer = buyerOrgOf(doc)
+  const poList = splitPoList(doc.po)
   const bindCheck = canBindReceipt({ status: doc.status, identityStatus: doc.identityStatus ?? null, hasReceipt: hasReceipt(doc) })
 
   // v5.11.1: the receipt drawer and the PDF dock occupy the same right-hand side — only one at a time.
@@ -251,7 +252,11 @@ export function InvoiceDetailPane({ doc, onOpenActionModal, readOnly = false, cl
               <div className="m-l">
                 PO <span className="tag-ro">ไม่ตรวจ</span>
               </div>
-              <div className="m-v mono" title={doc.po || undefined}>{doc.po}</div>
+              {/* v5.15: 1 receipt can cover several POs of the same supplier → first PO + "+N", full list on hover */}
+              <div className="m-v mono" title={poList.length > 1 ? poList.join(', ') : poList[0] || undefined}>
+                {poList[0] || '—'}
+                {poList.length > 1 && <span className="po-more">+{poList.length - 1}</span>}
+              </div>
               <div className="m-h">Release {doc.release ?? '—'}</div>
             </div>
             <div>
@@ -536,11 +541,22 @@ export function InvoiceDetailPane({ doc, onOpenActionModal, readOnly = false, cl
               <div className="note i" style={{ marginBottom: 12 }}>
                 <Icon name="info" />
                 <div>
-                  ค้นใบรับด้วย Tax ID ผู้ขาย <b className="mono">{doc.stax}</b> + Invoice <b>{doc.inv}</b> · PO {doc.po} แสดงผลเท่านั้น
+                  ค้นใบรับด้วย Tax ID ผู้ขาย <b className="mono">{doc.stax}</b> + Invoice <b>{doc.inv}</b> · PO {poList.join(', ') || '—'} แสดงผลเท่านั้น
                 </div>
               </div>
-              <div className="tbl-wrap">
-                <table className="t">
+              {/* v5.15: receipt columns read the engine match (gr_*). PO columns were always null → removed. */}
+              <div className="tbl-wrap lines-wrap">
+                <table className="t lines-t">
+                  <colgroup>
+                    <col className="c-no" />
+                    <col className="c-desc" />
+                    <col className="c-qty" />
+                    <col className="c-unit" />
+                    <col className="c-num" />
+                    <col className="c-num" />
+                    <col className="c-rcv" />
+                    <col className="c-lvl" />
+                  </colgroup>
                   <thead>
                     <tr>
                       <th>#</th>
@@ -549,16 +565,16 @@ export function InvoiceDetailPane({ doc, onOpenActionModal, readOnly = false, cl
                       <th>หน่วย</th>
                       <th className="num">ราคา</th>
                       <th className="num">ราคารวม</th>
-                      <th>บรรทัดใบรับ</th>
-                      <th className="num">จำนวนรับ</th>
-                      <th className="num">ราคาใบรับ</th>
+                      <th>ใบรับที่จับคู่</th>
                       <th>ชั้น</th>
                     </tr>
                   </thead>
                   <tbody>
                     {(doc.lines || []).map((l, i) => {
-                      const nq = l.po_line == null
-                      const bad = !nq && (l.po_qty !== l.qty || l.po_price !== l.price)
+                      const matched = l.gr_line != null || l.gr_qty != null
+                      const priceOff = matched && l.gr_price != null && l.gr_price !== l.price
+                      const qtyOff = matched && l.gr_qty != null && l.gr_qty !== l.qty
+                      const bad = !!l.diff || priceOff || qtyOff
                       const picked = evidenceSelection?.lineNo === i + 1
                       return (
                         <tr
@@ -568,15 +584,23 @@ export function InvoiceDetailPane({ doc, onOpenActionModal, readOnly = false, cl
                           className={`${bad ? 'row-bad' : ''}${picked ? ' row-sel' : ''}`}
                         >
                           <td>{i + 1}</td>
-                          <td>{l.desc}</td>
+                          <td className="desc" title={l.desc}>{l.desc}</td>
                           <td className="num">{l.qty}</td>
                           <td>{l.unit}</td>
                           <td className="num">{l.price.toLocaleString()}</td>
                           <td className="num">{l.amount.toLocaleString()}</td>
-                          <td>{nq ? <span className="nac">—</span> : l.po_line}</td>
-                          <td className="num">{nq ? 'ไม่ได้ประเมิน' : l.po_qty}</td>
-                          <td className="num">{nq ? '—' : l.po_price?.toLocaleString()}</td>
-                          <td>{l.match_level || 'M1'}</td>
+                          <td className="rcv">
+                            {matched ? (
+                              <span title={l.gr_price != null ? `ราคาใบรับ ${l.gr_price.toLocaleString()}` : undefined}>
+                                {l.gr_line != null ? `L${l.gr_line}` : '—'}
+                                {l.gr_qty != null && <span className={qtyOff ? 'off' : 'sub'}> · รับ {l.gr_qty}</span>}
+                                {priceOff && <span className="off"> · ราคา {l.gr_price!.toLocaleString()}</span>}
+                              </span>
+                            ) : (
+                              <span className="nac">ไม่ได้จับคู่</span>
+                            )}
+                          </td>
+                          <td><span className="pill lvl">{l.match_level || '—'}</span></td>
                         </tr>
                       )
                     })}
@@ -937,3 +961,13 @@ export function InvoiceDetailPane({ doc, onOpenActionModal, readOnly = false, cl
 }
 
 export default InvoiceDetailPane
+
+/** "PO1, PO2" (or a single PO) → de-duplicated list; "—" / blanks dropped. */
+function splitPoList(po: string | null | undefined): string[] {
+  const out: string[] = []
+  for (const p of String(po ?? '').split(/[,;\s]+/)) {
+    const t = p.trim()
+    if (t && t !== '—' && !out.includes(t)) out.push(t)
+  }
+  return out
+}

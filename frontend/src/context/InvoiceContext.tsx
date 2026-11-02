@@ -121,6 +121,36 @@ interface InvoiceContextType {
 
 const InvoiceContext = createContext<InvoiceContextType | null>(null)
 
+
+/**
+ * v5.15: GET /api/documents paginates (server default limit 200, max 500).
+ * Read every page until `total` so the queue and its KPI cards see all documents.
+ * No cap on document count here — an overflow guard is planned separately.
+ */
+const DOC_PAGE_SIZE = 500
+const DOC_PAGE_LOOP_GUARD = 10_000 // loop safety only, not a document limit
+export async function fetchAllDocuments(extraQuery = ''): Promise<{ ok: true; documents: any[]; total: number }> {
+  const byId = new Map<string, any>()
+  let offset = 0
+  let total = Infinity
+  for (let page = 0; offset < total; page++) {
+    if (page >= DOC_PAGE_LOOP_GUARD) throw new Error('fetchAllDocuments: page loop guard hit')
+    const qs = `limit=${DOC_PAGE_SIZE}&offset=${offset}${extraQuery ? `&${extraQuery}` : ''}`
+    const res = await fetch(`/api/documents?${qs}`)
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}))
+      throw new Error(errData.error || `HTTP ${res.status}`)
+    }
+    const data = await res.json()
+    if (!data?.ok || !Array.isArray(data.documents)) throw new Error(data?.error || 'Invalid /api/documents response')
+    total = Number(data.total ?? 0)
+    for (const d of data.documents) byId.set(String(d.doc ?? d.id), d) // de-dupe if offsets shift mid-read
+    if (data.documents.length === 0) break
+    offset += data.documents.length
+  }
+  return { ok: true, documents: [...byId.values()], total }
+}
+
 export function InvoiceProvider({ children }: { children: React.ReactNode }) {
   const { currentUser, currentRole, can, scopeCheck, logAudit } = useAuth()
   const { orgSettings } = useSettings()
@@ -154,23 +184,8 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
     let active = true
     async function loadLiveQueue() {
       try {
-        const res = await fetch('/api/documents?include=boxes')
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}))
-          if (active) {
-            setDocs(prev => {
-              const applied = applyLiveDocs({
-                prevDocs: prev,
-                liveDocs: [],
-                selectedDocId,
-                error: errData.error || `HTTP ${res.status}`,
-              })
-              return applied.docs
-            })
-          }
-          return
-        }
-        const data = await res.json()
+        // v5.15: read every page (was a single request → only the first 200 documents)
+        const data = await fetchAllDocuments('include=boxes')
         if (active && data.ok && Array.isArray(data.documents)) {
           setSelectedDocId(prevSelected => {
             const applied = applyLiveDocs({
@@ -709,9 +724,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
   /** Re-read the queue from the server (after a change the server decided, e.g. ผูกใบรับ). */
   const refreshQueue = useCallback(async (): Promise<boolean> => {
     try {
-      const res = await fetch('/api/documents?include=boxes')
-      if (!res.ok) return false
-      const data = await res.json()
+      const data = await fetchAllDocuments('include=boxes')
       if (data?.ok && Array.isArray(data.documents)) {
         setDocs(data.documents)
         return true

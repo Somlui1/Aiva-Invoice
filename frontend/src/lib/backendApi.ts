@@ -138,7 +138,10 @@ export function convertSystemAResultToInvoiceDoc(payload: any): InvoiceDoc {
     total: typeof norm.grand_total === 'number' ? norm.grand_total : parseFloat(norm.grand_total || '0'),
     sub: typeof norm.sub_total === 'number' ? norm.sub_total : parseFloat(norm.sub_total || '0'),
     vat: typeof norm.vat === 'number' ? norm.vat : parseFloat(norm.vat || '0'),
-    po: norm.po_number || snap.query_keys?.po_number || (Array.isArray(norm.po_numbers) ? norm.po_numbers[0] : '—'),
+    // v5.15: keep every PO (1 receipt can cover several POs of the same supplier)
+    po:
+      [...new Set([...(Array.isArray(snap.po_numbers) ? snap.po_numbers : []), ...(Array.isArray(norm.po_numbers) ? norm.po_numbers : []), norm.po_number, snap.query_keys?.po_number]
+        .map((v: any) => (v == null ? '' : String(v).trim())).filter(Boolean))].join(', ') || '—',
     rcv: snap.receipt_nums?.[0] || snap.receive_id || '—',
     receiver: snap.receiver || undefined,
     receiverActive: !!snap.receiver,

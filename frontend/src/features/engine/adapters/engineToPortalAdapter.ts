@@ -292,6 +292,7 @@ export function transformValidatedEngineResult(engine: EngineResultV3): PortalIn
       poPrice: null,
       grLine: trailingInt(rcvLineIds[0]),
       grQty: num(receipt.qty) ?? null,
+      grPrice: num(receipt.unit_price) ?? num(receipt.price) ?? null,
       rcvLineId: typeof rcvLineIds[0] === 'string' ? (rcvLineIds[0] as string) : null,
       matchLevel: str(match.level) ?? null,
       // Disagreeing when the Engine's qty check did not pass or the line math broke.
@@ -363,6 +364,13 @@ export function transformValidatedEngineResult(engine: EngineResultV3): PortalIn
     : undefined
   const poFromOracle = asArray(os.po_numbers).filter((x): x is string => typeof x === 'string')
   const poFromInvoice = str(nf.po_number)
+  // v5.15: 1 receipt may cover several POs of the same supplier → keep every PO, de-duplicated.
+  const poAll = uniqPo([
+    ...poFromOracle,
+    ...receiptLines.map(l => str(l.po_number) ?? str(asRecord(l.extra).PO_NUM)),
+    ...asArray(nf.po_numbers),
+    poFromInvoice,
+  ])
 
   const oracleReceiptLines: PortalOracleReceiptLine[] = receiptLines.map((l, idx) => {
     const extra = asRecord(l.extra)
@@ -432,7 +440,7 @@ export function transformValidatedEngineResult(engine: EngineResultV3): PortalIn
     subtotal,
     vat,
     grandTotal,
-    poNumbers: poFromOracle.length ? poFromOracle : poFromInvoice ? [poFromInvoice] : [],
+    poNumbers: poAll,
 
     // 3. Oracle receipt & matching
     receiptFound: receiptNums.length > 0,
@@ -596,3 +604,13 @@ export function buildFindings(
 }
 
 export { transformEngineResultToPortalDoc as engineToPortalAdapter }
+
+/** Trim, drop empties, de-duplicate (first occurrence wins, Oracle first). */
+function uniqPo(list: unknown[]): string[] {
+  const out: string[] = []
+  for (const v of list) {
+    const t = typeof v === 'string' || typeof v === 'number' ? String(v).trim() : ''
+    if (t && !out.includes(t)) out.push(t)
+  }
+  return out
+}

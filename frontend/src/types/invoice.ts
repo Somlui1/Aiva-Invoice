@@ -62,6 +62,7 @@ export interface InvoiceLineItem {
   po_price?: number
   gr_line?: number
   gr_qty?: number
+  gr_price?: number
   match_level?: string
   diff?: boolean
 }

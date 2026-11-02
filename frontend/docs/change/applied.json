@@ -553,5 +553,101 @@
         }
       ]
     }
+  },
+  {
+    "version": "5.15.0",
+    "base": "5.14.1",
+    "title": "ดึงเอกสารครบทุกหน้า (fetchAll) · รวมทุก PO ของใบรับ · ตารางสินค้าจับคู่ใบรับ (gr_line/gr_qty/gr_price) · ปรับข้อมูลอัตโนมัติเมื่อผูกใบรับ",
+    "appliedAt": "2026-11-02T02:27:31.792Z",
+    "baseCommit": "4ed0b76",
+    "db": false,
+    "files": {
+      "replaced": [
+        "server/routes/documents.ts",
+        "src/components/queue/InvoiceDetailPane.tsx",
+        "src/context/InvoiceContext.tsx",
+        "src/context/LiveContext.tsx",
+        "src/features/engine/adapters/engineToPortalAdapter.ts",
+        "src/features/engine/adapters/portalDocToInvoiceDoc.ts",
+        "src/features/engine/types/portalDomain.ts",
+        "src/lib/backendApi.ts",
+        "src/styles/queue.css",
+        "src/types/invoice.ts"
+      ],
+      "added": [],
+      "deleted": []
+    },
+    "tests": [],
+    "verify": {
+      "ok": true,
+      "at": "2026-11-02T02:30:30.901Z",
+      "totalSec": 178,
+      "full": false,
+      "tests": [
+        "src/test/aivaShellV53.test.tsx",
+        "src/test/app-smoke.test.tsx",
+        "src/test/backend-api.test.ts",
+        "src/test/backfillFindings.test.ts",
+        "src/test/businessKeyIngest.test.ts",
+        "src/test/closedDocs.test.ts",
+        "src/test/closedDocsPage.test.tsx",
+        "src/test/coordinateTransform.test.ts",
+        "src/test/dateRangeTool.test.tsx",
+        "src/test/dockFocus.test.tsx",
+        "src/test/dockKeyboardScroll.test.tsx",
+        "src/test/dockLayout.test.tsx",
+        "src/test/dockLoadingError.test.tsx",
+        "src/test/dockMockupHeader.test.tsx",
+        "src/test/documentActions.test.ts",
+        "src/test/duplicateResolution.test.ts",
+        "src/test/engineFindings.test.ts",
+        "src/test/engineToPortalAdapter.test.ts",
+        "src/test/evidenceButtons.test.tsx",
+        "src/test/evidenceFocus.test.ts",
+        "src/test/findingOverlay.test.tsx",
+        "src/test/invoiceContextMutation.test.tsx",
+        "src/test/openEvidenceContext.test.tsx",
+        "src/test/oracleReceiptAdapter.test.ts",
+        "src/test/oracleReceiptContract.test.ts",
+        "src/test/oracleReceiptsTab.test.tsx",
+        "src/test/pdfProxy.test.ts",
+        "src/test/portalDomainContracts.test.ts",
+        "src/test/queueDrawerDateFilter.test.tsx",
+        "src/test/queueFocusDateFilter.test.tsx",
+        "src/test/queueReceiverFilter.test.tsx",
+        "src/test/rbacUsers.test.ts",
+        "src/test/receiptBind.test.ts",
+        "src/test/revalidatePurge.test.tsx",
+        "src/test/securityRoutes.test.ts",
+        "src/test/serverDocumentsRoutes.test.ts",
+        "src/test/serverPdfAndIngest.test.ts",
+        "src/test/sessionGuard.test.ts",
+        "src/test/sidebarRole.test.tsx",
+        "src/test/smartSearch.test.ts",
+        "src/test/standaloneViewerLink.test.tsx",
+        "src/test/uiParity.test.ts",
+        "src/test/v511Rules.test.ts",
+        "src/test/v513CompanyMaster.test.ts",
+        "src/test/v513I18nSettings.test.tsx",
+        "src/test/v513Permissions.test.ts",
+        "src/test/v514Features.test.tsx",
+        "src/test/validationCardLayout.test.tsx",
+        "src/test/validationEvidenceLinking.test.tsx",
+        "src/test/viewAsClient.test.tsx",
+        "src/test/viewAsServer.test.ts"
+      ],
+      "steps": [
+        {
+          "label": "typecheck",
+          "ok": true,
+          "sec": 15.5
+        },
+        {
+          "label": "tests (51)",
+          "ok": true,
+          "sec": 162.6
+        }
+      ]
+    }
   }
 ]

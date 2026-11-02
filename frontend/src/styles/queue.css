@@ -1662,3 +1662,31 @@ table.t .num {
   padding: 2px 8px;
   font-size: 12px;
 }
+
+/* v5.15 — multi-PO counter in the header grid */
+.meta .po-more {
+  margin-left: 6px;
+  padding: 0 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  border-radius: 999px;
+  background: var(--line);
+  color: var(--s-500);
+}
+
+/* v5.15 — compact line-items table: fits the pane, no stretched columns */
+.lines-wrap { overflow-x: auto; }
+.lines-t { width: 100%; table-layout: fixed; }
+.lines-t col.c-no { width: 36px; }
+.lines-t col.c-desc { width: auto; }
+.lines-t col.c-qty { width: 64px; }
+.lines-t col.c-unit { width: 56px; }
+.lines-t col.c-num { width: 100px; }
+.lines-t col.c-rcv { width: 150px; }
+.lines-t col.c-lvl { width: 56px; }
+.lines-t th, .lines-t td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lines-t td.desc { white-space: normal; overflow-wrap: anywhere; line-height: 1.35; }
+.lines-t td.rcv .sub { color: var(--s-500); }
+.lines-t td.rcv .off { color: var(--danger, #d13438); font-weight: 600; }
+.lines-t .pill.lvl { font-size: 10.5px; padding: 0 6px; }
+@media (max-width: 900px) { .lines-t { min-width: 640px; } }

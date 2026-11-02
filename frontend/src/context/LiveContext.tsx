@@ -10,7 +10,7 @@
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useAuth } from './AuthContext'
-import { useInvoices } from './InvoiceContext'
+import { fetchAllDocuments, useInvoices } from './InvoiceContext'
 import { useToastModal } from './ToastModalContext'
 
 export type LiveState = 'connecting' | 'live' | 'polling' | 'off'
@@ -111,9 +111,8 @@ export function LiveProvider({ children }: { children: ReactNode }) {
 
     const pollOnce = async () => {
       try {
-        const res = await fetch('/api/documents?limit=500')
-        if (!res.ok) return
-        const body = await res.json()
+        // v5.15: all pages, so documents beyond the first 500 are also noticed
+        const body = await fetchAllDocuments()
         if (!alive || !Array.isArray(body?.documents)) return
         const diff: { id: string; isNew: boolean }[] = []
         for (const d of body.documents as { doc: string; status: string }[]) {

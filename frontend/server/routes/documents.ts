@@ -12,7 +12,7 @@ import { publishDocEvent } from '../../src/server/events'
 import { canBindReceipt, transitionFor } from '../../src/lib/docTransitions'
 import { findReceiveIdHolder, holderMessage, receiveIdOf } from '../../src/server/receiveIdGuard'
 import { decideBind } from '../../src/server/duplicateResolution'
-import { buildSecondaryKey, normalizeReceiveId, type DocumentIdentity } from '../../src/server/businessKey'
+import { buildSecondaryKey, normalizeReceiveId, type DocumentIdentity, normalizeInvoiceNum } from '../../src/server/businessKey'
 import { lookupReceipt, receiptTotalOf, ReceiptLookupUnavailable } from '../../src/server/receiptLookup'
 
 export const documentsRouter = Router()
@@ -525,6 +525,30 @@ documentsRouter.post('/:id/bind-receipt', async (req, res) => {
 
       const { now, dt, t } = nowParts()
       const fromStatus: string = doc.status
+
+      // v5.15: receipt ↔ invoice is 1:1 — the invoice used to find this receipt is authoritative.
+      // Keep the document's own spelling when it is the same invoice; replace it when it differs/is empty.
+      const sameInv = normalizeInvoiceNum(doc.invoiceNum) === normalizeInvoiceNum(found.invoiceNum)
+      const boundInvoiceNum: string = doc.invoiceNum && sameInv ? doc.invoiceNum : found.invoiceNum
+      const prevPayload = parsePayload(doc.payloadJson)
+      // 1 receipt may cover several POs of the same supplier → the receipt's PO list wins, invoice POs kept after it.
+      const boundPoNumbers: string[] = [...new Set([
+        ...(Array.isArray(r.poNumbers) ? r.poNumbers : []),
+        ...(Array.isArray(prevPayload.poNumbers) ? prevPayload.poNumbers : []),
+      ].map((v: any) => String(v ?? '').trim()).filter(Boolean))]
+      const changes: string[] = []
+      const chg = (label: string, a: any, b: any) => {
+        const x = a == null || a === '' ? '—' : String(a)
+        const y = b == null || b === '' ? '—' : String(b)
+        if (x !== y) changes.push(`${label} ${x} → ${y}`)
+      }
+      chg('Invoice', doc.invoiceNum, boundInvoiceNum)
+      chg('Supplier Tax ID', doc.supplierTaxId, found.supplierTaxId)
+      chg('Buyer', doc.companyCode, r.companyCode || doc.companyCode)
+      chg('ORG_ID', prevPayload.orgId, r.orgId ?? prevPayload.orgId)
+      chg('PO', (prevPayload.poNumbers ?? []).join(', '), boundPoNumbers.join(', '))
+      chg('Receiver', doc.receiverName, r.receiverName ?? doc.receiverName)
+      const chgText = changes.length ? ` · ปรับข้อมูล: ${changes.join('; ')}` : ''
       const toStatus = outcome.newStatus
       const payload = parsePayload(doc.payloadJson)
       const history = Array.isArray(payload.history) ? [...payload.history] : []
@@ -535,7 +559,7 @@ documentsRouter.post('/:id/bind-receipt', async (req, res) => {
         t,
         who: session.name,
         act: toStatus === 'Confirmed' ? `Confirm โดยผูกใบรับ (${fromStatus} → Confirmed)` : `ผูกใบรับ (${fromStatus} → Duplicate)`,
-        d: `${session.name} (${role}) · ใบรับ ${r.receiveId} · ${body.reason}${supText}${dupText}`,
+        d: `${session.name} (${role}) · ใบรับ ${r.receiveId} · ${body.reason}${supText}${dupText}${chgText}`,
         k: toStatus === 'Confirmed' ? 'g' : 'c',
         rs: body.reason,
       })
@@ -543,7 +567,7 @@ documentsRouter.post('/:id/bind-receipt', async (req, res) => {
       Object.assign(payload, {
         status: toStatus,
         history,
-        invoiceNum: payload.invoiceNum || found.invoiceNum,
+        invoiceNum: boundInvoiceNum,
         supplierTaxId: found.supplierTaxId,
         supplierName: r.supplierName || payload.supplierName,
         companyCode: r.companyCode || payload.companyCode,
@@ -555,7 +579,7 @@ documentsRouter.post('/:id/bind-receipt', async (req, res) => {
         receiptTotal,
         invoiceVsReceiptDiff: Math.round(((doc.grandTotal ?? 0) - receiptTotal) * 100) / 100,
         oracleReceiptLines: r.lines,
-        poNumbers: Array.isArray(payload.poNumbers) && payload.poNumbers.length ? payload.poNumbers : r.poNumbers,
+        poNumbers: boundPoNumbers,
         identity: {
           status: 'RESOLVED',
           reason: 'FOUND',
@@ -588,7 +612,7 @@ documentsRouter.post('/:id/bind-receipt', async (req, res) => {
           missingKeys: null,
           supplierTaxId: found.supplierTaxId,
           supplierName: r.supplierName || doc.supplierName,
-          invoiceNum: doc.invoiceNum || found.invoiceNum,
+          invoiceNum: boundInvoiceNum,
           companyCode: r.companyCode || doc.companyCode,
           receiverName: r.receiverName ?? doc.receiverName,
           confirmedBy: toStatus === 'Confirmed' ? session.id : doc.confirmedBy,
@@ -629,7 +653,7 @@ documentsRouter.post('/:id/bind-receipt', async (req, res) => {
           fromStatus,
           toStatus,
           reason: body.reason,
-          detail: `ใบรับ ${r.receiveId} · ยอดใบรับ ${receiptTotal}${supText}${dupText}`,
+          detail: `ใบรับ ${r.receiveId} · ยอดใบรับ ${receiptTotal}${supText}${dupText}${chgText}`,
         },
       })
       return { fromStatus, toStatus, outcome }
