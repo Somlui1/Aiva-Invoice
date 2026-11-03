@@ -236,6 +236,10 @@ export function visibleDocsFor(docs: InvoiceDoc[], scope: ScopeCheck): InvoiceDo
   return docs.filter(d => scope(d).ok)
 }
 
+/** v5.15: EU progress card key — documents already handed to AP (read-only). */
+export const EU_AP_KEY = 'apflow'
+export const AP_FLOW_STATUSES = ['Confirmed', 'Sent', 'Posted'] as const
+
 export function matchStatusFor(
   k: string,
   d: InvoiceDoc,
@@ -249,6 +253,8 @@ export function matchStatusFor(
   if (k === 'bind') return pendingBind(d)
   if (k === 'unres') return !!d.unres && d.status === 'Manual Review'
   if (k === 'mine') return d.assigned === 'eu' && !CLOSED_STATUSES.includes(d.status)
+  // v5.15: EU "ส่งบัญชีแล้ว" — read-only progress card (Confirmed / Sent / Posted)
+  if (k === EU_AP_KEY) return (AP_FLOW_STATUSES as readonly string[]).includes(d.status)
   return d.status === k
 }
 
@@ -297,7 +303,8 @@ export function filterDocsFor(input: QueueFilterInput): InvoiceDoc[] {
 export function kpiKeysFor(role: RoleKey): string[] {
   return role === 'EU'
     ? // v5.10: Rejected / Superseded moved to "ผลการส่งเอกสาร" — the EU queue shows work only
-      ['mine', 'all', 'Hold', 'Review']
+      // v5.15: ordered by what the user must do — all · ต้องดำเนินการ · Review · Hold · Auto-pass · ส่งบัญชีแล้ว
+      ['all', 'mine', 'Review', 'Hold', 'Auto-pass', EU_AP_KEY]
     : ['all', 'Auto-pass', 'Review', 'Hold', 'Manual Review', 'unres', 'bind', 'Duplicate', 'Superseded']
 }
 

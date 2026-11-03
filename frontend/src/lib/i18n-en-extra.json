@@ -316,7 +316,22 @@
   "ยกเลิกหรือยืนยันตัวตนไม่ผ่าน · เหลืออีก": "Cancelled or verification failed ·",
   "บริษัทผู้ซื้อ (Buyer ORG)": "Buyer (ORG)",
   "ตามใบแจ้งหนี้": "Per invoice",
-  "ยังไม่ทราบบริษัท": "Company not identified"
+  "ยังไม่ทราบบริษัท": "Company not identified",
+  "ต้องดำเนินการ": "Action needed",
+  "รอคุณแก้ไข PO / ใบรับ": "Waiting for your PO / receipt fix",
+  "เอกสารในขอบเขต Receiver": "Documents in your Receiver scope",
+  "ระบบตรวจพบจุดที่ต้องตรวจ": "Findings to check",
+  "ถูกพักไว้ชั่วคราว": "Temporarily on hold",
+  "ผ่านอัตโนมัติ": "Auto-passed",
+  "ตรวจผ่านครบทุกเงื่อนไข": "All checks passed",
+  "ส่งบัญชีแล้ว": "Sent to Accounting",
+  "ดูอย่างเดียว": "Read-only",
+  "ค้นหา Receiver…": "Search Receiver…",
+  "ไม่พบ Receiver": "No Receiver found",
+  "ทุก Receiver ของฉัน": "All my Receivers",
+  "บริษัทในขอบเขตของคุณ": "Companies in your scope",
+  "ล้าง Receiver": "Clear Receiver",
+  "เลือก Receiver": "Choose Receiver"
  },
  "patterns": [
   [

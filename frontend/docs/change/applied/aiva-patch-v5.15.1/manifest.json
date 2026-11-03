@@ -1,0 +1,8 @@
+{
+  "version": "5.15.1",
+  "base": "5.15.0",
+  "title": "EU KPI cards ปรับลำดับ/คำอธิบาย · ตัวเลือก Receiver ค้นหาได้ · Engine watchdog & log",
+  "db": false,
+  "tests": [],
+  "delete": []
+}

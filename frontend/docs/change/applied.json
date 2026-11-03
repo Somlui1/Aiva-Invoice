@@ -649,5 +649,76 @@
         }
       ]
     }
+  },
+  {
+    "version": "5.15.1",
+    "base": "5.15.0",
+    "title": "EU KPI cards ปรับลำดับ/คำอธิบาย · ตัวเลือก Receiver ค้นหาได้ · Engine watchdog & log",
+    "appliedAt": "2026-11-03T08:08:36.962Z",
+    "baseCommit": "c45d981",
+    "db": false,
+    "files": {
+      "replaced": [
+        "src/components/queue/QueueKpiCards.tsx",
+        "src/components/queue/QueueToolbar.tsx",
+        "src/context/InvoiceContext.tsx",
+        "src/lib/i18n-en-extra.json",
+        "src/lib/queueFilters.ts",
+        "src/styles/queue.css"
+      ],
+      "added": [
+        "src/components/queue/ReceiverPicker.tsx"
+      ],
+      "deleted": []
+    },
+    "tests": [],
+    "verify": {
+      "ok": true,
+      "at": "2026-11-03T08:12:35.843Z",
+      "totalSec": 237,
+      "full": false,
+      "tests": [
+        "src/test/aivaShellV53.test.tsx",
+        "src/test/app-smoke.test.tsx",
+        "src/test/closedDocs.test.ts",
+        "src/test/closedDocsPage.test.tsx",
+        "src/test/dateRangeTool.test.tsx",
+        "src/test/dockFocus.test.tsx",
+        "src/test/dockKeyboardScroll.test.tsx",
+        "src/test/dockLayout.test.tsx",
+        "src/test/dockLoadingError.test.tsx",
+        "src/test/dockMockupHeader.test.tsx",
+        "src/test/duplicateResolution.test.ts",
+        "src/test/evidenceButtons.test.tsx",
+        "src/test/invoiceContextMutation.test.tsx",
+        "src/test/openEvidenceContext.test.tsx",
+        "src/test/oracleReceiptsTab.test.tsx",
+        "src/test/queueDrawerDateFilter.test.tsx",
+        "src/test/queueFocusDateFilter.test.tsx",
+        "src/test/queueReceiverFilter.test.tsx",
+        "src/test/revalidatePurge.test.tsx",
+        "src/test/sidebarRole.test.tsx",
+        "src/test/smartSearch.test.ts",
+        "src/test/standaloneViewerLink.test.tsx",
+        "src/test/uiParity.test.ts",
+        "src/test/v511Rules.test.ts",
+        "src/test/v513I18nSettings.test.tsx",
+        "src/test/validationCardLayout.test.tsx",
+        "src/test/validationEvidenceLinking.test.tsx",
+        "src/test/viewAsClient.test.tsx"
+      ],
+      "steps": [
+        {
+          "label": "typecheck",
+          "ok": true,
+          "sec": 23.4
+        },
+        {
+          "label": "tests (28)",
+          "ok": true,
+          "sec": 213.6
+        }
+      ]
+    }
   }
 ]

@@ -8,6 +8,10 @@ import { useInvoices } from '../../context/InvoiceContext'
 import { DateRangeTool } from './DateRangeTool'
 import { COMPANIES } from '../../mock/companies'
 import { acctsOf } from '../../mock/users'
+import { ReceiverPicker } from './ReceiverPicker'
+
+/** v5.15: above this many Oracle accounts the EU scope switches from chips to a searchable picker. */
+export const RECEIVER_CHIP_MAX = 3
 
 export function QueueToolbar() {
   const { currentUser } = useAuth()
@@ -40,39 +44,55 @@ export function QueueToolbar() {
       {isEu ? (
         <>
           <span className="lab">ขอบเขต Receiver</span>
-          {userAccts.length > 0 ? (
-            <>
+          {userAccts.length === 0 ? (
+            <span className="scope-note">
+              <Icon name="user" size="sm" />
+              เฉพาะใบรับที่ <b>Oracle account: {accounts}</b>
+            </span>
+          ) : userAccts.length > RECEIVER_CHIP_MAX ? (
+            // v5.15: many AD→Oracle mappings — one compact searchable picker instead of N chips
+            <ReceiverPicker
+              accounts={userAccts}
+              countOf={acct => visibleDocs.filter(d => d.receiver === acct).length}
+              total={visibleDocs.length}
+              value={receiverFilter}
+              onChange={setReceiverFilter}
+            />
+          ) : (
+            <span className="rcv-chips">
               <FilterChip
                 label="ทุก Receiver ของฉัน"
                 count={visibleDocs.length}
                 active={!receiverFilter}
                 onClick={() => setReceiverFilter(null)}
               />
-              {userAccts.map(acct => {
-                const count = visibleDocs.filter(d => d.receiver === acct).length
-                return (
-                  <FilterChip
-                    key={acct}
-                    label={acct}
-                    count={count}
-                    active={receiverFilter === acct}
-                    onClick={() => setReceiverFilter(receiverFilter === acct ? null : acct)}
-                  />
-                )
-              })}
-            </>
-          ) : (
-            <span className="scope-note">
-              <Icon name="user" size="sm" />
-              เฉพาะใบรับที่ <b>Oracle account: {accounts}</b>
+              {userAccts.map(acct => (
+                <FilterChip
+                  key={acct}
+                  label={acct}
+                  title={acct}
+                  count={visibleDocs.filter(d => d.receiver === acct).length}
+                  active={receiverFilter === acct}
+                  onClick={() => setReceiverFilter(receiverFilter === acct ? null : acct)}
+                />
+              ))}
             </span>
           )}
-          <span className="chip on" style={{ cursor: 'default' }}>
-            {currentUser.co.join(', ')}
-          </span>
-          <span className="scope-note">
+          {/* v5.15: was an always-"on" chip that rendered empty when the EU has no company (bug) */}
+          {currentUser.co.length > 0 && (
+            <span className="scope-co" title="บริษัทในขอบเขตของคุณ">
+              <Icon name="building" size="sm" />
+              {currentUser.co.join(' · ')}
+            </span>
+          )}
+          <span
+            className="scope-info"
+            tabIndex={0}
+            role="note"
+            aria-label="เอกสารที่ยังไม่มีใบรับ ฝ่ายบัญชีเป็นผู้ดำเนินการ"
+            title="เอกสารที่ยังไม่มีใบรับ ฝ่ายบัญชีเป็นผู้ดำเนินการ"
+          >
             <Icon name="info" size="sm" />
-            เอกสารที่ยังไม่มีใบรับ ฝ่ายบัญชีเป็นผู้ดำเนินการ
           </span>
         </>
       ) : (

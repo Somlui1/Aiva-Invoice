@@ -725,6 +725,60 @@ class FlowWorker:
         self.recent_events: deque = deque(maxlen=100)
         self._frontend_offline_notified = False
 
+        # v5.15: observability + watchdog
+        self.cycle_no = 0
+        self.last_heartbeat: float = time.time()
+        self._last_idle_log: float = 0.0
+        # doc_id -> {"stage": str, "since": float, "started": float, "timings": {stage: secs}}
+        self.inflight: Dict[int, Dict[str, Any]] = {}
+        self.recent_done: deque = deque(maxlen=20)
+        self.stage_timeout_s = float(os.getenv("DOC_STAGE_TIMEOUT_SECONDS", "180"))
+        self.idle_log_every_s = float(os.getenv("IDLE_LOG_INTERVAL_SECONDS", "60"))
+
+    # ── v5.15: heartbeat & per-document trace ─────────────────────────────────
+
+    def beat(self) -> None:
+        """Mark the loop as alive. Called at every stage boundary (watchdog reads it)."""
+        self.last_heartbeat = time.time()
+
+    def heartbeat_age(self) -> float:
+        return time.time() - self.last_heartbeat
+
+    def _stage(self, doc_id: int, stage: str, quiet: bool = False) -> None:
+        now = time.time()
+        st = self.inflight.setdefault(doc_id, {"stage": None, "since": now, "started": now, "timings": {}})
+        prev = st.get("stage")
+        if prev:
+            st["timings"][prev] = round(now - st["since"], 1)
+        st["stage"], st["since"] = stage, now
+        self.beat()
+        if not quiet:
+            log.info("[Doc %d] ▶ %s", doc_id, stage)
+
+    def _finish(self, doc_id: int, ok: bool, detail: str) -> None:
+        now = time.time()
+        st = self.inflight.pop(doc_id, None) or {"stage": "?", "since": now, "started": now, "timings": {}}
+        if st.get("stage"):
+            st["timings"][st["stage"]] = round(now - st["since"], 1)
+        total = round(now - st["started"], 1)
+        steps = " → ".join(f"{k} {v}s" for k, v in st["timings"].items())
+        self.recent_done.append({
+            "doc_id": doc_id, "ok": ok, "detail": detail, "total_s": total,
+            "timings": st["timings"], "at": datetime.now(timezone.utc).isoformat(),
+        })
+        self.beat()
+        if ok:
+            log.info("[Doc %d] ✓ DONE %s | %s | total=%ss", doc_id, detail, steps, total)
+        else:
+            log.warning("[Doc %d] ✗ FAILED at %s — %s | total=%ss", doc_id, st.get("stage"), detail[:200], total)
+
+    async def _timed(self, stage: str, fn, *args):
+        """Run a blocking stage in a thread with a hard timeout (thread is abandoned on timeout)."""
+        try:
+            return await asyncio.wait_for(asyncio.to_thread(fn, *args), timeout=self.stage_timeout_s)
+        except asyncio.TimeoutError:
+            raise TimeoutError(f"{stage} exceeded {self.stage_timeout_s:.0f}s") from None
+
     # ── Event log ─────────────────────────────────────────────────────────────
 
     def _log(self, event_type: str, message: str, doc_id: Optional[int] = None) -> None:
@@ -755,6 +809,15 @@ class FlowWorker:
                 "frontend_base_url": self.frontend.base_url or "(auto)",
             },
             "recent_events": list(self.recent_events),
+            # v5.15
+            "cycle_no": self.cycle_no,
+            "heartbeat_age_s": round(self.heartbeat_age(), 1),
+            "inflight": [
+                {"doc_id": d, "stage": v["stage"], "stage_for_s": round(time.time() - v["since"], 1),
+                 "total_s": round(time.time() - v["started"], 1)}
+                for d, v in self.inflight.items()
+            ],
+            "recent_done": list(self.recent_done),
         }
 
     # ── Main async loop ────────────────────────────────────────────────────────
@@ -762,8 +825,14 @@ class FlowWorker:
     async def run(self) -> None:
         """Main worker coroutine. Run as asyncio task."""
         self.started_at = time.time()
+        self.beat()
         self.stats["status"] = "running"
         self._log("INFO", f"Flow Worker v2 started — ID: {self.worker_id}")
+        self._log("INFO", (
+            f"Config: batch={self.config.get('batch_size', 5)} poll={self.config.get('poll_interval_s', 15)}s "
+            f"stage_timeout={self.stage_timeout_s:.0f}s stale_lock={self.config.get('stale_timeout_s', 1800)}s "
+            f"frontend={self.frontend.base_url or '(auto)'}"
+        ))
 
         tag_inv = self.config.get("tag_invoice", 5)
         tag_proc = self.config.get("tag_processed", 25)
@@ -779,6 +848,7 @@ class FlowWorker:
                 break
 
             self.stats["last_cycle_at"] = datetime.now(timezone.utc).isoformat()
+            self.beat()
 
             # ── Preflight: Frontend health gate ───────────────────────────────
             is_online, fe_url = await asyncio.to_thread(self.frontend.is_online)
@@ -796,6 +866,7 @@ class FlowWorker:
                 self.stats["status"] = "running"
 
             # ── Cycle ─────────────────────────────────────────────────────────
+            self.cycle_no += 1
             try:
                 has_more = await self._run_cycle(
                     tag_inv, tag_proc, tag_in_proc, batch_size, stale_timeout
@@ -804,7 +875,9 @@ class FlowWorker:
                 err = f"Cycle error: {type(exc).__name__}: {exc}"
                 self.stats["last_error"] = err
                 self._log("ERROR", err)
+                log.exception("[Cycle #%d] crashed", self.cycle_no)
                 has_more = False
+            self.beat()
 
             # Sleep shorter if there are more docs waiting
             await asyncio.sleep(2.0 if has_more else poll_interval)
@@ -844,7 +917,16 @@ class FlowWorker:
             self.paperless.query_unprocessed, tag_inv, tag_proc, tag_in_proc, batch_size
         )
         if not candidates:
+            now = time.time()
+            if now - self._last_idle_log >= self.idle_log_every_s:
+                self._last_idle_log = now
+                log.info(
+                    "[Idle] no new invoices · cycle #%d · done=%d ok=%d failed=%d · next poll %ss",
+                    self.cycle_no, self.stats["processed_count"], self.stats["success_count"],
+                    self.stats["failed_count"], self.config.get("poll_interval_s", 15),
+                )
             return False
+        self._last_idle_log = time.time()
 
         self._log("POLL", f"Found {len(candidates)} candidate invoice(s)")
         has_more = len(candidates) >= batch_size
@@ -862,19 +944,22 @@ class FlowWorker:
         if not claimed_docs:
             return has_more
 
-        self._log("BATCH_START", f"Processing batch of {len(claimed_docs)} docs: {[d['id'] for d in claimed_docs]}")
+        self._log("BATCH_START", f"[Cycle #{self.cycle_no}] batch of {len(claimed_docs)} docs: {[d['id'] for d in claimed_docs]}")
+        batch_t0 = time.time()
         self.stats["current_batch"] = [int(d["id"]) for d in claimed_docs]
 
         # C. Download PDFs concurrently
         pdf_map: Dict[int, bytes] = {}
         async def _download(doc: Dict[str, Any]) -> None:
             doc_id = int(doc["id"])
+            self._stage(doc_id, "download")
             try:
-                pdf = await asyncio.to_thread(self.paperless.download_pdf, doc_id)
+                pdf = await self._timed("download", self.paperless.download_pdf, doc_id)
                 pdf_map[doc_id] = pdf
-                log.debug("[Download] Doc %d OK (%d bytes)", doc_id, len(pdf))
+                log.info("[Doc %d]   pdf %d KB", doc_id, len(pdf) // 1024)
             except Exception as exc:
-                log.error("[Download] Doc %d failed: %s", doc_id, exc)
+                self.stats["failed_count"] += 1
+                self._finish(doc_id, False, f"download: {exc}")
                 await asyncio.to_thread(
                     self.paperless.mark_failed, doc_id, f"PDF download error: {exc}", tag_in_proc
                 )
@@ -894,15 +979,18 @@ class FlowWorker:
         async def _perceive(doc: Dict[str, Any]) -> None:
             doc_id = int(doc["id"])
             dms_id = f"DMS-{doc_id}"
+            self._stage(doc_id, "ocr-queue", quiet=True)
             async with llm_sem:
+                self._stage(doc_id, "ocr")
                 try:
-                    ext = await asyncio.to_thread(
-                        _run_perception, pdf_map[doc_id], dms_id, self.settings
+                    ext = await self._timed(
+                        "ocr", _run_perception, pdf_map[doc_id], dms_id, self.settings
                     )
                     perception_results[doc_id] = ext
-                    log.debug("[Perception] Doc %d OK", doc_id)
+                    self._stage(doc_id, "wait-validate", quiet=True)
                 except Exception as exc:
-                    log.error("[Perception] Doc %d failed: %s", doc_id, exc)
+                    self.stats["failed_count"] += 1
+                    self._finish(doc_id, False, f"ocr: {type(exc).__name__}: {exc}")
                     await asyncio.to_thread(
                         self.paperless.mark_failed, doc_id, f"Perception error: {exc}", tag_in_proc
                     )
@@ -921,7 +1009,12 @@ class FlowWorker:
                     _extraction_to_fields(perception_results[int(d["id"])])
                     for d in validated_docs
                 ]
-                n_fetched = await prefetch_oracle_batch(ext_list, self.settings, oracle_cache)
+                self.beat()
+                log.info("[Cycle #%d] ▶ oracle-prefetch for %d docs", self.cycle_no, len(validated_docs))
+                n_fetched = await asyncio.wait_for(
+                    prefetch_oracle_batch(ext_list, self.settings, oracle_cache), timeout=self.stage_timeout_s
+                )
+                self.beat()
                 self._log("ORACLE_PREFETCH", f"Prefetched {n_fetched} Oracle key-sets for {len(validated_docs)} docs")
             except Exception as exc:
                 log.warning("[OraclePrefetch] Batch prefetch failed (will proceed without cache): %s", exc)
@@ -930,18 +1023,19 @@ class FlowWorker:
         for doc in validated_docs:
             doc_id = int(doc["id"])
             dms_id = f"DMS-{doc_id}"
-            self._log("PROCESS_START", f"Validating doc {doc_id}", doc_id)
+            self._stage(doc_id, "validate")
 
             try:
                 # Validation + assemble (uses oracle_cache)
-                result = await asyncio.to_thread(
-                    _run_validation, perception_results[doc_id], dms_id, self.settings, oracle_cache
+                result = await self._timed(
+                    "validate", _run_validation, perception_results[doc_id], dms_id, self.settings, oracle_cache
                 )
                 elapsed_ms = 0  # already timed inside blackbox when called directly
                 payload = _assemble_final_payload(result, dms_id, elapsed_ms, self.settings)
 
                 # Push to frontend
-                ok, push_resp = await asyncio.to_thread(self.frontend.push, payload)
+                self._stage(doc_id, "ingest")
+                ok, push_resp = await self._timed("ingest", self.frontend.push, payload)
 
                 if ok:
                     verdict = result.get("recommendation", {}).get("value", "UNKNOWN")
@@ -953,12 +1047,14 @@ class FlowWorker:
                     )
                     self.stats["success_count"] += 1
                     self._log("SUCCESS", f"Doc {doc_id} → {verdict} (ingest={res_str})", doc_id)
+                    self._finish(doc_id, True, f"verdict={verdict} ingest={res_str} round={round_no}")
                 else:
                     await asyncio.to_thread(
                         self.paperless.mark_failed, doc_id, str(push_resp), tag_in_proc
                     )
                     self.stats["failed_count"] += 1
                     self._log("ERROR", f"Doc {doc_id} push rejected: {push_resp}", doc_id)
+                    self._finish(doc_id, False, f"ingest rejected: {push_resp}")
 
             except Exception as exc:
                 err_msg = f"{type(exc).__name__}: {exc}"
@@ -968,6 +1064,7 @@ class FlowWorker:
                     self.paperless.mark_failed, doc_id, err_msg, tag_in_proc
                 )
                 self._log("ERROR", f"Doc {doc_id} crashed: {err_msg}", doc_id)
+                self._finish(doc_id, False, err_msg)
             finally:
                 self.stats["processed_count"] += 1
 
@@ -975,6 +1072,14 @@ class FlowWorker:
             await asyncio.sleep(0.5)
 
         self.stats["current_batch"] = []
+        # anything still in-flight here failed silently somewhere — never leave it dangling
+        for d in list(self.inflight):
+            self._finish(d, False, "dropped from batch")
+        log.info(
+            "[Cycle #%d] batch done in %.1fs · total ok=%d failed=%d%s",
+            self.cycle_no, time.time() - batch_t0, self.stats["success_count"], self.stats["failed_count"],
+            " · more waiting" if has_more else "",
+        )
         gc.collect()
         return has_more
 

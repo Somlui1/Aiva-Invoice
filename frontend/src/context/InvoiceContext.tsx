@@ -23,6 +23,8 @@ import {
   pendingBind as queuePendingBind,
   filterDocsFor,
   kpiCountsFor,
+  EU_AP_KEY,
+  AP_FLOW_STATUSES,
   staleDocsFor,
   allowedActionFor,
   precheckPostFor,
@@ -302,7 +304,13 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
     })
     // v5.9: closed documents live on their own page. A status card that names a closed status
     // explicitly (EU "Rejected"/"Superseded", APR "Duplicate" override) still lists those.
-    const open = list.filter(d => !isClosedViewStatus(d.status) || statusFilter === d.status)
+    const open = list.filter(
+      d =>
+        !isClosedViewStatus(d.status) ||
+        statusFilter === d.status ||
+        // v5.15: EU "ส่งบัญชีแล้ว" card lists the AP-flow documents (read-only)
+        (statusFilter === EU_AP_KEY && (AP_FLOW_STATUSES as readonly string[]).includes(d.status))
+    )
     if (currentUser.role === 'EU' && receiverFilter) {
       return open.filter(d => d.receiver === receiverFilter)
     }
@@ -337,7 +345,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
     // status (ACC/APR "ซ้ำ" / "ถูกแทนที่"), never inside "ทั้งหมด" / "ใบรับของฉัน".
     const counts = kpiCountsFor({ ...input, docs: docsToCount.filter(d => !isClosedViewStatus(d.status)) })
     const full = kpiCountsFor(input)
-    for (const k of Object.keys(counts)) if (isClosedViewStatus(k)) counts[k] = full[k]
+    for (const k of Object.keys(counts)) if (isClosedViewStatus(k) || k === EU_AP_KEY) counts[k] = full[k]
     return counts
   }, [visibleDocs, statusFilter, companyFilter, periodFilter, searchQuery, showClosed, currentUser.role, receiverFilter])
 

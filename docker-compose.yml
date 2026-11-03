@@ -3,7 +3,8 @@
 #
 # Usage:
 #   docker compose up -d --build          # build + start both services
-#   docker compose logs -f engine         # engine daemon logs
+#   docker compose logs -f engine         # engine daemon logs (per-doc ▶ stage / ✓ DONE / ✗ FAILED)
+#   curl -s localhost:8080/status | jq    # what the engine is doing right now
 #   docker compose logs -f portal         # portal (frontend) logs
 #   docker compose down                   # stop (volumes stay)
 #   docker compose down -v                # stop + wipe volumes (fresh DB)
@@ -82,7 +83,10 @@ services:
       dockerfile: Dockerfile
     image: aiva-engine:latest
     container_name: aiva-engine
-    restart: unless-stopped
+    # v5.15: "always" also restarts after the watchdog exits the process (exit 1)
+    restart: always
+    init: true
+    stop_grace_period: 15s
     env_file: .env
     environment:
       PYTHONUNBUFFERED: "1"
@@ -94,6 +98,15 @@ services:
       FRONTEND_BASE_URL: http://aiva-portal:3000
       FRONTEND_INGEST_PATH: ${FRONTEND_INGEST_PATH:-/api/engine/ingest}
       ENGINE_INGEST_KEY: ${ENGINE_INGEST_KEY}
+      # v5.15 — readable logs for `docker compose logs -f engine`
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-text}            # text | json
+      IDLE_LOG_INTERVAL_SECONDS: ${IDLE_LOG_INTERVAL_SECONDS:-60}
+      # v5.15 — anti-hang: per-stage timeout + watchdog (process exits → restart policy restarts it)
+      DOC_STAGE_TIMEOUT_SECONDS: ${DOC_STAGE_TIMEOUT_SECONDS:-180}
+      WATCHDOG_ENABLED: ${WATCHDOG_ENABLED:-true}
+      WATCHDOG_STALL_SECONDS: ${WATCHDOG_STALL_SECONDS:-300}
+      WATCHDOG_CHECK_SECONDS: ${WATCHDOG_CHECK_SECONDS:-30}
     ports:
       - "${ENGINE_PORT:-8080}:8080"
     volumes:
@@ -110,11 +123,12 @@ services:
       - default
       - proxy-net
     healthcheck:
-      test: [ "CMD-SHELL", "curl -f http://127.0.0.1:8080/health/live || exit 1" ]
+      # v5.15: /health/live now returns 503 when the worker loop is hung (status shows "unhealthy")
+      test: [ "CMD-SHELL", "curl -fsS -m 4 http://127.0.0.1:8080/health/live >/dev/null || exit 1" ]
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 20s
+      start_period: 60s
     logging:
       driver: json-file
       options:

@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from typing import Any, Dict, Optional
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException
@@ -23,13 +23,57 @@ from pydantic import BaseModel
 from .container import Settings, build_services
 from .envfile import load_env
 from .flow_worker import FlowWorker, build_flow_worker
+from .logsetup import configure_logging
 
 load_env()
+configure_logging()
 log = logging.getLogger("system_a.flow_server")
 
 # Global worker instance (set in lifespan)
 _worker: Optional[FlowWorker] = None
 _worker_task: Optional[asyncio.Task] = None
+_watchdog_task: Optional[asyncio.Task] = None
+
+# v5.15 watchdog — Docker only restarts a container whose process EXITS (restart policy);
+# an "unhealthy" healthcheck alone never restarts it. So the process exits itself when stuck.
+WATCHDOG_ENABLED = os.getenv("WATCHDOG_ENABLED", "true").lower() in ("true", "1", "yes")
+WATCHDOG_STALL_S = float(os.getenv("WATCHDOG_STALL_SECONDS", "300"))
+WATCHDOG_CHECK_S = float(os.getenv("WATCHDOG_CHECK_SECONDS", "30"))
+
+
+def _liveness() -> Dict[str, Any]:
+    """Alive = worker loop is not hung. Paused/stopped on purpose counts as alive."""
+    w = _worker
+    if w is None:
+        return {"ok": True, "reason": "starting"}
+    status = w.stats.get("status")
+    if status == "paused":
+        return {"ok": True, "reason": "paused"}
+    if _worker_task is None:
+        return {"ok": True, "reason": "not_started"}
+    if _worker_task.done():
+        if w._stop_event.is_set():
+            return {"ok": True, "reason": "stopped"}
+        exc = None if _worker_task.cancelled() else _worker_task.exception()
+        return {"ok": False, "reason": f"worker task died: {exc!r}"}
+    age = w.heartbeat_age()
+    if age > WATCHDOG_STALL_S:
+        stuck = ", ".join(f"doc {d['doc_id']}@{d['stage']} {d['stage_for_s']}s" for d in w.get_status()["inflight"])
+        return {"ok": False, "reason": f"no heartbeat for {age:.0f}s (limit {WATCHDOG_STALL_S:.0f}s) {stuck}"}
+    return {"ok": True, "reason": "running", "heartbeat_age_s": round(age, 1)}
+
+
+async def _watchdog() -> None:
+    log.info("Watchdog on — stall limit %.0fs, check every %.0fs", WATCHDOG_STALL_S, WATCHDOG_CHECK_S)
+    while True:
+        await asyncio.sleep(WATCHDOG_CHECK_S)
+        live = _liveness()
+        if not live["ok"]:
+            log.critical("WATCHDOG: %s — exiting so Docker restarts the engine", live["reason"])
+            for h in logging.getLogger("system_a").handlers:
+                with suppress(Exception):
+                    h.flush()
+            os._exit(1)
 
 
 # =============================================================================
@@ -37,7 +81,7 @@ _worker_task: Optional[asyncio.Task] = None
 # =============================================================================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _worker, _worker_task
+    global _worker, _worker_task, _watchdog_task
 
     # ── Startup ───────────────────────────────────────────────────────────────
     settings = Settings()
@@ -51,7 +95,13 @@ async def lifespan(app: FastAPI):
     else:
         log.info("AUTO_PROCESS=false — Flow Worker not started automatically")
 
+    if WATCHDOG_ENABLED:
+        _watchdog_task = asyncio.create_task(_watchdog(), name="Watchdog")
+
     yield
+
+    if _watchdog_task:
+        _watchdog_task.cancel()
 
     # ── Shutdown ──────────────────────────────────────────────────────────────
     log.info("Shutting down Flow Worker...")
@@ -97,9 +147,28 @@ def create_flow_server() -> FastAPI:
 
     @app.get("/health", summary="Health check")
     @app.get("/health/live", summary="Liveness probe")
-    def health_live() -> Dict[str, Any]:
-        """Returns 200 as long as the process is running."""
-        return {"ok": True, "status": "alive"}
+    def health_live():
+        """v5.15: 200 while the worker loop is alive; 503 when it is hung or its task died."""
+        from fastapi.responses import JSONResponse
+        live = _liveness()
+        return JSONResponse({"ok": live["ok"], "status": "alive" if live["ok"] else "stalled", **live},
+                            status_code=200 if live["ok"] else 503)
+
+    @app.get("/status", summary="What the engine is doing right now")
+    def status_now() -> Dict[str, Any]:
+        """v5.15: compact live view — in-flight documents, stage, last results."""
+        w = _require_worker()
+        st = w.get_status()
+        return {
+            "status": st.get("status"),
+            "liveness": _liveness(),
+            "cycle_no": st.get("cycle_no"),
+            "heartbeat_age_s": st.get("heartbeat_age_s"),
+            "counts": {k: st.get(k) for k in ("processed_count", "success_count", "failed_count", "stale_recovered_count")},
+            "inflight": st.get("inflight"),
+            "recent_done": st.get("recent_done"),
+            "last_error": st.get("last_error"),
+        }
 
     @app.get("/health/ready", summary="Readiness probe")
     def health_ready() -> Dict[str, Any]:
