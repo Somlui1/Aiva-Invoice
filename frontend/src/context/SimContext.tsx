@@ -5,6 +5,7 @@ import { SimRecord, SimTraceStep } from '../types/sim'
 import { PRESETS } from '../mock/presets'
 import { companyOfOrg, companyOfTax, COMPANIES } from '../mock/companies'
 import { SEVERITY_OF_CODE } from '../mock/rules'
+import { todayISO } from '../lib/clientClock'
 
 
 export interface SimLogEntry {
@@ -419,13 +420,13 @@ export function SimProvider({ children }: { children: React.ReactNode }) {
         vendor: payloadObj.invoice?.supplier_name || '—',
         stax: payloadObj.invoice?.supplier_tax_id || '—',
         inv: payloadObj.invoice?.invoice_num || '—',
-        dt: payloadObj.invoice?.invoice_date || '2026-10-07',
+        dt: payloadObj.invoice?.invoice_date || todayISO(),
         total: payloadObj.invoice?.grand_total || 0,
         po: (payloadObj.invoice?.po_numbers || [])[0],
         receiver: payloadObj.receipt?.receiver,
         receiverActive: !!payloadObj.receipt?.receiver,
         status: finalStatus,
-        up: '2026-10-07',
+        up: todayISO(),
         codes: payloadObj.decision?.exception_codes || [],
         unres: idStatus === 'UNRESOLVED'
       }

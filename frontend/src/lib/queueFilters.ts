@@ -22,11 +22,16 @@ import type { InvoiceDoc, InvoiceStatus } from '../types/invoice'
 import { smartMatch } from './smartSearch'
 import { closedDateOf } from './closedDocs'
 import { roleCan, transitionFor, type WorkflowAction } from './docTransitions'
+import { todayISO, isoToLocalDay } from './clientClock'
 
-/** The mockup's frozen "today"; the whole demo runs on one fixed clock. */
-export const TODAY = '2026-10-07'
+/**
+ * v5.16: "today" = the client's local day (was the mockup's frozen '2026-10-07', which kept every
+ * date preset on October). Always call `todayISO()`; never freeze it in a constant.
+ */
+export { todayISO }
 
 export const OPEN_STATUSES: readonly string[] = Object.freeze([
+  'Auto-pass',
   'Review',
   'Hold',
   'Manual Review',
@@ -107,13 +112,13 @@ const mRange = (ym: string): [string, string] => {
   return [`${ym}-01`, isoD(new Date(Date.UTC(y, m, 0)))]
 }
 
-export function perRange(p: PeriodFilter): [string, string] | null {
-  const ym = TODAY.slice(0, 7)
+export function perRange(p: PeriodFilter, today: string = todayISO()): [string, string] | null {
+  const ym = today.slice(0, 7)
   switch (p.k) {
     case 'today':
-      return [TODAY, TODAY]
+      return [today, today]
     case '7d':
-      return [dAdd(TODAY, -6), TODAY]
+      return [dAdd(today, -6), today]
     case 'month':
       return mRange(ym)
     case 'lastm': {
@@ -162,8 +167,15 @@ export function isDateFilterActive(f?: DateSearchFilter | null): boolean {
 /** The date a document is filtered on; '' when it has none that can be compared. */
 export function docDateFor(d: InvoiceDoc, field: DateSearchField | 'updated' | 'closed'): string {
   if (field === 'closed') return closedDateOf(d)
-  const raw = field === 'invoice' ? d.dt : field === 'created' ? d.created || d.up : d.up
-  const day = (raw || '').slice(0, 10)
+  // v5.16: prefer the full timestamp, converted to the LOCAL day (engine stamps are UTC: a document
+  // finished 06:30 on 1 Nov in Thailand is 2026-10-31T23:30Z and used to land in October).
+  const raw =
+    field === 'invoice'
+      ? d.dt
+      : field === 'created'
+        ? d.createdAt || d.created || d.upAt || d.up
+        : d.upAt || d.up
+  const day = isoToLocalDay(raw || '')
   return ISO_DAY.test(day) ? day : ''
 }
 

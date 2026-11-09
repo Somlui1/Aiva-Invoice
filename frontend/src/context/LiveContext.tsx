@@ -55,10 +55,19 @@ export const useLive = () => useContext(LiveCtx)
 
 const POLL_MS = 60_000
 const FRESH_MS = 8_000
+/**
+ * v5.16: even while the SSE stream is "live", re-check the server list every few minutes, after every
+ * reconnect and when the tab becomes visible. Events are not replayed: anything published while the
+ * stream was down (Portal restart, proxy idle timeout, laptop asleep) used to be lost for good, so a
+ * document the Engine had delivered never appeared until a reload.
+ */
+const RECONCILE_MS = 120_000
 
 export function LiveProvider({ children }: { children: ReactNode }) {
   const { realUser, isAuthenticated } = useAuth()
-  const { docs, refreshQueue } = useInvoices()
+  const { docs, refreshQueue, queueLoaded } = useInvoices()
+  const loadedRef = useRef(queueLoaded)
+  loadedRef.current = queueLoaded
   const { toast } = useToastModal()
 
   const [state, setState] = useState<LiveState>('off')
@@ -109,7 +118,11 @@ export function LiveProvider({ children }: { children: ReactNode }) {
     let es: EventSource | null = null
     let poll: ReturnType<typeof setInterval> | null = null
 
+    let inFlight = false
     const pollOnce = async () => {
+      // before the first real load every server document would look "new"
+      if (!loadedRef.current || inFlight) return
+      inFlight = true
       try {
         // v5.15: all pages, so documents beyond the first 500 are also noticed
         const body = await fetchAllDocuments()
@@ -124,6 +137,8 @@ export function LiveProvider({ children }: { children: ReactNode }) {
         for (const l of listeners.current) l({ kind: 'audit' })
       } catch {
         /* offline: try again next round */
+      } finally {
+        inFlight = false
       }
     }
     const startPolling = () => {
@@ -136,6 +151,15 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       poll = null
     }
 
+    let readyCount = 0
+    const reconcile = setInterval(() => {
+      if (!poll) void pollOnce() // the polling loop already covers the "down" case
+    }, RECONCILE_MS)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void pollOnce()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+
     if (typeof EventSource === 'undefined') {
       startPolling()
     } else {
@@ -145,6 +169,8 @@ export function LiveProvider({ children }: { children: ReactNode }) {
         if (!alive) return
         stopPolling()
         setState('live')
+        // a RE-connect: catch up on whatever was published while the stream was down
+        if (readyCount++ > 0) void pollOnce()
       })
       es.addEventListener('doc', ev => {
         try {
@@ -163,6 +189,8 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       alive = false
       es?.close()
       stopPolling()
+      clearInterval(reconcile)
+      document.removeEventListener('visibilitychange', onVisible)
       setState('off')
     }
   }, [isAuthenticated, realUser.id, handle, collect])

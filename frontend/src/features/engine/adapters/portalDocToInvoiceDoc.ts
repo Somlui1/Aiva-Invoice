@@ -19,6 +19,7 @@
  *    request, `raw_payload` carry the Engine's boxes, so Task 7's projector draws
  *    live documents exactly like the mock page.
  */
+import { isoToLocalDay, isoToLocalTime } from '../../../lib/clientClock'
 import { EXCEPTION_RULES, EU_CODES } from '../../../mock/rules'
 import type {
   DocumentHistoryEntry,
@@ -74,16 +75,17 @@ const UI_STATUSES: readonly string[] = Object.freeze([
 const RULE_STATUSES: readonly string[] = Object.freeze(['PASS', 'FAIL', 'WARN', 'SKIP'])
 const SEVERITY_RANK: Record<ExceptionSeverity, number> = { High: 0, Medium: 1, Low: 2 }
 
-/** ISO timestamp → `YYYY-MM-DD`, or `''`. The queue compares these as strings. */
+/**
+ * ISO timestamp → LOCAL `YYYY-MM-DD`, or `''`. The queue compares these as strings.
+ * v5.16: a full timestamp is converted to the local day (was: first 10 chars of a UTC stamp, so
+ * everything finished before 07:00 in Thailand was filed under the previous day).
+ */
 export function dateOnly(iso: string | null | undefined): string {
-  if (!iso) return ''
-  const m = /^(\d{4}-\d{2}-\d{2})/.exec(iso)
-  return m ? m[1] : ''
+  return isoToLocalDay(iso)
 }
 
 function timeOnly(iso: string | null | undefined): string {
-  const m = /T(\d{2}:\d{2})/.exec(iso ?? '')
-  return m ? `${m[1]}:00` : '—'
+  return isoToLocalTime(iso) || '—'
 }
 
 /**
@@ -424,6 +426,9 @@ export function portalDocToInvoiceDoc(
     unres: !doc.receiverName,
     up: dateOnly(doc.updatedAt) || dateOnly(doc.createdAt),
     created: dateOnly(doc.createdAt) || dateOnly(doc.updatedAt),
+    // v5.16: the instants themselves — the browser turns them into ITS local day for the date filter
+    upAt: doc.updatedAt || doc.createdAt || undefined,
+    createdAt: doc.createdAt || doc.updatedAt || undefined,
   }
 
   if (doc.receiverName) out.receiver = doc.receiverName

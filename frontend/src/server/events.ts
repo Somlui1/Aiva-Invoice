@@ -14,6 +14,7 @@ import { EventEmitter } from 'node:events'
 import type { Request, Response } from 'express'
 import { prisma } from '../lib/prisma'
 import { docVisibleTo } from './viewAs'
+import { log } from './log'
 
 export type DocEventKind = 'new' | 'updated' | 'status' | 'sent' | 'posted' | 'failed'
 
@@ -34,13 +35,21 @@ export interface DocEvent {
 const bus = new EventEmitter()
 bus.setMaxListeners(0)
 let seq = 0
+/** Streams that received the event being emitted (EventEmitter.emit is synchronous). */
+let delivered = 0
 
-export function publishDocEvent(e: DocEvent): void {
+/**
+ * Returns how many open browser tabs were told about the event (v5.16, for the ingest log:
+ * "live→0" means nobody who may see the document had the Portal open).
+ */
+export function publishDocEvent(e: DocEvent): number {
+  delivered = 0
   try {
     bus.emit('doc', { ...e, at: new Date().toISOString(), seq: ++seq })
   } catch (err) {
-    console.warn('[events] publish failed:', err)
+    log.warn('events', `publish failed: ${String((err as Error)?.message ?? err)}`)
   }
+  return delivered
 }
 
 /** For tests / health: how many streams are open. */
@@ -72,14 +81,25 @@ export function eventsHandler(req: Request, res: Response) {
   res.write('retry: 5000\n\n')
 
   const onDoc = (e: DocEvent) => {
-    if (docVisibleTo({ company: e.company, receiver: e.receiver }, user).ok) send('doc', e)
-    else if (seesAllAudit) send('audit', { at: e.at, seq: e.seq })
+    try {
+      if (docVisibleTo({ company: e.company, receiver: e.receiver }, user).ok) {
+        send('doc', e)
+        delivered++
+      } else if (seesAllAudit) send('audit', { at: e.at, seq: e.seq })
+    } catch {
+      close() // a broken socket must not stop the other tabs from being notified
+    }
   }
   bus.on('doc', onDoc)
+  log.debug('events', `stream open · ${user.id} · ${openStreams()} open`)
 
   // Keep-alive, and drop the stream at once when the user was deactivated meanwhile.
   const timer = setInterval(async () => {
-    res.write(`: ping\n\n`)
+    try {
+      res.write(`: ping\n\n`)
+    } catch {
+      return close()
+    }
     try {
       const u = await prisma.user.findUnique({ where: { id: user.id }, select: { isActive: true } })
       if (u && u.isActive === false) close()
@@ -97,6 +117,7 @@ export function eventsHandler(req: Request, res: Response) {
     try {
       res.end()
     } catch {}
+    log.debug('events', `stream closed · ${user?.id ?? 'anon'} · ${openStreams()} open`)
   }
   req.on('close', close)
 }

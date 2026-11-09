@@ -19,7 +19,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Icon } from '../common/Icon'
 import { AnchoredPopover } from '../common/AnchoredPopover'
-import { useInvoices, perRange, inPerDoc, TODAY, type PeriodFilter, type PeriodField } from '../../context/InvoiceContext'
+import { useInvoices, perRange, inPerDoc, todayISO, type PeriodFilter, type PeriodField } from '../../context/InvoiceContext'
 import type { InvoiceDoc } from '../../types/invoice'
 
 export const FIELD_LABEL: Record<PeriodField, string> = {
@@ -90,7 +90,7 @@ export function normalizeDraft(d: PeriodFilter): { ok: true; value: PeriodFilter
     return { ok: true, value: { ...d, from, to } }
   }
   if (d.k === 'period') {
-    const ym = d.ym && /^\d{4}-\d{2}$/.test(d.ym) ? d.ym : TODAY.slice(0, 7)
+    const ym = d.ym && /^\d{4}-\d{2}$/.test(d.ym) ? d.ym : todayISO().slice(0, 7)
     return { ok: true, value: { k: 'period', ym, field: d.field } }
   }
   return { ok: true, value: { k: d.k, field: d.field } }

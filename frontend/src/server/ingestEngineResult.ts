@@ -8,6 +8,8 @@ import {
 import type { PortalHistoryEntry, PortalInvoiceDocument } from '../features/engine/types/portalDomain'
 import { IdentityValidationError, resolveIdentity, type DocumentIdentity } from './businessKey'
 import { ENGINE_RANK, decide, type DrCandidate, type DrDecision } from './duplicateResolution'
+import { ingestStats, envInt } from './runtime'
+import { log, errText } from './log'
 
 export interface IngestSuccessResult {
   ok: true
@@ -30,6 +32,8 @@ export interface IngestSuccessResult {
   supersedes: string | null
   /** DR-03 / DR-04: the current document this one duplicates. */
   duplicate_of: string | null
+  /** v5.16: open browser tabs told about it (0 = nobody who may see it had the Portal open). */
+  live_notified?: number
   http: 200
 }
 
@@ -129,13 +133,99 @@ function classifyExistingRun(run: ExistingRun, validationId: string, fileSha256:
  * container). A multi-instance deployment needs a database-level lock instead — see the changelog.
  */
 let ingestTail: Promise<unknown> = Promise.resolve()
-function withIngestLock<T>(fn: () => Promise<T>): Promise<T> {
-  const run = ingestTail.then(fn)
-  ingestTail = run.then(
-    () => undefined,
-    () => undefined,
-  )
+/**
+ * v5.16: the chain can no longer be wedged by one slow write. Before, a single ingest that never
+ * settled kept every later ingest waiting forever — the Engine timed out, the Portal looked alive
+ * (/api/health only pinged the database) and no new document arrived until a restart.
+ * Now the next ingest waits at most INGEST_LOCK_RELEASE_MS for the previous one; the queue depth and
+ * the running ingest are visible to /api/health and the watchdog (src/server/runtime.ts).
+ */
+const LOCK_RELEASE_MS = () => envInt('INGEST_LOCK_RELEASE_MS', 45_000, 5_000)
+let lockSeq = 0
+let lockOwner = 0
+function withIngestLock<T>(docId: string, fn: () => Promise<T>): Promise<T> {
+  ingestStats.queued++
+  const me = ++lockSeq
+  const run = ingestTail.then(() => {
+    lockOwner = me
+    ingestStats.runningSince = Date.now()
+    ingestStats.runningDoc = docId
+    return fn()
+  })
+  const settle = () => {
+    ingestStats.queued = Math.max(0, ingestStats.queued - 1)
+    if (lockOwner === me) {
+      // a late finisher (released by the guard below) must not clear the NEXT ingest's state
+      ingestStats.runningSince = 0
+      ingestStats.runningDoc = ''
+    }
+  }
+  run.then(settle, settle)
+  let guard: ReturnType<typeof setTimeout> | undefined
+  const released = Promise.race([
+    run.then(
+      () => undefined,
+      () => undefined,
+    ),
+    new Promise<void>(resolve => {
+      guard = setTimeout(() => {
+        log.error('ingest', `lock held by ${docId} for >${LOCK_RELEASE_MS() / 1000}s — releasing it for the next document`)
+        resolve()
+      }, LOCK_RELEASE_MS())
+      guard.unref?.()
+    }),
+  ]).finally(() => guard && clearTimeout(guard))
+  ingestTail = released
   return run
+}
+
+/** SQLite busy / Prisma transaction-start timeouts are transient: worth another try. */
+function isTransientDbError(e: any): boolean {
+  const code = String(e?.code ?? '')
+  const msg = String(e?.message ?? '')
+  return (
+    code === 'P2028' || // transaction API error (could not start / expired)
+    code === 'P2034' || // write conflict / deadlock
+    code === 'P1008' || // operation timed out
+    code === 'P1017' || // server closed the connection
+    /database is locked|SQLITE_BUSY|Unable to start a transaction|Transaction already closed|timed out/i.test(msg)
+  )
+}
+
+async function withDbRetry<T>(docId: string, fn: () => Promise<T>): Promise<T> {
+  const waits = [300, 1_000, 2_500]
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn()
+    } catch (e) {
+      if (attempt >= waits.length || !isTransientDbError(e)) throw e
+      log.warn('ingest', `${docId} database busy (${errText(e)}) — retry ${attempt + 1}/${waits.length} in ${waits[attempt]}ms`)
+      await new Promise(r => setTimeout(r, waits[attempt]))
+    }
+  }
+}
+
+/**
+ * v5.16 — "did the Portal really store it?" for the Engine (GET /api/engine/ingest/:validationId).
+ * Answers from the database, so a 200 here means the row is committed in THIS Portal's database.
+ */
+export async function findIngestReceipt(validationId: string) {
+  const run = await prisma.validationRun.findUnique({
+    where: { validationId },
+    select: {
+      documentId: true,
+      validationRound: true,
+      document: { select: { id: true, status: true, companyCode: true, receiverName: true } },
+    },
+  })
+  if (!run) return null
+  return {
+    portalDocId: run.documentId,
+    validationRound: run.validationRound,
+    status: run.document?.status ?? null,
+    company: run.document?.companyCode ?? null,
+    receiver: run.document?.receiverName ?? null,
+  }
 }
 
 const asRecord = (v: unknown): Record<string, unknown> =>
@@ -403,8 +493,8 @@ export async function ingestEngineResult(raw: unknown): Promise<IngestResult> {
 
   let outcome: TxOutcome
   try {
-    outcome = await withIngestLock(() =>
-      prisma.$transaction(
+    outcome = await withIngestLock(dmsDocId, () =>
+      withDbRetry(dmsDocId, () => prisma.$transaction(
         async (tx: any): Promise<TxOutcome> => {
           // A concurrent identical request may have won while this one waited for the lock.
           const raced = await tx.validationRun.findUnique({
@@ -589,8 +679,10 @@ export async function ingestEngineResult(raw: unknown): Promise<IngestResult> {
 
           return { kind: 'created', doc: final, decision, revalidated: !!existing }
         },
-        { timeout: 20_000 },
-      ),
+        // v5.16: maxWait — Prisma's default (2 s) to START a transaction failed whole ingests with P2028
+        // whenever another write (user action, AP batch) was running on SQLite.
+        { timeout: 20_000, maxWait: 10_000 },
+      )),
     )
   } catch (e: any) {
     if (e?.code === 'P2002') {
@@ -601,7 +693,7 @@ export async function ingestEngineResult(raw: unknown): Promise<IngestResult> {
       })
       if (raced) return classifyExistingRun(raced as ExistingRun, validationId, fileSha256)
     }
-    console.error(`[ingest] ${dmsDocId} (${validationId}) failed while writing:`, e)
+    log.error('ingest', `${dmsDocId} (${validationId}) failed while writing: ${errText(e)}`)
     return {
       ok: false,
       error: 'Ingestion failed while writing to the database',
@@ -612,7 +704,7 @@ export async function ingestEngineResult(raw: unknown): Promise<IngestResult> {
   if (outcome.kind === 'result') return outcome.result
 
   const { doc: stored, decision } = outcome
-  publishDocEvent({
+  const liveNotified = publishDocEvent({
     kind: outcome.revalidated ? 'updated' : 'new',
     docId: stored.id,
     status: stored.status,
@@ -640,6 +732,7 @@ export async function ingestEngineResult(raw: unknown): Promise<IngestResult> {
     matched_by: decision.matchedBy,
     supersedes: decision.supersede?.id ?? null,
     duplicate_of: decision.duplicateOf?.id ?? null,
+    live_notified: liveNotified,
     http: 200,
   }
 }

@@ -6,6 +6,7 @@ import { AccountMapping } from '../types/auth'
 import { ACTION_REASONS } from '../mock/rules'
 import { INITIAL_MAPS } from '../mock/users'
 import { useAuth } from './AuthContext'
+import { todayISO, localTime } from '../lib/clientClock'
 
 interface SettingsContextType {
   pref: PersonalPreferences
@@ -97,9 +98,9 @@ export function SettingsProvider({
   }, [currentUser.id, logAudit])
 
   const logSettingChange = useCallback((what: string, o: string, n: string, ref: string) => {
-    const now = new Date().toTimeString().slice(0, 8)
+    const now = localTime()
     const entry: SettingLogEntry = {
-      dt: '2026-10-07',
+      dt: todayISO(),
       t: now,
       who: currentUser.n,
       role: currentUser.role,
@@ -171,7 +172,7 @@ export function SettingsProvider({
       user: userId,
       acct: cleanAcct,
       by: currentUser.n,
-      at: '2026-10-07',
+      at: todayISO(),
       req: req.trim()
     }
     setAccountMaps(prev => [...prev, newMap])

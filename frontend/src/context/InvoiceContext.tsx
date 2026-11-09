@@ -11,8 +11,8 @@ import { useToastModal } from './ToastModalContext'
 import { ROLES } from '../mock/users'
 import { convertSystemAResultToInvoiceDoc } from '../lib/backendApi'
 import { isClosedViewStatus } from '../lib/closedDocs'
+import { todayISO, localTime, msUntilNextLocalDay } from '../lib/clientClock'
 import {
-  TODAY,
   OPEN_STATUSES,
   CLOSED_STATUSES,
   RANK,
@@ -36,7 +36,7 @@ import {
 } from '../lib/queueFilters'
 
 export {
-  TODAY,
+  todayISO,
   perRange,
   inPerOf,
   inPerDoc,
@@ -118,6 +118,8 @@ interface InvoiceContextType {
   precheckPost: (doc: InvoiceDoc) => { ok: boolean; code?: string; why: string }
   batchPost: (docIds: string[]) => Promise<{ ok: boolean; count: number; msg: string }>
   refreshQueue: () => Promise<boolean>
+  /** v5.16: true once the real queue was read from /api/documents (LiveContext reconciles only after that). */
+  queueLoaded: boolean
   ingestResultToQueue: (payload: any) => void
 }
 
@@ -158,8 +160,12 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
   const { orgSettings } = useSettings()
   const { toast } = useToastModal()
 
-  const [docs, setDocs] = useState<InvoiceDoc[]>(INITIAL_DOCS)
-  const [selectedDocId, setSelectedDocId] = useState<string | null>(INITIAL_DOCS[0]?.doc || null)
+  // v5.16: a production build never shows the mockup's sample documents while (or because) the real
+  // queue failed to load — it starts empty and retries.
+  const seedDocs: InvoiceDoc[] = (import.meta as any).env?.PROD ? [] : INITIAL_DOCS
+  const [docs, setDocs] = useState<InvoiceDoc[]>(seedDocs)
+  const [queueLoaded, setQueueLoaded] = useState<boolean>(false)
+  const [selectedDocId, setSelectedDocId] = useState<string | null>(seedDocs[0]?.doc || null)
   const [companyFilter, setCompanyFilter] = useState<Set<string>>(new Set())
   const [receiverFilter, setReceiverFilter] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<string>(currentUser.role === 'EU' ? 'mine' : 'all')
@@ -184,6 +190,8 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let active = true
+    let retry: ReturnType<typeof setTimeout> | null = null
+    let attempt = 0
     async function loadLiveQueue() {
       try {
         // v5.15: read every page (was a single request → only the first 200 documents)
@@ -198,8 +206,16 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
             return applied.selectedDocId
           })
           setDocs(data.documents)
+          setQueueLoaded(true)
         }
       } catch (err: any) {
+        // v5.16: the first read used to be the only one — a Portal restart / network blip at page
+        // load left the queue empty (or on sample data) until a manual reload. Retry with backoff.
+        if (active) {
+          const wait = [2_000, 5_000, 10_000, 30_000][Math.min(attempt++, 3)]
+          console.warn(`Queue load failed (${err?.message || err}) — retry in ${wait / 1000}s`)
+          retry = setTimeout(loadLiveQueue, wait)
+        }
         if (active) {
           setDocs(prev => {
             const applied = applyLiveDocs({
@@ -216,6 +232,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
     loadLiveQueue()
     return () => {
       active = false
+      if (retry) clearTimeout(retry)
     }
   }, [])
 
@@ -269,6 +286,37 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
     setPeriodFilterState(p => ({ k: 'all', field: p.field }))
   }, [currentUser.role])
 
+  // v5.16: the client's calendar day. It changes at local midnight (and is re-checked when the tab
+  // becomes visible again — timers sleep in background tabs), so "วันนี้ / เดือนนี้" roll over without
+  // a reload. Every period memo below depends on it.
+  const [clockDay, setClockDay] = useState<string>(() => todayISO())
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const sync = () => setClockDay(prev => (prev === todayISO() ? prev : todayISO()))
+    const arm = () => {
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => {
+        sync()
+        arm()
+      }, msUntilNextLocalDay())
+    }
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        sync()
+        arm()
+      }
+    }
+    arm()
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    return () => {
+      if (timer) clearTimeout(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+    }
+  }, [])
+
   // Scope check visible docs
   const visibleDocs = useMemo(() => {
     return docs.filter(d => scopeCheck(d).ok)
@@ -289,7 +337,8 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
       showClosed,
       role: currentUser.role,
     })
-  }, [visibleDocs, statusFilter, companyFilter, periodFilter, searchQuery, showClosed, currentUser.role])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleDocs, statusFilter, companyFilter, periodFilter, searchQuery, showClosed, currentUser.role, clockDay])
 
   // Filtered docs list
   const filteredDocs = useMemo(() => {
@@ -315,7 +364,8 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
       return open.filter(d => d.receiver === receiverFilter)
     }
     return open
-  }, [visibleDocs, statusFilter, companyFilter, periodFilter, searchQuery, showClosed, currentUser.role, receiverFilter])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleDocs, statusFilter, companyFilter, periodFilter, searchQuery, showClosed, currentUser.role, receiverFilter, clockDay])
 
   // Selected doc
   const selectedDoc = useMemo(() => {
@@ -347,7 +397,8 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
     const full = kpiCountsFor(input)
     for (const k of Object.keys(counts)) if (isClosedViewStatus(k) || k === EU_AP_KEY) counts[k] = full[k]
     return counts
-  }, [visibleDocs, statusFilter, companyFilter, periodFilter, searchQuery, showClosed, currentUser.role, receiverFilter])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleDocs, statusFilter, companyFilter, periodFilter, searchQuery, showClosed, currentUser.role, receiverFilter, clockDay])
 
   // Allowed action calculation per SRS v1.1
   const allowedAction = useCallback(
@@ -380,7 +431,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
         return { ok: false, msg: chk.why || 'ไม่มีสิทธิ์' }
       }
 
-      const nowTime = new Date().toTimeString().slice(0, 8)
+      const nowTime = localTime()
       const who = `${currentUser.n} (${ROLES[currentUser.role].n})`
       const fromStatus = doc.status
 
@@ -400,7 +451,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
         n.supRule = undefined
         n.dupRule = undefined
         n.confirmedBy = undefined
-        n.up = TODAY
+        n.up = todayISO()
 
         if (simOutcome === 'Auto-pass') {
           n.rules.forEach(r => {
@@ -483,14 +534,14 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
         n.status = newTo as any
         n.history.push(
           {
-            dt: TODAY,
+            dt: todayISO(),
             t: nowTime,
             who: currentUser.n,
             act: 'อัปโหลดเอกสารใหม่',
             d: `${who} · ${reason}${note ? ' · ' + note : ''} · ไฟล์ ${uploadFile}`,
             k: 'h'
           },
-          { dt: TODAY, t: nowTime, who: 'ระบบ AIVA', act: 'AIVA ตรวจรอบที่ 1', d: `ผลตรวจ ${simOutcome}`, k: 's' }
+          { dt: todayISO(), t: nowTime, who: 'ระบบ AIVA', act: 'AIVA ตรวจรอบที่ 1', d: `ผลตรวจ ${simOutcome}`, k: 's' }
         )
 
         if (newTo === 'Duplicate') {
@@ -498,7 +549,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
           n.dupRule = rule
           n.dup = doc.doc
           n.assigned = 'acc'
-          n.history.push({ dt: TODAY, t: nowTime, who: 'Portal', act: 'Portal ตรวจเอกสารซ้ำ', d: rule, k: 'c' })
+          n.history.push({ dt: todayISO(), t: nowTime, who: 'Portal', act: 'Portal ตรวจเอกสารซ้ำ', d: rule, k: 'c' })
         }
 
         const updatedDocs = docs.map(d => {
@@ -510,7 +561,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
               supRule: rule,
               history: [
                 ...d.history,
-                { dt: TODAY, t: nowTime, who: 'Portal', act: 'Superseded', d: `${rule} · ฉบับใหม่ ${n.doc}`, k: 'c' }
+                { dt: todayISO(), t: nowTime, who: 'Portal', act: 'Superseded', d: `${rule} · ฉบับใหม่ ${n.doc}`, k: 'c' }
               ]
             }
           }
@@ -521,7 +572,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
           n.supersedes = doc.doc
           n.supRule = rule
           n.history.push({
-            dt: TODAY,
+            dt: todayISO(),
             t: nowTime,
             who: 'Portal',
             act: 'แทนที่ฉบับเดิม',
@@ -611,7 +662,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
           const updatedHist = [
             ...d.history,
             {
-              dt: TODAY,
+              dt: todayISO(),
               t: nowTime,
               who: currentUser.n,
               act: `${ACTION_CONFIG[action].title} (${fromStatus} → ${newStatus})`,
@@ -625,7 +676,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
             ...d,
             status: newStatus,
             confirmedBy: action === 'confirm' ? currentUser.id : action === 'unconfirm' ? null : d.confirmedBy,
-            confirmedAt: action === 'confirm' ? TODAY : action === 'unconfirm' ? undefined : d.confirmedAt,
+            confirmedAt: action === 'confirm' ? todayISO() : action === 'unconfirm' ? undefined : d.confirmedAt,
             batch: action === 'returnf' || action === 'unconfirm' ? null : d.batch,
             apErr: action === 'returnf' ? null : d.apErr,
             history: updatedHist
@@ -656,8 +707,8 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
     async (docIds: string[]): Promise<{ ok: boolean; count: number; msg: string }> => {
       if (!can('POST')) return { ok: false, count: 0, msg: 'ไม่มีสิทธิ์ส่งเอกสารเข้า AP Interface' }
 
-      let batchId = `AP-${TODAY.replace(/-/g, '')}-${Math.floor(Math.random() * 900 + 100)}`
-      const nowTime = new Date().toTimeString().slice(0, 8)
+      let batchId = `AP-${todayISO().replace(/-/g, '')}-${Math.floor(Math.random() * 900 + 100)}`
+      const nowTime = localTime()
       const eligible = docIds.filter(id => {
         const d = docs.find(x => x.doc === id)
         return !!d && precheckPost(d).ok
@@ -699,7 +750,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
               batch: batchId,
               history: [
                 ...d.history,
-                { dt: TODAY, t: nowTime, who: currentUser.n, act: `ส่งเข้า AP Interface (${batchId})`, d: `ส่งโดย ${currentUser.n} (หัวหน้าฝ่ายบัญชี)`, k: 'g' }
+                { dt: todayISO(), t: nowTime, who: currentUser.n, act: `ส่งเข้า AP Interface (${batchId})`, d: `ส่งโดย ${currentUser.n} (หัวหน้าฝ่ายบัญชี)`, k: 'g' }
               ]
             }
           }
@@ -712,7 +763,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
               dupRule: 'AP-GUARD',
               history: [
                 ...d.history,
-                { dt: TODAY, t: nowTime, who: 'ระบบ Portal', act: 'Duplicate (ตัดออกจาก Batch)', d: `ใบรับ ${ex.receiveId} ถูกใช้โดย ${ex.duplicateOf} แล้ว`, k: 'c' }
+                { dt: todayISO(), t: nowTime, who: 'ระบบ Portal', act: 'Duplicate (ตัดออกจาก Batch)', d: `ใบรับ ${ex.receiveId} ถูกใช้โดย ${ex.duplicateOf} แล้ว`, k: 'c' }
               ]
             }
           }
@@ -735,6 +786,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
       const data = await fetchAllDocuments('include=boxes')
       if (data?.ok && Array.isArray(data.documents)) {
         setDocs(data.documents)
+        setQueueLoaded(true)
         return true
       }
     } catch (err) {
@@ -808,6 +860,7 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
         precheckPost,
         batchPost,
         refreshQueue,
+        queueLoaded,
         ingestResultToQueue
       }}
     >

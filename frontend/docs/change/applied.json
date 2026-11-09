@@ -720,5 +720,74 @@
         }
       ]
     }
+  },
+  {
+    "version": "5.16.0",
+    "base": "5.15.1",
+    "title": "Client clock · Ingest ที่ยืนยันได้ · Log อ่านง่าย · Docker ไม่ค้าง",
+    "appliedAt": "2026-11-09T03:08:40.000Z",
+    "baseCommit": "c45d981",
+    "db": false,
+    "files": {
+      "replaced": [
+        ".env.example",
+        "Dockerfile",
+        "docker-compose.yml",
+        "package.json",
+        "server/app.ts",
+        "server/index.ts",
+        "server/routes/engineIngest.ts",
+        "src/components/queue/DateRangeTool.tsx",
+        "src/components/queue/InvoiceDetailPane.tsx",
+        "src/components/queue/QueueListItem.tsx",
+        "src/components/queue/QueueTableView.tsx",
+        "src/context/AuthContext.tsx",
+        "src/context/InvoiceContext.tsx",
+        "src/context/LiveContext.tsx",
+        "src/context/SettingsContext.tsx",
+        "src/context/SimContext.tsx",
+        "src/features/engine/adapters/portalDocToInvoiceDoc.ts",
+        "src/lib/queueFilters.ts",
+        "src/server/events.ts",
+        "src/server/ingestEngineResult.ts",
+        "src/types/invoice.ts"
+      ],
+      "added": [
+        "server/middleware/errorHandler.ts",
+        "server/middleware/requestLog.ts",
+        "src/lib/clientClock.ts",
+        "src/server/log.ts",
+        "src/server/runtime.ts",
+        "src/server/watchdog.ts",
+        "src/test/v516ClientClock.test.ts"
+      ],
+      "deleted": []
+    },
+    "tests": [
+      "src/test/v516ClientClock.test.ts"
+    ],
+    "verify": {
+      "ok": true,
+      "at": "2026-11-09T03:32:26.657Z",
+      "totalSec": 94.6,
+      "full": false,
+      "tests": [
+        "src/test/uiParity.test.ts",
+        "src/test/closedDocsPage.test.tsx",
+        "src/test/v516ClientClock.test.ts"
+      ],
+      "steps": [
+        {
+          "label": "typecheck",
+          "ok": true,
+          "sec": 35.6
+        },
+        {
+          "label": "tests (3)",
+          "ok": true,
+          "sec": 59
+        }
+      ]
+    }
   }
 ]

@@ -34,7 +34,8 @@ WORKDIR /app
 ENV NODE_ENV=production \
     PORT=3000 \
     HOSTNAME=0.0.0.0
-RUN apk add --no-cache libc6-compat wget
+# tzdata: TZ=Asia/Bangkok in compose → local time in logs and server-side date filters (v5.16)
+RUN apk add --no-cache libc6-compat wget tzdata
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 aiva
 RUN mkdir -p /app/data /app/cache && chown -R aiva:nodejs /app
 
@@ -56,7 +57,7 @@ RUN chmod +x ./docker-entrypoint.sh
 
 USER aiva
 EXPOSE 3000
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD wget -q -O- http://127.0.0.1:3000/api/health || exit 1
+HEALTHCHECK --interval=20s --timeout=10s --start-period=40s --retries=3 \
+  CMD wget -q -T 8 -O- http://127.0.0.1:3000/api/health >/dev/null || exit 1
 ENTRYPOINT ["./docker-entrypoint.sh"]
 CMD ["npx", "tsx", "server/index.ts"]

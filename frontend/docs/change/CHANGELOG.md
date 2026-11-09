@@ -2,6 +2,20 @@
 
 <!-- newest first · written by scripts/patch/apply-patch.mjs -->
 
+## 5.16.0 — Client clock · Ingest ที่ยืนยันได้ · Log อ่านง่าย · Docker ไม่ค้าง (2026-11-09)
+
+### เปลี่ยนอะไร
+- **Client clock (ตัวกรองวันที่ไม่ค้างที่ ต.ค.)**: สร้าง `src/lib/clientClock.ts` (`todayISO()`, `isoToLocalDay()`) คำนวณวันที่ตาม client local time zone แทน hardcoded `'2026-10-07'` เพื่อให้เอกสารเดือน พ.ย. และหลังจากนั้นไม่ถูกซ่อนจากคิว และ `clockDay` อัปเดตอัตโนมัติเมื่อข้ามเที่ยงคืน
+- **Engine Ingest & Verification**:
+  - `GET /api/engine/ingest/:validationId` ให้ Engine ตรวจสอบการบันทึกลง DB จริงของ Portal ก่อน mark `PROCESSED` ใน Paperless
+  - Engine ส่งหา `FRONTEND_BASE_URL` เป็นหลัก และ retry host เดิมเมื่อเจอ read timeout ไม่หลุดไป dev host อื่น
+  - ปรับการจัดการ SQLite lock: `journal_mode=WAL`, `maxWait: 10s`, และ auto retry เมื่อเจอปัญหา DB busy
+  - ปล่อย ingest lock อัตโนมัติหลัง timeout (`INGEST_LOCK_RELEASE_MS`)
+- **Server Logging**: ปรับปรุง log ให้มี timestamp, context tag (`[boot]`, `[ingest]`, `[http]`, `[alive]`) และกรอง request ธรรมดา/healthcheck probe ให้ terminal อ่านง่าย
+- **Docker Anti-hang**: เพิ่ม autoheal, watchdog ตรวจจับ process/db ค้าง, ปรับ healthcheck ให้คืน 503 เมื่อไม่ตอบสนอง
+- **เทสต์**: เพิ่ม `src/test/v516ClientClock.test.ts`
+
+
 ## 5.15.1 — EU KPI cards ปรับลำดับ/คำอธิบาย · ตัวเลือก Receiver ค้นหาได้ · Engine watchdog & log (2026-11-03)
 
 ### เปลี่ยนอะไร

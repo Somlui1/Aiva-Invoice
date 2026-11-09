@@ -27,6 +27,7 @@ from collections import deque
 from contextlib import suppress
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import quote
 
 import httpx
 
@@ -242,101 +243,204 @@ class PaperlessClient:
 # =============================================================================
 # SECTION 2 — FrontendClient
 # Health probe + payload push to AIVA Portal /api/engine/ingest.
-# Auto-discovers portal URL across Docker network, host:3000, and host:3001.
+#
+# v5.16 — delivery you can trust:
+#   * ONE target by default (FRONTEND_BASE_URL). The old silent fallbacks (host.docker.internal:3000 /
+#     :3001) could deliver into ANOTHER Portal + database (e.g. `npm start` on the host) and then stay
+#     cached there: the Engine logged "ingest OK" while the real Portal never got the document.
+#     Extra hosts only when listed in FRONTEND_FALLBACK_HOSTS, and the primary is always tried first.
+#   * Retries are safe: a connect error is retried (same host, backoff); a read timeout is retried on the
+#     SAME host only — the request may have been stored, and the same validation_id comes back as
+#     ALREADY_PROCESSED instead of a second document somewhere else.
+#   * Delivery receipt: after a 200 the Engine asks GET /api/engine/ingest/<validation_id>; only a
+#     receipt from the Portal's database counts as delivered (FRONTEND_VERIFY_INGEST=true).
+#   * Every push logs target, portal instance, portal doc id and timing.
 # =============================================================================
 class FrontendClient:
     """Pushes engine results to Portal and probes health before claiming docs."""
-
-    # Fallback candidates tried in order when primary URL fails
-    _FALLBACK_HOSTS = (
-        "http://host.docker.internal:3000",
-        "http://host.docker.internal:3001",
-        "http://aiva-portal:3000",
-    )
 
     def __init__(
         self,
         base_url: str,
         ingest_path: str = "/api/engine/ingest",
         ingest_key: str = "",
-        timeout_s: float = 30.0,
+        timeout_s: float = 40.0,
+        fallback_hosts: Optional[List[str]] = None,
+        verify: bool = True,
+        attempts: int = 3,
     ):
         self.base_url = base_url.rstrip("/") if base_url else ""
         self.ingest_path = "/" + ingest_path.lstrip("/")
         self.ingest_key = ingest_key.strip()
         self.timeout_s = timeout_s
-        self._working_base: Optional[str] = None  # cache last successful host
+        self.fallback_hosts = [h.rstrip("/") for h in (fallback_hosts or []) if h.strip()]
+        self.verify = verify
+        self.attempts = max(1, attempts)
+        self._working_base: Optional[str] = None  # last host that answered (informational)
+        self.portal_instance: Optional[str] = None
+        self._verify_supported: Optional[bool] = None
 
     def _candidates(self) -> List[str]:
-        """Ordered list of base URLs to try (working host first)."""
+        """Primary first, ALWAYS; then the explicitly configured fallbacks."""
         seen: List[str] = []
-        for url in [self._working_base, self.base_url, *self._FALLBACK_HOSTS]:
+        for url in [self.base_url, *self.fallback_hosts]:
             if url and url not in seen:
                 seen.append(url)
         return seen
 
     def _auth_headers(self) -> Dict[str, str]:
-        h: Dict[str, str] = {"User-Agent": "aiva-flow-engine/2.0"}
+        h: Dict[str, str] = {"User-Agent": "aiva-flow-engine/2.1"}
         if self.ingest_key:
             h["Authorization"] = f"Bearer {self.ingest_key}"
             h["X-AIVA-Key"] = self.ingest_key
         return h
 
+    def _note_instance(self, base: str, body: Any) -> None:
+        inst = body.get("portal_instance") or body.get("instance") if isinstance(body, dict) else None
+        if inst and inst != self.portal_instance:
+            if self.portal_instance:
+                log.warning("[Portal] instance changed %s → %s (%s) — a different Portal/database now answers",
+                            self.portal_instance, inst, base)
+            else:
+                log.info("[Portal] connected to instance %s at %s", inst, base)
+            self.portal_instance = inst
+        if base != self._working_base:
+            if self._working_base:
+                log.warning("[Portal] now using %s (was %s)", base, self._working_base)
+            self._working_base = base
+
     def is_online(self) -> Tuple[bool, str]:
         """
-        Probes /api/health on all candidate URLs.
+        Probes /api/health on the candidate URLs (primary first).
         Returns (True, url) if any responds 200, (False, reason) otherwise.
-        Caches the working URL for subsequent calls.
         """
+        reasons = []
         for base in self._candidates():
             try:
-                with httpx.Client(timeout=httpx.Timeout(2.5, connect=2.0)) as c:
+                with httpx.Client(timeout=httpx.Timeout(4.0, connect=2.5)) as c:
                     r = c.get(f"{base}/api/health")
-                    if r.status_code == 200 and r.json().get("ok") is not False:
-                        self._working_base = base
+                    body = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+                    if r.status_code == 200 and body.get("ok") is not False:
+                        self._note_instance(base, body)
                         return True, base
+                    reasons.append(f"{base} HTTP {r.status_code} {str(body.get('error') or '')[:80]}".strip())
+            except Exception as exc:
+                reasons.append(f"{base} {type(exc).__name__}")
+        return False, "; ".join(reasons) or "no FRONTEND_BASE_URL configured"
+
+    def _post_once(self, base: str, payload: Dict[str, Any], headers: Dict[str, str]) -> Tuple[int, Dict[str, Any]]:
+        with httpx.Client(timeout=httpx.Timeout(self.timeout_s, connect=5.0)) as c:
+            r = c.post(f"{base}{self.ingest_path}", json=payload, headers=headers)
+            try:
+                body = r.json()
             except Exception:
-                continue
-        return False, f"All endpoints offline: {self._candidates()}"
+                body = {"text": r.text[:200]}
+            return r.status_code, body if isinstance(body, dict) else {"body": body}
+
+    def confirm(self, base: str, validation_id: str) -> Tuple[Optional[bool], str]:
+        """
+        Delivery receipt. (True, detail) = stored · (False, detail) = NOT in the Portal database ·
+        (None, detail) = could not tell (old Portal without the endpoint, network) → caller decides.
+        """
+        url = f"{base}{self.ingest_path}/{quote(validation_id, safe='')}"
+        for i in range(3):
+            try:
+                with httpx.Client(timeout=httpx.Timeout(10.0, connect=3.0)) as c:
+                    r = c.get(url, headers=self._auth_headers())
+                    body = r.json() if r.headers.get("content-type", "").startswith("application/json") else None
+                if body is None or "found" not in body:
+                    if r.status_code == 404:
+                        self._verify_supported = False
+                        return None, "receipt endpoint not available on this Portal"
+                    return None, f"receipt HTTP {r.status_code}"
+                self._verify_supported = True
+                if body.get("found") is True:
+                    return True, f"{body.get('portalDocId')} · {body.get('status')}"
+                if r.status_code == 404:
+                    if i < 2:
+                        time.sleep(1.0 + i)  # commit visibility race: ask again shortly
+                        continue
+                    return False, "validation_id not found in Portal database"
+                return None, f"receipt HTTP {r.status_code} {body.get('error') or ''}".strip()
+            except Exception as exc:
+                if i < 2:
+                    time.sleep(1.0 + i)
+                    continue
+                return None, f"receipt check failed: {type(exc).__name__}"
+        return None, "receipt check inconclusive"
 
     def push(self, payload: Dict[str, Any]) -> Tuple[bool, Any]:
         """
         POST payload to /api/engine/ingest.
-        Returns (True, response_body) on success, (False, error_string) on failure.
-        Tries all candidate hosts in order; stops on first HTTP response.
+        Returns (True, response_body) on confirmed success, (False, error_string) on failure.
         """
         headers = {"Content-Type": "application/json", **self._auth_headers()}
+        req = payload.get("request") if isinstance(payload, dict) else None
+        vid = str((req or {}).get("validation_id") or "")
+        doc = str((req or {}).get("dms_doc_id") or "?")
+        errors: List[str] = []
 
         for base in self._candidates():
-            url = f"{base}{self.ingest_path}"
-            try:
-                with httpx.Client(timeout=httpx.Timeout(self.timeout_s, connect=5.0)) as c:
-                    r = c.post(url, json=payload, headers=headers)
-                    status = r.status_code
-                    try:
-                        body = r.json()
-                    except Exception:
-                        body = {"text": r.text[:200]}
+            for attempt in range(1, self.attempts + 1):
+                t0 = time.time()
+                try:
+                    status, body = self._post_once(base, payload, headers)
+                except (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout) as exc:
+                    # nothing reached the Portal: retry, then try the next configured host
+                    errors.append(f"{base} connect {type(exc).__name__}")
+                    log.warning("[Push] %s → %s connect failed (%s) attempt %d/%d",
+                                doc, base, type(exc).__name__, attempt, self.attempts)
+                    if attempt < self.attempts:
+                        time.sleep(2.0 * attempt)
+                        continue
+                    break
+                except (httpx.ReadTimeout, httpx.WriteTimeout, httpx.RemoteProtocolError, httpx.ReadError) as exc:
+                    # the Portal may have stored it: retry the SAME host (same validation_id → replay)
+                    errors.append(f"{base} {type(exc).__name__} after {time.time() - t0:.0f}s")
+                    log.warning("[Push] %s → %s %s after %.0fs attempt %d/%d — retrying same host",
+                                doc, base, type(exc).__name__, time.time() - t0, attempt, self.attempts)
+                    if attempt < self.attempts:
+                        time.sleep(3.0 * attempt)
+                        continue
+                    return False, "; ".join(errors)
+                except Exception as exc:
+                    errors.append(f"{base} {type(exc).__name__}: {exc}")
+                    log.warning("[Push] %s → %s error %s", doc, base, exc)
+                    break
 
-                    if status == 200 and (
-                        body.get("ok") is True
-                        or body.get("result") in ("CREATED", "ALREADY_PROCESSED")
-                    ):
-                        self._working_base = base
-                        return True, body
+                ms = int((time.time() - t0) * 1000)
+                self._note_instance(base, body)
+                if status == 200 and (body.get("ok") is True or body.get("result") in ("CREATED", "ALREADY_PROCESSED")):
+                    log.info("[Push] %s → %s %s portal=%s doc=%s status=%s live=%s %dms",
+                             doc, base, body.get("result"), body.get("portal_instance", "?"),
+                             body.get("portalDocId"), body.get("status"), body.get("live_notified", "?"), ms)
+                    if self.verify and vid:
+                        ok, detail = self.confirm(base, vid)
+                        if ok is False:
+                            log.error("[Push] %s ✗ Portal answered 200 but has NO record of %s — NOT delivered", doc, vid)
+                            return False, f"not confirmed by Portal ({detail})"
+                        if ok is None:
+                            log.warning("[Push] %s receipt unconfirmed (%s) — accepting the 200", doc, detail)
+                        else:
+                            log.info("[Push] %s ✓ confirmed in Portal DB: %s", doc, detail)
+                    return True, body
 
-                    # Got an HTTP response — no point trying other hosts
-                    err = (
-                        body.get("error")
-                        or "; ".join(body.get("errors") or body.get("issues") or [])
-                        or f"HTTP {status}"
-                    )
-                    return False, f"{err} (code={body.get('code', status)})"
-            except Exception as exc:
-                log.debug("[Push] %s failed: %s", url, exc)
-                continue
+                # The Portal answered with an error — another host would not change the verdict
+                if status in (502, 503, 504) and attempt < self.attempts:
+                    log.warning("[Push] %s → %s HTTP %d (Portal busy/restarting) attempt %d/%d",
+                                doc, base, status, attempt, self.attempts)
+                    time.sleep(3.0 * attempt)
+                    continue
+                err = (
+                    body.get("error")
+                    or "; ".join(body.get("errors") or body.get("issues") or [])
+                    or f"HTTP {status}"
+                )
+                log.warning("[Push] %s → %s rejected HTTP %d code=%s: %s", doc, base, status,
+                            body.get("code", status), str(err)[:200])
+                return False, f"{err} (code={body.get('code', status)})"
 
-        return False, f"All candidate endpoints unreachable: {self._candidates()}"
+        return False, f"Portal unreachable: {'; '.join(errors) or self._candidates()}"
 
 
 # =============================================================================
@@ -807,6 +911,10 @@ class FlowWorker:
                 "poll_interval_s": self.config.get("poll_interval_s", 15),
                 "stale_timeout_s": self.config.get("stale_timeout_s", 1800),
                 "frontend_base_url": self.frontend.base_url or "(auto)",
+                "frontend_fallback_hosts": self.frontend.fallback_hosts,
+                "frontend_verify_ingest": self.frontend.verify,
+                "portal_instance": self.frontend.portal_instance,
+                "portal_last_url": self.frontend._working_base,
             },
             "recent_events": list(self.recent_events),
             # v5.15
@@ -1048,12 +1156,23 @@ class FlowWorker:
                     self.stats["success_count"] += 1
                     self._log("SUCCESS", f"Doc {doc_id} → {verdict} (ingest={res_str})", doc_id)
                     self._finish(doc_id, True, f"verdict={verdict} ingest={res_str} round={round_no}")
+                elif _is_terminal_rejection(push_resp):
+                    # v5.16: the Portal already owns a CLOSED document under this id (Confirmed / Posted /
+                    # Duplicate / locked) — retrying every poll would loop forever. Close it in Paperless.
+                    verdict = result.get("recommendation", {}).get("value", "UNKNOWN")
+                    await asyncio.to_thread(
+                        self.paperless.mark_processed,
+                        doc_id, verdict, "PORTAL_CLOSED", 0, tag_in_proc, tag_proc,
+                    )
+                    self.stats["failed_count"] += 1
+                    self._log("ERROR", f"Doc {doc_id} not re-ingested — Portal document is closed: {push_resp}", doc_id)
+                    self._finish(doc_id, False, f"portal closed, not retried: {push_resp}")
                 else:
                     await asyncio.to_thread(
                         self.paperless.mark_failed, doc_id, str(push_resp), tag_in_proc
                     )
                     self.stats["failed_count"] += 1
-                    self._log("ERROR", f"Doc {doc_id} push rejected: {push_resp}", doc_id)
+                    self._log("ERROR", f"Doc {doc_id} push rejected (will retry next poll): {push_resp}", doc_id)
                     self._finish(doc_id, False, f"ingest rejected: {push_resp}")
 
             except Exception as exc:
@@ -1137,6 +1256,12 @@ def _extraction_to_fields(ext: Any) -> Dict[str, Any]:
 # =============================================================================
 # Factory — build FlowWorker from environment
 # =============================================================================
+def _is_terminal_rejection(push_resp: Any) -> bool:
+    """Portal refusals that a retry can never fix (the same document id is closed in the Portal)."""
+    s = str(push_resp)
+    return "DOCUMENT_NOT_REVALIDATABLE" in s or "STALE_VALIDATION_ROUND" in s
+
+
 def build_flow_worker(settings: Any) -> FlowWorker:
     """Build a ready-to-run FlowWorker from environment variables."""
     from .envfile import load_env
@@ -1149,7 +1274,19 @@ def build_flow_worker(settings: Any) -> FlowWorker:
     frontend_url = os.getenv("FRONTEND_BASE_URL", "")
     frontend_path = os.getenv("FRONTEND_INGEST_PATH", "/api/engine/ingest")
     frontend_key = os.getenv("ENGINE_INGEST_KEY", "")
-    frontend = FrontendClient(frontend_url, frontend_path, frontend_key)
+    # v5.16: no hidden fallback hosts — list them explicitly if really wanted (comma separated)
+    fallbacks = [h.strip() for h in os.getenv("FRONTEND_FALLBACK_HOSTS", "").split(",") if h.strip()]
+    if not frontend_url and not fallbacks:
+        fallbacks = ["http://aiva-portal:3000"]  # compose default when nothing is configured
+    frontend = FrontendClient(
+        frontend_url,
+        frontend_path,
+        frontend_key,
+        timeout_s=float(os.getenv("FRONTEND_PUSH_TIMEOUT_SECONDS", "40")),
+        fallback_hosts=fallbacks,
+        verify=os.getenv("FRONTEND_VERIFY_INGEST", "true").lower() in ("1", "true", "yes"),
+        attempts=int(os.getenv("FRONTEND_PUSH_ATTEMPTS", "3")),
+    )
 
     config = {
         "tag_invoice": int(os.getenv("PAPERLESS_TAG_INVOICE", "5")),

@@ -5,7 +5,8 @@
 #   docker compose up -d --build          # build + start both services
 #   docker compose logs -f engine         # engine daemon logs (per-doc ▶ stage / ✓ DONE / ✗ FAILED)
 #   curl -s localhost:8080/status | jq    # what the engine is doing right now
-#   docker compose logs -f portal         # portal (frontend) logs
+#   docker compose logs -f portal         # portal logs: dated lines, ingest ✓/↺/✗, http errors, "alive" heartbeat
+#   docker compose ps                     # STATUS must read "(healthy)" for portal + engine
 #   docker compose down                   # stop (volumes stay)
 #   docker compose down -v                # stop + wipe volumes (fresh DB)
 #
@@ -16,6 +17,13 @@
 # Database separation:
 #   Portal in Docker → named volume aiva_portal_data:/app/data/aiva.db
 #   Portal via `npm start` (host) → ./prisma/dev.db   (untouched by compose)
+#
+# v5.16 — no silent hangs:
+#   - restart: always on both services + in-process watchdogs that EXIT on a stuck pipeline
+#   - healthchecks that fail when the ingest pipeline (portal) or the worker loop (engine) is stuck
+#   - autoheal restarts any container labelled autoheal=true that Docker marks "unhealthy"
+#     (Docker itself never restarts an unhealthy container — only an exited one)
+#   - TZ=Asia/Bangkok so every log line shows Thai local time
 #
 # Network:
 #   Both services on default network.
@@ -36,10 +44,25 @@ services:
       dockerfile: Dockerfile
     image: aiva-portal:latest
     container_name: aiva-portal
-    restart: unless-stopped
+    # v5.16: always (was unless-stopped) + init → the watchdog's exit(1) always comes back
+    restart: always
+    init: true
+    stop_grace_period: 20s
+    labels:
+      autoheal: "true"
     env_file: ./frontend/.env
     environment:
       NODE_ENV: production
+      TZ: ${TZ:-Asia/Bangkok}
+      # v5.16 — terminal log (src/server/log.ts) + watchdog (src/server/watchdog.ts)
+      LOG_LEVEL: ${PORTAL_LOG_LEVEL:-info}            # debug = every /api request
+      LOG_TZ: ${TZ:-Asia/Bangkok}
+      LOG_HEARTBEAT_MIN: ${PORTAL_HEARTBEAT_MIN:-15}
+      LOG_SLOW_MS: ${PORTAL_LOG_SLOW_MS:-1500}
+      WATCHDOG_ENABLED: ${PORTAL_WATCHDOG:-true}
+      WATCHDOG_INGEST_STUCK_SEC: ${PORTAL_INGEST_STUCK_SEC:-300}
+      INGEST_STUCK_SEC: ${PORTAL_HEALTH_INGEST_STUCK_SEC:-120}
+      BODY_LIMIT: ${PORTAL_BODY_LIMIT:-50mb}
       PORT: "3000"
       HOSTNAME: 0.0.0.0
       # Docker-specific DB path — separate from npm start (./prisma/dev.db)
@@ -63,11 +86,12 @@ services:
       - default
       - proxy-net
     healthcheck:
-      test: [ "CMD-SHELL", "wget -q -O- http://127.0.0.1:3000/api/health || exit 1" ]
-      interval: 30s
-      timeout: 5s
+      # v5.16: /api/health = DB ping (3 s cap) + ingest-pipeline-not-stuck
+      test: [ "CMD-SHELL", "wget -q -T 8 -O- http://127.0.0.1:3000/api/health >/dev/null || exit 1" ]
+      interval: 20s
+      timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 40s
     logging:
       driver: json-file
       options:
@@ -87,9 +111,12 @@ services:
     restart: always
     init: true
     stop_grace_period: 15s
+    labels:
+      autoheal: "true"
     env_file: .env
     environment:
       PYTHONUNBUFFERED: "1"
+      TZ: ${TZ:-Asia/Bangkok}
       AUTO_PROCESS: ${AUTO_PROCESS:-true}
       POLL_INTERVAL_SECONDS: ${POLL_INTERVAL_SECONDS:-15}
       BATCH_SIZE: ${BATCH_SIZE:-5}
@@ -98,6 +125,13 @@ services:
       FRONTEND_BASE_URL: http://aiva-portal:3000
       FRONTEND_INGEST_PATH: ${FRONTEND_INGEST_PATH:-/api/engine/ingest}
       ENGINE_INGEST_KEY: ${ENGINE_INGEST_KEY}
+      # v5.16 — delivery guarantees (engine/src/system_a/flow_worker.py · FrontendClient)
+      #   no hidden fallback hosts: the Engine delivers ONLY to aiva-portal (list extra hosts here if needed)
+      FRONTEND_FALLBACK_HOSTS: ${FRONTEND_FALLBACK_HOSTS:-}
+      #   Paperless doc → PROCESSED only after GET /api/engine/ingest/<validation_id> confirms the row
+      FRONTEND_VERIFY_INGEST: ${FRONTEND_VERIFY_INGEST:-true}
+      FRONTEND_PUSH_TIMEOUT_SECONDS: ${FRONTEND_PUSH_TIMEOUT_SECONDS:-40}
+      FRONTEND_PUSH_ATTEMPTS: ${FRONTEND_PUSH_ATTEMPTS:-3}
       # v5.15 — readable logs for `docker compose logs -f engine`
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FORMAT: ${LOG_FORMAT:-text}            # text | json
@@ -134,6 +168,30 @@ services:
       options:
         max-size: "20m"
         max-file: "5"
+
+  # ---------------------------------------------------------------------------
+  # autoheal — restarts containers labelled autoheal=true when their healthcheck says "unhealthy".
+  # v5.16: Docker's restart policy only reacts to an EXITED process; a hung-but-running process stays
+  # hung forever without this. Needs the Docker socket (read the security note in the changelog).
+  # ---------------------------------------------------------------------------
+  autoheal:
+    image: willfarrell/autoheal:latest
+    container_name: aiva-autoheal
+    restart: always
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: autoheal
+      AUTOHEAL_INTERVAL: ${AUTOHEAL_INTERVAL:-15}
+      AUTOHEAL_START_PERIOD: ${AUTOHEAL_START_PERIOD:-120}
+      AUTOHEAL_DEFAULT_STOP_TIMEOUT: 20
+      TZ: ${TZ:-Asia/Bangkok}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    network_mode: none
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
 
 # ---------------------------------------------------------------------------
 # Secrets

@@ -18,6 +18,7 @@ import {
   type ViewAsTarget,
 } from '../lib/viewAs'
 import { explainScope } from '../lib/docScope'
+import { todayISO, localTime } from '../lib/clientClock'
 
 export const ANONYMOUS_USER: User = {
   id: '',
@@ -316,8 +317,8 @@ export function AuthProvider({
   }, [currentUser, isAuthenticated, accountsOf])
 
   const logAudit = useCallback((act: string, doc: string, detail: string) => {
-    const now = new Date().toTimeString().slice(0, 8)
-    const today = '2026-10-07'
+    const now = localTime()
+    const today = todayISO()
     setAuditLogs(prev => [
       {
         dt: today,
@@ -349,11 +350,11 @@ export function AuthProvider({
         window.localStorage.setItem('aiva.auth.user', user.id)
       }
     } catch {}
-    const now = new Date().toTimeString().slice(0, 8)
+    const now = localTime()
     const accounts = acctsOf(user).join(', ') || '—'
     setAuditLogs(prev => [
       {
-        dt: '2026-10-07',
+        dt: todayISO(),
         t: now,
         who: user.n,
         role: ROLES[user.role].n,

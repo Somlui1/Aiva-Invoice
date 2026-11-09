@@ -2,7 +2,7 @@
 
 import { InvoiceDoc } from '../../types/invoice'
 import { StatusBadge } from '../common/StatusBadge'
-import { TODAY } from '../../context/InvoiceContext'
+import { todayISO } from '../../context/InvoiceContext'
 import { useSettings } from '../../context/SettingsContext'
 import { SEVERITY_OF_CODE } from '../../mock/rules'
 import { useLive } from '../../context/LiveContext'
@@ -21,7 +21,7 @@ export function QueueListItem({ doc, isSelected, onClick }: QueueListItemProps) 
     return Math.max(
       0,
       Math.round(
-        (new Date(TODAY + 'T00:00:00Z').getTime() - new Date(upDate + 'T00:00:00Z').getTime()) / 864e5
+        (new Date(todayISO() + 'T00:00:00Z').getTime() - new Date(upDate + 'T00:00:00Z').getTime()) / 864e5
       )
     )
   }

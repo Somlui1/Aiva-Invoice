@@ -7,7 +7,7 @@ import { InvoiceDoc, EvidenceSelection, type Finding, type RuleCheck } from '../
 import { EvidenceButton } from '../evidence/EvidenceButton'
 import { findingsOf } from '../../features/evidence/findings'
 import { useAuth } from '../../context/AuthContext'
-import { useInvoices, TODAY } from '../../context/InvoiceContext'
+import { useInvoices, todayISO } from '../../context/InvoiceContext'
 import { useToastModal } from '../../context/ToastModalContext'
 import { COMPANIES, ORG_NAMES, buyerOrgOf } from '../../mock/companies'
 import { RULES, EXCEPTION_CATALOG, EU_CODES, ActionType } from '../../mock/rules'
@@ -107,7 +107,7 @@ export function InvoiceDetailPane({ doc, onOpenActionModal, readOnly = false, cl
     return Math.max(
       0,
       Math.round(
-        (new Date(TODAY + 'T00:00:00Z').getTime() - new Date(upDate + 'T00:00:00Z').getTime()) / 864e5
+        (new Date(todayISO() + 'T00:00:00Z').getTime() - new Date(upDate + 'T00:00:00Z').getTime()) / 864e5
       )
     )
   }

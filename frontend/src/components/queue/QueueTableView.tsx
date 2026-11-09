@@ -2,7 +2,7 @@
 
 import { Icon } from '../common/Icon'
 import { StatusBadge } from '../common/StatusBadge'
-import { useInvoices, TODAY } from '../../context/InvoiceContext'
+import { useInvoices, todayISO } from '../../context/InvoiceContext'
 import { useSettings } from '../../context/SettingsContext'
 import { SEVERITY_OF_CODE } from '../../mock/rules'
 import { SmartSearchBox } from './SmartSearchBox'
@@ -23,7 +23,7 @@ export function QueueTableView() {
     return Math.max(
       0,
       Math.round(
-        (new Date(TODAY + 'T00:00:00Z').getTime() - new Date(upDate + 'T00:00:00Z').getTime()) / 864e5
+        (new Date(todayISO() + 'T00:00:00Z').getTime() - new Date(upDate + 'T00:00:00Z').getTime()) / 864e5
       )
     )
   }

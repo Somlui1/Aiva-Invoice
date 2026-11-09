@@ -105,6 +105,9 @@ export interface InvoiceDoc {
   up: string
   /** v5.7: วันที่สร้างเอกสารใน Portal (YYYY-MM-DD) — ตัวกรอง "วันที่สร้างเอกสาร" · ไม่มี = ใช้ `up` */
   created?: string
+  /** v5.16: full timestamps (ISO, usually UTC) behind `up` / `created` — date filters convert them to the client's local day. */
+  upAt?: string
+  createdAt?: string
   codes: string[]
   rules: RuleCheck[]
   lines?: InvoiceLineItem[]

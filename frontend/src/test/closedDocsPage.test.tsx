@@ -11,6 +11,7 @@ import { SettingsProvider } from '../context/SettingsContext'
 import { ToastModalProvider } from '../context/ToastModalContext'
 import { SimProvider } from '../context/SimContext'
 import { ClosedDocsPage } from '../components/closed/ClosedDocsPage'
+import { todayISO } from '../lib/clientClock'
 import { INITIAL_DOCS } from '../mock/initialDocs'
 import { USERS } from '../mock/users'
 import type { InvoiceDoc } from '../types/invoice'
@@ -19,7 +20,7 @@ import type { User } from '../types/auth'
 vi.mock('pdfjs-dist', () => ({ GlobalWorkerOptions: { workerSrc: '' }, getDocument: () => { throw new Error('no pdf') } }))
 
 const SA = USERS.find(u => u.role === 'SA') as User
-const base = INITIAL_DOCS[0]
+const base = { ...INITIAL_DOCS[0], up: todayISO() }
 const hist = (dt: string, act: string, d = '') => [{ dt, t: '09:00:00', who: 'สมชาย', act, d }]
 const DOCS: InvoiceDoc[] = [
   { ...base, doc: 'DMS-901', inv: 'INV-901', company: 'AH', status: 'Confirmed', history: hist('2026-10-05', 'Confirm') },

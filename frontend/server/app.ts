@@ -27,6 +27,31 @@ import { prisma } from '../src/lib/prisma'
 import { eventsHandler } from '../src/server/events'
 import { corsOrigins, isProduction, simulationEnabled } from '../src/server/auth/config'
 import { requireAuth, requireIntegrationKey, requireKeyOrAuth, requirePerm } from '../src/server/auth/guards'
+import { requestLog } from './middleware/requestLog'
+import { dbProbe, envInt, ingestRunningForMs, ingestStats, instanceIdOf, uptimeSec } from '../src/server/runtime'
+import { openStreams } from '../src/server/events'
+
+/** DB ping that cannot hang the healthcheck (a stuck query used to keep /api/health pending). */
+export async function pingDatabase(timeoutMs = 3_000): Promise<void> {
+  let t: ReturnType<typeof setTimeout> | undefined
+  try {
+    await Promise.race([
+      prisma.$queryRaw`SELECT 1`,
+      new Promise((_, reject) => {
+        t = setTimeout(() => reject(new Error(`database ping exceeded ${timeoutMs}ms`)), timeoutMs)
+      }),
+    ])
+    dbProbe.lastOkAt = Date.now()
+    dbProbe.consecutiveFails = 0
+    dbProbe.lastError = ''
+  } catch (e: any) {
+    dbProbe.consecutiveFails++
+    dbProbe.lastError = String(e?.message ?? e).slice(0, 200)
+    throw e
+  } finally {
+    if (t) clearTimeout(t)
+  }
+}
 
 /** Baseline security headers (no extra dependency). The reverse proxy adds HSTS. */
 function securityHeaders(_req: Request, res: Response, next: NextFunction) {
@@ -47,13 +72,16 @@ export function createExpressApp(): Express {
   app.set('trust proxy', trust ? (/^\d+$/.test(trust) ? Number(trust) : trust) : isProduction() ? 1 : false)
 
   app.use(securityHeaders)
+  app.use(requestLog) // v5.16: dated, filtered HTTP log (server/middleware/requestLog.ts)
   // Same-origin SPA: no CORS needed. Other origins only when listed in CORS_ORIGINS.
   const origins = corsOrigins()
   if (origins.length) app.use(cors({ origin: origins, credentials: true }))
   else if (!isProduction()) app.use(cors({ origin: true, credentials: true }))
   app.use(cookieParser())
-  app.use(express.json({ limit: '50mb' }))
-  app.use(express.urlencoded({ extended: true, limit: '50mb' }))
+  // v5.16: BODY_LIMIT (default 50mb) — a larger Engine payload is logged as 413 instead of vanishing
+  const bodyLimit = process.env.BODY_LIMIT || '50mb'
+  app.use(express.json({ limit: bodyLimit }))
+  app.use(express.urlencoded({ extended: true, limit: bodyLimit }))
   app.use(sessionMiddleware)
   // v5.10: SA "view as" — read-only, re-scopes req.sessionUser to the target (see src/server/viewAs.ts)
   app.use(viewAsMiddleware)
@@ -84,9 +112,21 @@ export function createExpressApp(): Express {
   app.get('/api/companies', requireAuth, companiesHandler)
 
   // Health: liveness for the container / monitoring. Counts only outside production.
+  // v5.16: also unhealthy (503) when the ingest pipeline is stuck — before, the Portal answered "ok"
+  // while no Engine document could get in, so Docker never noticed.
   app.get('/api/health', async (_req, res) => {
+    const ingest = {
+      queued: ingestStats.queued,
+      running_s: Math.round(ingestRunningForMs() / 1000),
+      last_at: ingestStats.lastAt ? new Date(ingestStats.lastAt).toISOString() : null,
+      last_result: ingestStats.lastResult || null,
+    }
+    const stuckSec = envInt('INGEST_STUCK_SEC', 120, 30)
     try {
-      await prisma.$queryRaw`SELECT 1`
+      await pingDatabase()
+      if (ingest.running_s > stuckSec) {
+        return res.status(503).json({ ok: false, error: `ingest stuck for ${ingest.running_s}s`, instance: instanceIdOf(), ingest })
+      }
       const details = isProduction()
         ? { database: 'connected' }
         : {
@@ -100,10 +140,14 @@ export function createExpressApp(): Express {
         mode: 'live',
         ruleset: 'v6.6',
         timestamp: new Date().toISOString(),
+        instance: instanceIdOf(),
+        uptime_s: Math.round(uptimeSec()),
+        sse_streams: openStreams(),
+        ingest,
         details,
       })
     } catch (err: any) {
-      res.status(503).json({ ok: false, error: isProduction() ? 'database unavailable' : err.message })
+      res.status(503).json({ ok: false, error: isProduction() ? 'database unavailable' : err.message, instance: instanceIdOf(), ingest })
     }
   })
 
