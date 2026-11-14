@@ -27,7 +27,7 @@ stages:
   - deploy
 
 .node:
-  image: node:22.23.4-alpine
+  image: node:22.23.5-alpine
   before_script:
     - cd "$AIVA_DIR"
     - apk add --no-cache git libc6-compat openssl >/dev/null
