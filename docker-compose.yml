@@ -132,6 +132,19 @@ services:
       FRONTEND_VERIFY_INGEST: ${FRONTEND_VERIFY_INGEST:-true}
       FRONTEND_PUSH_TIMEOUT_SECONDS: ${FRONTEND_PUSH_TIMEOUT_SECONDS:-40}
       FRONTEND_PUSH_ATTEMPTS: ${FRONTEND_PUSH_ATTEMPTS:-3}
+      # v5.17 — "tagged AIVA processed but not in the queue"
+      #   a 200 whose receipt cannot be checked is retried, not tagged PROCESSED (old Portals without
+      #   the receipt endpoint are still accepted)
+      FRONTEND_REQUIRE_RECEIPT: ${FRONTEND_REQUIRE_RECEIPT:-true}
+      #   reconciler: PROCESSED docs the Portal answers found:false are sent back for processing
+      #   off | report | fix · status: GET :8080/reconcile · run now: POST :8080/reconcile/run?mode=report
+      RECONCILE_MODE: ${RECONCILE_MODE:-fix}
+      RECONCILE_INTERVAL_SECONDS: ${RECONCILE_INTERVAL_SECONDS:-600}
+      RECONCILE_LOOKBACK_DAYS: ${RECONCILE_LOOKBACK_DAYS:-14}
+      RECONCILE_MAX_REQUEUE: ${RECONCILE_MAX_REQUEUE:-10}          # circuit breaker (per run)
+      RECONCILE_MAX_MISSING_RATIO: ${RECONCILE_MAX_MISSING_RATIO:-0.2}
+      #   optional pin: the Portal instance id from GET :3000/api/health (hostname/db-hash)
+      FRONTEND_EXPECT_INSTANCE: ${FRONTEND_EXPECT_INSTANCE:-}
       # v5.15 — readable logs for `docker compose logs -f engine`
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FORMAT: ${LOG_FORMAT:-text}            # text | json

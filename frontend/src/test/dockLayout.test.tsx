@@ -291,7 +291,7 @@ describe('EvidenceViewerDock Splitter and Loading State', () => {
     expect(container.querySelector('.dock-rz')).not.toBeNull()
   })
 
-  it('re-splits the grid on drag and clamps the dock to 30–50%', async () => {
+  it('re-splits the grid on drag and clamps the dock to 20–80% (v5.17, was 30–50%)', async () => {
     const { container } = await mountDock()
     const work = container.querySelector('#work') as HTMLElement
     const rz = container.querySelector('.dock-rz') as HTMLElement
@@ -307,8 +307,7 @@ describe('EvidenceViewerDock Splitter and Loading State', () => {
     })
     expect(work.classList.contains('dragging')).toBe(true)
 
-    // 100px pulled left on a 1000px grid is +10% of the dock, which lands on the
-    // upper clamp rather than overshooting it.
+    // 100px pulled left on a 1000px grid is +10% of the dock (0.4 → 0.5).
     act(() => {
       window.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 900 }))
     })
@@ -321,11 +320,13 @@ describe('EvidenceViewerDock Splitter and Loading State', () => {
     })
     expect(work.classList.contains('dragging')).toBe(false)
 
-    // Dragging the other way past the lower bound still stops at 30%.
+    // Dragging the other way past the lower bound stops at 20%.
     dragSplitter(rz, 1000, 1400)
-    expect(screen.getByTestId('ratio').textContent).toBe('0.3')
-    expect(work.style.getPropertyValue('--dc')).toBe('30.0fr')
-    expect(work.style.getPropertyValue('--mc')).toBe('70.0fr')
+    expect(screen.getByTestId('ratio').textContent).toBe('0.2')
+    expect(work.style.getPropertyValue('--dc')).toBe('20.0fr')
+    expect(work.style.getPropertyValue('--mc')).toBe('80.0fr')
+    // v5.17: the chosen split is remembered for the next visit
+    expect(JSON.parse(window.localStorage.getItem('aiva.layout.v1') || '{}').ratio).toBe(0.2)
     expect(work.classList.contains('dragging')).toBe(false)
   })
 

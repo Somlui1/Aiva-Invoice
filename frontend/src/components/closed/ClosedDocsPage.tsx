@@ -53,7 +53,10 @@ const money = (n: number) =>
 
 export function ClosedDocsPage() {
   const { currentUser } = useAuth()
-  const { visibleDocs, isEvidenceDockOpen, closeEvidenceDock, openEvidenceDock, dockSplitRatio, closedFocus } = useInvoices()
+  const { visibleDocs, isEvidenceDockOpen, closeEvidenceDock, openEvidenceDock, dockSplitRatio: chosenRatio, closedFocus } = useInvoices()
+  // v5.17: the queue page allows 20–80% (with pixel limits); this page has no layout solver, so it
+  // keeps the old 30–50% band whatever the shared preference says.
+  const dockSplitRatio = Math.min(0.5, Math.max(0.3, chosenRatio))
   const { toast } = useToastModal()
 
   const role = currentUser.role

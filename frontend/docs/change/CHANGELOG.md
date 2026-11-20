@@ -2,6 +2,21 @@
 
 <!-- newest first · written by scripts/patch/apply-patch.mjs -->
 
+## 5.17.0 — Adaptive 3-pane queue · Reconciler แก้ปัญหาเอกสารค้าง Tag AIVA processed (2026-11-19)
+
+### เปลี่ยนอะไร
+- **Adaptive 3-pane Layout (Queue · Detail · PDF พร้อมกัน)**:
+  - เปิด PDF แล้วคิวเอกสารไม่หาย โดยคงเป็นคอลัมน์ด้านซ้าย (แบบ Outlook): ปรับระดับการแสดงผลอัตโนมัติตามความกว้างหน้าจอ Full (≥340px) · Compact (220–339px) · Slim (96–219px) · พับ (Rail)
+  - เพิ่มเมนู **เลย์เอาต์** ใน Toolbar สำหรับปรับขนาดคิว, สัดส่วน Detail : PDF (20–80%), หรือสลับกลับไปใช้ "ซ่อนคิว (แบบเดิม)" ได้ตามต้องการ
+  - คีย์ลัด: `J` / `K` เลื่อนเอกสารก่อนหน้า/ถัดไปขณะเปิด PDF, `P` เปิด/ปิด PDF, `Esc` ปิดเมนู/Flyout/PDF ตามลำดับ
+- **Reconciler & Ingest Sync (Engine + Portal)**:
+  - แก้ปัญหาเอกสารติด Tag PROCESSED ใน Paperless แต่ไม่ปรากฏใน Queue ของ Portal (เช่น หลัง reset DB หรือ network drop)
+  - Engine มี Reconciler Task ตรวจสอบความสอดคล้องกับ Portal ผ่าน `POST /api/engine/presence` ทุก 10 นาที และ requeue เอกสารที่หลุดให้อัตโนมัติอย่างปลอดภัย (Circuit breaker ป้องกันการ requeue ผิดพลาด)
+  - Stricter Receipt: ตรวจสอบความสำเร็จของการบันทึกผ่าน Ingest receipt อย่างเคร่งครัด
+  - เพิ่ม Engine endpoints: `GET /reconcile`, `POST /reconcile/run?mode=report|fix`
+- **เทสต์**: เพิ่ม `queueLayout.test.ts`, `enginePresence.test.ts`, `test_reconcile_v517.py` และอัปเดต `dockLayout.test.tsx`, `queueFocusDateFilter.test.tsx`, `dockFocus.test.tsx`
+
+
 ## 5.16.0 — Client clock · Ingest ที่ยืนยันได้ · Log อ่านง่าย · Docker ไม่ค้าง (2026-11-09)
 
 ### เปลี่ยนอะไร

@@ -11,3 +11,6 @@
 
 # Excel workbooks
 *.xlsx
+
+# Patch archives
+*.zip

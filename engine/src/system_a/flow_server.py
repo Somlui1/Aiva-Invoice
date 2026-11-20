@@ -23,6 +23,7 @@ from pydantic import BaseModel
 from .container import Settings, build_services
 from .envfile import load_env
 from .flow_worker import FlowWorker, build_flow_worker
+from .reconciler import Reconciler, reconcile_config_from_env
 from .logsetup import configure_logging
 
 load_env()
@@ -33,6 +34,10 @@ log = logging.getLogger("system_a.flow_server")
 _worker: Optional[FlowWorker] = None
 _worker_task: Optional[asyncio.Task] = None
 _watchdog_task: Optional[asyncio.Task] = None
+# v5.17: Paperless "AIVA processed" ⇄ Portal database reconciler (own task, never blocks the worker)
+_reconciler: Optional[Reconciler] = None
+_reconcile_task: Optional[asyncio.Task] = None
+_reconcile_stop: Optional[asyncio.Event] = None
 
 # v5.15 watchdog — Docker only restarts a container whose process EXITS (restart policy);
 # an "unhealthy" healthcheck alone never restarts it. So the process exits itself when stuck.
@@ -81,7 +86,7 @@ async def _watchdog() -> None:
 # =============================================================================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _worker, _worker_task, _watchdog_task
+    global _worker, _worker_task, _watchdog_task, _reconciler, _reconcile_task, _reconcile_stop
 
     # ── Startup ───────────────────────────────────────────────────────────────
     settings = Settings()
@@ -98,10 +103,25 @@ async def lifespan(app: FastAPI):
     if WATCHDOG_ENABLED:
         _watchdog_task = asyncio.create_task(_watchdog(), name="Watchdog")
 
+    _reconciler = Reconciler(
+        worker.paperless,
+        worker.frontend,
+        reconcile_config_from_env({k: worker.config.get(k) for k in ("tag_invoice", "tag_processed", "tag_in_process")}),
+    )
+    _reconcile_stop = asyncio.Event()
+    _reconcile_task = asyncio.create_task(_reconciler.loop(_reconcile_stop), name="Reconciler")
+
     yield
 
     if _watchdog_task:
         _watchdog_task.cancel()
+    if _reconcile_stop:
+        _reconcile_stop.set()
+    if _reconcile_task and not _reconcile_task.done():
+        try:
+            await asyncio.wait_for(_reconcile_task, timeout=5.0)
+        except (asyncio.TimeoutError, asyncio.CancelledError):
+            _reconcile_task.cancel()
 
     # ── Shutdown ──────────────────────────────────────────────────────────────
     log.info("Shutting down Flow Worker...")
@@ -168,7 +188,26 @@ def create_flow_server() -> FastAPI:
             "inflight": st.get("inflight"),
             "recent_done": st.get("recent_done"),
             "last_error": st.get("last_error"),
+            "reconcile": _reconcile_summary(),
         }
+
+    # ── v5.17 Reconcile: Paperless PROCESSED tag ⇄ Portal database ────────────
+
+    @app.get("/reconcile", summary="Reconciler state and the last report")
+    def reconcile_status() -> Dict[str, Any]:
+        if _reconciler is None:
+            raise HTTPException(status_code=503, detail="Reconciler not initialized")
+        return _reconciler.status()
+
+    @app.post("/reconcile/run", summary="Run one reconcile pass now")
+    async def reconcile_run(mode: Optional[str] = None, force: bool = False) -> Dict[str, Any]:
+        """mode = report (look only) | fix (requeue the missing ones). force=true bypasses the circuit
+        breaker — use it after checking that the Portal database really lost those documents."""
+        if _reconciler is None:
+            raise HTTPException(status_code=503, detail="Reconciler not initialized")
+        if mode is not None and mode not in ("report", "fix"):
+            raise HTTPException(status_code=400, detail="mode must be report or fix")
+        return await _reconciler.run_async(mode or _reconciler.cfg["mode"], force)
 
     @app.get("/health/ready", summary="Readiness probe")
     def health_ready() -> Dict[str, Any]:
@@ -305,6 +344,21 @@ def create_flow_server() -> FastAPI:
     app.mount("/sysa", sub_api)
 
     return app
+
+
+def _reconcile_summary() -> Optional[Dict[str, Any]]:
+    if _reconciler is None:
+        return None
+    last = _reconciler.last_report or {}
+    return {
+        "mode": _reconciler.cfg["mode"],
+        "runs": _reconciler.runs,
+        "requeued_total": _reconciler.requeued_total,
+        "last_at": last.get("at"),
+        "last_missing": len(last.get("missing") or []),
+        "last_breaker": last.get("breaker"),
+        "last_aborted": last.get("aborted"),
+    }
 
 
 async def _bg_process_single(worker: FlowWorker, doc_id: int) -> None:

@@ -181,7 +181,11 @@ describe('Document Actions Mutation API', () => {
 
   it('two Confirms of one receive_id at the same moment: exactly one wins', async () => {
     await mkOther({ status: 'Review' })
-    const [a, b] = await Promise.all([act(docId, { action: 'confirm', reason: 'x' }), act(other, { action: 'confirm', reason: 'x' })])
+    const cookie = await acc()
+    const [a, b] = await Promise.all([
+      act(docId, { action: 'confirm', reason: 'x' }, cookie),
+      act(other, { action: 'confirm', reason: 'x' }, cookie),
+    ])
     expect([a.status, b.status].sort()).toEqual([200, 409])
     const confirmed = await prisma.document.count({ where: { id: { in: [docId, other] }, status: 'Confirmed' } })
     expect(confirmed).toBe(1)

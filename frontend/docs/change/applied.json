@@ -789,5 +789,79 @@
         }
       ]
     }
+  },
+  {
+    "version": "5.17.0",
+    "base": "5.16.0",
+    "title": "Adaptive 3-pane queue · Reconciler แก้ปัญหาเอกสารค้าง Tag AIVA processed",
+    "appliedAt": "2026-11-19T08:35:00.000Z",
+    "baseCommit": "afebc24",
+    "db": false,
+    "files": {
+      "replaced": [
+        "docker-compose.yml",
+        ".env.production.example",
+        "engine/.env.example",
+        "engine/src/system_a/flow_server.py",
+        "engine/src/system_a/flow_worker.py",
+        "package.json",
+        "server/routes/engineIngest.ts",
+        "src/components/closed/ClosedDocsPage.tsx",
+        "src/components/evidence/EvidenceViewerDock.tsx",
+        "src/components/queue/QueueListItem.tsx",
+        "src/components/queue/QueuePage.tsx",
+        "src/components/queue/QueueToolbar.tsx",
+        "src/context/InvoiceContext.tsx",
+        "src/styles/index.css",
+        "src/test/dockFocus.test.tsx",
+        "src/test/dockLayout.test.tsx",
+        "src/test/queueFocusDateFilter.test.tsx"
+      ],
+      "added": [
+        "engine/src/system_a/reconciler.py",
+        "engine/tests/test_reconcile_v517.py",
+        "src/components/queue/LayoutMenu.tsx",
+        "src/lib/layoutPrefs.ts",
+        "src/lib/queueLayout.ts",
+        "src/server/presence.ts",
+        "src/server/presenceCore.ts",
+        "src/styles/aiva/v517.css",
+        "src/test/enginePresence.test.ts",
+        "src/test/queueLayout.test.ts"
+      ],
+      "deleted": []
+    },
+    "tests": [
+      "src/test/queueLayout.test.ts",
+      "src/test/enginePresence.test.ts",
+      "src/test/dockFocus.test.tsx",
+      "src/test/dockLayout.test.tsx",
+      "src/test/queueFocusDateFilter.test.tsx"
+    ],
+    "verify": {
+      "ok": true,
+      "at": "2026-11-19T08:43:28.411Z",
+      "totalSec": 97.6,
+      "full": false,
+      "tests": [
+        "src/test/queueLayout.test.ts",
+        "src/test/enginePresence.test.ts",
+        "src/test/dockFocus.test.tsx",
+        "src/test/dockLayout.test.tsx",
+        "src/test/queueFocusDateFilter.test.tsx"
+      ],
+      "steps": [
+        {
+          "label": "typecheck",
+          "ok": true,
+          "sec": 35
+        },
+        {
+          "label": "tests (5)",
+          "ok": true,
+          "sec": 62.6
+        }
+      ]
+    }
   }
 ]

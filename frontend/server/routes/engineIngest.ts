@@ -2,6 +2,8 @@ import { Router } from 'express'
 import { findIngestReceipt, ingestEngineResult } from '../../src/server/ingestEngineResult'
 import { ingestStats, instanceIdOf } from '../../src/server/runtime'
 import { log, errText, bytes } from '../../src/server/log'
+import { documentPresence } from '../../src/server/presence'
+import { parsePresenceRequest } from '../../src/server/presenceCore'
 
 export const engineIngestRouter = Router()
 
@@ -99,3 +101,36 @@ engineIngestRouter.get('/ingest/:validationId', async (req, res) => {
     return res.status(503).json({ ok: false, found: false, error: 'database unavailable', portal_instance: instanceIdOf() })
   }
 })
+
+/**
+ * POST /api/engine/presence — v5.17, read-only. Body `{ dms_doc_ids: ["DMS-12", …] }` (≤ 500).
+ * Answers, from THIS Portal's database, which documents exist, whether the queue can read them and
+ * whether a new Engine delivery would be accepted. The Engine's reconciler uses it to find Paperless
+ * documents tagged "AIVA processed" that never arrived here, and sends only those back for processing.
+ */
+engineIngestRouter.post('/presence', async (req, res) => {
+  res.locals.logged = true
+  const parsed = parsePresenceRequest(req.body)
+  if (!parsed.ok) {
+    return res.status(400).json({ ok: false, error: parsed.error, portal_instance: instanceIdOf() })
+  }
+  try {
+    const documents = await documentPresence(parsed.ids)
+    const missing = parsed.ids.filter(id => !documents[id]?.found)
+    const unreadable = parsed.ids.filter(id => documents[id]?.found && documents[id]?.readable === false)
+    if (missing.length || unreadable.length) {
+      log.warn(
+        'ingest',
+        `presence: ${parsed.ids.length} asked · missing ${missing.length}${missing.length ? ` (${missing.slice(0, 8).join(', ')}${missing.length > 8 ? ' …' : ''})` : ''} · unreadable ${unreadable.length}`,
+      )
+    } else {
+      log.debug('ingest', `presence: ${parsed.ids.length} asked · all present`)
+    }
+    return res.json({ ok: true, portal_instance: instanceIdOf(), documents })
+  } catch (err) {
+    log.error('ingest', `presence check failed · ${errText(err)}`)
+    // 503 = "cannot tell" — the Engine must not treat it as "missing"
+    return res.status(503).json({ ok: false, error: 'database unavailable', portal_instance: instanceIdOf() })
+  }
+})
+

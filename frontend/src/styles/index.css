@@ -29,3 +29,7 @@
 @import './aiva/v513.css';
 /* v5.14: ReceiverPicker · AP search/links · language switch */
 @import './aiva/v514.css';
+/* v5.17: adaptive 3-pane queue (queue · detail · PDF) + layout menu */
+@import './aiva/v517.css';
+/* v5.18: detail column fix */
+@import './aiva/v518.css';

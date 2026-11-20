@@ -185,17 +185,28 @@ class PaperlessClient:
         validation_round: int = 1,
         tag_in_process: int = 26,
         tag_processed: int = 25,
+        trace: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Remove IN_PROCESS tag, add PROCESSED tag, write success note."""
+        """Remove IN_PROCESS tag, add PROCESSED tag, write success note.
+
+        v5.17: the note also records WHERE the result went (validation_id, Portal doc id, Portal
+        instance, delivery receipt) so "tagged processed but not in the queue" can be traced from
+        Paperless alone, and the reconciler can tell which Portal a document was delivered to.
+        """
         doc = self.get_document(doc_id)
         tags = [int(t) for t in (doc.get("tags") or [])]
         new_tags = list(set([t for t in tags if t != tag_in_process] + [tag_processed]))
         self.patch_tags(doc_id, new_tags)
+        extra = ""
+        if trace:
+            extra = "".join(
+                f", {k}={v}" for k, v in trace.items() if v not in (None, "")
+            )
         self.add_note(
             doc_id,
-            f"AIVA_SUCCESS: verdict={verdict}, ingestion={ingest_result}, validationRound={validation_round}",
+            f"AIVA_SUCCESS: verdict={verdict}, ingestion={ingest_result}, validationRound={validation_round}{extra}",
         )
-        log.info("[Done] Doc %d → PROCESSED (verdict=%s, ingest=%s)", doc_id, verdict, ingest_result)
+        log.info("[Done] Doc %d → PROCESSED (verdict=%s, ingest=%s%s)", doc_id, verdict, ingest_result, extra)
 
     def mark_failed(self, doc_id: int, reason: str, tag_in_process: int = 26) -> None:
         """Revert IN_PROCESS tag (→ UNPROCESSED) and write failure note."""
@@ -239,6 +250,32 @@ class PaperlessClient:
             log.warning("[Stale] Recovery check error: %s", exc)
         return recovered
 
+    # ── v5.17 reconcile helpers ───────────────────────────────────────────────
+
+    def query_processed(
+        self,
+        tag_invoice: int,
+        tag_processed: int,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """Most recently modified invoices that carry the PROCESSED tag (newest first)."""
+        res = self.query_documents({
+            "tags__id__all": f"{tag_invoice},{tag_processed}",
+            "ordering": "-modified",
+            "page_size": limit,
+        })
+        return res.get("results") or []
+
+    def requeue(self, doc_id: int, tag_processed: int, tag_in_process: int, note: str) -> bool:
+        """Remove PROCESSED (never touches a document a worker holds) and explain why in a note."""
+        doc = self.get_document(doc_id)
+        tags = [int(t) for t in (doc.get("tags") or [])]
+        if tag_in_process in tags or tag_processed not in tags:
+            return False
+        self.patch_tags(doc_id, [t for t in tags if t != tag_processed])
+        self.add_note(doc_id, note[:480])
+        return True
+
 
 # =============================================================================
 # SECTION 2 — FrontendClient
@@ -268,6 +305,7 @@ class FrontendClient:
         fallback_hosts: Optional[List[str]] = None,
         verify: bool = True,
         attempts: int = 3,
+        require_receipt: bool = True,
     ):
         self.base_url = base_url.rstrip("/") if base_url else ""
         self.ingest_path = "/" + ingest_path.lstrip("/")
@@ -279,6 +317,11 @@ class FrontendClient:
         self._working_base: Optional[str] = None  # last host that answered (informational)
         self.portal_instance: Optional[str] = None
         self._verify_supported: Optional[bool] = None
+        # v5.17: a 200 whose delivery receipt cannot be checked (network, Portal busy) is NOT a
+        # delivery — the document stays unprocessed and is retried, instead of being tagged
+        # PROCESSED while the Portal may never have stored it. Old Portals without the receipt
+        # endpoint (404) are still accepted.
+        self.require_receipt = require_receipt
 
     def _candidates(self) -> List[str]:
         """Primary first, ALWAYS; then the explicitly configured fallbacks."""
@@ -369,6 +412,31 @@ class FrontendClient:
                 return None, f"receipt check failed: {type(exc).__name__}"
         return None, "receipt check inconclusive"
 
+    def presence(self, dms_doc_ids: List[str]) -> Tuple[Optional[Dict[str, Any]], str]:
+        """
+        v5.17 — ask the PRIMARY Portal which documents it really stores (read-only).
+        Returns (body, "") or (None, reason). Never "guesses": any error = None, so the caller
+        must not treat it as "missing".
+        """
+        base = self.base_url or (self._candidates()[0] if self._candidates() else "")
+        if not base:
+            return None, "no FRONTEND_BASE_URL configured"
+        url = f"{base}{self.ingest_path.rsplit('/', 1)[0]}/presence"
+        try:
+            with httpx.Client(timeout=httpx.Timeout(20.0, connect=5.0)) as c:
+                r = c.post(url, json={"dms_doc_ids": dms_doc_ids},
+                           headers={"Content-Type": "application/json", **self._auth_headers()})
+            body = r.json() if r.headers.get("content-type", "").startswith("application/json") else None
+        except Exception as exc:
+            return None, f"{url} {type(exc).__name__}"
+        if r.status_code == 404 and not (isinstance(body, dict) and "documents" in body):
+            return None, "presence endpoint not available on this Portal (update the Portal to v5.17)"
+        if r.status_code != 200 or not isinstance(body, dict) or body.get("ok") is not True \
+                or not isinstance(body.get("documents"), dict):
+            err = (body or {}).get("error") if isinstance(body, dict) else None
+            return None, f"presence HTTP {r.status_code} {err or ''}".strip()
+        return body, ""
+
     def push(self, payload: Dict[str, Any]) -> Tuple[bool, Any]:
         """
         POST payload to /api/engine/ingest.
@@ -414,16 +482,22 @@ class FrontendClient:
                     log.info("[Push] %s → %s %s portal=%s doc=%s status=%s live=%s %dms",
                              doc, base, body.get("result"), body.get("portal_instance", "?"),
                              body.get("portalDocId"), body.get("status"), body.get("live_notified", "?"), ms)
+                    receipt = "off"
                     if self.verify and vid:
                         ok, detail = self.confirm(base, vid)
                         if ok is False:
                             log.error("[Push] %s ✗ Portal answered 200 but has NO record of %s — NOT delivered", doc, vid)
                             return False, f"not confirmed by Portal ({detail})"
                         if ok is None:
+                            if self.require_receipt and self._verify_supported is not False:
+                                log.error("[Push] %s ✗ receipt unconfirmed (%s) — not marked processed, retry next poll", doc, detail)
+                                return False, f"receipt unconfirmed ({detail}) — will retry"
                             log.warning("[Push] %s receipt unconfirmed (%s) — accepting the 200", doc, detail)
+                            receipt = "unsupported" if self._verify_supported is False else "unconfirmed"
                         else:
                             log.info("[Push] %s ✓ confirmed in Portal DB: %s", doc, detail)
-                    return True, body
+                            receipt = "confirmed"
+                    return True, {**body, "_receipt": receipt, "_portal_url": base}
 
                 # The Portal answered with an error — another host would not change the verdict
                 if status in (502, 503, 504) and attempt < self.attempts:
@@ -1152,6 +1226,7 @@ class FlowWorker:
                     await asyncio.to_thread(
                         self.paperless.mark_processed,
                         doc_id, verdict, res_str, round_no, tag_in_proc, tag_proc,
+                        _delivery_trace(payload, push_resp),
                     )
                     self.stats["success_count"] += 1
                     self._log("SUCCESS", f"Doc {doc_id} → {verdict} (ingest={res_str})", doc_id)
@@ -1226,6 +1301,7 @@ class FlowWorker:
                 await asyncio.to_thread(
                     self.paperless.mark_processed,
                     doc_id, verdict, res_str, round_no, tag_in_proc, tag_proc,
+                    _delivery_trace(payload, push_resp),
                 )
                 self._log("SUCCESS", f"Manual doc {doc_id} → {verdict}", doc_id)
                 return {"ok": True, "doc_id": doc_id, "verdict": verdict, "ingest": push_resp}
@@ -1256,6 +1332,18 @@ def _extraction_to_fields(ext: Any) -> Dict[str, Any]:
 # =============================================================================
 # Factory — build FlowWorker from environment
 # =============================================================================
+def _delivery_trace(payload: Any, push_resp: Any) -> Dict[str, Any]:
+    """What the success note records about the delivery (v5.17)."""
+    req = payload.get("request") if isinstance(payload, dict) else None
+    body = push_resp if isinstance(push_resp, dict) else {}
+    return {
+        "validation_id": (req or {}).get("validation_id"),
+        "portalDocId": body.get("portalDocId"),
+        "portal": body.get("portal_instance"),
+        "receipt": body.get("_receipt"),
+    }
+
+
 def _is_terminal_rejection(push_resp: Any) -> bool:
     """Portal refusals that a retry can never fix (the same document id is closed in the Portal)."""
     s = str(push_resp)
@@ -1286,6 +1374,7 @@ def build_flow_worker(settings: Any) -> FlowWorker:
         fallback_hosts=fallbacks,
         verify=os.getenv("FRONTEND_VERIFY_INGEST", "true").lower() in ("1", "true", "yes"),
         attempts=int(os.getenv("FRONTEND_PUSH_ATTEMPTS", "3")),
+        require_receipt=os.getenv("FRONTEND_REQUIRE_RECEIPT", "true").lower() in ("1", "true", "yes"),
     )
 
     config = {

@@ -48,14 +48,20 @@ import {
   type SizeBox,
 } from '../../features/pdf-viewer/lib/coordinateTransform'
 import { uiZoom } from '../../lib/uiZoom'
+import { DEFAULT_LAYOUT_PREFS, RATIO_MAX, RATIO_MIN } from '../../lib/queueLayout'
+import { saveLayoutPrefs } from '../../lib/layoutPrefs'
 import { checkPageFrame, frameMismatchText } from '../../features/pdf-viewer/lib/pageFrame'
 
 const EMPTY_SIZE: SizeBox = { width: 0, height: 0 }
 
-/** The dock's share of `.work`: the mockup's 60:40, and how far it may be dragged. */
-const DOCK_RATIO_DEFAULT = 0.4
-const DOCK_RATIO_MIN = 0.3
-const DOCK_RATIO_MAX = 0.5
+/**
+ * The dock's share of the space next to the queue: the mockup's 60:40, and how far it may be dragged.
+ * v5.17: 20–80% (was 30–50%) — the pixel limits (detail ≥ 440 · PDF 360–900) are applied by
+ * QueuePage's layout solver, so a wide drag cannot squeeze either column below what stays usable.
+ */
+const DOCK_RATIO_DEFAULT = DEFAULT_LAYOUT_PREFS.ratio
+const DOCK_RATIO_MIN = RATIO_MIN
+const DOCK_RATIO_MAX = RATIO_MAX
 
 export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
   const { currentUser } = useAuth()
@@ -491,16 +497,23 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
     if (!workEl || !workWidth) return
     e.preventDefault()
 
+    // v5.17: the ratio divides the space next to the queue (detail + dock), not the whole grid —
+    // with the queue visible, dividing by the full width made the handle lag behind the pointer.
+    const span =
+      (document.getElementById('detail')?.clientWidth ?? 0) + (document.getElementById('dock')?.clientWidth ?? 0) ||
+      workWidth
     const startX = e.clientX
     const initialRatio = dockSplitRatio
+    let last = initialRatio
     workEl.classList.add('dragging')
 
     const onPointerMove = (moveEvent: PointerEvent) => {
       // Pulling the handle left widens the dock, so the delta is inverted.
       // v5.10.2: clientX is visual px, clientWidth is layout px → scale by the app zoom
-      const next = initialRatio + (startX - moveEvent.clientX) / (workWidth * uiZoom())
+      const next = initialRatio + (startX - moveEvent.clientX) / (span * uiZoom())
       const clamped = Math.min(DOCK_RATIO_MAX, Math.max(DOCK_RATIO_MIN, next))
-      setDockSplitRatio(Number(clamped.toFixed(3)))
+      last = Number(clamped.toFixed(3))
+      setDockSplitRatio(last)
     }
 
     const onDragEnd = () => {
@@ -508,6 +521,7 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
       window.removeEventListener('pointerup', onDragEnd)
       window.removeEventListener('pointercancel', onDragEnd)
       workEl.classList.remove('dragging')
+      if (last !== initialRatio) saveLayoutPrefs({ ratio: last })
     }
 
     window.addEventListener('pointermove', onPointerMove)
@@ -515,7 +529,26 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
     window.addEventListener('pointercancel', onDragEnd)
   }
 
-  const handleResizeReset = () => setDockSplitRatio(DOCK_RATIO_DEFAULT)
+  const handleResizeReset = () => {
+    setDockSplitRatio(DOCK_RATIO_DEFAULT)
+    saveLayoutPrefs({ ratio: DOCK_RATIO_DEFAULT })
+  }
+
+  /** v5.17: the splitter is a focusable separator — ←/→ move it (Shift = faster), Home resets. */
+  const handleResizeKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Home') {
+      e.preventDefault()
+      handleResizeReset()
+      return
+    }
+    const dir = e.key === 'ArrowLeft' ? 1 : e.key === 'ArrowRight' ? -1 : 0
+    if (!dir) return
+    e.preventDefault()
+    const next = Math.min(DOCK_RATIO_MAX, Math.max(DOCK_RATIO_MIN, dockSplitRatio + dir * (e.shiftKey ? 0.05 : 0.02)))
+    const v = Number(next.toFixed(3))
+    setDockSplitRatio(v)
+    saveLayoutPrefs({ ratio: v })
+  }
 
   const mockSurface = (
     <div
@@ -547,9 +580,15 @@ export function EvidenceViewerDock({ doc }: { doc: InvoiceDoc }) {
         className="dock-rz"
         role="separator"
         aria-orientation="vertical"
-        title="ลากเพื่อปรับความกว้าง (รายละเอียด 50–70%) · ดับเบิลคลิกเพื่อกลับเป็น 60:40"
+        aria-label="ปรับสัดส่วน ผลตรวจ : PDF"
+        aria-valuemin={Math.round(DOCK_RATIO_MIN * 100)}
+        aria-valuemax={Math.round(DOCK_RATIO_MAX * 100)}
+        aria-valuenow={Math.round(dockSplitRatio * 100)}
+        tabIndex={0}
+        title="ลากเพื่อปรับความกว้าง (PDF 20–80%) · ←/→ ปรับทีละนิด · ดับเบิลคลิกเพื่อกลับเป็น 60:40"
         onPointerDown={handleResizeStart}
         onDoubleClick={handleResizeReset}
+        onKeyDown={handleResizeKey}
       />
       <DockControls
         doc={doc}

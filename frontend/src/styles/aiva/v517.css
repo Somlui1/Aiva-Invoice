@@ -1,0 +1,469 @@
+/* =====================================================================================
+   v5.17 — Adaptive 3-pane queue (queue · detail · PDF) + layout menu
+   Wireframe: AIVA-Adaptive-3Pane-Wireframe-v6.html
+   Loaded last (index.css), so it can lift the v5.7.1 rule ".work.pdf-open .q47 {display:none}".
+   ===================================================================================== */
+
+@media (min-width: 900px) {
+  /* the queue column stays while the PDF is open (legacy mode simply does not render it) */
+  .work.work.pdf-open > .q47 {
+    display: flex;
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .work.pdf-open:not(.q-hide) > .q47 {
+    border-right: 1px solid var(--line-strong);
+  }
+  /* flyout from the rail: over the PDF, beside the rail */
+  .work.q-peek > .q47 {
+    left: var(--q-rail-w, 36px);
+  }
+  .work.q-peek > .qscrim {
+    inset: 0 0 0 var(--q-rail-w, 36px);
+  }
+  /* PDF only (no room for the detail, or the user turned it off) */
+  .work.d-hide > .detail {
+    display: none;
+  }
+  .work.dragging {
+    transition: none !important;
+    user-select: none;
+  }
+
+  /* ---- queue splitter ---- */
+  .q47 {
+    position: relative;
+  }
+  .work .q47 > .q-rz {
+    min-width: 0;
+  }
+  .q-rz {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 8px;
+    cursor: col-resize;
+    z-index: 15;
+    outline: none;
+  }
+  .q-rz::after {
+    content: "";
+    position: absolute;
+    right: 2px;
+    top: 50%;
+    width: 2px;
+    height: 36px;
+    margin-top: -18px;
+    border-radius: 2px;
+    background: var(--line-strong);
+    transition: height .12s, background .12s;
+  }
+  .q-rz:hover::after,
+  .q-rz:focus-visible::after,
+  .work.dragging .q-rz::after {
+    background: var(--teal);
+    height: 56px;
+    margin-top: -28px;
+    box-shadow: 0 0 10px var(--teal);
+  }
+  .dock-rz:focus-visible::after {
+    background: var(--teal);
+    height: 56px;
+    margin-top: -28px;
+  }
+}
+@media (max-width: 899px) {
+  .q-rz {
+    display: none;
+  }
+  /* narrow screens keep the pre-v5.17 behaviour: one column, the PDF replaces queue and detail */
+  .work.pdf-open:not(.q-peek) > .q47 {
+    display: none;
+  }
+}
+
+/* ---- queue rows: Compact (2 lines) and Slim (Invoice / company · status) ---- */
+.qi.qi-compact,
+.qi.qi-slim {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 10px 0 12px;
+  overflow: hidden;
+}
+.qi.qi-compact {
+  height: 54px;
+}
+.qi.qi-slim {
+  height: 52px;
+  padding: 0 7px 0 10px;
+}
+/* status colour bar (narrow rows have no room for the full badge text) */
+.qi.qi-compact::before,
+.qi.qi-slim::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--qst, transparent);
+}
+.qi.on.qi-compact::before,
+.qi.on.qi-slim::before {
+  display: none;
+}
+.qi[data-st="Auto-pass"] { --qst: var(--ok, #067647); }
+.qi[data-st="Review"] { --qst: var(--warn, #b54708); }
+.qi[data-st="Hold"] { --qst: var(--err, #b42318); }
+.qi[data-st="Manual"] { --qst: var(--vio, #6941c6); }
+.qi[data-st="Duplicate"] { --qst: var(--info, #175cd3); }
+
+.qi.qi-compact .r1,
+.qi.qi-slim .r1,
+.qi.qi-compact .r2,
+.qi.qi-slim .r2 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+}
+.qi.qi-compact .inv,
+.qi.qi-slim .inv {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12.5px;
+}
+.qi.qi-slim .inv {
+  font-size: 12px;
+}
+.qi.qi-compact .r2 .po {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font: 500 11px var(--mono);
+  color: var(--s-500);
+}
+.qi.qi-compact .po-more {
+  margin-left: 4px;
+  font: 700 9.5px var(--mono);
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--surface-3, #eef2f7);
+  border: 1px solid var(--line);
+}
+.qi.qi-compact .co,
+.qi.qi-slim .co {
+  flex: none;
+}
+.qi.qi-compact .badge,
+.qi.qi-slim .badge {
+  flex: none;
+  height: 20px;
+  padding: 0 8px 0 3px;
+  gap: 5px;
+  font-size: 10.5px;
+}
+.qi.qi-compact .badge i,
+.qi.qi-slim .badge i {
+  width: 14px;
+  height: 14px;
+}
+.qi .badge.ic {
+  width: 22px;
+  padding: 0;
+  justify-content: center;
+}
+/* overdue: Compact = age chip · Slim = dot (the full text is in the tooltip) */
+.qi-age {
+  flex: none;
+  font: 700 9.5px/16px var(--mono);
+  padding: 0 5px;
+  border-radius: 4px;
+  color: var(--warn, #b54708);
+  background: var(--warn-bg, #fffaeb);
+  border: 1px solid var(--warn-bd, #fedf89);
+}
+.qi-pip {
+  position: absolute;
+  right: 5px;
+  top: 5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warn, #b54708);
+  box-shadow: 0 0 0 2px var(--surface, #fff);
+}
+
+/* the queue header and search box follow the column width */
+.q47.qd-slim .srch {
+  display: none;
+}
+.q47.qd-slim .ph {
+  white-space: nowrap;
+  gap: 4px;
+  font-size: 12px;
+  padding-left: 10px;
+  padding-right: 6px;
+}
+.q47.qd-slim .ph > span:last-child {
+  flex: none;
+}
+.q47.qd-slim .ph > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* ---- detail column: more steps between 4 columns and 1 column ---- */
+/* (≥ 641px the original auto-fill grid stays; ≤ 640px it is already 2 columns — v5.17 only lets a
+   long vendor name use a second line there instead of being cut) */
+@container detail (max-width: 640px) {
+  .meta .m-v {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+}
+@container detail (max-width: 519px) {
+  .dh-act .btn {
+    font-size: 0;
+    gap: 0;
+    padding: 0 7px;
+  }
+  .dh-act .btn svg {
+    margin: 0;
+  }
+  .dh-act .btn kbd {
+    display: none;
+  }
+  .dh-title .pill.fit {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .steps {
+    flex-wrap: wrap;
+  }
+  .step {
+    flex: 1 1 45%;
+  }
+}
+
+/* ---- PDF dock: compact toolbar when narrow ---- */
+.dock {
+  container-type: inline-size;
+  container-name: dock;
+}
+@container dock (max-width: 439px) {
+  .dock-h .ttl span {
+    display: none;
+  }
+  .dock-h .btn-close-pdf {
+    font-size: 0;
+    gap: 0;
+    padding: 0 7px;
+  }
+  .dock-h .btn-close-pdf kbd {
+    display: none;
+  }
+  .dock-tb .seg button {
+    font-size: 0;
+    gap: 0;
+  }
+  .dock-tb {
+    gap: 6px;
+  }
+}
+
+/* ---- layout menu ---- */
+.lm-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.lm-btn.on {
+  border-color: var(--teal);
+  color: var(--teal-d, var(--teal));
+  background: var(--sel-2, rgba(20, 184, 166, .14));
+}
+.lm-pop {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 60;
+  width: 340px;
+  max-height: min(78vh, 620px);
+  overflow: auto;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--surface);
+  color: var(--s-900);
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, .25);
+  font-size: 12.5px;
+}
+.lm-pop h5 {
+  margin: 0 0 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--s-500);
+}
+.lm-pop section.dim {
+  opacity: .5;
+}
+.lm-seg {
+  display: flex;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  overflow: hidden;
+  background: var(--surface-2, var(--head));
+}
+.lm-seg button {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  border-right: 1px solid var(--line);
+  background: transparent;
+  padding: 6px 2px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--s-600);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.lm-seg button:last-child {
+  border-right: 0;
+}
+.lm-seg button:hover:not(:disabled) {
+  background: var(--hov);
+}
+.lm-seg button.on {
+  background: var(--teal);
+  color: #fff;
+}
+:root[data-theme=dark] .lm-seg button.on {
+  color: #042a26;
+}
+.lm-seg button:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+.lm-pop button:focus-visible,
+.lm-pop input:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 1px;
+}
+.lm-note {
+  margin-top: 6px;
+  padding: 5px 9px;
+  border-radius: 8px;
+  background: var(--surface-3, #eef2f7);
+  border: 1px dashed var(--line-strong);
+  font-size: 11px;
+  color: var(--s-700);
+  line-height: 1.5;
+}
+.lm-note.warn {
+  background: var(--warn-bg, #fffaeb);
+  border-color: var(--warn-bd, #fedf89);
+  color: var(--warn, #b54708);
+}
+.lm-pop input[type=range] {
+  width: 100%;
+  margin: 9px 0 2px;
+  accent-color: var(--teal);
+}
+.lm-rr {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 10.5px;
+  color: var(--s-500);
+}
+.lm-rr b {
+  font: 700 11.5px var(--mono);
+  color: var(--s-800);
+}
+.lm-ck {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+.lm-ck input {
+  accent-color: var(--teal);
+}
+.lm-radio {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.lm-radio button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: var(--surface-2, var(--head));
+  border-radius: 9px;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--s-700);
+  cursor: pointer;
+}
+.lm-radio button i {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line-strong);
+  background: var(--surface);
+  flex: none;
+  box-sizing: border-box;
+}
+.lm-radio button.on {
+  border-color: var(--teal);
+  background: var(--sel-2, rgba(20, 184, 166, .14));
+  color: var(--s-900);
+}
+.lm-radio button.on i {
+  border: 4.5px solid var(--teal);
+}
+.lm-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.lm-kb {
+  font-size: 10.5px;
+  color: var(--s-500);
+  white-space: nowrap;
+}
+.lm-kb kbd {
+  font: 700 9.5px var(--mono);
+  border: 1px solid var(--line-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 0 4px;
+  margin-right: 2px;
+}

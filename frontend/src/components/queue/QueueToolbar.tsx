@@ -9,6 +9,7 @@ import { DateRangeTool } from './DateRangeTool'
 import { COMPANIES } from '../../mock/companies'
 import { acctsOf } from '../../mock/users'
 import { ReceiverPicker } from './ReceiverPicker'
+import { LayoutMenu } from './LayoutMenu'
 
 /** v5.15: above this many Oracle accounts the EU scope switches from chips to a searchable picker. */
 export const RECEIVER_CHIP_MAX = 3
@@ -135,6 +136,9 @@ export function QueueToolbar() {
       )}
 
       <span className="grow" />
+
+      {/* v5.17: queue · detail · PDF layout (split view only) */}
+      {viewMode === 'split' && <LayoutMenu />}
 
       <div className="seg" role="group" aria-label="มุมมอง">
         <button

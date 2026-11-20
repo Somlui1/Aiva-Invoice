@@ -16,6 +16,7 @@ import { SimProvider } from '../context/SimContext'
 import { PortalShell } from '../App'
 import { QueuePage } from '../components/queue/QueuePage'
 import { INITIAL_DOCS } from '../mock/initialDocs'
+import { saveLayoutPrefs } from '../lib/layoutPrefs'
 
 vi.mock('pdfjs-dist', () => ({
   GlobalWorkerOptions: { workerSrc: '' },
@@ -98,7 +99,8 @@ describe('PDF Dock Focus Layout & Auto-Collapse', () => {
     expect(shell.classList.contains('nav-auto')).toBe(true)
   })
 
-  it('sets --qc to 0px and hides .q47 when dock is open in QueuePage', async () => {
+  it('legacy layout (ซ่อนคิว แบบเดิม): sets --qc to 0px and hides .q47 when dock is open', async () => {
+    saveLayoutPrefs({ pdfHidesQueue: true })
     function PageHarness() {
       const { setViewMode, selectDoc, openEvidenceDock } = useInvoices()
       return (

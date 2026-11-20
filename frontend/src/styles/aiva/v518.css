@@ -1,0 +1,200 @@
+/* =====================================================================================
+   v5.18 — Detail column (InvoiceDetailPane): steps no longer overlap, the action bar keeps its
+   buttons together, header buttons and tabs never spill. Every rule keys on the WIDTH OF THE
+   DETAIL COLUMN (@container detail), so it follows the queue / PDF splitters, not the screen.
+   Levels:  ≥ 760 full · 600–759 short labels · 440–599 2×2 · < 440 one progress line
+   ===================================================================================== */
+
+/* ---- steps: shared ---- */
+.steps {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+}
+.step {
+  margin: 0;
+}
+/* root cause of the overlap: the text box had no min-width, so the nowrap title kept its full
+   width, spilled out of the cell and was painted over the next one. */
+.step .tx {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+.step .t,
+.step .s {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.step .t .n {
+  font-weight: 700;
+}
+.step .t .short {
+  display: none;
+}
+.steps-mini {
+  display: none;
+}
+
+/* 600–759: same 4 cells, short labels ("STEP 1 สกัดเอกสาร") */
+@container detail (max-width: 759px) {
+  .step .t .full {
+    display: none;
+  }
+  .step .t .short {
+    display: inline;
+  }
+  .step {
+    padding: 5px 8px;
+    gap: 6px;
+  }
+}
+
+/* 440–599: 2 × 2 grid — each cell gets twice the width, nothing is cut */
+@container detail (max-width: 599px) {
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    flex-wrap: nowrap;
+  }
+  .step {
+    flex: none;
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+  }
+  .step:nth-child(2n) {
+    border-right: 0;
+  }
+  .step:nth-child(n + 3) {
+    border-bottom: 0;
+  }
+  .step .t .full {
+    display: inline;
+  }
+  .step .t .short {
+    display: none;
+  }
+}
+
+/* < 440: one progress line — four segments + only the step that did not pass is spelled out */
+@container detail (max-width: 439px) {
+  .steps {
+    display: none;
+  }
+  .steps-mini {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 8px;
+    min-width: 0;
+    font-size: 11.5px;
+    color: var(--s-600);
+  }
+  .steps-mini i {
+    flex: none;
+    width: 18px;
+    height: 5px;
+    border-radius: 3px;
+    background: var(--ok);
+  }
+  .steps-mini i.bad {
+    background: var(--err);
+  }
+  .steps-mini i.warn {
+    background: var(--warn);
+  }
+  .steps-mini i.skip {
+    background: var(--s-300, #cbd5e1);
+  }
+  .steps-mini span {
+    margin-left: 6px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+/* ---- action bar: message + ONE group of buttons ---- */
+.detail .abar {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+.abar .hint {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.abar .hint > .ico,
+.abar .hint > svg {
+  flex: none;
+}
+.abar .hint .hint-t {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+.abar .acts {
+  display: flex;
+  gap: 8px;
+  flex: none;
+  margin-left: auto;
+}
+.abar .acts .btn {
+  white-space: nowrap;
+}
+/* < 600: the message gets its own line, the buttons share the next line equally (Confirm last, widest) */
+@container detail (max-width: 599px) {
+  .abar .hint {
+    flex-basis: 100%;
+  }
+  .abar .acts {
+    flex: 1 1 100%;
+    margin-left: 0;
+  }
+  .abar .acts .btn {
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: center;
+  }
+  .abar .acts .btn-success {
+    flex-grow: 1.4;
+  }
+  .detail .abar {
+    padding: 8px 12px;
+  }
+}
+/* < 380: icons only on Reject / Hold (title + aria keep the name), Confirm keeps its word */
+@container detail (max-width: 379px) {
+  .abar .acts .btn:not(.btn-success) {
+    font-size: 0;
+    gap: 0;
+  }
+}
+
+/* ---- header: buttons wrap as a block under the title, never past the edge ---- */
+.dh-top {
+  min-width: 0;
+}
+.dh-title h1 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.dh-act {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+/* ---- tabs: scroll with a fade instead of being cut ("ประวัติ" was clipped) ---- */
+.tabs {
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+}
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+.tabs > :last-child {
+  margin-right: 24px;
+}

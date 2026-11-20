@@ -83,9 +83,10 @@ export function InvoiceDetailPane({ doc, onOpenActionModal, readOnly = false, cl
     appliedRef.current = evidenceSelection
     if (evidenceSelection.lineNo != null && activeDetailTab !== 'lines') setActiveDetailTab('lines')
     const frame = requestAnimationFrame(() => {
-      detailRef.current
-        ?.querySelector('[data-sel="1"]')
-        ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      const el = detailRef.current?.querySelector('[data-sel="1"]')
+      if (el && typeof el.scrollIntoView === 'function') {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      }
     })
     return () => cancelAnimationFrame(frame)
   }, [evidenceSelection, activeDetailTab, setActiveDetailTab])
@@ -304,36 +305,46 @@ export function InvoiceDetailPane({ doc, onOpenActionModal, readOnly = false, cl
             </div>
           </div>
 
-          {/* 4 Steps Indicator */}
-          <div className="steps">
-            <div className={`step ${st1.cls}`}>
-              <span className="dot"><Icon name={st1.icon} /></span>
-              <div>
-                <div className="t">STEP 1 สกัดและตรวจเอกสาร</div>
-                <div className="s">{st1.lbl}</div>
-              </div>
-            </div>
-            <div className={`step ${st2.cls}`}>
-              <span className="dot"><Icon name={st2.icon} /></span>
-              <div>
-                <div className="t">STEP 2 ค้นใบรับและลูกค้า</div>
-                <div className="s">{st2.lbl}</div>
-              </div>
-            </div>
-            <div className={`step ${st3.cls}`}>
-              <span className="dot"><Icon name={st3.icon} /></span>
-              <div>
-                <div className="t">STEP 3 เทียบกับใบรับ</div>
-                <div className="s">{st3.lbl}</div>
-              </div>
-            </div>
-            <div className={`step ${stDup.cls}`}>
-              <span className="dot"><Icon name={stDup.icon} /></span>
-              <div>
-                <div className="t">Portal ตรวจซ้ำ</div>
-                <div className="s">{stDup.lbl}</div>
-              </div>
-            </div>
+          {/* 4 Steps Indicator — v5.18: every label has a full and a short form, the text box can
+              shrink (min-width:0) so the ellipsis works, and the layout steps down by container width
+              (4 cells → short labels → 2×2 → one progress line). Full text stays in the tooltip. */}
+          <ol className="steps" aria-label="ขั้นตอนการตรวจ">
+            {[
+              { st: st1, n: 'STEP 1', full: 'สกัดและตรวจเอกสาร', short: 'สกัดเอกสาร' },
+              { st: st2, n: 'STEP 2', full: 'ค้นใบรับและลูกค้า', short: 'ค้นใบรับ' },
+              { st: st3, n: 'STEP 3', full: 'เทียบกับใบรับ', short: 'เทียบใบรับ' },
+              { st: stDup, n: 'Portal', full: 'ตรวจซ้ำ', short: 'ตรวจซ้ำ' },
+            ].map(x => (
+              <li key={x.n} className={`step ${x.st.cls}`} title={`${x.n} ${x.full} · ${x.st.lbl}`}>
+                <span className="dot"><Icon name={x.st.icon} /></span>
+                <div className="tx">
+                  <div className="t">
+                    <span className="n">{x.n}</span> <span className="full">{x.full}</span>
+                    <span className="short">{x.short}</span>
+                  </div>
+                  <div className="s">{x.st.lbl}</div>
+                </div>
+              </li>
+            ))}
+          </ol>
+          {/* <440px: one progress line — the failing step is spelled out, the rest are dots */}
+          <div className="steps-mini" aria-hidden="true">
+            {[st1, st2, st3, stDup].map((st, i) => (
+              <i key={i} className={st.cls} />
+            ))}
+            <span>
+              {(() => {
+                const bad = [
+                  ['1 สกัดเอกสาร', st1],
+                  ['2 ค้นใบรับ', st2],
+                  ['3 เทียบใบรับ', st3],
+                  ['ตรวจซ้ำ', stDup],
+                ].filter(([, st]) => (st as typeof st1).cls !== 'ok')
+                return bad.length
+                  ? bad.map(([l, st]) => `${l}: ${(st as typeof st1).lbl}`).join(' · ')
+                  : 'ผ่านครบ 4 ขั้น'
+              })()}
+            </span>
           </div>
         </div>
 
@@ -880,7 +891,7 @@ export function InvoiceDetailPane({ doc, onOpenActionModal, readOnly = false, cl
             <>
               <div className="hint">
                 <Icon name={doc.assigned === 'eu' ? 'alert' : 'info'} />
-                <span>
+                <span className="hint-t">
                   {doc.assigned === 'eu'
                     ? `ต้องแก้: ${doc.codes.filter(c => EU_CODES.has(c)).join(', ')} · แก้ไขแล้วอัปโหลดเอกสารใหม่`
                     : 'เอกสารอยู่ที่ฝ่ายบัญชี · ดูได้อย่างเดียว'}
@@ -901,7 +912,7 @@ export function InvoiceDetailPane({ doc, onOpenActionModal, readOnly = false, cl
             <>
               <div className="hint">
                 <Icon name={hasHighSeverity(doc) ? 'alert' : 'checkc'} />
-                <span>
+                <span className="hint-t">
                   {hasHighSeverity(doc)
                     ? 'พบรหัส High · Confirm ต้องมีหมายเหตุ'
                     : isEuPending(doc)
@@ -911,6 +922,8 @@ export function InvoiceDetailPane({ doc, onOpenActionModal, readOnly = false, cl
                     : 'พร้อมดำเนินการ'}
                 </span>
               </div>
+              {/* v5.18: the buttons wrap as ONE group — Confirm never drops to a line of its own */}
+              <div className="acts">
               {bindCheck.ok && (
                 <button
                   type="button"
@@ -949,6 +962,7 @@ export function InvoiceDetailPane({ doc, onOpenActionModal, readOnly = false, cl
               >
                 <Icon name="check" size="sm" /> Confirm
               </button>
+              </div>
             </>
           )}
         </div>

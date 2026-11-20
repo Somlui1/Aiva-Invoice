@@ -34,6 +34,7 @@ import {
   type PeriodFilter,
   type PeriodField,
 } from '../lib/queueFilters'
+import { getLayoutPrefs } from '../lib/layoutPrefs'
 
 export {
   todayISO,
@@ -178,7 +179,8 @@ export function InvoiceProvider({ children }: { children: React.ReactNode }) {
   const [viewMode, setViewMode] = useState<'table' | 'split'>('table')
   const [activeDetailTab, setActiveDetailTab] = useState<string>('sum')
   const [isEvidenceDockOpen, setIsEvidenceDockOpen] = useState<boolean>(false)
-  const [dockSplitRatio, setDockSplitRatio] = useState<number>(0.4)
+  // v5.17: the split the user last chose (layout menu / splitter), default 0.4
+  const [dockSplitRatio, setDockSplitRatio] = useState<number>(() => getLayoutPrefs().ratio)
   const [isPdfLoading, setIsPdfLoading] = useState<boolean>(false)
   const [evidenceDockFocus, setEvidenceDockFocus] = useState<EvidenceDockFocus | null>(null)
   // Strictly increasing, so two requests in the same millisecond still differ (the dock re-scrolls on change).

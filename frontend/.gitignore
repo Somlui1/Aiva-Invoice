@@ -16,6 +16,8 @@ temp/paperless_invoices_v5/.cache/
 .env
 prisma/*.db
 prisma/*.db-journal
+prisma/*.db-shm
+prisma/*.db-wal
 prisma/backups/
 *.tsbuildinfo
 archive
